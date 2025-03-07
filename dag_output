@@ -1,7 +1,7 @@
 digraph {
-	"9b7bc15b" [label="double()"]
-	"97572a5d" -> "9b7bc15b"
-	"97572a5d" [label="decr()"]
-	bfb03813 -> "97572a5d"
-	bfb03813 [label="incr()"]
+	"15d33382" [label="double()"]
+	"76a8c183" -> "15d33382"
+	"76a8c183" [label="decr()"]
+	"6afb52e8" -> "76a8c183"
+	"6afb52e8" [label="incr()"]
 }

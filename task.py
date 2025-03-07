@@ -1,24 +1,21 @@
 from functools import wraps
-import inspect
 import uuid
 from graphviz import Digraph
-from typing import Any, Callable, Generic, Protocol, TypeVar, ParamSpec, Union, overload
+from typing import Callable, Generic, TypeVar
 
-from types.generics import TType, RType
-from types.TaskFunctionType import TaskFunctionType
+R = TypeVar("R")
 
-class TaskNode(Generic[RType]):
-    def __init__(self, func: Callable[[TType], RType], args: tuple | None = None, kwargs: dict | None = None, dependencies: list | None = None):
+class TaskNode(Generic[R]):
+    def __init__(self, func: Callable[..., R], args: tuple | None = None, kwargs: dict | None = None):
         self.task_id = str(uuid.uuid4())[:8]
         self.func = func
         self.func_name = func.__name__
         self.args = args or []
         self.kwargs = kwargs or {}
-        self.dependencies = dependencies or []
-        self._result: RType
+        self._result: R
         self._computed = False
         
-    def compute(self) -> RType:
+    def compute(self) -> R:
         # If already computed, return cached result
         if self._computed:
             return self._result
@@ -78,10 +75,9 @@ class TaskNode(Generic[RType]):
         build_graph(self)
         graph.render(filename, view=True)  # Save and open the DAG
 
-
-# Task decorator
-def task(func: Callable[[TType], RType]) -> TaskFunctionType[TType, RType]:
+# Task Decorator
+def task(func: Callable[..., R]) -> Callable[..., TaskNode[R]]:
     @wraps(func)
-    def wrapper(arg: Union[TType, TaskNode[TType]]) -> TaskNode[RType]:
-        return TaskNode(func, (arg,), {})
+    def wrapper(*args, **kwargs) -> TaskNode[R]:
+        return TaskNode(func, args, kwargs)
     return wrapper
