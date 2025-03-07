@@ -2,7 +2,7 @@ import json
 from task import task
 
 @task
-def incr(x: int):
+def incr(x: int, b: str):
     return x + 1
 
 @task
@@ -10,8 +10,8 @@ def decr(x: int):
     return x - 1
 
 @task
-def double(x: int):
-    return x * 2
+def double(x: int) -> str:
+    return f"({x})"
 
 # Linear 3-Node DAG
 a = incr(9)

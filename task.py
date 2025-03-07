@@ -1,41 +1,31 @@
 from functools import wraps
+import inspect
 import uuid
 from graphviz import Digraph
-from typing import Callable, TypeVar, ParamSpec, Union, Any, overload
+from typing import Any, Callable, Generic, Protocol, TypeVar, ParamSpec, Union, overload
 
-P = ParamSpec("P")
-T = TypeVar("T")
+from types.generics import TType, RType
+from types.TaskFunctionType import TaskFunctionType
 
-class TaskNode:
-    def __init__(self, func: Callable[..., T], args: tuple | None = None, kwargs: dict | None = None, dependencies: list | None = None):
+class TaskNode(Generic[RType]):
+    def __init__(self, func: Callable[[TType], RType], args: tuple | None = None, kwargs: dict | None = None, dependencies: list | None = None):
         self.task_id = str(uuid.uuid4())[:8]
         self.func = func
         self.func_name = func.__name__
         self.args = args or []
         self.kwargs = kwargs or {}
         self.dependencies = dependencies or []
-        self._result = None
+        self._result: RType
         self._computed = False
         
-    def compute(self) -> T:
+    def compute(self) -> RType:
         # If already computed, return cached result
         if self._computed:
             return self._result
             
         # Compute all dependencies first
-        resolved_args = []
-        for arg in self.args:
-            if isinstance(arg, TaskNode):
-                resolved_args.append(arg.compute())
-            else:
-                resolved_args.append(arg)
-                
-        resolved_kwargs = {}
-        for key, val in self.kwargs.items():
-            if isinstance(val, TaskNode):
-                resolved_kwargs[key] = val.compute()
-            else:
-                resolved_kwargs[key] = val
+        resolved_args = [arg.compute() if isinstance(arg, TaskNode) else arg for arg in self.args]
+        resolved_kwargs = {key: val.compute() if isinstance(val, TaskNode) else val for key, val in self.kwargs.items()}
                 
         # Compute this node
         self._result = self.func(*resolved_args, **resolved_kwargs)
@@ -52,20 +42,8 @@ class TaskNode:
         visited.add(self.task_id)
         
         # Process args to find dependencies
-        dag_args = []
-        for arg in self.args:
-            if isinstance(arg, TaskNode):
-                dag_args.append(arg.dag_json(visited))
-            else:
-                dag_args.append(str(arg))
-                
-        # Process kwargs to find dependencies
-        dag_kwargs = {}
-        for key, val in self.kwargs.items():
-            if isinstance(val, TaskNode):
-                dag_kwargs[key] = val.dag_json(visited)
-            else:
-                dag_kwargs[key] = str(val)
+        dag_args = [arg.dag_json(visited) if isinstance(arg, TaskNode) else str(arg) for arg in self.args]
+        dag_kwargs = {key: val.dag_json(visited) if isinstance(val, TaskNode) else str(val) for key, val in self.kwargs.items()}
         
         # Create node representation
         node = {
@@ -101,9 +79,9 @@ class TaskNode:
         graph.render(filename, view=True)  # Save and open the DAG
 
 
-# Here's the key fix - we need to modify how we type the task decorator
-def task(func: Callable[..., T]) -> Callable[..., TaskNode[T]]:
+# Task decorator
+def task(func: Callable[[TType], RType]) -> TaskFunctionType[TType, RType]:
     @wraps(func)
-    def wrapper(*args, **kwargs) -> TaskNode[T]:
-        return TaskNode(func, args, kwargs)
+    def wrapper(arg: Union[TType, TaskNode[TType]]) -> TaskNode[RType]:
+        return TaskNode(func, (arg,), {})
     return wrapper
