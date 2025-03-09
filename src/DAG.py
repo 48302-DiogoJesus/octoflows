@@ -3,13 +3,12 @@ import graphviz
 import os
 import subprocess
 import platform
+import requests
 
+from .Executor import Executor
 from .DAGTaskNode import DAGTaskNode, DAGTaskNodeId
 
-
 class DAG:
-    """A class to represent a directed acyclic graph of tasks."""
-    
     def __init__(self, sink_node: DAGTaskNode):
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.sink_node = sink_node
@@ -19,24 +18,30 @@ class DAG:
         self._identify_root_nodes()
         self._convert_node_func_args_to_ids()
     
+    def start_remote_execution(self):
+        def _invoke_remote_executor(subgraph: DAG):
+            print(f"Invoking remote executor for subgraph with {len(subgraph.root_nodes)} root nodes | First Node: {subgraph.root_nodes[0].task_id}")
+            response = requests.post(
+                'http://localhost:5000/',
+                data=cloudpickle.dumps(subgraph),
+                headers={'Content-Type': 'application/octet-stream'}
+            )
+            if response.status_code != 200: raise Exception(f"Failed to invoke executor: {response.text}")
+
+        # Invoke 1 new Executor per root node
+        for root_node in self.root_nodes:
+            _invoke_remote_executor(DAG(root_node))
+
+    def start_local_execution(self):
+        Executor(self).start_executor_loop()
+
     def _identify_root_nodes(self):
         """Identify root nodes (nodes with no upstream dependencies)."""
-        # First, collect all nodes that are dependencies of other nodes
-        dependency_nodes = set()
+        self.root_nodes = list(self.all_nodes.values())
         for node in self.all_nodes.values():
-            for arg in node.func_args:
-                if isinstance(arg, DAGTaskNode):
-                    dependency_nodes.add(arg.task_id)
-            
-            for _, value in node.func_kwargs.items():
-                if isinstance(value, DAGTaskNode):
-                    dependency_nodes.add(value.task_id)
-        
-        # Root nodes are all nodes that aren't dependencies of other nodes
-        self.root_nodes = [
-            node for node_id, node in self.all_nodes.items()
-            if node_id not in dependency_nodes
-        ]
+            for dependent in node.downstream_nodes:
+                if dependent in self.root_nodes:
+                    self.root_nodes.remove(dependent)
 
     def _build_graph(self):
         """Build the complete graph by traversing from sink node upward."""
@@ -135,8 +140,8 @@ class DAG:
         
         # Add edges
         for node_id, node in self.all_nodes.items():
-            for downstream_node in node.downstream_nodes:
-                dot.edge(node_id, downstream_node.task_id)
+            for downstream_node_id in node.downstream_nodes:
+                dot.edge(node_id, downstream_node_id)
         
         # Render the graph to a file
         try:

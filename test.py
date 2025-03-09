@@ -15,8 +15,8 @@ def c(x: int, extra: int) -> str:
     return f"{(x * 10) + extra}"
 
 @DAGTask
-def d(x: int) -> str:
-    return f"{x}"
+def d(x: str, y: str) -> str:
+    return x + "_final_" + y
 
 a1 = a(10)
 a2 = a(20)
@@ -24,13 +24,10 @@ a2 = a(20)
 b1 = b(a1, a2)
 
 c1 = c(b1, 2)
-d1 = d(c1)
+c2 = c(b1, 4)
+d1 = d(c1, c2)
 
-# dag_json = d1.dag_json()
-# print(json.dumps(dag_json, indent=2))
-
-# res = d1.compute()
 dag = DAG(d1)
 dag.visualize()
-
-# d1.dag_visualize()
+dag.start_local_execution()
+print("DONE")

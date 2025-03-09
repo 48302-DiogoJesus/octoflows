@@ -1,0 +1,3 @@
+- executor
+- client submitting DAGs to executor
+- client subscribing to pubsub on redis + final executor publishing result there
