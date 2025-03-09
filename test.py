@@ -1,29 +1,34 @@
 import json
-from task import task
+from src.TaskNode import Task
 
-@task
-def incr(x: int):
-    return x + 1
+@Task
+def a(x: int):
+    return x + 10
 
-@task
-def decr(x: int):
-    return x - 1
+@Task
+def b(x: int, y: int):
+    return x + y
 
-@task
-def double(x: int) -> str:
-    return f"{x * 2}"
+@Task
+def c(x: int) -> str:
+    return f"{x * 10}"
 
-# Linear 3-Node DAG
-a = incr(9)
-b = decr(a)
-c = double(b)
+@Task
+def d(x: int) -> str:
+    return f"{x}"
 
-f = c.compute()
+a1 = a(10)
+a2 = a(20)
 
-dag_json = c.dag_json()
-print(json.dumps(dag_json, indent=2))
+b1 = b(a1, a2)
 
-result = c.dag_visualize()
+c1 = c(b1)
+d1 = d(c1)
 
-result = c.compute()
+dag_json = d1.dag_json()
+# print(json.dumps(dag_json, indent=2))
+
+# d1.dag_visualize()
+
+result = d1.compute()
 print(f"Result: {result}")

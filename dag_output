@@ -1,7 +1,11 @@
 digraph {
-	"15d33382" [label="double()"]
-	"76a8c183" -> "15d33382"
-	"76a8c183" [label="decr()"]
-	"6afb52e8" -> "76a8c183"
-	"6afb52e8" [label="incr()"]
+	"58e1983e" [label="d()"]
+	"3e9791d4" -> "58e1983e"
+	"3e9791d4" [label="c()"]
+	"1538491c" -> "3e9791d4"
+	"1538491c" [label="b()"]
+	b27a1e8b -> "1538491c"
+	b27a1e8b [label="a()"]
+	a33181f1 -> "1538491c"
+	a33181f1 [label="a()"]
 }
