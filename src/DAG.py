@@ -1,0 +1,254 @@
+from dataclasses import dataclass
+from datetime import datetime
+import uuid
+from functools import wraps
+from typing import Callable, TypeVar, Generic
+import cloudpickle
+import graphviz
+import os
+import subprocess
+import platform
+
+R = TypeVar('R')
+
+@dataclass
+class DAGTaskNodeId:
+    value: str
+
+class DAGTaskNode(Generic[R]):
+    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
+        self.task_id = f"{func.__name__}-{str(uuid.uuid4())[:4]}"
+        self.func_name = func.__name__
+        self.func_code = func
+        self.func_args = args
+        self.func_kwargs = kwargs
+        self.downstream_nodes: list[str] = []
+        self._register_dependencies()
+        
+    def _register_dependencies(self):
+        """Register this task as a downstream task of all its dependencies."""
+        # Check args for DAGNode instances
+        for arg in self.func_args:
+            if isinstance(arg, DAGTaskNode):
+                arg.downstream_nodes.append(self.task_id)
+                
+        # Check kwargs for DAGNode instances
+        for _, value in self.func_kwargs.items():
+            if isinstance(value, DAGTaskNode):
+                value.downstream_nodes.append(self.task_id)
+    
+    def __repr__(self):
+        return f"DAGTaskNode({self.func_name}, id={self.task_id})"
+
+
+class DAG:
+    """A class to represent a directed acyclic graph of tasks."""
+    
+    """A class to represent a directed acyclic graph of tasks."""
+    
+    def __init__(self, sink_node: DAGTaskNode):
+        """Create a DAG from sink node (node with no downstream tasks)."""
+        self.sink_node = sink_node
+        self.all_nodes: dict[str, DAGTaskNode] = {}
+        self._build_graph()
+        self._convert_node_refs_to_ids()
+
+    def _build_graph(self):
+        """Build the complete graph by traversing from sink node upward."""
+        visited: set[str] = set()
+        
+        def visit(node: DAGTaskNode):
+            if node.task_id in visited:
+                return
+            visited.add(node.task_id)
+            self.all_nodes[node.task_id] = node
+            
+            # Visit dependencies (nodes in args and kwargs)
+            for arg in node.func_args:
+                if isinstance(arg, DAGTaskNode):
+                    visit(arg)
+                    
+            for _, value in node.func_kwargs.items():
+                if isinstance(value, DAGTaskNode):
+                    visit(value)
+        
+        visit(self.sink_node)
+    
+    def _convert_node_refs_to_ids(self):
+        """
+        Convert all DAGTaskNode references in func_args and func_kwargs to DAGTaskNodeId.
+        This is done after building the graph to avoid duplicate node information.
+        """
+        for node in self.all_nodes.values():
+            # Convert func_args
+            new_args = []
+            for arg in node.func_args:
+                if isinstance(arg, DAGTaskNode):
+                    new_args.append(DAGTaskNodeId(arg.task_id))
+                else:
+                    new_args.append(arg)
+            node.func_args = tuple(new_args)
+            
+            # Convert func_kwargs
+            new_kwargs = {}
+            for key, value in node.func_kwargs.items():
+                if isinstance(value, DAGTaskNode):
+                    new_kwargs[key] = DAGTaskNodeId(value.task_id)
+                else:
+                    new_kwargs[key] = value
+            node.func_kwargs = new_kwargs
+    
+    def get_node_by_id(self, node_id: str) -> DAGTaskNode | None:
+        """Retrieve a node by its ID."""
+        return self.all_nodes.get(node_id)
+
+    def get_json(self):
+        def get_topo_sort():
+            result = []
+            visited = set()
+            temp_marks = set()
+            
+            def visit(node_id):
+                if node_id in temp_marks:
+                    # We have a cycle, which shouldn't happen in a DAG
+                    raise ValueError(f"Cycle detected in DAG involving node {node_id}")
+                
+                if node_id not in visited:
+                    temp_marks.add(node_id)
+                    
+                    node = self.all_nodes[node_id]
+                    # Visit all dependencies (upstream nodes)
+                    for arg in node.func_args:
+                        if isinstance(arg, DAGTaskNodeId):
+                            visit(arg.value)
+                            
+                    for value in node.func_kwargs.values():
+                        if isinstance(value, DAGTaskNodeId):
+                            visit(value.value)
+                    
+                    temp_marks.remove(node_id)
+                    visited.add(node_id)
+                    result.append(node_id)
+            
+            # Visit all nodes
+            for node_id in self.all_nodes:
+                if node_id not in visited:
+                    visit(node_id)
+                    
+            return result
+        
+        # Get topologically sorted nodes (source to sink order)
+        topo_sort = get_topo_sort()
+        
+        # Build the JSON representation
+        dag_json = {
+            "nodes": {}
+        }
+        
+        # Add nodes in topological order
+        for node_id in topo_sort:
+            node = self.all_nodes[node_id]
+            
+            # Format arguments
+            formatted_args = []
+            for arg in node.func_args:
+                if isinstance(arg, DAGTaskNodeId):
+                    formatted_args.append({"type": "node_reference", "node_id": arg.value})
+                else:
+                    formatted_args.append({"type": "value", "value": str(arg)})
+            
+            # Format keyword arguments
+            formatted_kwargs = {}
+            for key, value in node.func_kwargs.items():
+                if isinstance(value, DAGTaskNodeId):
+                    formatted_kwargs[key] = {"type": "node_reference", "node_id": value.value}
+                else:
+                    formatted_kwargs[key] = {"type": "value", "value": str(value)}
+            
+            # Add node to JSON
+            dag_json["nodes"][node_id] = {
+                "id": node_id,
+                "function_name": node.func_name,
+                "args": formatted_args,
+                "kwargs": formatted_kwargs,
+                "downstream_nodes": [tid for tid in node.downstream_nodes]
+            }
+        
+        return dag_json
+
+    def visualize(self, output_file="dag_graph.png", ):
+        # Create a new directed graph
+        dot = graphviz.Digraph(
+            comment="DAG Visualization",
+            format="png",
+            engine="dot"  # Use dot layout for directed graphs
+        )
+        dot.attr(rankdir="LR")  # Layout from left to right
+        
+        # Add nodes
+        for node_id, node in self.all_nodes.items():
+            # Create a label showing function name and args
+            args_strs = []
+            
+            # Format function arguments
+            for arg in node.func_args:
+                if isinstance(arg, DAGTaskNodeId):
+                    dep_node = self.get_node_by_id(arg.value)
+                    args_strs.append(dep_node.task_id if dep_node else f"Unknown({arg.value})")
+                else:
+                    args_strs.append(str(arg))
+            
+            # Format function keyword arguments
+            for key, value in node.func_kwargs.items():
+                if isinstance(value, DAGTaskNodeId):
+                    dep_node = self.get_node_by_id(value.value)
+                    kwargs_str = f"{key}={dep_node.task_id if dep_node else f'Unknown({value.value})'}"
+                else:
+                    kwargs_str = f"{key}={value}"
+                args_strs.append(kwargs_str)
+            
+            # Create the node label
+            label = f"{node.task_id}({', '.join(args_strs)})"
+            
+            # Add the node to the graph
+            dot.node(node_id, label=label, shape="box", style="filled", fillcolor="lightblue")
+        
+        # Add edges
+        for node_id, node in self.all_nodes.items():
+            for tid in node.downstream_nodes:
+                dot.edge(node_id, tid)
+        
+        # Render the graph to a file
+        try:
+            # Render and save the graph
+            dot.render(filename=output_file.split('.')[0], cleanup=True)
+            
+            # Get the full path to the rendered file
+            rendered_file = f"{output_file.split('.')[0]}.png"
+            abs_path = os.path.abspath(rendered_file)
+            
+            # Open the file with the default image viewer
+            if platform.system() == 'Darwin':  # macOS
+                subprocess.run(['open', abs_path], check=True)
+            elif platform.system() == 'Windows':
+                os.startfile(abs_path)
+            else:  # Linux and others
+                subprocess.run(['xdg-open', abs_path], check=True)
+            
+            return f"Graph visualization saved to {abs_path}"
+        except Exception as e:
+            return f"Error rendering graph: {str(e)}"
+    
+    def serialize(self):
+        return cloudpickle.dumps(self)
+
+    @classmethod
+    def from_serialized(cls, serialized_dag: bytes):
+        return cloudpickle.loads(serialized_dag)
+
+def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
+    """Decorator to convert a function into a DAG node task."""
+    @wraps(func)
+    def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
+        return DAGTaskNode[R](func, args, kwargs)
+    return wrapper

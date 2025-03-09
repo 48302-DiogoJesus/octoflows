@@ -1,19 +1,19 @@
 import json
-from src.TaskNode import Task
+from src.DAG import DAG, DAGTask
 
-@Task
+@DAGTask
 def a(x: int):
     return x + 10
 
-@Task
+@DAGTask
 def b(x: int, y: int):
     return x + y
 
-@Task
-def c(x: int) -> str:
-    return f"{x * 10}"
+@DAGTask
+def c(x: int, extra: int) -> str:
+    return f"{(x * 10) + extra}"
 
-@Task
+@DAGTask
 def d(x: int) -> str:
     return f"{x}"
 
@@ -22,13 +22,18 @@ a2 = a(20)
 
 b1 = b(a1, a2)
 
-c1 = c(b1)
+c1 = c(b1, 2)
 d1 = d(c1)
 
-dag_json = d1.dag_json()
+# dag_json = d1.dag_json()
 # print(json.dumps(dag_json, indent=2))
 
-# d1.dag_visualize()
+# s = d1.serialize()
+# dr: DAGNode[Any] = DAGNode.from_serialized(s)
 
-result = d1.compute()
-print(f"Result: {result}")
+# res = d1.compute()
+dag = DAG(d1)
+# dag.visualize()
+print(f"Result: {json.dumps(dag.get_json(), indent=2)}")
+
+# d1.dag_visualize()
