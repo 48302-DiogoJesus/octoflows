@@ -1,5 +1,6 @@
 import json
-from src.DAG import DAG, DAGTask
+from src.DAGTaskNode import DAGTask
+from src.DAG import DAG
 
 @DAGTask
 def a(x: int):
@@ -30,5 +31,6 @@ d1 = d(c1)
 
 # res = d1.compute()
 dag = DAG(d1)
+dag.visualize()
 
 # d1.dag_visualize()

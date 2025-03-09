@@ -1,44 +1,10 @@
-from dataclasses import dataclass
-from datetime import datetime
-import uuid
-from functools import wraps
-from typing import Callable, TypeVar, Generic, List, Dict, Set
 import cloudpickle
 import graphviz
 import os
 import subprocess
 import platform
 
-R = TypeVar('R')
-
-@dataclass
-class DAGTaskNodeId:
-    value: str
-
-class DAGTaskNode(Generic[R]):
-    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
-        self.task_id = f"{func.__name__}-{str(uuid.uuid4())[:4]}"
-        self.func_name = func.__name__
-        self.func_code = func
-        self.func_args = args
-        self.func_kwargs = kwargs
-        self.downstream_nodes: List['DAGTaskNode'] = []
-        self._register_dependencies()
-        
-    def _register_dependencies(self):
-        """Register this task as a downstream task of all its dependencies."""
-        # Check args for DAGNode instances
-        for arg in self.func_args:
-            if isinstance(arg, DAGTaskNode):
-                arg.downstream_nodes.append(self)
-                
-        # Check kwargs for DAGNode instances
-        for _, value in self.func_kwargs.items():
-            if isinstance(value, DAGTaskNode):
-                value.downstream_nodes.append(self)
-
-    def __repr__(self):
-        return f"DAGTaskNode({self.func_name}, id={self.task_id})"
+from .DAGTaskNode import DAGTaskNode, DAGTaskNodeId
 
 
 class DAG:
@@ -47,8 +13,8 @@ class DAG:
     def __init__(self, sink_node: DAGTaskNode):
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.sink_node = sink_node
-        self.all_nodes: Dict[str, DAGTaskNode] = {}
-        self.root_nodes: List[DAGTaskNode] = []
+        self.all_nodes: dict[str, DAGTaskNode] = {}
+        self.root_nodes: list[DAGTaskNode] = []
         self._build_graph()
         self._identify_root_nodes()
         self._convert_node_func_args_to_ids()
@@ -74,7 +40,7 @@ class DAG:
 
     def _build_graph(self):
         """Build the complete graph by traversing from sink node upward."""
-        visited: Set[str] = set()
+        visited: set[str] = set()
         
         def visit(node: DAGTaskNode):
             if node.task_id in visited:
@@ -199,11 +165,3 @@ class DAG:
     @classmethod
     def from_serialized(cls, serialized_dag: bytes):
         return cloudpickle.loads(serialized_dag)
-
-
-def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
-    """Decorator to convert a function into a DAG node task."""
-    @wraps(func)
-    def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
-        return DAGTaskNode[R](func, args, kwargs)
-    return wrapper
