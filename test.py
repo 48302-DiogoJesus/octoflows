@@ -28,12 +28,7 @@ d1 = d(c1)
 # dag_json = d1.dag_json()
 # print(json.dumps(dag_json, indent=2))
 
-# s = d1.serialize()
-# dr: DAGNode[Any] = DAGNode.from_serialized(s)
-
 # res = d1.compute()
 dag = DAG(d1)
-# dag.visualize()
-print(f"Result: {json.dumps(dag.get_json(), indent=2)}")
 
 # d1.dag_visualize()
