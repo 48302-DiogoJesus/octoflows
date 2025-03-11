@@ -1,5 +1,4 @@
 import json
-from src.dag import DAG
 from src.dag_task_node import DAGTask
 
 @DAGTask
@@ -27,7 +26,6 @@ c1 = c(b1, 2)
 c2 = c(b1, 4)
 d1 = d(c1, c2)
 
-dag = DAG(sink_node=d1)
-# dag.visualize()
-result = dag.start_local_execution(wait_for_final_result=True)
+# d1.visualize_dag()
+result = d1.compute(local=True)
 print(f"DONE | Result: {result} | TypeOf Result: {type(result)}")

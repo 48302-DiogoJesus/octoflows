@@ -32,7 +32,12 @@ class DAG:
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = self._find_all_nodes_from_sink()
             self.root_nodes: list[dag_task_node.DAGTaskNode] = self._identify_root_nodes()
     
+    def create_subdag(self, root_nodes: list[dag_task_node.DAGTaskNode]) -> "DAG":
+        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=root_nodes)
+
+    # User interface must be synchronous
     def start_remote_execution(self, wait_for_final_result=False):
+        # TODO: move out of here so that RemoteExecutor can use it as well
         def _invoke_remote_executor(subgraph: DAG):
             print(f"Invoking remote executor for subgraph with {len(subgraph.root_nodes)} root nodes | First Node: {subgraph.root_nodes[0].task_id}")
             response = requests.post(
@@ -44,30 +49,39 @@ class DAG:
 
         # Invoke 1 new Executor per root node
         for root_node in self.root_nodes:
-            # ! WRONG
-            # _invoke_remote_executor(DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node]))
-            pass
+            _invoke_remote_executor(DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node]))
             
         if wait_for_final_result: 
-            return self._wait_for_final_result()
+            res = asyncio.run(self._wait_for_final_result())
+            print(f"Got final result: {res}")
+            return res
 
+    # User interface must be synchronous
     def start_local_execution(self, wait_for_final_result=False):
-        e = executor.Executor(self)
-        execute_thread = threading.Thread(target=asyncio.run, args=(e.execute(),))
-        execute_thread.start()
-        def on_done():
-            e.shutdown_flag.set()
-        if wait_for_final_result: return self._wait_for_final_result(on_done=on_done)
+        async def internal():
+            coroutines: list[asyncio.Task] = []
+            
+            ex = executor.Executor(self)
+            coroutines.append(asyncio.create_task(ex.start_executing()))
+            
+            if wait_for_final_result:
+                wait_final_result_coroutine = asyncio.create_task(self._wait_for_final_result())
+                coroutines.append(wait_final_result_coroutine)
+                res = await wait_final_result_coroutine
+                ex.shutdown_flag.set()
+                return res
+            
+            await asyncio.gather(*coroutines)
+            return None
+        return asyncio.run(internal())
 
-    def _wait_for_final_result(self, on_done: Callable | None = None):
+    async def _wait_for_final_result(self):
+        # Asynchronously poll Storage for final result
         while True:
             final_result = intermediate_storage.IntermediateStorage.get(self.sink_node.task_id)
-            print(f"Final Result: {final_result}")
             if final_result is not None:
-                print(f"NICE: {final_result}, on_done: {on_done}")
-                if on_done: on_done()
                 return cloudpickle.loads(final_result) # type: ignore
-            time.sleep(self._FINAL_RESULT_POLLING_TIME_S)
+            await asyncio.sleep(self._FINAL_RESULT_POLLING_TIME_S)
 
     def _identify_root_nodes(self):
         """Identify root nodes (nodes with no upstream dependencies)."""
@@ -101,13 +115,10 @@ class DAG:
         
         for root_node in self.root_nodes: visit(root_node)
         return all_nodes
-
     
-    def get_node_by_id(self, node_id: str) -> dag_task_node.DAGTaskNode:
-        """Retrieve a node by its ID."""
-        return self.all_nodes[node_id]
+    def get_node_by_id(self, node_id: str) -> dag_task_node.DAGTaskNode: return self.all_nodes[node_id]
 
-    def visualize(self, output_file="dag_graph.png", highlight_roots=True, highlight_sink=True):
+    def visualize(self, output_file="dag_graph.png", highlight_roots=True, highlight_sink=True, open_after=True):
         # Create a new directed graph
         dot = graphviz.Digraph(
             comment="DAG Visualization",
@@ -119,9 +130,21 @@ class DAG:
         # Add nodes
         for node_id, node in self.all_nodes.items():
             # Create a label showing function name and args
+            # for dependency in node.upstream_nodes:
+            #     dependency_strs.append(str(dependency.task_id))
+            
             dependency_strs = []
-            for dependency in node.upstream_nodes:
-                dependency_strs.append(str(dependency.task_id))
+            for arg in node.func_args:
+                if isinstance(arg, dag_task_node.DAGTaskNodeId):
+                    dependency_strs.append(str(arg.value))
+                else:
+                    dependency_strs.append(str(arg))
+
+            for key, value in node.func_kwargs.items():
+                if isinstance(value, dag_task_node.DAGTaskNodeId):
+                    dependency_strs.append(f"{key}={value.value}")
+                else:
+                    dependency_strs.append(f"{key}={value}")
             
             # Create the node label
             label = f"{node.task_id}({', '.join(dependency_strs)})"
@@ -144,26 +167,8 @@ class DAG:
             for downstream_node in node.downstream_nodes:
                 dot.edge(node_id, downstream_node.task_id)
         
-        # Render the graph to a file
-        try:
-            # Render and save the graph
-            dot.render(filename=output_file.split('.')[0], cleanup=True)
-            
-            # Get the full path to the rendered file
-            rendered_file = f"{output_file.split('.')[0]}.png"
-            abs_path = os.path.abspath(rendered_file)
-            
-            # Open the file with the default image viewer
-            if platform.system() == 'Darwin':  # macOS
-                subprocess.run(['open', abs_path], check=True)
-            elif platform.system() == 'Windows':
-                os.startfile(abs_path)
-            else:  # Linux and others
-                subprocess.run(['xdg-open', abs_path], check=True)
-            
-            return f"Graph visualization saved to {abs_path}"
-        except Exception as e:
-            return f"Error rendering graph: {str(e)}"
+        # Render the graph to a file and open it
+        dot.render(filename=output_file.split('.')[0], cleanup=True, view=open_after)
     
     def serialize(self):
         return cloudpickle.dumps(self)

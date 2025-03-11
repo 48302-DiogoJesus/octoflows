@@ -1,5 +1,5 @@
+from typing import Any
 import redis
-import asyncio
 
 class IntermediateStorage:
     REDIS_HOST = "localhost"
@@ -102,79 +102,6 @@ class IntermediateStorage:
         if cls._connection is not None:
             cls._connection.close()
             cls._connection = None
-
-    @classmethod
-    async def publish_message(cls, channel, message, wait_for_result=False):
-        """
-        Publish a message to a Redis channel asynchronously.
-        
-        Args:
-            channel (str): The channel to publish to.
-            message (str): The message to publish.
-            wait_for_result (bool): Whether to wait for the result.
-            
-        Returns:
-            int: Number of subscribers that received the message (if wait_for_result is True).
-        """
-        conn = cls._get_connection()
-        if wait_for_result:
-            return conn.publish(channel, message)
-        else:
-            asyncio.create_task(asyncio.to_thread(conn.publish, channel, message))
-            return None
-
-    @classmethod
-    async def subscribe_to_channel(cls, channel, callback=None, wait_for_result=False):
-        """
-        Subscribe to a Redis channel asynchronously.
-        
-        Args:
-            channel (str): The channel to subscribe to.
-            callback (callable): A callback function to process incoming messages.
-            wait_for_result (bool): Whether to block and wait for messages.
-            
-        Returns:
-            None or asyncio.Task: Returns a task if wait_for_result is False.
-        """
-        conn = cls._get_connection()
-        pubsub = conn.pubsub()
-        pubsub.subscribe(channel)
-
-        async def listen():
-            while True:
-                message = pubsub.get_message(ignore_subscribe_messages=True)
-                if message:
-                    if callback:
-                        callback(message)
-                    else:
-                        print(f"Received message: {message['data'].decode('utf-8')}")
-                await asyncio.sleep(0.1)
-
-        if wait_for_result:
-            await listen()
-        else:
-            return asyncio.create_task(listen())
-
-    @classmethod
-    async def unsubscribe_from_channel(cls, channel, wait_for_result=False):
-        """
-        Unsubscribe from a Redis channel asynchronously.
-        
-        Args:
-            channel (str): The channel to unsubscribe from.
-            wait_for_result (bool): Whether to wait for the result.
-            
-        Returns:
-            None or asyncio.Task: Returns a task if wait_for_result is False.
-        """
-        conn = cls._get_connection()
-        pubsub = conn.pubsub()
-        pubsub.unsubscribe(channel)
-
-        if wait_for_result:
-            await asyncio.to_thread(pubsub.close)
-        else:
-            return asyncio.create_task(asyncio.to_thread(pubsub.close))
 
 # Example usage
 # async def example_usage():

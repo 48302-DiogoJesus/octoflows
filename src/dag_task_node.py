@@ -43,7 +43,17 @@ class DAGTaskNode(Generic[R]):
             if isinstance(value, DAGTaskNode):
                 value.downstream_nodes.append(self)
 
-    def execute(self, dependencies: dict[str, Any]):
+    def visualize_dag(self, open_after: bool = True):
+        import src.dag as dag
+        dag.DAG(sink_node=self).visualize(open_after=open_after)
+
+    def compute(self, local=False) -> R:
+        import src.dag as dag
+        dag_representation = dag.DAG(sink_node=self)
+        if local: return dag_representation.start_local_execution(wait_for_final_result=True) # type: ignore
+        else: return dag_representation.start_remote_execution(wait_for_final_result=True) # type: ignore
+
+    def invoke(self, dependencies: dict[str, Any]):
         final_func_args = []
         final_func_kwargs = {}
 
