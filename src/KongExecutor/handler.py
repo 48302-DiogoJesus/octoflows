@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import cloudpickle
 
-from ..DAG import DAG
+from ..dag import DAG
 
 app = Flask(__name__)
 
