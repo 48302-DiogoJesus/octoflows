@@ -28,4 +28,4 @@ d1 = d(c1, c2)
 
 # d1.visualize_dag()
 result = d1.compute(local=True)
-print(f"DONE | Result: {result} | TypeOf Result: {type(result)}")
+print(f"UserCode | Final Result: {result}")

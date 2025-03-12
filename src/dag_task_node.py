@@ -21,26 +21,16 @@ class DAGTaskNode(Generic[R]):
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
         self._register_dependencies()
-        self._convert_node_func_args_to_ids()
         
     def _register_dependencies(self):
         for arg in self.func_args:
             if isinstance(arg, DAGTaskNode):
                 self.upstream_nodes.append(arg)
+                arg.downstream_nodes.append(self)
 
         for _, value in self.func_kwargs.items():
             if isinstance(value, DAGTaskNode):
                 self.upstream_nodes.append(value)
-
-        """Register this task as a downstream task of all its dependencies."""
-        # Check args for DAGNode instances
-        for arg in self.func_args:
-            if isinstance(arg, DAGTaskNode):
-                arg.downstream_nodes.append(self)
-                
-        # Check kwargs for DAGNode instances
-        for _, value in self.func_kwargs.items():
-            if isinstance(value, DAGTaskNode):
                 value.downstream_nodes.append(self)
 
     def visualize_dag(self, open_after: bool = True):
@@ -75,7 +65,7 @@ class DAGTaskNode(Generic[R]):
 
         return self.func_code(*tuple(final_func_args), **final_func_kwargs)
 
-    def _convert_node_func_args_to_ids(self):
+    def _try_convert_node_func_args_to_ids(self):
         """
         Convert all DAGTaskNode references in {func_args} and {func_kwargs} to DAGTaskNodeId to save space, as they are stored in {upstream_nodes} and {downstream_nodes}
         """

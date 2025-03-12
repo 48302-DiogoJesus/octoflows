@@ -1,3 +1,4 @@
+from threading import Thread
 from flask import Flask, request, jsonify
 import cloudpickle
 
@@ -9,7 +10,8 @@ app = Flask(__name__)
 def execute():
     try:
         dag: DAG = cloudpickle.loads(request.data)
-        dag.start_local_execution()
+        thread = Thread(target=dag.start_local_execution)
+        thread.start()
 
         return jsonify({"status": "Accepted"}), 200
     except Exception as e:

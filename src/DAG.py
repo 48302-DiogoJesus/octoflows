@@ -31,6 +31,8 @@ class DAG:
             # Find nodes by going backwards until root nodes
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = self._find_all_nodes_from_sink()
             self.root_nodes: list[dag_task_node.DAGTaskNode] = self._identify_root_nodes()
+        # Add the DAG id to each task
+        self._update_task_ids()
     
     def create_subdag(self, root_nodes: list[dag_task_node.DAGTaskNode]) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=root_nodes)
@@ -80,8 +82,25 @@ class DAG:
         while True:
             final_result = intermediate_storage.IntermediateStorage.get(self.sink_node.task_id)
             if final_result is not None:
-                return cloudpickle.loads(final_result) # type: ignore
+                final_result = cloudpickle.loads(final_result) # type: ignore
+                print(f"Final Result Ready: ({self.sink_node.task_id}) => {final_result} | Type: ({type(final_result)})")
+                return final_result
             await asyncio.sleep(self._FINAL_RESULT_POLLING_TIME_S)
+
+    def _update_task_ids(self):
+        for old_key, node in list(self.all_nodes.items()): # Use list() to create a copy to allow mutations while iterating
+            if self.master_dag_id in node.task_id:
+                return # Assume all other nodes were already converted
+
+            new_key = f"{node.task_id}_{self.master_dag_id}"
+            node.task_id = new_key
+            self.all_nodes[new_key] = node # Add the updated node to the dictionary with the new key
+
+            del self.all_nodes[old_key] # Remove the old key from the dictionary
+
+        # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
+        for node in self.all_nodes.values():
+            node._try_convert_node_func_args_to_ids()
 
     def _identify_root_nodes(self):
         """Identify root nodes (nodes with no upstream dependencies)."""

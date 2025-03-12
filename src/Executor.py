@@ -75,7 +75,7 @@ class VirtualWorker:
                 self.log(task.task_id, f"Continuing with first of multiple downstream tasks: {continuation_task}")
                 await self.execute_task(continuation_task)
         except Exception as e:
-            self.log(task.task_id, f"Error")
+            self.log(task.task_id, f"Error: {str(e)}")
             raise e
     
     def log(self, task_id: str, message: str):
