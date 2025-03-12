@@ -2,15 +2,13 @@ import asyncio
 import uuid
 import cloudpickle
 import graphviz
-import requests
-import copy
 
 import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 import src.executor as executor
 
 class DAG:
-    _FINAL_RESULT_POLLING_TIME_S = 0.1
+    _FINAL_RESULT_POLLING_TIME_S = 0.2
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
