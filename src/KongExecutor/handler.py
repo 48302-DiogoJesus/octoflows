@@ -1,23 +1,51 @@
-from threading import Thread
+import asyncio
+import threading
+import atexit
 from flask import Flask, request, jsonify
 import cloudpickle
 
+import src.executor as executor
 import src.dag as dag
 
 app = Flask(__name__)
 
-# To be replaced by Lambda Handler
+# Global event loop reference
+loop = None
+loop_thread = None
+
+def _async_event_loop():
+    """Runs the asyncio event loop in a background thread."""
+    global loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+# Start the event loop thread
+loop_thread = threading.Thread(target=_async_event_loop, daemon=True)
+loop_thread.start()
+
 @app.route('/', methods=['POST'])
 def execute():
     try:
-        d: dag.DAG = cloudpickle.loads(request.data)
-        # Don't wait for final result, just wait for the Executor to finish
-        thread = Thread(target=d.start_local_execution)
-        thread.start()
+        subdag: dag.DAG = cloudpickle.loads(request.data)
+        ex = executor.FlaskProcessExecutor(subdag, 'http://localhost:5000/')
 
-        return jsonify({"status": "Accepted"}), 200
+        if loop and not loop.is_closed():
+            loop.call_soon_threadsafe(asyncio.create_task, ex.start_executing())
+
+        return jsonify({"status": "Accepted"}), 202
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return str(e), 500
+
+# Graceful shutdown handler
+def shutdown():
+    global loop
+    if loop and not loop.is_closed():
+        loop.call_soon_threadsafe(loop.stop)  # Stop the event loop
+        loop_thread.join(timeout=2)  # Wait for the thread to exit
+
+# Register shutdown handler
+atexit.register(shutdown)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

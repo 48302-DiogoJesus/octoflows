@@ -26,6 +26,6 @@ c1 = c(b1, 2)
 c2 = c(b1, 4)
 d1 = d(c1, c2)
 
-# d1.visualize_dag()
+d1.visualize_dag()
 result = d1.compute(local=True)
 print(f"UserCode | Final Result: {result}")

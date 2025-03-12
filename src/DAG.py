@@ -3,6 +3,7 @@ import uuid
 import cloudpickle
 import graphviz
 import requests
+import copy
 
 import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
@@ -32,37 +33,36 @@ class DAG:
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.task_id} has 0 root notes!")
         self.root_node = self.root_nodes[0]
     
-    # def create_subdag(self, root_nodes: list[dag_task_node.DAGTaskNode]) -> "DAG":
-    #     return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=root_nodes)
-    
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
 
     # User interface must be synchronous
-    def start_remote_execution(self, wait_for_final_result=False):
-        _ = executor.FlaskProcessExecutor(self, 'http://localhost:5000/').start_executing()
-            
-        if wait_for_final_result: 
-            res = asyncio.run(self._wait_for_final_result())
-            print(f"Got final result: {res}")
+    def start_remote_execution(self):
+        async def internal():
+            for root_node in self.root_nodes:
+                executor.FlaskProcessExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self()
+            res = await self._wait_for_final_result()
             return res
+        return asyncio.run(internal())
 
     # User interface must be synchronous
-    def start_local_execution(self, wait_for_final_result=False):
+    def start_local_execution(self):
         async def internal():
-            coroutines: list[asyncio.Task] = []
+            coroutines: list = []
+            leaf_executors: list[executor.LocalCoroutineWorker] = []
             
-            ex = executor.SameProcessExecutor(self)
-            coroutines.append(asyncio.create_task(ex.start_executing()))
+            for root_node in self.root_nodes:
+                ex = executor.LocalCoroutineWorker(self.create_subdag(root_node))
+                ex.start_executing()
+                leaf_executors.append(ex)
             
-            if wait_for_final_result:
-                wait_final_result_coroutine = asyncio.create_task(self._wait_for_final_result())
-                coroutines.append(wait_final_result_coroutine)
-                res = await wait_final_result_coroutine
-                ex.shutdown_flag.set()
-                return res
+            wait_final_result_coroutine = asyncio.create_task(self._wait_for_final_result())
+            coroutines.append(wait_final_result_coroutine)
+            res = await wait_final_result_coroutine
+            for ex in leaf_executors: ex.shutdown_flag.set()
+            return res
             
-            await asyncio.gather(*coroutines)
+            # await asyncio.gather(*coroutines)
             return None
         return asyncio.run(internal())
 
