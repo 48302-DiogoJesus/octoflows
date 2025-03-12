@@ -20,20 +20,21 @@ R = TypeVar('R')
 class DAGTaskNodeId:
     function_name: str
     task_id: str
-    dag_id: str | None
 
-    def __init__(self, function_name: str, task_id: str | None = None, dag_id=None):
+    def __init__(self, function_name: str, task_id: str | None = None):
         self.function_name = function_name
         self.task_id = task_id or str(uuid.uuid4())[:3]
-        self.dag_id = dag_id
 
     def get_full_id(self) -> str: 
-        dag_id_str = "" if self.dag_id is None else f"-{self.dag_id}"
-        return f"{self.function_name}{dag_id_str}-{self.task_id}"
+        return f"{self.function_name}-{self.task_id}"
+    
+    # can't be typed because or circular import error......
+    def get_full_id_in_dag(self, dag: Any) -> str: 
+        return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
-        self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None, dag_id=None)
+        self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None)
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args

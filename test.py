@@ -46,7 +46,10 @@ discounted_prices = [calculate_discount(product["original_price"], discount_rate
 
 # Fan-in: Aggregate results to calculate total revenue and average price
 total_revenue = calculate_total_revenue(discounted_prices)
-# total_revenue.visualize_dag()
-result = total_revenue.compute(local=True)
 
-print(f"\nTotal Revenue: ${result}")
+total_revenue.visualize_dag()
+# result = total_revenue.compute(local=True)
+# print(f"Total Revenue: ${result}")
+
+# result2 = total_revenue.compute(local=True)
+# print(f"Total Revenue: ${result2}")

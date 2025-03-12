@@ -26,7 +26,7 @@ class DAG:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = DAG._find_root_nodes(self.all_nodes)
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
-        self._update_task_ids()
+        self._optimize_task_metadata()
 
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]
@@ -58,35 +58,31 @@ class DAG:
             return res
         return asyncio.run(internal())
 
+    def get_dag_task_id(self, dag_task_node: dag_task_node.DAGTaskNode):
+        return f"{dag_task_node.id.get_full_id()}-{self.master_dag_id}"
+
     async def _wait_for_final_result(self):
         # Asynchronously poll Storage for final result
         while True:
-            final_result = intermediate_storage.IntermediateStorage.get(self.sink_node.id.get_full_id())
+            final_result = intermediate_storage.IntermediateStorage.get(self.get_dag_task_id(self.sink_node))
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
                 print(f"Final Result Ready: ({self.sink_node.id.get_full_id()}) => {final_result} | Type: ({type(final_result)})")
                 return final_result
             await asyncio.sleep(self._FINAL_RESULT_POLLING_TIME_S)
 
-    def _update_task_ids(self):
-        ''' Assumes the nodes received are clones '''
-        for old_key, node in list(self.all_nodes.items()): # Use list() to create a copy to allow mutations while iterating
-            if node.id.dag_id:
-                return # Assume all other nodes were already converted
-
-            node.id.dag_id = self.master_dag_id
-            self.all_nodes[node.id.get_full_id()] = node # Add the updated node to the dictionary with the new key
-            del self.all_nodes[old_key] # Remove the old key from the dictionary
-    
+    def _optimize_task_metadata(self):
+        ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
+        for _, node in list(self.all_nodes.items()): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
             # Convert func_args
             new_args = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     # previous for loop adds the master dag id, we need that update
-                    new_args.append(self._get_node_by_task_id(arg.id.task_id).id)
+                    new_args.append(node.id)
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
-                    new_args.append([self._get_node_by_task_id(item.id.task_id).id for item in arg])
+                    new_args.append([item.id for item in arg])
                 else:
                     new_args.append(arg)
             
@@ -94,13 +90,11 @@ class DAG:
             new_kwargs = {}
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
-                    new_kwargs[key] = self._get_node_by_task_id(value.id.task_id).id
+                    new_kwargs[key] = value.id
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
-                    new_kwargs[key] = [self._get_node_by_task_id(item.id.task_id).id for item in value]
+                    new_kwargs[key] = [item.id for item in value]
                 else:
                     new_kwargs[key] = value
-
-            # print(f"Converted {node.func_name} args to {new_args} and kwargs to {new_kwargs}")
 
             node.func_args = tuple(new_args)
             node.func_kwargs = new_kwargs

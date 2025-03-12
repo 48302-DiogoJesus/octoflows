@@ -26,36 +26,36 @@ class AbstractExecutor(ABC):
         try:
             while not self.shutdown_flag.is_set():
                 # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
+                self.log(task.id.get_full_id_in_dag(self.subdag), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
                 for dependency_task in task.upstream_nodes:
-                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id()}'s data is not available")
+                    task_output = intermediate_storage.IntermediateStorage.get(self.subdag.get_dag_task_id(dependency_task))
+                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(self.subdag)}'s data is not available")
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
-                self.log(task.id.get_full_id(), f"2) Executing...")
+                self.log(task.id.get_full_id_in_dag(self.subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id()}'s data could not be uploaded to Redis (set() failed)")
+                upload_result = intermediate_storage.IntermediateStorage.set(self.subdag.get_dag_task_id(task), cloudpickle.dumps(task_result))
+                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id_in_dag(self.subdag)}'s data could not be uploaded to Redis (set() failed)")
 
                 if self.shutdown_flag.is_set(): break
 
                 if len(task.downstream_nodes) == 0: 
-                    self.log(task.id.get_full_id(), f"Last Task finished. Shutting down executor...")
+                    self.log(task.id.get_full_id_in_dag(self.subdag), f"Last Task finished. Shutting down executor...")
                     self.shutdown_flag.set()
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id.get_full_id()} => [{[t.id.get_full_id() for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id_in_dag(self.subdag), f"3) Handle Fan-Out {task.id.get_full_id_in_dag(self.subdag)} => [{[t.id.get_full_id_in_dag(self.subdag) for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
                     downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     if downstream_task_total_dependencies == 1: # {task} was the only dependency
                         ready_downstream.append(downstream_task)
                     else:
-                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task}")
-                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task.id.get_full_id_in_dag(self.subdag)}")
+                        self.log(task.id.get_full_id_in_dag(self.subdag), f"Incremented DC of {downstream_task.id.get_full_id_in_dag(self.subdag)} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
@@ -75,18 +75,18 @@ class AbstractExecutor(ABC):
                         asyncio.create_task(self.delegate(self.subdag.create_subdag(task)))
                     
                     # Continue with one task in this executor
-                    self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
+                    self.log(task.id.get_full_id_in_dag(self.subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                     task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 else:
-                    self.log(task.id.get_full_id(), f"No ready downstream tasks found. Shutting down executor...")
+                    self.log(task.id.get_full_id_in_dag(self.subdag), f"No ready downstream tasks found. Shutting down executor...")
                     break  # Give up
         except Exception as e:
-            self.log(task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
+            self.log(task.id.get_full_id_in_dag(self.subdag), f"Error: {str(e)}") # type: ignore
             raise e
 
         # Cleanup
-        self.log(task.id.get_full_id(), f"Executor shut down!")
+        self.log(task.id.get_full_id_in_dag(self.subdag), f"Executor shut down!")
 
     @abstractmethod
     async def delegate(self, subsubdag: dag.DAG): pass
@@ -123,7 +123,7 @@ class FlaskExecutor(AbstractExecutor):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        self.log(subsubdag.root_node.id.get_full_id(), f"Invoking remote executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
+        self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Invoking remote executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
                 self.flask_server_address, data=cloudpickle.dumps(subsubdag), headers={'Content-Type': 'application/octet-stream'}
