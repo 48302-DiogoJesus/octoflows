@@ -19,11 +19,11 @@ class DAG:
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
             self.sink_node = self._find_sink_node_from_roots(self.root_nodes).clone()
-            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(sink_node)
+            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
         # FULL DAG (Find real root nodes)
         else:
             self.sink_node = sink_node.clone()
-            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(sink_node)
+            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
             self.root_nodes: list[dag_task_node.DAGTaskNode] = DAG._find_root_nodes(self.all_nodes)
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
@@ -75,8 +75,8 @@ class DAG:
     def _update_task_ids(self):
         ''' Assumes the nodes received are clones '''
         for old_key, node in list(self.all_nodes.items()): # Use list() to create a copy to allow mutations while iterating
-            # if self.master_dag_id:
-                # return # Assume all other nodes were already converted
+            if node.id.dag_id:
+                return # Assume all other nodes were already converted
 
             node.id.dag_id = self.master_dag_id
             self.all_nodes[node.id.get_full_id()] = node # Add the updated node to the dictionary with the new key
@@ -127,7 +127,8 @@ class DAG:
         visit(sink_node)
         return all_nodes
     
-    def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: return self.all_nodes[node_id.get_full_id()]
+    def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
+        return self.all_nodes[node_id.get_full_id()]
 
     @classmethod
     def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", highlight_roots=True, highlight_sink=True, open_after=True):

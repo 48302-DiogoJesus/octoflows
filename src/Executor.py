@@ -43,14 +43,14 @@ class LocalCoroutineWorker(Worker):
                 task_dependencies: dict[str, Any] = {}
                 for dependency_task in task.upstream_nodes:
                     task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id}'s data is not available")
-                    task_dependencies[dependency_task.id] = cloudpickle.loads(task_output) # type: ignore
+                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id()}'s data is not available")
+                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id(), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
                 upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.id}'s data could not be uploaded to Redis (set() failed)")
+                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id()}'s data could not be uploaded to Redis (set() failed)")
 
                 if self.shutdown_flag.is_set(): return
 
@@ -60,7 +60,7 @@ class LocalCoroutineWorker(Worker):
                     return
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id} => [{[t.id for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id.get_full_id()} => [{[t.id.get_full_id() for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
                     downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
@@ -68,7 +68,7 @@ class LocalCoroutineWorker(Worker):
                         ready_downstream.append(downstream_task)
                     else:
                         dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task}")
-                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
@@ -94,7 +94,7 @@ class LocalCoroutineWorker(Worker):
                 else:
                     return  # Give up
         except Exception as e:
-            self.log(task.id, f"Error: {str(e)}") # type: ignore
+            self.log(task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
             raise e
 
     def _parallelize(self, subsubdag: dag.DAG):
@@ -131,13 +131,13 @@ class FlaskProcessExecutor(Worker):
                 for dependency_task in task.upstream_nodes:
                     task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id}'s data is not available")
-                    task_dependencies[dependency_task.id] = cloudpickle.loads(task_output) # type: ignore
+                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id(), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
                 upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.id}'s data could not be uploaded to Redis (set() failed)")
+                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id()}'s data could not be uploaded to Redis (set() failed)")
 
                 if self.shutdown_flag.is_set(): return
 
@@ -147,7 +147,7 @@ class FlaskProcessExecutor(Worker):
                     return
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id} => [{[t.id for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id.get_full_id()} => [{[t.id.get_full_id() for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
                     downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
@@ -155,7 +155,7 @@ class FlaskProcessExecutor(Worker):
                         ready_downstream.append(downstream_task)
                     else:
                         dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task.id.get_full_id()}")
-                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 

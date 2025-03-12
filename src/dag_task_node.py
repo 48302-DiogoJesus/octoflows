@@ -4,6 +4,9 @@ from functools import wraps
 from typing import Any, Callable, Generic, TypeVar
 import uuid
 
+import cloudpickle
+
+import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 
 R = TypeVar('R')
@@ -21,7 +24,7 @@ class DAGTaskNodeId:
 
     def get_full_id(self) -> str: 
         dag_id_str = "" if self.dag_id is None else f"-{self.dag_id}"
-        return f"{self.function_name}-{dag_id_str}{self.task_id}"
+        return f"{self.function_name}{dag_id_str}-{self.task_id}"
 
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
@@ -49,7 +52,7 @@ class DAGTaskNode(Generic[R]):
         import src.dag as dag
         dag.DAG.visualize(sink_node=self, open_after=open_after)
 
-    def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] = None) -> "DAGTaskNode":
+    def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] | None = None) -> "DAGTaskNode":
         if cloned_nodes is None:
             cloned_nodes = {}
 
@@ -57,8 +60,7 @@ class DAGTaskNode(Generic[R]):
         if self.id.task_id in cloned_nodes:
             return cloned_nodes[self.id.task_id]
 
-        # Create a shallow copy of the node
-        cloned_node = copy.deepcopy(self)
+        cloned_node = copy.deepcopy(self) # needs to be deepcopy
         cloned_nodes[self.id.task_id] = cloned_node
 
         # Clone the upstream and downstream nodes
@@ -80,9 +82,12 @@ class DAGTaskNode(Generic[R]):
     def compute(self, local=False) -> R:
         import src.dag as dag
         dag_representation = dag.DAG(sink_node=self)
-        dag_representation = dag.DAG(sink_node=self)
-        if local: return dag_representation.start_local_execution() # type: ignore
-        else: return dag_representation.start_remote_execution() # type: ignore
+        res = None
+        if local: 
+            res = dag_representation.start_local_execution() # type: ignore
+        else: 
+            res = dag_representation.start_remote_execution() # type: ignore
+        return res
 
     def invoke(self, dependencies: dict[str, Any]):
         final_func_args = []
@@ -114,7 +119,7 @@ class DAGTaskNode(Generic[R]):
         new_args = []
         for arg in self.func_args:
             if isinstance(arg, dag_task_node.DAGTaskNode):
-                new_args.append(dag_task_node.DAGTaskNodeId(arg.func_name, arg.id, None))
+                new_args.append(arg.id)
             else:
                 new_args.append(arg)
         
@@ -122,7 +127,7 @@ class DAGTaskNode(Generic[R]):
         new_kwargs = {}
         for key, value in self.func_kwargs.items():
             if isinstance(value, dag_task_node.DAGTaskNode):
-                new_kwargs[key] = dag_task_node.DAGTaskNodeId(value.func_name, value.id, None)
+                new_kwargs[key] = value.id
             else:
                 new_kwargs[key] = value
 
