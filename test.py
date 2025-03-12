@@ -1,5 +1,7 @@
 import json
+import flask
 from src.dag_task_node import DAGTask
+import numpy as np
 
 @DAGTask
 def a(x: int):
@@ -7,10 +9,14 @@ def a(x: int):
 
 @DAGTask
 def b(x: int, y: int):
-    return x + y
+    data = { "x": x, "y": y }
+    data_serialized = json.dumps(data)
+    return data_serialized
 
 @DAGTask
-def c(x: int, extra: int) -> str:
+def c(data: bytes, extra: int) -> str:
+    json_data = json.loads(data)
+    x = json_data["x"]
     return f"{(x * 10) + extra}"
 
 @DAGTask
@@ -27,7 +33,5 @@ c2 = c(b1, 4)
 d1 = d(c1, c2)
 
 # d1.visualize_dag()
-result = d1.compute(local=False)
-result2 = d1.compute(local=False)
+result = d1.compute(local=True)
 print(f"UserCode | Final Result: {result}")
-print(f"UserCode | Final Result: {result2}")

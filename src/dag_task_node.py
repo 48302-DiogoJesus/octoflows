@@ -1,6 +1,11 @@
+import ast
+import asyncio
 import copy
 from dataclasses import dataclass
 from functools import wraps
+import inspect
+import subprocess
+import sys
 from typing import Any, Callable, Generic, TypeVar
 import uuid
 
@@ -36,6 +41,7 @@ class DAGTaskNode(Generic[R]):
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
         self._register_dependencies()
+        self.third_party_libs: set[str] = self._find_third_party_libraries()
         
     def _register_dependencies(self):
         for arg in self.func_args:
@@ -47,6 +53,45 @@ class DAGTaskNode(Generic[R]):
             if isinstance(value, DAGTaskNode):
                 self.upstream_nodes.append(value)
                 value.downstream_nodes.append(self)
+
+    def _find_third_party_libraries(self) -> set[str]:
+        func_file_path = inspect.getfile(self.func_code)
+        with open(func_file_path, "r") as file:
+            tree = ast.parse(file.read(), filename=func_file_path)
+
+        imports = set[str]()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names: imports.add(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module
+                if module: imports.add(module)
+
+        return {
+            module for module in imports
+            if not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
+        }
+    
+    def _try_install_third_party_libs(self):
+        missing_modules = []
+        for module in self.third_party_libs:
+            try:
+                __import__(module)
+                # print(f"({module}) already installed")
+            except ImportError:
+                # print(f"({module}) not found, will install")
+                missing_modules.append(module)
+        
+        if missing_modules:
+            print(f"Installing missing modules: {', '.join(missing_modules)}")
+            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
+            
+            for module in missing_modules:
+                try:
+                    __import__(module)
+                    # print(f"({module}) successfully installed")
+                except ImportError:
+                    print(f"Warning: Failed to import {module} after installation")
 
     def visualize_dag(self, open_after: bool = True):
         import src.dag as dag
@@ -90,6 +135,8 @@ class DAGTaskNode(Generic[R]):
         return res
 
     def invoke(self, dependencies: dict[str, Any]):
+        self._try_install_third_party_libs()
+
         final_func_args = []
         final_func_kwargs = {}
 

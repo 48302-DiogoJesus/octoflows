@@ -1,6 +1,4 @@
-- How to handle user-code dependencies
-    How does pywren do it?
-    Any way to identify dependencies at runtime + pip install dynamically?
+How does PyWren handle user code dependencies?
 
 - Collect metrics (make them persistent in Redis)
     Execution time
@@ -15,6 +13,9 @@
     - Delayed I/O
 
 - Implement similar WUKONG algorithms
-    can I wrap `Dask` functions?
+    Can I wrap `Dask` functions?
+    - GEMM
+    - Tree Reduction
+    - Singular Value Decomposition
 
 - Make the executor run on OpenFaaS
