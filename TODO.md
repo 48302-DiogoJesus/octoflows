@@ -1,3 +1,5 @@
+- VirtualWorker killing itself on fan-ins. Is it already happening??
+
 - Implement RemoteWorker (similar to VirtualWorker) but instead of invoking new asyncio task, invokes new remote worker (how to handle finishing?)
 
 - More WUKONG-specific stuff

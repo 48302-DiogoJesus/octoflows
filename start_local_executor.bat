@@ -1,1 +1,1 @@
-python -m src.KongExecutor.handler
+venv\Scripts\activate && python -m src.KongExecutor.handler

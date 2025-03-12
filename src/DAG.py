@@ -1,13 +1,7 @@
 import asyncio
-import threading
-import time
-from typing import Callable
 import uuid
 import cloudpickle
 import graphviz
-import os
-import subprocess
-import platform
 import requests
 
 import src.intermediate_storage as intermediate_storage
@@ -31,27 +25,22 @@ class DAG:
             # Find nodes by going backwards until root nodes
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = self._find_all_nodes_from_sink()
             self.root_nodes: list[dag_task_node.DAGTaskNode] = self._identify_root_nodes()
+        
         # Add the DAG id to each task
         self._update_task_ids()
+
+        if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.task_id} has 0 root notes!")
+        self.root_node = self.root_nodes[0]
     
-    def create_subdag(self, root_nodes: list[dag_task_node.DAGTaskNode]) -> "DAG":
-        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=root_nodes)
+    # def create_subdag(self, root_nodes: list[dag_task_node.DAGTaskNode]) -> "DAG":
+    #     return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=root_nodes)
+    
+    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
+        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
 
     # User interface must be synchronous
     def start_remote_execution(self, wait_for_final_result=False):
-        # TODO: move out of here so that RemoteExecutor can use it as well
-        def _invoke_remote_executor(subgraph: DAG):
-            print(f"Invoking remote executor for subgraph with {len(subgraph.root_nodes)} root nodes | First Node: {subgraph.root_nodes[0].task_id}")
-            response = requests.post(
-                'http://localhost:5000/',
-                data=cloudpickle.dumps(subgraph),
-                headers={'Content-Type': 'application/octet-stream'}
-            )
-            if response.status_code != 200: raise Exception(f"Failed to invoke executor: {response.text}")
-
-        # Invoke 1 new Executor per root node
-        for root_node in self.root_nodes:
-            _invoke_remote_executor(DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node]))
+        _ = executor.FlaskProcessExecutor(self, 'http://localhost:5000/').start_executing()
             
         if wait_for_final_result: 
             res = asyncio.run(self._wait_for_final_result())
@@ -63,7 +52,7 @@ class DAG:
         async def internal():
             coroutines: list[asyncio.Task] = []
             
-            ex = executor.Executor(self)
+            ex = executor.SameProcessExecutor(self)
             coroutines.append(asyncio.create_task(ex.start_executing()))
             
             if wait_for_final_result:

@@ -2,15 +2,17 @@ from threading import Thread
 from flask import Flask, request, jsonify
 import cloudpickle
 
-from ..dag import DAG
+import src.dag as dag
 
 app = Flask(__name__)
 
+# To be replaced by Lambda Handler
 @app.route('/', methods=['POST'])
 def execute():
     try:
-        dag: DAG = cloudpickle.loads(request.data)
-        thread = Thread(target=dag.start_local_execution)
+        d: dag.DAG = cloudpickle.loads(request.data)
+        # Don't wait for final result, just wait for the Executor to finish
+        thread = Thread(target=d.start_local_execution)
         thread.start()
 
         return jsonify({"status": "Accepted"}), 200
