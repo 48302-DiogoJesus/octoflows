@@ -1,3 +1,4 @@
+import copy
 from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable, Generic, TypeVar
@@ -9,11 +10,22 @@ R = TypeVar('R')
 
 @dataclass
 class DAGTaskNodeId:
-    value: str
+    function_name: str
+    task_id: str
+    dag_id: str | None
+
+    def __init__(self, function_name: str, task_id: str | None = None, dag_id=None):
+        self.function_name = function_name
+        self.task_id = task_id or str(uuid.uuid4())[:3]
+        self.dag_id = dag_id
+
+    def get_full_id(self) -> str: 
+        dag_id_str = "" if self.dag_id is None else f"-{self.dag_id}"
+        return f"{self.function_name}-{dag_id_str}{self.task_id}"
 
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
-        self.task_id = f"{func.__name__}-{str(uuid.uuid4())[:3]}"
+        self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None, dag_id=None)
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
@@ -35,7 +47,35 @@ class DAGTaskNode(Generic[R]):
 
     def visualize_dag(self, open_after: bool = True):
         import src.dag as dag
-        # dag.DAG(sink_node=self) #.visualize(open_after=open_after)
+        dag.DAG.visualize(sink_node=self, open_after=open_after)
+
+    def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] = None) -> "DAGTaskNode":
+        if cloned_nodes is None:
+            cloned_nodes = {}
+
+        # If this node has already been cloned, return the cloned version
+        if self.id.task_id in cloned_nodes:
+            return cloned_nodes[self.id.task_id]
+
+        # Create a shallow copy of the node
+        cloned_node = copy.deepcopy(self)
+        cloned_nodes[self.id.task_id] = cloned_node
+
+        # Clone the upstream and downstream nodes
+        cloned_node.upstream_nodes = [node.clone(cloned_nodes) for node in self.upstream_nodes]
+        cloned_node.downstream_nodes = [node.clone(cloned_nodes) for node in self.downstream_nodes]
+
+        # Clone the arguments and keyword arguments
+        cloned_node.func_args = tuple(
+            arg.clone(cloned_nodes) if isinstance(arg, DAGTaskNode) else arg
+            for arg in self.func_args
+        )
+        cloned_node.func_kwargs = {
+            key: value.clone(cloned_nodes) if isinstance(value, DAGTaskNode) else value
+            for key, value in self.func_kwargs.items()
+        }
+
+        return cloned_node
 
     def compute(self, local=False) -> R:
         import src.dag as dag
@@ -50,15 +90,15 @@ class DAGTaskNode(Generic[R]):
 
         for arg in self.func_args:
             if isinstance(arg, DAGTaskNodeId):
-                if arg.value not in dependencies: raise Exception(f"[BUG] Output of {arg.value} not in dependencies")
-                final_func_args.append(dependencies[arg.value])
+                if arg.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {arg.get_full_id()} not in dependencies")
+                final_func_args.append(dependencies[arg.get_full_id()])
             else:
                 final_func_args.append(arg)
 
         for key, value in self.func_kwargs.items():
             if isinstance(value, DAGTaskNodeId):
-                if value.value not in dependencies: raise Exception(f"[BUG] Output of {value.value} not in dependencies")
-                final_func_kwargs[key] = dependencies[value.value]
+                if value.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {value.get_full_id()} not in dependencies")
+                final_func_kwargs[key] = dependencies[value.get_full_id()]
             else:
                 final_func_kwargs[key] = value
 
@@ -74,7 +114,7 @@ class DAGTaskNode(Generic[R]):
         new_args = []
         for arg in self.func_args:
             if isinstance(arg, dag_task_node.DAGTaskNode):
-                new_args.append(dag_task_node.DAGTaskNodeId(arg.task_id))
+                new_args.append(dag_task_node.DAGTaskNodeId(arg.func_name, arg.id, None))
             else:
                 new_args.append(arg)
         
@@ -82,7 +122,7 @@ class DAGTaskNode(Generic[R]):
         new_kwargs = {}
         for key, value in self.func_kwargs.items():
             if isinstance(value, dag_task_node.DAGTaskNode):
-                new_kwargs[key] = dag_task_node.DAGTaskNodeId(value.task_id)
+                new_kwargs[key] = dag_task_node.DAGTaskNodeId(value.func_name, value.id, None)
             else:
                 new_kwargs[key] = value
 
@@ -90,7 +130,7 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = new_kwargs
 
     def __repr__(self):
-        return f"DAGTaskNode({self.func_name}, id={self.task_id})"
+        return f"DAGTaskNode({self.func_name}, id={self.id})"
 
 
 def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:

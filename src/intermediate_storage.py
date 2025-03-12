@@ -34,7 +34,7 @@ class IntermediateStorage:
             return False
 
     @classmethod
-    def get(cls, key):
+    def get(cls, key: str):
         """
         Get a value from Redis by key.
         """
@@ -43,7 +43,7 @@ class IntermediateStorage:
         return conn.get(key)
 
     @classmethod
-    def exists(cls, key):
+    def exists(cls, key: str):
         """
         Check if a key exists in Redis.
         """
@@ -51,7 +51,7 @@ class IntermediateStorage:
         return conn.exists(key)
 
     @classmethod
-    def set(cls, key, value, expire=None):
+    def set(cls, key: str, value, expire=None):
         """
         Set a value in Redis by key.
         
@@ -67,7 +67,7 @@ class IntermediateStorage:
         return conn.set(key, value, ex=expire)
 
     @classmethod
-    def increment_and_get(cls, key):
+    def increment_and_get(cls, key: str):
         """
         Atomically increment a key and check if it matches the target value.
         """
@@ -101,29 +101,3 @@ class IntermediateStorage:
         if cls._connection is not None:
             cls._connection.close()
             cls._connection = None
-
-# Example usage
-# async def example_usage():
-#     # Publish a message (non-blocking)
-#     await IntermediateStorage.publish_message("my_channel", "Hello, Redis!")
-
-#     # Subscribe to a channel (non-blocking)
-#     async def message_handler(message):
-#         print(f"Callback received: {message['data'].decode('utf-8')}")
-
-#     task = await IntermediateStorage.subscribe_to_channel("my_channel", callback=message_handler)
-
-#     # Publish another message
-#     await IntermediateStorage.publish_message("my_channel", "Another message!")
-
-#     # Wait for a few seconds to receive messages
-#     await asyncio.sleep(2)
-
-#     # Unsubscribe (non-blocking)
-#     await IntermediateStorage.unsubscribe_from_channel("my_channel")
-
-#     # Close the connection
-#     IntermediateStorage.close_connection()
-
-# # Run the example
-# asyncio.run(example_usage())

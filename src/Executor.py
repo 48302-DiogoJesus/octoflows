@@ -39,36 +39,36 @@ class LocalCoroutineWorker(Worker):
                 if self.shutdown_flag.is_set(): return
 
                 # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.task_id, f"({task.task_id}) 1) Grabbing Dependencies...")
+                self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
                 for dependency_task in task.upstream_nodes:
-                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.task_id)
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.task_id}'s data is not available")
-                    task_dependencies[dependency_task.task_id] = cloudpickle.loads(task_output) # type: ignore
+                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
+                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id}'s data is not available")
+                    task_dependencies[dependency_task.id] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
-                self.log(task.task_id, f"({task.task_id}) 2) Executing...")
+                self.log(task.id.get_full_id(), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                upload_result = intermediate_storage.IntermediateStorage.set(task.task_id, cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.task_id}'s data could not be uploaded to Redis (set() failed)")
+                upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
+                if not upload_result: raise Exception(f"[BUG] Task {task.id}'s data could not be uploaded to Redis (set() failed)")
 
                 if self.shutdown_flag.is_set(): return
 
                 if len(task.downstream_nodes) == 0: 
-                    self.log(task.task_id, f"Last Task finished. Shutting down executor...")
+                    self.log(task.id.get_full_id(), f"Last Task finished. Shutting down executor...")
                     self.shutdown_flag.set()
                     return
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.task_id, f"({task.task_id}) 3) Handle Fan-Out {task.task_id} => [{[t.task_id for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id} => [{[t.id for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
-                    downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.task_id).upstream_nodes)
+                    downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     if downstream_task_total_dependencies == 1: # {task} was the only dependency
                         ready_downstream.append(downstream_task)
                     else:
                         dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task}")
-                        self.log(task.task_id, f"Incremented DC of {downstream_task.task_id} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
@@ -77,7 +77,7 @@ class LocalCoroutineWorker(Worker):
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
                 if len(ready_downstream) == 1:
-                    task = self.subdag.get_node_by_id(ready_downstream[0].task_id) # type: ignore downstream_task_id)
+                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 elif len(ready_downstream) > 1:
@@ -88,13 +88,13 @@ class LocalCoroutineWorker(Worker):
                         self._parallelize(self.subdag.create_subdag(task))
                     
                     # Continue with one task in this worker
-                    self.log(task.task_id, f"Continuing with first of multiple downstream tasks: {continuation_task}")
-                    task = self.subdag.get_node_by_id(ready_downstream[0].task_id) # type: ignore downstream_task_id)
+                    self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
+                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 else:
                     return  # Give up
         except Exception as e:
-            self.log(task.task_id, f"Error: {str(e)}") # type: ignore
+            self.log(task.id, f"Error: {str(e)}") # type: ignore
             raise e
 
     def _parallelize(self, subsubdag: dag.DAG):
@@ -126,36 +126,36 @@ class FlaskProcessExecutor(Worker):
                 if self.shutdown_flag.is_set(): return
 
                 # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.task_id, f"({task.task_id}) 1) Grabbing Dependencies...")
+                self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
                 for dependency_task in task.upstream_nodes:
-                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.task_id)
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.task_id}'s data is not available")
-                    task_dependencies[dependency_task.task_id] = cloudpickle.loads(task_output) # type: ignore
+                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
+                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id}'s data is not available")
+                    task_dependencies[dependency_task.id] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
-                self.log(task.task_id, f"({task.task_id}) 2) Executing...")
+                self.log(task.id.get_full_id(), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                upload_result = intermediate_storage.IntermediateStorage.set(task.task_id, cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.task_id}'s data could not be uploaded to Redis (set() failed)")
+                upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
+                if not upload_result: raise Exception(f"[BUG] Task {task.id}'s data could not be uploaded to Redis (set() failed)")
 
                 if self.shutdown_flag.is_set(): return
 
                 if len(task.downstream_nodes) == 0: 
-                    self.log(task.task_id, f"Last Task finished. Shutting down executor...")
+                    self.log(task.id.get_full_id(), f"Last Task finished. Shutting down executor...")
                     self.shutdown_flag.set()
                     return
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.task_id, f"({task.task_id}) 3) Handle Fan-Out {task.task_id} => [{[t.task_id for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id} => [{[t.id for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
-                    downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.task_id).upstream_nodes)
+                    downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     if downstream_task_total_dependencies == 1: # {task} was the only dependency
                         ready_downstream.append(downstream_task)
                     else:
-                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task}")
-                        self.log(task.task_id, f"Incremented DC of {downstream_task.task_id} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task.id.get_full_id()}")
+                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
@@ -164,7 +164,7 @@ class FlaskProcessExecutor(Worker):
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
                 if len(ready_downstream) == 1:
-                    task = self.subdag.get_node_by_id(ready_downstream[0].task_id) # type: ignore downstream_task_id)
+                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 elif len(ready_downstream) > 1:
@@ -175,13 +175,13 @@ class FlaskProcessExecutor(Worker):
                         self.parallelize(self.subdag.create_subdag(task))
                     
                     # Continue with one task in this worker
-                    self.log(task.task_id, f"Continuing with first of multiple downstream tasks: {continuation_task}")
-                    task = self.subdag.get_node_by_id(ready_downstream[0].task_id) # type: ignore downstream_task_id)
+                    self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
+                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 else:
                     return  # Give up
         except Exception as e:
-            self.log(task.task_id, f"Error: {str(e)}") # type: ignore
+            self.log(task.id, f"Error: {str(e)}") # type: ignore
             raise e
 
     def parallelize_self(self):
