@@ -121,14 +121,23 @@ class DAGTaskNode(Generic[R]):
         cloned_node.downstream_nodes = [node.clone(cloned_nodes) for node in self.downstream_nodes]
 
         # Clone the arguments and keyword arguments
-        cloned_node.func_args = tuple(
-            arg.clone(cloned_nodes) if isinstance(arg, DAGTaskNode) else arg
-            for arg in self.func_args
-        )
-        cloned_node.func_kwargs = {
-            key: value.clone(cloned_nodes) if isinstance(value, DAGTaskNode) else value
-            for key, value in self.func_kwargs.items()
-        }
+        cloned_node.func_args = []
+        for arg in self.func_args:
+            if isinstance(arg, DAGTaskNode):
+                cloned_node.func_args.append(arg.clone(cloned_nodes))
+            elif isinstance(arg, list) and all(isinstance(item, DAGTaskNode) for item in arg):
+                cloned_node.func_args.append([item.clone(cloned_nodes) for item in arg])
+            else:
+                cloned_node.func_args.append(arg)
+        
+        cloned_node.func_kwargs = {}
+        for key, value in self.func_kwargs.items():
+            if isinstance(value, DAGTaskNode):
+                cloned_node.func_kwargs[key] = value.clone(cloned_nodes)
+            elif isinstance(value, list) and all(isinstance(item, DAGTaskNode) for item in value):
+                cloned_node.func_kwargs[key] = [item.clone(cloned_nodes) for item in value]
+            else:
+                cloned_node.func_kwargs[key] = value
 
         return cloned_node
 
@@ -153,7 +162,6 @@ class DAGTaskNode(Generic[R]):
                 if arg.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {arg.get_full_id()} not in dependencies")
                 final_func_args.append(dependencies[arg.get_full_id()])
             elif isinstance(arg, list) and all(isinstance(item, DAGTaskNodeId) for item in arg):
-                print(f"Try find dependencies: {arg}")
                 final_func_args.append([dependencies[item.get_full_id()] for item in arg])
             else:
                 final_func_args.append(arg)
@@ -167,7 +175,7 @@ class DAGTaskNode(Generic[R]):
             else:
                 final_func_kwargs[key] = value
 
-        print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
+        # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
         return self.func_code(*tuple(final_func_args), **final_func_kwargs)
 

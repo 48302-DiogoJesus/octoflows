@@ -3,6 +3,8 @@
     convert the list items to IDs
     when grabbing dependencies don't forget it
 
+- Support more levels: e.g., list[list[DAGTaskNode]]
+
 - Collect metrics (make them persistent in Redis)
     Execution time
     Input data size
