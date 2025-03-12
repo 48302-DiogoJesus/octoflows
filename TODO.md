@@ -1,4 +1,6 @@
 - Support more levels: e.g., list[list[DAGTaskNode]]
+- Deploy OpenFaaS on WSL
+- Make the executor run on OpenFaaS
 
 - Collect metrics (make them persistent in Redis)
     Execution time
@@ -17,5 +19,3 @@
     - GEMM
     - Tree Reduction
     - Singular Value Decomposition
-
-- Make the executor run on OpenFaaS
