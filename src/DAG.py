@@ -39,7 +39,7 @@ class DAG:
     def start_remote_execution(self):
         async def internal():
             for root_node in self.root_nodes:
-                executor.FlaskProcessExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self()
+                asyncio.create_task(executor.FlaskProcessExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self())
             res = await self._wait_for_final_result()
             return res
         return asyncio.run(internal())
@@ -47,17 +47,14 @@ class DAG:
     # User interface must be synchronous
     def start_local_execution(self):
         async def internal():
-            coroutines: list = []
             leaf_executors: list[executor.LocalCoroutineWorker] = []
             
             for root_node in self.root_nodes:
                 ex = executor.LocalCoroutineWorker(self.create_subdag(root_node))
-                ex.start_executing()
+                asyncio.create_task(ex.start_executing())
                 leaf_executors.append(ex)
             
-            wait_final_result_coroutine = asyncio.create_task(self._wait_for_final_result())
-            coroutines.append(wait_final_result_coroutine)
-            res = await wait_final_result_coroutine
+            res = await self._wait_for_final_result()
             for ex in leaf_executors: ex.shutdown_flag.set()
             return res
         return asyncio.run(internal())

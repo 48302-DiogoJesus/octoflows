@@ -31,7 +31,7 @@ def execute():
         ex = executor.FlaskProcessExecutor(subdag, 'http://localhost:5000/')
 
         if loop and not loop.is_closed():
-            loop.call_soon_threadsafe(asyncio.create_task, ex.start_executing())
+            loop.call_soon_threadsafe(loop.create_task, ex.start_executing())
 
         return jsonify({"status": "Accepted"}), 202
     except Exception as e:
@@ -41,8 +41,9 @@ def execute():
 def shutdown():
     global loop
     if loop and not loop.is_closed():
-        loop.call_soon_threadsafe(loop.stop)  # Stop the event loop
-        loop_thread.join(timeout=2)  # Wait for the thread to exit
+        loop.call_soon_threadsafe(loop.stop)
+        if loop_thread is not None:
+            loop_thread.join()
 
 # Register shutdown handler
 atexit.register(shutdown)

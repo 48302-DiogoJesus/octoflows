@@ -1,9 +1,7 @@
 import asyncio
-import threading
 from typing import Any
 import uuid
 import cloudpickle
-import requests
 import aiohttp
 from abc import ABC, abstractmethod
 
@@ -11,32 +9,24 @@ import src.dag as dag
 import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 
-# TODO: ?
 class Worker(ABC):
-    pass
+    shutdown_flag: asyncio.Event
+    subdag: dag.DAG
+    worker_id: str   # Use first 8 chars of a UUID for readable IDs
 
-class LocalCoroutineWorker(Worker):
-    """
-    Processes DAG tasks
-    continuing with single downstream tasks and spawning new workers (coroutines) for branches.
-    """
     def __init__(self, subdag: dag.DAG):
         self.shutdown_flag = asyncio.Event()
-        # Tracks all Workers created by this worker and those workers, recursivelly
         self.subdag = subdag
         self.worker_id = str(uuid.uuid4())[:3]  # Use first 8 chars of a UUID for readable IDs
         if not subdag.root_node: raise Exception(f"LocalCoroutineWorker expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
-    
-    def start_executing(self):
-        asyncio.create_task(self._start_executing())
 
-    async def _start_executing(self):
+    async def start_executing(self):
         task = self.subdag.root_node
 
         try:
             while not self.shutdown_flag.is_set():
                 # Should be none on the first call. Not None if the same Virtual Worker executes multiple tasks
-                if self.shutdown_flag.is_set(): return
+                if self.shutdown_flag.is_set(): break
 
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
@@ -52,12 +42,12 @@ class LocalCoroutineWorker(Worker):
                 upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
                 if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id()}'s data could not be uploaded to Redis (set() failed)")
 
-                if self.shutdown_flag.is_set(): return
+                if self.shutdown_flag.is_set(): break
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id(), f"Last Task finished. Shutting down executor...")
                     self.shutdown_flag.set()
-                    return
+                    break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
                 self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id.get_full_id()} => [{[t.id.get_full_id() for t in task.downstream_nodes]}]")
@@ -72,7 +62,7 @@ class LocalCoroutineWorker(Worker):
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
-                if self.shutdown_flag.is_set(): return
+                if self.shutdown_flag.is_set(): break
 
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
@@ -85,24 +75,39 @@ class LocalCoroutineWorker(Worker):
                     tasks_to_delegate = ready_downstream[1:]
                     
                     for task in tasks_to_delegate:
-                        self._parallelize(self.subdag.create_subdag(task))
+                        asyncio.create_task(self.delegate(self.subdag.create_subdag(task)))
                     
                     # Continue with one task in this worker
                     self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                     task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
                 else:
-                    return  # Give up
+                    self.log(task.id.get_full_id(), f"No ready downstream tasks found. Shutting down executor...")
+                    break  # Give up
         except Exception as e:
             self.log(task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
             raise e
 
-    def _parallelize(self, subsubdag: dag.DAG):
-        LocalCoroutineWorker(subsubdag).start_executing()
+        # Cleanup
+        self.log(task.id.get_full_id(), f"Executor shut down!")
+
+    @abstractmethod
+    async def delegate(self, subsubdag: dag.DAG): pass
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        print(f"VW[{self.worker_id}] T({task_id}) => {message}")
+        print(f"VirtualWorker({self.worker_id}) Task({task_id}) | {message}")
+
+class LocalCoroutineWorker(Worker):
+    """
+    Processes DAG tasks
+    continuing with single downstream tasks and spawning new workers (coroutines) for branches.
+    """
+    def __init__(self, subdag: dag.DAG):
+       super().__init__(subdag)
+    
+    async def delegate(self, subsubdag: dag.DAG):
+        asyncio.create_task(LocalCoroutineWorker(subsubdag).start_executing())
 
 class FlaskProcessExecutor(Worker):
     """
@@ -110,101 +115,22 @@ class FlaskProcessExecutor(Worker):
     Waits for the completion of all workers
     """
     def __init__(self, subdag: dag.DAG, flask_server_address: str):
-        self.shutdown_flag = asyncio.Event()
         self.flask_server_address = flask_server_address
-        # Tracks all Workers created by this worker and those workers, recursivelly
-        self.subdag = subdag
-        self.worker_id = str(uuid.uuid4())[:3]  # Use first 8 chars of a UUID for readable IDs
-        if not subdag.root_node: raise Exception(f"FlaskProcessExecutor expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
-    
-    async def start_executing(self):
-        task = self.subdag.root_node
+        super().__init__(subdag)
 
-        try:
-            while not self.shutdown_flag.is_set():
-                # Should be none on the first call. Not None if the same Virtual Worker executes multiple tasks
-                if self.shutdown_flag.is_set(): return
+    async def parallelize_self(self):
+        ''' Delegate this subdag to a remote worker. This should be called by the Client to initiate a DAG execution '''
+        await self.delegate(self.subdag)
 
-                # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
-                task_dependencies: dict[str, Any] = {}
-                for dependency_task in task.upstream_nodes:
-                    task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id}'s data is not available")
-                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
-                
-                # 2. EXECUTE TASK
-                self.log(task.id.get_full_id(), f"2) Executing...")
-                task_result = task.invoke(dependencies=task_dependencies)
-                upload_result = intermediate_storage.IntermediateStorage.set(task.id.get_full_id(), cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id()}'s data could not be uploaded to Redis (set() failed)")
-
-                if self.shutdown_flag.is_set(): return
-
-                if len(task.downstream_nodes) == 0: 
-                    self.log(task.id.get_full_id(), f"Last Task finished. Shutting down executor...")
-                    self.shutdown_flag.set()
-                    return
-
-                # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id(), f"3) Handle Fan-Out {task.id.get_full_id()} => [{[t.id.get_full_id() for t in task.downstream_nodes]}]")
-                ready_downstream: list[dag_task_node.DAGTaskNode] = []
-                for downstream_task in task.downstream_nodes:
-                    downstream_task_total_dependencies = len(self.subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                    if downstream_task_total_dependencies == 1: # {task} was the only dependency
-                        ready_downstream.append(downstream_task)
-                    else:
-                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task.id.get_full_id()}")
-                        self.log(task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
-                        if dependencies_met == downstream_task_total_dependencies:
-                            ready_downstream.append(downstream_task)
-                
-                if self.shutdown_flag.is_set(): return
-
-                # Delegate Downstream Tasks Execution
-                ## 1 Task ?: the same worker continues with it
-                if len(ready_downstream) == 1:
-                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
-                    continue
-                ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
-                elif len(ready_downstream) > 1:
-                    continuation_task = ready_downstream[0] # choose the first task
-                    tasks_to_delegate = ready_downstream[1:]
-                    
-                    for task in tasks_to_delegate:
-                        self.parallelize(self.subdag.create_subdag(task))
-                    
-                    # Continue with one task in this worker
-                    self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
-                    task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
-                    continue
-                else:
-                    return  # Give up
-        except Exception as e:
-            self.log(task.id, f"Error: {str(e)}") # type: ignore
-            raise e
-
-    def parallelize_self(self):
-        self.parallelize(self.subdag)
-
-    def parallelize(self, subsubdag: dag.DAG):
+    async def delegate(self, subsubdag: dag.DAG):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        print(f"Invoking remote executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
-        async def __parallelize():
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.flask_server_address, data=cloudpickle.dumps(subsubdag), headers={'Content-Type': 'application/octet-stream'}
-                ) as response:
-                    if response.status != 202:
-                        text = await response.text()
-                        raise Exception(f"Failed to invoke executor: {text}")
-        asyncio.create_task(__parallelize())
-
-    def _parallelize_locally(self, subsubdag: dag.DAG):
-        pass # makes sense to implement?
-
-    def log(self, task_id: str, message: str):
-        """Log a message with worker ID prefix."""
-        print(f"VW[{self.worker_id}] T({task_id}) => {message}")
+        self.log(subsubdag.root_node.id.get_full_id(), f"Invoking remote executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
+        async with aiohttp.ClientSession() as session:
+            async with await session.post(
+                self.flask_server_address, data=cloudpickle.dumps(subsubdag), headers={'Content-Type': 'application/octet-stream'}
+            ) as response:
+                if response.status != 202:
+                    text = await response.text()
+                    raise Exception(f"Failed to invoke executor: {text}")

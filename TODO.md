@@ -1,10 +1,3 @@
-- BUG: Fix crash
-
-- At least 1 VirtualWorker should be killing itself on fan-ins. Is it already happening??
-- Find common stuff between `LocalCoroutineWorker` and `FlaskExecutor`
-
-- Implement RemoteWorker (similar to VirtualWorker) but instead of invoking new asyncio task, invokes new remote worker (how to handle finishing?)
-
 - How to handle user-code dependencies
     How does pywren do it?
     Any way to identify dependencies at runtime + pip install dynamically?
