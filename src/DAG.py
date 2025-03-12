@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 import uuid
 import cloudpickle
 import graphviz
@@ -76,10 +77,33 @@ class DAG:
             node.id.dag_id = self.master_dag_id
             self.all_nodes[node.id.get_full_id()] = node # Add the updated node to the dictionary with the new key
             del self.all_nodes[old_key] # Remove the old key from the dictionary
+    
+            # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
+            # Convert func_args
+            new_args = []
+            for arg in node.func_args:
+                if isinstance(arg, dag_task_node.DAGTaskNode):
+                    # previous for loop adds the master dag id, we need that update
+                    new_args.append(self._get_node_by_task_id(arg.id.task_id).id)
+                elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
+                    new_args.append([self._get_node_by_task_id(item.id.task_id).id for item in arg])
+                else:
+                    new_args.append(arg)
+            
+            # Convert func_kwargs
+            new_kwargs = {}
+            for key, value in node.func_kwargs.items():
+                if isinstance(value, dag_task_node.DAGTaskNode):
+                    new_kwargs[key] = self._get_node_by_task_id(value.id.task_id).id
+                elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
+                    new_kwargs[key] = [self._get_node_by_task_id(item.id.task_id).id for item in value]
+                else:
+                    new_kwargs[key] = value
 
-        # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
-        for node in self.all_nodes.values():
-            node._try_convert_node_func_args_to_ids()
+            # print(f"Converted {node.func_name} args to {new_args} and kwargs to {new_kwargs}")
+
+            node.func_args = tuple(new_args)
+            node.func_kwargs = new_kwargs
 
     def _find_sink_node_from_roots(self, root_nodes: list[dag_task_node.DAGTaskNode]):
         def dfs(node):
@@ -112,7 +136,7 @@ class DAG:
     @classmethod
     def _find_all_nodes_from_sink(cls, sink_node: dag_task_node.DAGTaskNode) -> dict[str, dag_task_node.DAGTaskNode]:
         """Build the complete graph by traversing from sink node upward."""
-        all_nodes = {}
+        all_nodes: dict[str, dag_task_node.DAGTaskNode] = {}
         
         def visit(node: dag_task_node.DAGTaskNode):
             if node.id.get_full_id() in all_nodes: return
@@ -124,7 +148,13 @@ class DAG:
     
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self.all_nodes[node_id.get_full_id()]
-
+    
+    def _get_node_by_task_id(self, task_id: str) -> Any:
+        for node in self.all_nodes.values():
+            if node.id.task_id == task_id:
+                return node
+        return None
+    
     @classmethod
     def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", highlight_roots=True, highlight_sink=True, open_after=True):
         # Create a new directed graph
@@ -147,12 +177,16 @@ class DAG:
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     dependency_strs.append(str(arg.id.get_full_id()))
+                elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
+                    dependency_strs.append(str([item.id.get_full_id() for item in arg]))
                 else:
                     dependency_strs.append(str(arg))
 
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
                     dependency_strs.append(f"{key}={value.id.get_full_id()}")
+                elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
+                    dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
                 else:
                     dependency_strs.append(f"{key}={value}")
             

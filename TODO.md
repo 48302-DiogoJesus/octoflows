@@ -1,4 +1,7 @@
-How does PyWren handle user code dependencies?
+- Allow decorated functions to receive lists of `DAGTaskNode`?
+    when looking for upstream tasks accept `DAGTaskNode | list[DAGTaskNode]`
+    convert the list items to IDs
+    when grabbing dependencies don't forget it
 
 - Collect metrics (make them persistent in Redis)
     Execution time

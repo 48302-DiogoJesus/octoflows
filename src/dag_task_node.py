@@ -48,11 +48,19 @@ class DAGTaskNode(Generic[R]):
             if isinstance(arg, DAGTaskNode):
                 self.upstream_nodes.append(arg)
                 arg.downstream_nodes.append(self)
+            elif isinstance(arg, list) and all(isinstance(item, DAGTaskNode) for item in arg):
+                for item in arg:
+                    self.upstream_nodes.append(item)
+                    item.downstream_nodes.append(self)
 
         for _, value in self.func_kwargs.items():
             if isinstance(value, DAGTaskNode):
                 self.upstream_nodes.append(value)
                 value.downstream_nodes.append(self)
+            elif isinstance(value, list) and all(isinstance(item, DAGTaskNode) for item in value):
+                for item in value:
+                    self.upstream_nodes.append(item)
+                    item.downstream_nodes.append(self)
 
     def _find_third_party_libraries(self) -> set[str]:
         func_file_path = inspect.getfile(self.func_code)
@@ -144,6 +152,9 @@ class DAGTaskNode(Generic[R]):
             if isinstance(arg, DAGTaskNodeId):
                 if arg.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {arg.get_full_id()} not in dependencies")
                 final_func_args.append(dependencies[arg.get_full_id()])
+            elif isinstance(arg, list) and all(isinstance(item, DAGTaskNodeId) for item in arg):
+                print(f"Try find dependencies: {arg}")
+                final_func_args.append([dependencies[item.get_full_id()] for item in arg])
             else:
                 final_func_args.append(arg)
 
@@ -151,10 +162,12 @@ class DAGTaskNode(Generic[R]):
             if isinstance(value, DAGTaskNodeId):
                 if value.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {value.get_full_id()} not in dependencies")
                 final_func_kwargs[key] = dependencies[value.get_full_id()]
+            elif isinstance(value, list) and all(isinstance(item, DAGTaskNodeId) for item in value):
+                final_func_kwargs[key] = [dependencies[item.get_full_id()] for item in value]
             else:
                 final_func_kwargs[key] = value
 
-        # print(f"Executing task {self.task_id} with args {final_func_args} and kwargs {final_func_kwargs}")
+        print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
         return self.func_code(*tuple(final_func_args), **final_func_kwargs)
 
@@ -167,6 +180,8 @@ class DAGTaskNode(Generic[R]):
         for arg in self.func_args:
             if isinstance(arg, dag_task_node.DAGTaskNode):
                 new_args.append(arg.id)
+            elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
+                new_args.append([item.id for item in arg])
             else:
                 new_args.append(arg)
         
@@ -175,8 +190,12 @@ class DAGTaskNode(Generic[R]):
         for key, value in self.func_kwargs.items():
             if isinstance(value, dag_task_node.DAGTaskNode):
                 new_kwargs[key] = value.id
+            elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
+                new_kwargs[key] = [item.id for item in value]
             else:
                 new_kwargs[key] = value
+
+        print(f"Converted {self.func_name} args to {new_args} and kwargs to {new_kwargs}")
 
         self.func_args = tuple(new_args)
         self.func_kwargs = new_kwargs

@@ -32,6 +32,7 @@ class AbstractExecutor(ABC):
                     task_output = intermediate_storage.IntermediateStorage.get(dependency_task.id.get_full_id())
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id()}'s data is not available")
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
+                    print("Upstream Nodes: ", [n.id.get_full_id() for n in task.upstream_nodes], "DEPS: ", task_dependencies[dependency_task.id.get_full_id()])
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id(), f"2) Executing...")

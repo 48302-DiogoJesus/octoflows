@@ -3,35 +3,50 @@ import flask
 from src.dag_task_node import DAGTask
 import numpy as np
 
-@DAGTask
-def a(x: int):
-    return x + 10
+import json
 
 @DAGTask
-def b(x: int, y: int):
-    data = { "x": x, "y": y }
-    data_serialized = json.dumps(data)
-    return data_serialized
+def calculate_discount(original_price: float, discount_rate: float) -> float:
+    """Calculate the discounted price."""
+    return original_price * (1 - discount_rate)
 
 @DAGTask
-def c(data: bytes, extra: int) -> str:
-    json_data = json.loads(data)
-    x = json_data["x"]
-    return f"{(x * 10) + extra}"
+def apply_tax(discounted_price: float, tax_rate: float) -> float:
+    """Apply tax to the discounted price."""
+    return discounted_price * (1 + tax_rate)
 
 @DAGTask
-def d(x: str, y: str) -> str:
-    return x + "_final_" + y
+def generate_invoice(product_name: str, final_price: float) -> str:
+    """Generate an invoice string."""
+    return f"Invoice for {product_name}: ${final_price:.2f}"
 
-a1 = a(10)
-a2 = a(20)
+@DAGTask
+def calculate_total_revenue(prices: list[float]) -> float:
+    """Calculate the total revenue from a list of prices."""
+    return sum(prices)
 
-b1 = b(a1, a2)
+# Define the workflow
+products = [
+    {"name": "Laptop", "original_price": 1000.0},
+    {"name": "Phone", "original_price": 800.0},
+    {"name": "Tablet", "original_price": 600.0},
+]
 
-c1 = c(b1, 2)
-c2 = c(b1, 4)
-d1 = d(c1, c2)
+discount_rate = 0.1  # 10% discount
+tax_rate = 0.07  # 7% tax
 
-# d1.visualize_dag()
-result = d1.compute(local=True)
-print(f"UserCode | Final Result: {result}")
+# Fan-out: Calculate discounts for all products
+discounted_prices = [calculate_discount(product["original_price"], discount_rate) for product in products]
+
+# Fan-out: Apply taxes to all discounted prices
+# final_prices = [apply_tax(price, tax_rate) for price in discounted_prices]
+
+# Fan-out: Generate invoices for all products
+# invoices = [generate_invoice(product["name"], final_price) for product, final_price in zip(products, final_prices)]
+
+# Fan-in: Aggregate results to calculate total revenue and average price
+total_revenue = calculate_total_revenue(discounted_prices)
+# total_revenue.visualize_dag()
+result = total_revenue.compute(local=True)
+
+print(f"\nTotal Revenue: ${result}")
