@@ -9,25 +9,22 @@ import src.dag as dag
 import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 
-class Worker(ABC):
+class AbstractExecutor(ABC):
     shutdown_flag: asyncio.Event
     subdag: dag.DAG
-    worker_id: str   # Use first 8 chars of a UUID for readable IDs
+    executor_id: str   # Use first 8 chars of a UUID for readable IDs
 
     def __init__(self, subdag: dag.DAG):
         self.shutdown_flag = asyncio.Event()
         self.subdag = subdag
-        self.worker_id = str(uuid.uuid4())[:3]  # Use first 8 chars of a UUID for readable IDs
-        if not subdag.root_node: raise Exception(f"LocalCoroutineWorker expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
+        self.executor_id = str(uuid.uuid4())[:3]  # Use first 8 chars of a UUID for readable IDs
+        if not subdag.root_node: raise Exception(f"AbstractExecutor expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
 
     async def start_executing(self):
         task = self.subdag.root_node
 
         try:
             while not self.shutdown_flag.is_set():
-                # Should be none on the first call. Not None if the same Virtual Worker executes multiple tasks
-                if self.shutdown_flag.is_set(): break
-
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id(), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
@@ -65,7 +62,7 @@ class Worker(ABC):
                 if self.shutdown_flag.is_set(): break
 
                 # Delegate Downstream Tasks Execution
-                ## 1 Task ?: the same worker continues with it
+                ## 1 Task ?: the same executor continues with it
                 if len(ready_downstream) == 1:
                     task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
@@ -77,7 +74,7 @@ class Worker(ABC):
                     for task in tasks_to_delegate:
                         asyncio.create_task(self.delegate(self.subdag.create_subdag(task)))
                     
-                    # Continue with one task in this worker
+                    # Continue with one task in this executor
                     self.log(task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                     task = self.subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
                     continue
@@ -96,9 +93,9 @@ class Worker(ABC):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        print(f"VirtualWorker({self.worker_id}) Task({task_id}) | {message}")
+        print(f"Executor({self.executor_id}) Task({task_id}) | {message}")
 
-class LocalCoroutineWorker(Worker):
+class LocalExecutor(AbstractExecutor):
     """
     Processes DAG tasks
     continuing with single downstream tasks and spawning new workers (coroutines) for branches.
@@ -107,9 +104,9 @@ class LocalCoroutineWorker(Worker):
        super().__init__(subdag)
     
     async def delegate(self, subsubdag: dag.DAG):
-        asyncio.create_task(LocalCoroutineWorker(subsubdag).start_executing())
+        asyncio.create_task(LocalExecutor(subsubdag).start_executing())
 
-class FlaskProcessExecutor(Worker):
+class FlaskExecutor(AbstractExecutor):
     """
     Invokes workers by calling a Flask web server with the serialized subsubdag
     Waits for the completion of all workers

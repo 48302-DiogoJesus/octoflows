@@ -28,7 +28,7 @@ loop_thread.start()
 def execute():
     try:
         subdag: dag.DAG = cloudpickle.loads(request.data)
-        ex = executor.FlaskProcessExecutor(subdag, 'http://localhost:5000/')
+        ex = executor.FlaskExecutor(subdag, 'http://localhost:5000/')
 
         if loop and not loop.is_closed():
             loop.call_soon_threadsafe(loop.create_task, ex.start_executing())
