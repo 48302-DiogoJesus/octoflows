@@ -6,7 +6,7 @@ import numpy as np
 import json
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.dag_task_node import DAGTask
+from src.dag_task_node import DAGTask, ExecutorType
 
 @DAGTask
 def calculate_discount(original_price: float, discount_rate: float) -> float:
@@ -51,7 +51,7 @@ discounted_prices = [calculate_discount(product["original_price"], discount_rate
 total_revenue = calculate_total_revenue(discounted_prices)
 
 # total_revenue.visualize_dag()
-result = total_revenue.compute(local=True)
+result = total_revenue.compute(executorType=ExecutorType.REMOTE_DOCKER)
 print(f"Total Revenue: ${result}")
 
 # result2 = total_revenue.compute(local=True)

@@ -1,25 +1,21 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY ./src/requirements.txt .
+# Install pipreqs to generate requirements.txt inside the container
+RUN pip install --no-cache-dir pipreqs
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the src and flask_worker_server directories into the container
+# Copy the source code first
 COPY ./src /app/src
-COPY ./src/flask_worker_server /app/flask_worker_server
 
-# Set the environment variable for Flask
-ENV FLASK_APP=flask_worker_server/handler.py
-ENV FLASK_ENV=production
+# Generate requirements.txt from the source code
+RUN pipreqs /app/src --force --savepath /app/requirements.txt
 
-# Expose port 5000 for the Flask app
-EXPOSE 5000
+# Install dependencies from the generated requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Run the Flask application
-CMD ["flask", "run", "--host=0.0.0.0"]
+# Keep the container running
+RUN echo '#!/bin/bash\nwhile true; do sleep 3600; done' > /app/keep_alive.sh
+RUN chmod +x /app/keep_alive.sh
+ENTRYPOINT ["/app/keep_alive.sh"]

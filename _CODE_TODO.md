@@ -1,6 +1,9 @@
-- Make the Flask web server only process one request at a time and reject others with appropriate status code
-    Use an environment variable to define behavior (`NO_CONCURRENCY`=false by default)
+- If running the docker command return with exitcode = 1 (0 is the default/success??) **OR** No container available
+    Launch a new instance of the `service` => wait for it to be ready => try same logic again
+
 - Rename `FlaskExecutor` to `WebServerExecutor`
+- Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)
+- `.Configure(intermediate_storage_config: redis_hostname, etc.. for now)`
 
 - Avoid Redis where unneded
 - Avoid Redis on LocalExecutor (base abstract `ExternalStorage` Class (`InMemoryStorage`, `RedisStorage`))

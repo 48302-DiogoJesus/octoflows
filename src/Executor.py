@@ -1,3 +1,7 @@
+import random
+import setuptools # docker uses distutils which was removed in Python 3.12
+import docker
+import base64
 import asyncio
 from typing import Any
 import uuid
@@ -80,6 +84,7 @@ class AbstractExecutor(ABC):
                     continue
                 else:
                     self.log(task.id.get_full_id_in_dag(self.subdag), f"No ready downstream tasks found. Shutting down executor...")
+                    self.shutdown_flag.set()
                     break  # Give up
         except Exception as e:
             self.log(task.id.get_full_id_in_dag(self.subdag), f"Error: {str(e)}") # type: ignore
@@ -131,3 +136,73 @@ class FlaskExecutor(AbstractExecutor):
                 if response.status != 202:
                     text = await response.text()
                     raise Exception(f"Failed to invoke executor: {text}")
+                
+class DockerExecutor(AbstractExecutor):
+    MAX_TRIES = 2
+    """
+    Invokes workers by calling a Flask web server with the serialized subsubdag
+    Waits for the completion of all workers
+    """
+    def __init__(self, subdag: dag.DAG, redis_hostname: str):
+        super().__init__(subdag)
+        intermediate_storage.IntermediateStorage.configure(host=redis_hostname)
+
+    async def parallelize_self(self):
+        ''' Delegate this subdag to a remote worker. This should be called by the Client to initiate a DAG execution '''
+        await self.delegate(self.subdag)
+
+    async def delegate(self, subsubdag: dag.DAG):
+        '''
+        Each invocation is done inside a new Coroutine without blocking the owner Thread
+        '''
+        self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Invoking docker executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
+
+        serialized_dag = cloudpickle.dumps(subsubdag)
+        base64_encoded_dag = base64.b64encode(serialized_dag).decode('utf-8')
+        # Prepare the command to run the script with the base64-encoded DAG
+        command = f"python /app/src/standalone_process_worker/worker.py {base64_encoded_dag}"
+
+        docker_service = "standalone-worker-small"
+        docker_client = docker.from_env() # Initialize Docker client
+
+        tries = 0
+        try:
+            while tries < self.MAX_TRIES:
+                # Get the list of running containers for the service
+                containers = docker_client.containers.list(filters={"status": "running", "label": f"com.docker.compose.service={docker_service}"})
+
+                if not containers:
+                    self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), "No running containers. Spawning new one and retrying...")
+                    self._launch_new_container(docker_client, docker_service)
+                    tries += 1
+                    continue
+
+                # Choose a random container from the list
+                container = random.choice(containers)
+                # Execute the command in the container
+                exec_response = container.exec_run(command, detach=False) # TODO: detach true for non-blocking
+                exec_status = exec_response[0]
+                if exec_status != 0:
+                    self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), "Container Busy. Spawning new one and retrying...")
+                    tries += 1
+                    self._launch_new_container(docker_client, docker_service)
+                    continue
+
+                # Log the execution response
+                self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Executed command in container {container.id} | Output: {exec_response}")
+        except Exception as e:
+            self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Error invoking Docker executor: {e}")
+
+    def _launch_new_container(self, docker_client: docker.DockerClient, docker_service: str):
+        try:
+            # Use Docker SDK to spin up a new container for the given service
+            print(f"Launching a new container for service '{docker_service}'...")
+
+            # Now create a container from that image and start it
+            container = docker_client.containers.run(docker_service, detach=False)
+
+            print(f"Successfully launched container")
+            return container
+        except Exception as e:
+            print(f"Error: Unable to launch container for service '{docker_service}'.")
+            print(str(e))

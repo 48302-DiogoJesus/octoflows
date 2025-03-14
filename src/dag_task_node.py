@@ -8,13 +8,17 @@ import subprocess
 import sys
 from typing import Any, Callable, Generic, TypeVar
 import uuid
-
 import cloudpickle
+from enum import Enum
 
-import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 
 R = TypeVar('R')
+
+class ExecutorType(Enum):
+    LOCAL = "LOCAL"
+    REMOTE_FLASK = "REMOTE_FLASK"
+    REMOTE_DOCKER = "REMOTE_DOCKER"
 
 @dataclass
 class DAGTaskNodeId:
@@ -142,14 +146,17 @@ class DAGTaskNode(Generic[R]):
 
         return cloned_node
 
-    def compute(self, local=False) -> R:
+    def compute(self, executorType: ExecutorType = ExecutorType.LOCAL) -> R:
         import src.dag as dag
         dag_representation = dag.DAG(sink_node=self)
         res = None
-        if local: 
-            res = dag_representation.start_local_execution() # type: ignore
-        else: 
-            res = dag_representation.start_remote_execution() # type: ignore
+        match executorType:
+            case ExecutorType.LOCAL:
+                res = dag_representation.start_local_execution() # type: ignore
+            case ExecutorType.REMOTE_FLASK:
+                res = dag_representation.start_flask_execution() # type: ignore
+            case ExecutorType.REMOTE_DOCKER:
+                res = dag_representation.start_docker_execution() # type: ignore
         return res
 
     def invoke(self, dependencies: dict[str, Any]):
