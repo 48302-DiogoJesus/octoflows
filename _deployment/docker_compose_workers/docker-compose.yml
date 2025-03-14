@@ -1,0 +1,25 @@
+services:
+  flask-small:
+    image: flask-worker-server
+    build:
+      context: ../../
+      dockerfile: _deployment/docker_compose_workers/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 128M
+    ports:
+      - "5000-5019:5000"
+    command: flask run --host=0.0.0.0
+
+  flask-large:
+    image: flask-worker-server
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+    ports:
+      - "5020-5029:5000"
+    command: flask run --host=0.0.0.0

@@ -1,3 +1,7 @@
+- Make the Flask web server only process one request at a time and reject others with appropriate status code
+    Use an environment variable to define behavior (`NO_CONCURRENCY`=false by default)
+- Rename `FlaskExecutor` to `WebServerExecutor`
+
 - Avoid Redis where unneded
 - Avoid Redis on LocalExecutor (base abstract `ExternalStorage` Class (`InMemoryStorage`, `RedisStorage`))
 
