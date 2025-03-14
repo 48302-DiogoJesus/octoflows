@@ -1,1 +1,0 @@
-mypy src --check-untyped-defs
