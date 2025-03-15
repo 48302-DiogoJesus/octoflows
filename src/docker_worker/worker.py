@@ -46,7 +46,7 @@ async def main():
             raise Exception("Error: Loaded object is not a DAG instance")
         
         # Create executor and start execution
-        ex = executor.DockerExecutor(subdag, redis_hostname="redis") # "redis" hostname because we assume its running on same docker network
+        ex = executor.DockerExecutor(subdag, "http://localhost:5000") # "redis" hostname because we assume its running on same docker network
         print("Start executing subdag")
         await ex.start_executing()
         print("Execution completed successfully")

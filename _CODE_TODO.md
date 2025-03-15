@@ -1,5 +1,6 @@
-- If running the docker command return with exitcode = 1 (0 is the default/success??) **OR** No container available
-    Launch a new instance of the `service` => wait for it to be ready => try same logic again
+- How can the worker code access **redis** and the **gateway** from inside a docker container?
+- Not calling multiple containers (only 1)!
+- Kill containers without requests every 5 seconds
 
 - Rename `FlaskExecutor` to `WebServerExecutor`
 - Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)

@@ -17,7 +17,6 @@ R = TypeVar('R')
 
 class ExecutorType(Enum):
     LOCAL = "LOCAL"
-    REMOTE_FLASK = "REMOTE_FLASK"
     REMOTE_DOCKER = "REMOTE_DOCKER"
 
 @dataclass
@@ -153,8 +152,6 @@ class DAGTaskNode(Generic[R]):
         match executorType:
             case ExecutorType.LOCAL:
                 res = dag_representation.start_local_execution() # type: ignore
-            case ExecutorType.REMOTE_FLASK:
-                res = dag_representation.start_flask_execution() # type: ignore
             case ExecutorType.REMOTE_DOCKER:
                 res = dag_representation.start_docker_execution() # type: ignore
         return res

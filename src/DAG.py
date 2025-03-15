@@ -35,19 +35,10 @@ class DAG:
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
 
     # User interface must be synchronous
-    def start_flask_execution(self):
-        async def internal():
-            for root_node in self.root_nodes:
-                asyncio.create_task(executor.FlaskExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self())
-            res = await self._wait_for_final_result()
-            return res
-        return asyncio.run(internal())
-
-    # User interface must be synchronous
     def start_docker_execution(self):
         async def internal():
             for root_node in self.root_nodes:
-                asyncio.create_task(executor.DockerExecutor(self.create_subdag(root_node), redis_hostname="localhost").parallelize_self())
+                asyncio.create_task(executor.DockerExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self())
             res = await self._wait_for_final_result()
             return res
         return asyncio.run(internal())
