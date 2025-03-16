@@ -4,13 +4,11 @@ import sys
 import base64
 import threading
 import time
+import uuid
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
 
-app = Flask(__name__)
-
-# Create a thread pool executor
-executor = ThreadPoolExecutor(max_workers=10)
+import src.docker_workers_gateway.container_manager as container_manager
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
 
@@ -22,48 +20,9 @@ if DOCKER_IMAGE is None:
 DOCKER_IMAGE = DOCKER_IMAGE.strip()
 print(f"Using Docker image: '{DOCKER_IMAGE}'")
 
-def run_docker_container(cpus, memory):
-    """
-    Runs a Docker container with the specified resource limits.
-    """
-    print(f"Launching Docker container with {cpus} CPUs and {memory} MB of memory...")
-    # Run the Docker container with resource limits
-    container_id = subprocess.check_output(
-        [
-            "docker", "run", "-d",
-            "--cpus", str(cpus),
-            "--memory", f"{memory}m",
-            "--network", "host",
-            DOCKER_IMAGE
-        ],
-        text=True
-    ).strip()
-    return container_id
-
-def get_running_containers(cpus, memory):
-    """
-    Returns a list of container IDs running the specified image with the given resource limits.
-    """
-    # Get all running containers
-    containers = subprocess.check_output(
-        ["docker", "ps", "--filter", f"ancestor={DOCKER_IMAGE}", "--format", "{{.ID}}"],
-        text=True
-    ).strip().splitlines()
-
-    # Filter containers by resource limits
-    filtered_containers = []
-    for container_id in containers:
-        inspect_output = subprocess.check_output(
-            ["docker", "inspect", "--format", "{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}", container_id],
-            text=True
-        ).strip().split()
-        container_cpus = int(inspect_output[0]) / 1e9  # Convert nanoseconds to CPUs
-        container_memory = int(inspect_output[1]) // (1024 * 1024)  # Convert bytes to MB
-
-        if container_cpus == cpus and container_memory == memory:
-            filtered_containers.append(container_id)
-
-    return filtered_containers
+app = Flask(__name__)
+thread_pool = ThreadPoolExecutor(max_workers=100)
+container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE)
 
 def execute_command_in_container(container_id, command):
     """
@@ -72,78 +31,75 @@ def execute_command_in_container(container_id, command):
     """
     result = subprocess.run(
         ["docker", "exec", container_id, "sh", "-c", command],
-        capture_output=True,
-        text=True
+        capture_output=False,
+        # text=True
     )
-    print(f"Exit Code: {result.returncode}")
-    print("STDOUT:")
-    print(result.stdout.strip() if result.stdout else "(No output)")
-    print("STDERR:")
-    print(result.stderr.strip() if result.stderr else "(No errors)")
+    # print(f"Exit Code: {result.returncode}")
+    # print("STDOUT:")
+    # print(result.stdout.strip() if result.stdout else "(No output)")
+    # print("STDERR:")
+    # print(result.stderr.strip() if result.stderr else "(No errors)")
     return result.returncode
 
-def get_all_resource_configurations():
-    """
-    Returns a dictionary mapping resource configurations to container IDs.
-    """
-    # Get all running containers
-    containers = subprocess.check_output(
-        ["docker", "ps", "--filter", f"ancestor={DOCKER_IMAGE}", "--format", "{{.ID}}"],
-        text=True
-    ).strip().splitlines()
+busy_containers = set()
+lock = threading.Lock()
 
-    # Group containers by resource configuration
-    configurations = {}
-    for container_id in containers:
-        inspect_output = subprocess.check_output(
-            ["docker", "inspect", "--format", "{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}", container_id],
-            text=True
-        ).strip().split()
-        container_cpus = int(inspect_output[0]) / 1e9  # Convert nanoseconds to CPUs
-        container_memory = int(inspect_output[1]) // (1024 * 1024)  # Convert bytes to MB
-
-        config_key = f"{container_cpus}_{container_memory}"
-        if config_key not in configurations:
-            configurations[config_key] = []
-        configurations[config_key].append(container_id)
-
-    return configurations
-
-def process_job_async(resource_key, cpus, memory, base64_dag):
+def process_job_async(cpus, memory, base64_dag):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
     """
-    req_id = time.time()
-    print(f"{req_id}) Processing job asynchronously at {time.time()}")
+    job_id = str(uuid.uuid4())[:4]
+
+    def get_time_formatted():
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+    print(f"[{get_time_formatted()}] {job_id}) ACCEPTED")
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_dag}"
-    
+
     MAX_TRIES = 10
     currTries = 0
     while currTries <= MAX_TRIES:
         currTries += 1
-        # Get running containers with the specified configuration
-        containers = get_running_containers(cpus=cpus, memory=memory)
 
-        # Try executing the command in each container
-        for container_id in containers:
-            exit_code = execute_command_in_container(container_id, command)
-            if exit_code == 0:
-                print(f"{req_id}) Job completed successfully in container {container_id}")
-                return
+        container_id = container_pool.get_container(cpus=cpus, memory=memory)
+        if container_id:
+            try:
+                print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id}....") 
+                exit_code = execute_command_in_container(container_id, command)
+                if exit_code == 0:
+                    print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
+                    return
+                else:
+                    print(f"[{get_time_formatted()}] {job_id}) CAN'T COMPLETE in container: {container_id}")
+            finally:
+                container_pool.release_container(container_id)
 
         # If no container succeeded, launch a new one
-        new_container_id = run_docker_container(cpus=cpus, memory=memory)
+        print(f"[{get_time_formatted()}] {job_id}) LAUNCHING NEW CONTAINER: cpus={cpus}, memory={memory}")
+        new_container_id = container_pool.launch_container(cpus=cpus, memory=memory)
+
         if new_container_id:
-            exit_code = execute_command_in_container(new_container_id, command)
-            if exit_code == 0:
-                print(f"{req_id}) Job completed successfully in new container {new_container_id}")
-                break
-            else:
-                print(f"{req_id}) Container picked was busy!")
+            print(f"[{get_time_formatted()}] {job_id}) NEW CONTAINER: {new_container_id}")
+            # Add the new container to our pool (marked as busy by default)
+            container_pool.add_new_container(new_container_id, cpus, memory)
+
+            try:
+                print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {new_container_id}....")
+                exit_code = execute_command_in_container(new_container_id, command)
+                if exit_code == 0:
+                    print(f"[{get_time_formatted()}] {job_id}) COMPLETED in NEW container: {new_container_id}")
+                    return
+                else:
+                    print(f"[{get_time_formatted()}] {job_id}) CAN'T COMPLETE in NEW container: {new_container_id}")
+                    continue
+            finally:
+                container_pool.mark_container_available(new_container_id)
         else:
-            print(f"{req_id}) Failed to launch a new container")
+            print(f"[{get_time_formatted()}] {job_id}) FAILED to launch container")
             sys.exit(0)
+
+    print(f"[{get_time_formatted()}] {job_id}) JOB FAILED after {MAX_TRIES} tries")
 
 
 @app.route('/job', methods=['POST', 'GET'])
@@ -157,25 +113,17 @@ def handle_job():
         # Parse request data
         if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
         data = request.get_json()
+
         resource_config = data.get('resource_configuration', {})
         cpus = float(resource_config.get('cpus', 1))
         memory = int(resource_config.get('memory', 128))
-
         base64_dag = data.get('subdag', None)
-        if base64_dag is None:
-            return jsonify({"error": "subdag is required"}), 400
+        if base64_dag is None: return jsonify({"error": "subdag is required"}), 400
 
-        # Create a unique key for this resource configuration
-        resource_key = f"{cpus}_{memory}"
-        
-        req_id = time.time()
-        print(f"{req_id}) Received POST request at {time.time()}")
-        
         # Submit the job to be processed asynchronously
-        executor.submit(process_job_async, resource_key, cpus, memory, base64_dag)
+        thread_pool.submit(process_job_async, cpus, memory, base64_dag)
         
         # Immediately return 202 Accepted
-        print(f"{req_id}) Responding with 202 Accepted at {time.time()}")
         return jsonify({
             "message": "Job accepted for processing",
             "resource_configuration": {
@@ -186,7 +134,7 @@ def handle_job():
 
     elif request.method == 'GET':
         # Get all resource configurations and their containers
-        configurations = get_all_resource_configurations()
+        configurations = container_pool.get_all_resource_configurations()
         
         # Format the response
         result = {}

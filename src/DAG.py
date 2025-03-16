@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Any
 import uuid
 import cloudpickle
@@ -12,6 +13,7 @@ class DAG:
     _FINAL_RESULT_POLLING_TIME_S = 0.2
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
+        start_time = time.time()
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.master_dag_id = master_dag_id or str(uuid.uuid4())[:4]
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
@@ -27,6 +29,8 @@ class DAG:
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
         self._optimize_task_metadata()
+
+        print(f"Created DAG in {round(time.time() - start_time, 2)}s")
 
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]

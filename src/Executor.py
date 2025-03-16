@@ -126,7 +126,7 @@ class DockerExecutor(AbstractExecutor):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Invoking remote executor for subsubdag with {len(subsubdag.root_nodes)} root nodes | First Node: {subsubdag.root_node}")
+        self.log(subsubdag.root_node.id.get_full_id_in_dag(subsubdag), f"Invoking docker gateway for subsubdag starting at: {subsubdag.root_node}")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
                 self.docker_gateway_address + "/job", 
