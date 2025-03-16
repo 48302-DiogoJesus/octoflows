@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 import flask
 import numpy as np
 import json
@@ -11,17 +12,8 @@ from src.dag_task_node import DAGTask, ExecutorType
 @DAGTask
 def calculate_discount(original_price: float, discount_rate: float) -> float:
     """Calculate the discounted price."""
+    time.sleep(5)
     return original_price * (1 - discount_rate)
-
-@DAGTask
-def apply_tax(discounted_price: float, tax_rate: float) -> float:
-    """Apply tax to the discounted price."""
-    return discounted_price * (1 + tax_rate)
-
-@DAGTask
-def generate_invoice(product_name: str, final_price: float) -> str:
-    """Generate an invoice string."""
-    return f"Invoice for {product_name}: ${final_price:.2f}"
 
 @DAGTask
 def calculate_total_revenue(prices: list[float]) -> float:

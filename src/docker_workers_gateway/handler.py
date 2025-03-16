@@ -12,9 +12,6 @@ app = Flask(__name__)
 # Create a thread pool executor
 executor = ThreadPoolExecutor(max_workers=10)
 
-# Create a lock for the endpoint
-resource_locks = {}
-
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
 
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
@@ -24,14 +21,6 @@ if DOCKER_IMAGE is None:
 
 DOCKER_IMAGE = DOCKER_IMAGE.strip()
 print(f"Using Docker image: '{DOCKER_IMAGE}'")
-
-def get_resource_lock(resource_key):
-    """
-    Gets or creates a lock for the specified resource configuration.
-    """
-    if resource_key not in resource_locks:
-        resource_locks[resource_key] = threading.Lock()
-    return resource_locks[resource_key]
 
 def run_docker_container(cpus, memory):
     """
@@ -129,7 +118,10 @@ def process_job_async(resource_key, cpus, memory, base64_dag):
     print(f"{req_id}) Processing job asynchronously at {time.time()}")
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_dag}"
     
-    with get_resource_lock(resource_key):
+    MAX_TRIES = 10
+    currTries = 0
+    while currTries <= MAX_TRIES:
+        currTries += 1
         # Get running containers with the specified configuration
         containers = get_running_containers(cpus=cpus, memory=memory)
 
@@ -137,7 +129,7 @@ def process_job_async(resource_key, cpus, memory, base64_dag):
         for container_id in containers:
             exit_code = execute_command_in_container(container_id, command)
             if exit_code == 0:
-                print(f"{req_id}) Job completed successfully in container {container_id} at {time.time()}")
+                print(f"{req_id}) Job completed successfully in container {container_id}")
                 return
 
         # If no container succeeded, launch a new one
@@ -145,11 +137,14 @@ def process_job_async(resource_key, cpus, memory, base64_dag):
         if new_container_id:
             exit_code = execute_command_in_container(new_container_id, command)
             if exit_code == 0:
-                print(f"{req_id}) Job completed successfully in new container {new_container_id} at {time.time()}")
+                print(f"{req_id}) Job completed successfully in new container {new_container_id}")
+                break
             else:
-                print(f"{req_id}) Job failed in new container {new_container_id} at {time.time()}")
+                print(f"{req_id}) Container picked was busy!")
         else:
-            print(f"{req_id}) Failed to launch a new container at {time.time()}")
+            print(f"{req_id}) Failed to launch a new container")
+            sys.exit(0)
+
 
 @app.route('/job', methods=['POST', 'GET'])
 def handle_job():

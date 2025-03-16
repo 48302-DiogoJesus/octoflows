@@ -1,6 +1,6 @@
-- How can the worker code access **redis** and the **gateway** from inside a docker container?
-- Not calling multiple containers (only 1)!
-- Kill containers without requests every 5 seconds
+- Currently Not calling multiple containers (only 1)!
+    Create a workflow with bigger fan-outs
+- Kill containers without requests for 5 seconds
 
 - Rename `FlaskExecutor` to `WebServerExecutor`
 - Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)
