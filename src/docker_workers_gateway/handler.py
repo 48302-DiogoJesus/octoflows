@@ -21,24 +21,32 @@ DOCKER_IMAGE = DOCKER_IMAGE.strip()
 print(f"Using Docker image: '{DOCKER_IMAGE}'")
 
 app = Flask(__name__)
-thread_pool = ThreadPoolExecutor(max_workers=100)
-container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE)
+thread_pool = ThreadPoolExecutor(max_workers=50)
+container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE, max_containers=8)
 
 def execute_command_in_container(container_id, command):
     """
     Executes a command in the specified container and returns the exit code.
     Prints the exit code, stdout, and stderr of the command execution.
     """
+    # result = subprocess.run(
+    #     ["docker", "exec", container_id, "sh", "-c", command],
+    #     stdout=subprocess.DEVNULL,
+    #     stderr=subprocess.DEVNULL
+    #     # capture_output=False,
+    #     # text=True
+    # )
     result = subprocess.run(
-        ["docker", "exec", container_id, "sh", "-c", command],
-        capture_output=False,
-        # text=True
+        ["docker", "exec", "-i", container_id, "sh"],
+        input=command.encode(), # if the command is too big, it only works if passed in like this
+        # stdout=subprocess.DEVNULL,
+        # stderr=subprocess.DEVNULL
     )
-    # print(f"Exit Code: {result.returncode}")
-    # print("STDOUT:")
-    # print(result.stdout.strip() if result.stdout else "(No output)")
-    # print("STDERR:")
-    # print(result.stderr.strip() if result.stderr else "(No errors)")
+    print(f"Exit Code: {result.returncode}")
+    print("STDOUT:")
+    print(result.stdout.strip() if result.stdout else "(No output)")
+    print("STDERR:")
+    print(result.stderr.strip() if result.stderr else "(No errors)")
     return result.returncode
 
 busy_containers = set()
@@ -57,49 +65,19 @@ def process_job_async(cpus, memory, base64_dag):
     print(f"[{get_time_formatted()}] {job_id}) ACCEPTED")
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_dag}"
 
-    MAX_TRIES = 10
-    currTries = 0
-    while currTries <= MAX_TRIES:
-        currTries += 1
-
-        container_id = container_pool.get_container(cpus=cpus, memory=memory)
-        if container_id:
-            try:
-                print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id}....") 
-                exit_code = execute_command_in_container(container_id, command)
-                if exit_code == 0:
-                    print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
-                    return
-                else:
-                    print(f"[{get_time_formatted()}] {job_id}) CAN'T COMPLETE in container: {container_id}")
-            finally:
-                container_pool.release_container(container_id)
-
-        # If no container succeeded, launch a new one
-        print(f"[{get_time_formatted()}] {job_id}) LAUNCHING NEW CONTAINER: cpus={cpus}, memory={memory}")
-        new_container_id = container_pool.launch_container(cpus=cpus, memory=memory)
-
-        if new_container_id:
-            print(f"[{get_time_formatted()}] {job_id}) NEW CONTAINER: {new_container_id}")
-            # Add the new container to our pool (marked as busy by default)
-            container_pool.add_new_container(new_container_id, cpus, memory)
-
-            try:
-                print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {new_container_id}....")
-                exit_code = execute_command_in_container(new_container_id, command)
-                if exit_code == 0:
-                    print(f"[{get_time_formatted()}] {job_id}) COMPLETED in NEW container: {new_container_id}")
-                    return
-                else:
-                    print(f"[{get_time_formatted()}] {job_id}) CAN'T COMPLETE in NEW container: {new_container_id}")
-                    continue
-            finally:
-                container_pool.mark_container_available(new_container_id)
-        else:
-            print(f"[{get_time_formatted()}] {job_id}) FAILED to launch container")
-            sys.exit(0)
-
-    print(f"[{get_time_formatted()}] {job_id}) JOB FAILED after {MAX_TRIES} tries")
+    with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
+        try:
+            print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+            exit_code = execute_command_in_container(container_id, command)
+            if exit_code == 0:
+                print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
+                return
+            else:
+                print(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
+        except Exception as e:
+            print(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
+        finally:
+            container_pool.release_container(container_id)
 
 
 @app.route('/job', methods=['POST', 'GET'])

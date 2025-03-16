@@ -1,8 +1,11 @@
 - Currently Not calling multiple containers (only 1)!
     Create a workflow with bigger fan-outs
 - Kill containers without requests for 5 seconds
+- BIG fan-outs give deadlock on gateway?
 - PERFORMANCE: Client code too slow to invoke remote
-    building the dag is slow?
+    building the dag is slow! (0.2 seconds for 90 fan-out tasks)
+    less iterations through the structures
+    parallelize DAG creation?
 
 - Rename `FlaskExecutor` to `WebServerExecutor`
 - Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)

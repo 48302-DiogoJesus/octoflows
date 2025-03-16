@@ -6,6 +6,7 @@ from functools import wraps
 import inspect
 import subprocess
 import sys
+import time
 from typing import Any, Callable, Generic, TypeVar
 import uuid
 import cloudpickle
@@ -26,7 +27,7 @@ class DAGTaskNodeId:
 
     def __init__(self, function_name: str, task_id: str | None = None):
         self.function_name = function_name
-        self.task_id = task_id or str(uuid.uuid4())[:3]
+        self.task_id = task_id or str(uuid.uuid4())[:4]
 
     def get_full_id(self) -> str: 
         return f"{self.function_name}-{self.task_id}"
@@ -110,6 +111,7 @@ class DAGTaskNode(Generic[R]):
         dag.DAG.visualize(sink_node=self, open_after=open_after)
 
     def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] | None = None) -> "DAGTaskNode":
+        # _clone_start_time = time.time()
         if cloned_nodes is None:
             cloned_nodes = {}
 
@@ -143,6 +145,8 @@ class DAGTaskNode(Generic[R]):
             else:
                 cloned_node.func_kwargs[key] = value
 
+        # _clone_end_time = time.time()
+        # print(f"Cloned {self.func_name} in {(_clone_end_time - _clone_start_time):.4f} seconds")
         return cloned_node
 
     def compute(self, executorType: ExecutorType = ExecutorType.LOCAL) -> R:

@@ -13,13 +13,12 @@ class DAG:
     _FINAL_RESULT_POLLING_TIME_S = 0.2
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
-        start_time = time.time()
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.master_dag_id = master_dag_id or str(uuid.uuid4())[:4]
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
-            self.sink_node = self._find_sink_node_from_roots(self.root_nodes).clone()
+            self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
         # FULL DAG (Find real root nodes)
         else:
@@ -29,8 +28,6 @@ class DAG:
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
         self._optimize_task_metadata()
-
-        print(f"Created DAG in {round(time.time() - start_time, 2)}s")
 
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]
@@ -174,17 +171,21 @@ class DAG:
             dependency_strs = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
-                    dependency_strs.append(str(arg.id.get_full_id()))
+                    # dependency_strs.append(str(arg.id.get_full_id()))
+                    dependency_strs.append("_")
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
-                    dependency_strs.append(str([item.id.get_full_id() for item in arg]))
+                    # dependency_strs.append(str([item.id.get_full_id() for item in arg]))
+                    dependency_strs.append(str(["_" for item in arg]))
                 else:
                     dependency_strs.append(str(arg))
 
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
-                    dependency_strs.append(f"{key}={value.id.get_full_id()}")
+                    # dependency_strs.append(f"{key}={value.id.get_full_id()}")
+                    dependency_strs.append(f"{key}=_")
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
-                    dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
+                    # dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
+                    dependency_strs.append(f"{key}=[_ for item in value]")
                 else:
                     dependency_strs.append(f"{key}={value}")
             
