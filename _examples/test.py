@@ -1,8 +1,6 @@
-import json
 import os
 import sys
 import time
-import flask
 import numpy as np
 import json
 
@@ -11,8 +9,8 @@ from src.dag_task_node import DAGTask, ExecutorType
 
 @DAGTask
 def calculate_discount(original_price: float, discount_rate: float) -> float:
+    time.sleep(3)
     """Calculate the discounted price."""
-    time.sleep(5)
     return original_price * (1 - discount_rate)
 
 @DAGTask
@@ -25,7 +23,7 @@ products = [
     {"name": "Laptop", "original_price": 1000.0},
     {"name": "Phone", "original_price": 800.0},
     {"name": "Tablet", "original_price": 600.0},
-] * 2
+] * 50
 
 discount_rate = 0.1  # 10% discount
 tax_rate = 0.07  # 7% tax
@@ -44,10 +42,10 @@ total_revenue = calculate_total_revenue(discounted_prices)
 
 # total_revenue.visualize_dag()
 start_time = time.time()
-result = total_revenue.compute(executorType=ExecutorType.LOCAL)
-result2 = total_revenue.compute(executorType=ExecutorType.LOCAL)
+result = total_revenue.compute(executorType=ExecutorType.REMOTE_DOCKER)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
+# result2 = total_revenue.compute(executorType=ExecutorType.REMOTE_DOCKER)
+# print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
 
 # result2 = total_revenue.compute(local=True)
 # print(f"Total Revenue: ${result2}")

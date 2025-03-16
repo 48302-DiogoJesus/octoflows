@@ -151,7 +151,10 @@ class DAGTaskNode(Generic[R]):
 
     def compute(self, executorType: ExecutorType = ExecutorType.LOCAL) -> R:
         import src.dag as dag
+        _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
+        _end_time = time.time()
+        print(f"Created DAG in {_end_time - _start_time:.4f} seconds")
         res = None
         match executorType:
             case ExecutorType.LOCAL:

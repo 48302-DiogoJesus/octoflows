@@ -56,8 +56,9 @@ class AbstractExecutor(ABC):
                     if downstream_task_total_dependencies == 1: # {task} was the only dependency
                         ready_downstream.append(downstream_task)
                     else:
-                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(f"dependency-counter-{downstream_task.id.get_full_id_in_dag(self.subdag)}")
-                        self.log(task.id.get_full_id_in_dag(self.subdag), f"Incremented DC of {downstream_task.id.get_full_id_in_dag(self.subdag)} ({dependencies_met}/{downstream_task_total_dependencies})")
+                        dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(self.subdag)}"
+                        dependencies_met = intermediate_storage.IntermediateStorage.increment_and_get(dc_key)
+                        self.log(task.id.get_full_id_in_dag(self.subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
@@ -96,7 +97,7 @@ class AbstractExecutor(ABC):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        print(f"Executor({self.executor_id}) Task({task_id}) | {message}")
+        print(f"Executor({self.executor_id}) Task({task_id}) | {message}", flush=True)
 
 class LocalExecutor(AbstractExecutor):
     """

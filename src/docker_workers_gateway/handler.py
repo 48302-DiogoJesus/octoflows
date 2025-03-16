@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import src.docker_workers_gateway.container_manager as container_manager
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
+MAX_CONCURRENT_TASKS = 10
 
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
@@ -21,8 +22,8 @@ DOCKER_IMAGE = DOCKER_IMAGE.strip()
 print(f"Using Docker image: '{DOCKER_IMAGE}'")
 
 app = Flask(__name__)
-thread_pool = ThreadPoolExecutor(max_workers=50)
-container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE, max_containers=8)
+thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
+container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
 def execute_command_in_container(container_id, command):
     """
@@ -38,15 +39,17 @@ def execute_command_in_container(container_id, command):
     # )
     result = subprocess.run(
         ["docker", "exec", "-i", container_id, "sh"],
-        input=command.encode(), # if the command is too big, it only works if passed in like this
-        # stdout=subprocess.DEVNULL,
-        # stderr=subprocess.DEVNULL
+        input=command.encode(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     print(f"Exit Code: {result.returncode}")
     print("STDOUT:")
-    print(result.stdout.strip() if result.stdout else "(No output)")
-    print("STDERR:")
-    print(result.stderr.strip() if result.stderr else "(No errors)")
+    print(result.stdout.decode().strip() if result.stdout else "(No output)")
+    if result.stderr:
+        print("STDERR:")
+        print(result.stderr.decode().strip())
+        sys.exit(0)
     return result.returncode
 
 busy_containers = set()
@@ -62,7 +65,6 @@ def process_job_async(cpus, memory, base64_dag):
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-    print(f"[{get_time_formatted()}] {job_id}) ACCEPTED")
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_dag}"
 
     with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
@@ -70,7 +72,7 @@ def process_job_async(cpus, memory, base64_dag):
             print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
             exit_code = execute_command_in_container(container_id, command)
             if exit_code == 0:
-                print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
+                # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
                 return
             else:
                 print(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")

@@ -18,7 +18,8 @@ class DAG:
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
-            self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
+            self.sink_node = sink_node
+            # self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
         # FULL DAG (Find real root nodes)
         else:
