@@ -1,12 +1,13 @@
 import atexit
 import os
+import signal
 import sys
 import time
 import uuid
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
 
-import src.docker_workers_gateway.container_manager as container_manager
+import src.docker_workers_gateway.container_pool_executor as container_pool_executor
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
 MAX_CONCURRENT_TASKS = 10
@@ -21,7 +22,7 @@ print(f"Using Docker image: '{DOCKER_IMAGE}'")
 
 app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
-container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
+container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
 def process_job_async(cpus, memory, base64_dag):
     """
@@ -95,11 +96,13 @@ def handle_job():
         return jsonify({"configurations": result}), 200
 
 if __name__ == '__main__':
-    def cleanup():
+    def cleanup(signum, frame):
         print("Shutdown. Cleaning up...")
         container_pool.shutdown()
         thread_pool.shutdown()
+        sys.exit(0)
 
-    atexit.register(cleanup)
+    signal.signal(signal.SIGINT, cleanup)  # Ctrl+C
+    signal.signal(signal.SIGTERM, cleanup)  # Termination signal
 
     app.run(host='0.0.0.0', port=5000)

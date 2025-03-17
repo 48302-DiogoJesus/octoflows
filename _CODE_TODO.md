@@ -1,3 +1,5 @@
+- Kill containers faster
+- Keep exexcuting workflows for more than 10 seconds to ensure containers are not killed
 - Kill all containers on shutdown
 - Kill all containers on startup (instead of getting_running_containers)
 - Docker Executors need to receive the docker gateway address and port
@@ -29,4 +31,6 @@
     - Task Clustering (fan-ins + fan-outs)
     - Delayed I/O
 
+- [NNP] Redis key to store errors (JSON that stores stderr for each DAG task). Use redis transactions
+    Client then should also poll this key periodically
 - [NNP] Allow user to specify requirements.txt dependencies so that they don't need to be downloaded at runtime
