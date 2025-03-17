@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import numpy as np
+# import numpy as np
 import json
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -9,7 +9,7 @@ from src.dag_task_node import DAGTask, ExecutorType
 
 @DAGTask
 def calculate_discount(original_price: float, discount_rate: float) -> float:
-    time.sleep(3)
+    time.sleep(2)
     """Calculate the discounted price."""
     return original_price * (1 - discount_rate)
 
@@ -23,7 +23,7 @@ products = [
     {"name": "Laptop", "original_price": 1000.0},
     {"name": "Phone", "original_price": 800.0},
     {"name": "Tablet", "original_price": 600.0},
-] * 50
+] * 10
 
 discount_rate = 0.1  # 10% discount
 tax_rate = 0.07  # 7% tax

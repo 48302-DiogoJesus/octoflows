@@ -1,9 +1,11 @@
 from contextlib import contextmanager
+import sys
 import threading
 from dataclasses import dataclass
-from typing import Dict, Optional, Set, Tuple, List
+from typing import Dict, Set, Tuple
 from collections import defaultdict
 import subprocess
+import time
 
 @dataclass
 class Container:
@@ -11,18 +13,27 @@ class Container:
     cpus: float
     memory: int
     is_busy: bool = False
+    last_active_time: float = 0
 
 class ContainerPoolManager:
-    def __init__(self, docker_image: str, max_containers: int = 15):
+    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval: int = 5, container_idle_timeout: int = 10):
         self.docker_image = docker_image
         self.lock = threading.RLock()
         self.max_containers = max_containers
         self.container_by_resources: Dict[Tuple[float, int], Set[str]] = defaultdict(set)  # (cpus, memory) -> {container_ids}
         self.condition = threading.Condition(self.lock)  # Condition variable for waiting
         self.containers: Dict[str, Container] = {}
+        
+        # Cleanup configuration
+        self.container_cleanup_interval = container_cleanup_interval 
+        self.container_idle_timeout = container_idle_timeout
+        
+        self.cleanup_thread = threading.Thread(target=self._cleanup_idle_containers, daemon=True)
+        self.shutdown_flag = threading.Event()
+        self.cleanup_thread.start()
+        
         self.get_initially_running_containers()
         print(f"Initial containers: {len(self.containers)}")
-        self.last_update_time = 0
 
     @contextmanager
     def wait_for_container(self, cpus: float, memory: int):
@@ -30,7 +41,78 @@ class ContainerPoolManager:
         try:
             yield container_id
         finally:
-            self.release_container(container_id)
+            self._release_container(container_id)
+
+    def execute_command_in_container(self, container_id, command):
+        """
+        Executes a command in the specified container and returns the exit code.
+        Prints the exit code, stdout, and stderr of the command execution.
+        """
+        result = subprocess.run(
+            ["docker", "exec", "-i", container_id, "sh"],
+            input=command.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        # print(f"Exit Code: {result.returncode}")
+        # print("STDOUT:")
+        # print(result.stdout.decode().strip() if result.stdout else "(No output)")
+        if result.stderr:
+            print("STDERR:")
+            print(result.stderr.decode().strip())
+            sys.exit(0)
+        return result.returncode
+
+    def shutdown(self):
+        print("Shutting down container pool manager...")
+        self.shutdown_flag.set()
+        self.cleanup_thread.join(timeout=5)
+        print("Container pool manager shut down.")
+
+    def _cleanup_idle_containers(self):
+        """Periodically check for and remove idle containers."""
+        while not self.shutdown_flag.is_set():
+            # Interruptible time.sleep() alternative
+            self.shutdown_flag.wait(timeout=self.container_cleanup_interval)
+            if self.shutdown_flag.is_set(): break
+
+            current_time = time.time()
+            containers_to_remove = []
+            
+            with self.lock:
+                for container_id, container in list(self.containers.items()):
+                    # Skip busy containers
+                    if container.is_busy:
+                        continue
+                    
+                    # Check if the container has been idle for too long
+                    if current_time - container.last_active_time > self.container_idle_timeout:
+                        container.is_busy = True # Avoids the main thread from using this container
+                        containers_to_remove.append(container_id)
+            
+            # Remove the idle containers (outside of the lock to minimize lock contention)
+            for container_id in containers_to_remove:
+                self._remove_container(container_id)
+    
+    def _remove_container(self, container_id: str):
+        """Remove a container from Docker and from our tracking."""
+        try:
+            # Stop and remove the container
+            print(f"Removing idle container {container_id}")
+            subprocess.run(["docker", "stop", container_id], check=True, stdout=subprocess.DEVNULL)
+            subprocess.run(["docker", "rm", container_id], check=True, stdout=subprocess.DEVNULL)
+            
+            with self.lock:
+                if container_id in self.containers:
+                    # Remove the container from our tracking structures
+                    container = self.containers[container_id]
+                    resource_key = (container.cpus, container.memory)
+                    self.container_by_resources[resource_key].discard(container_id)
+                    if not self.container_by_resources[resource_key]:
+                        del self.container_by_resources[resource_key]
+                    del self.containers[container_id]
+        except subprocess.CalledProcessError as e:
+            print(f"Error removing container {container_id}: {e}")
             
     def _wait_for_container(self, cpus: float, memory: int) -> str:
         """
@@ -48,25 +130,27 @@ class ContainerPoolManager:
                 if available_containers:
                     container_id = available_containers[0]
                     self.containers[container_id].is_busy = True
+                    self.containers[container_id].last_active_time = time.time()  # Update last active time
                     return container_id
                         
                 if len(self.containers) >= self.max_containers:
-                    # print("(wait_for_container) No container available. Waiting", flush=True)
+                    # print("(wait_for_container) No container available. Waiting")
                     # Wait for a container to become available. Can't launch new ones
                     self.condition.wait()
                 else:
                     # Launch a new container
-                    print("(wait_for_container) Launching new container", flush=True)
+                    print("(wait_for_container) Launching new container")
                     container_id = self._launch_container(cpus, memory)
                     return container_id
 
-    def release_container(self, container_id: str) -> bool:
+    def _release_container(self, container_id: str) -> bool:
         """
         Mark a container as available and notify waiting threads.
         """
         with self.lock:
             if container_id in self.containers and self.containers[container_id].is_busy:
                 self.containers[container_id].is_busy = False
+                self.containers[container_id].last_active_time = time.time()  # Update last active time when released
                 self.condition.notify_all()  # Notify all waiting threads
                 return True
             return False
@@ -93,7 +177,8 @@ class ContainerPoolManager:
                     id=container_id,
                     cpus=container_cpus,
                     memory=container_memory,
-                    is_busy=False
+                    is_busy=False,
+                    last_active_time=time.time()
                 )
                 self.container_by_resources[(container_cpus, container_memory)].add(container_id)
     
@@ -111,7 +196,7 @@ class ContainerPoolManager:
         ).strip()
 
         with self.lock:
-            container = Container(id=container_id, cpus=cpus, memory=memory, is_busy=True)
+            container = Container(id=container_id, cpus=cpus, memory=memory, is_busy=True, last_active_time=time.time())
             self.containers[container_id] = container
             self.container_by_resources[(cpus, memory)].add(container_id)
             self.condition.notify_all()

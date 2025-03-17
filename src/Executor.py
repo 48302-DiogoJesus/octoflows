@@ -132,8 +132,10 @@ class DockerExecutor(AbstractExecutor):
             async with await session.post(
                 self.docker_gateway_address + "/job", 
                 data=json.dumps({
-                    "cpus": 1,
-                    "memory": 128,
+                    "resource_configuration": {
+                        "cpus": 1,
+                        "memory": 128,
+                    },
                     "subdag": base64.b64encode(cloudpickle.dumps(subsubdag)).decode('utf-8'),
                 }),
                 headers={'Content-Type': 'application/json'}

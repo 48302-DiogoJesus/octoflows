@@ -1,4 +1,6 @@
-- Kill containers without requests for 5 seconds
+- Kill all containers on shutdown
+- Kill all containers on startup (instead of getting_running_containers)
+- Docker Executors need to receive the docker gateway address and port
 
 - Rename `FlaskExecutor` to `WebServerExecutor`
 - Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)

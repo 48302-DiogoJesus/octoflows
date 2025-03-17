@@ -1,8 +1,6 @@
+import atexit
 import os
-import subprocess
 import sys
-import base64
-import threading
 import time
 import uuid
 from flask import Flask, request, jsonify
@@ -25,36 +23,6 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_manager.ContainerPoolManager(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def execute_command_in_container(container_id, command):
-    """
-    Executes a command in the specified container and returns the exit code.
-    Prints the exit code, stdout, and stderr of the command execution.
-    """
-    # result = subprocess.run(
-    #     ["docker", "exec", container_id, "sh", "-c", command],
-    #     stdout=subprocess.DEVNULL,
-    #     stderr=subprocess.DEVNULL
-    #     # capture_output=False,
-    #     # text=True
-    # )
-    result = subprocess.run(
-        ["docker", "exec", "-i", container_id, "sh"],
-        input=command.encode(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    print(f"Exit Code: {result.returncode}")
-    print("STDOUT:")
-    print(result.stdout.decode().strip() if result.stdout else "(No output)")
-    if result.stderr:
-        print("STDERR:")
-        print(result.stderr.decode().strip())
-        sys.exit(0)
-    return result.returncode
-
-busy_containers = set()
-lock = threading.Lock()
-
 def process_job_async(cpus, memory, base64_dag):
     """
     Process a job asynchronously.
@@ -70,7 +38,7 @@ def process_job_async(cpus, memory, base64_dag):
     with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
         try:
             print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
-            exit_code = execute_command_in_container(container_id, command)
+            exit_code = container_pool.execute_command_in_container(container_id, command)
             if exit_code == 0:
                 # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
                 return
@@ -78,8 +46,6 @@ def process_job_async(cpus, memory, base64_dag):
                 print(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
         except Exception as e:
             print(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
-        finally:
-            container_pool.release_container(container_id)
 
 
 @app.route('/job', methods=['POST', 'GET'])
@@ -95,8 +61,12 @@ def handle_job():
         data = request.get_json()
 
         resource_config = data.get('resource_configuration', {})
-        cpus = float(resource_config.get('cpus', 1))
-        memory = int(resource_config.get('memory', 128))
+        cpus = resource_config.get('cpus', None)
+        if cpus is None: return jsonify({"error": "cpus is required"}), 400
+        cpus = float(cpus)
+        memory = resource_config.get('memory', None)
+        if memory is None: return jsonify({"error": "memory is required"}), 400
+        memory = int(memory)
         base64_dag = data.get('subdag', None)
         if base64_dag is None: return jsonify({"error": "subdag is required"}), 400
 
@@ -125,5 +95,11 @@ def handle_job():
         return jsonify({"configurations": result}), 200
 
 if __name__ == '__main__':
-    # Run the Flask server on port 5000
+    def cleanup():
+        print("Shutdown. Cleaning up...")
+        container_pool.shutdown()
+        thread_pool.shutdown()
+
+    atexit.register(cleanup)
+
     app.run(host='0.0.0.0', port=5000)
