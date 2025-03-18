@@ -38,6 +38,10 @@ class Worker(ABC):
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
                 for dependency_task in task.upstream_nodes:
+                    if dependency_task.cached_result:
+                        task_dependencies[dependency_task.id.get_full_id()] = dependency_task.cached_result.result
+                        print(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
+                        continue
                     task_output = self.intermediate_storage.get(subdag.get_dag_task_id(dependency_task))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore

@@ -29,7 +29,13 @@ class DAGTaskNodeId:
     def get_full_id_in_dag(self, dag: Any) -> str: 
         return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
+# Needed to distinguish a result=None (if R allows it) from NO result
+@dataclass
+class _CachedResultWrapper(Generic[R]):
+    result: R
+
 class DAGTaskNode(Generic[R]):
+
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None)
         self.func_name = func.__name__
@@ -38,6 +44,7 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
+        self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries()
         
@@ -154,7 +161,9 @@ class DAGTaskNode(Generic[R]):
 
         # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
-        return self.func_code(*tuple(final_func_args), **final_func_kwargs)
+        res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
+        self.cached_result = _CachedResultWrapper(res)
+        return res
 
     def _try_convert_node_func_args_to_ids(self):
         """

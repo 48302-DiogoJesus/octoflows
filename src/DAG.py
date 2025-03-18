@@ -1,10 +1,8 @@
 import asyncio
 from typing import Any
 import uuid
-import cloudpickle
 import graphviz
 
-import src.storage.storage as storage
 import src.dag_task_node as dag_task_node
 
 class DAG:
@@ -15,22 +13,24 @@ class DAG:
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
             self.sink_node = sink_node
+            # Cut DAG starting 1-level behind the root nodes
+            for node in self.root_nodes:
+                for dependency in node.upstream_nodes:
+                    dependency.upstream_nodes = []
             # self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
         # FULL DAG (Find real root nodes)
         else:
-            self.sink_node = sink_node.clone()
+            self.sink_node = sink_node.clone() # clone all nodes behind the sink node
             self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
             self.root_nodes: list[dag_task_node.DAGTaskNode] = DAG._find_root_nodes(self.all_nodes)
+        
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
         self._optimize_task_metadata()
 
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]
-    
-    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
-        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
 
     def compute(self, config):
         import src.worker as worker
@@ -47,6 +47,9 @@ class DAG:
             return res
         return asyncio.run(internal())
     
+    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
+        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
+
     def get_dag_task_id(self, dag_task_node: dag_task_node.DAGTaskNode) -> str:
         return f"{dag_task_node.id.get_full_id()}-{self.master_dag_id}"
 
@@ -190,10 +193,3 @@ class DAG:
         
         # Render the graph to a file and open it
         dot.render(filename=output_file.split('.')[0], cleanup=True, view=open_after)
-    
-    def serialize(self):
-        return cloudpickle.dumps(self)
-
-    @classmethod
-    def from_serialized(cls, serialized_dag: bytes):
-        return cloudpickle.loads(serialized_dag)

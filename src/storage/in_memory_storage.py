@@ -15,7 +15,6 @@ class InMemoryStorage(storage.Storage):
             return InMemoryStorage(self)
 
     def __init__(self, config: Config) -> None:
-        print("Initializing InMemoryStorage...")
         super().__init__()
         self._data: dict[str, Any] = {}
         self._expiry: dict[str, float] = {}

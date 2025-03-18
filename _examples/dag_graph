@@ -1,0 +1,65 @@
+// DAG Visualization
+digraph {
+	rankdir=LR
+	"calculate_total_revenue-baa1" [label="calculate_total_revenue-baa1([DAGTaskNodeId(function_name='calculate_discount', task_id='8180'), DAGTaskNodeId(function_name='calculate_discount', task_id='2508'), DAGTaskNodeId(function_name='calculate_discount', task_id='fe99'), DAGTaskNodeId(function_name='calculate_discount', task_id='97df'), DAGTaskNodeId(function_name='calculate_discount', task_id='3444'), DAGTaskNodeId(function_name='calculate_discount', task_id='c250'), DAGTaskNodeId(function_name='calculate_discount', task_id='5b88'), DAGTaskNodeId(function_name='calculate_discount', task_id='6165'), DAGTaskNodeId(function_name='calculate_discount', task_id='633c'), DAGTaskNodeId(function_name='calculate_discount', task_id='8ee3'), DAGTaskNodeId(function_name='calculate_discount', task_id='8d65'), DAGTaskNodeId(function_name='calculate_discount', task_id='28fa'), DAGTaskNodeId(function_name='calculate_discount', task_id='5f2d'), DAGTaskNodeId(function_name='calculate_discount', task_id='4f4f'), DAGTaskNodeId(function_name='calculate_discount', task_id='3bb5'), DAGTaskNodeId(function_name='calculate_discount', task_id='0947'), DAGTaskNodeId(function_name='calculate_discount', task_id='21f5'), DAGTaskNodeId(function_name='calculate_discount', task_id='0939'), DAGTaskNodeId(function_name='calculate_discount', task_id='91ad'), DAGTaskNodeId(function_name='calculate_discount', task_id='f188'), DAGTaskNodeId(function_name='calculate_discount', task_id='eeff'), DAGTaskNodeId(function_name='calculate_discount', task_id='f18d'), DAGTaskNodeId(function_name='calculate_discount', task_id='40bb'), DAGTaskNodeId(function_name='calculate_discount', task_id='6b7d'), DAGTaskNodeId(function_name='calculate_discount', task_id='974f'), DAGTaskNodeId(function_name='calculate_discount', task_id='8b22'), DAGTaskNodeId(function_name='calculate_discount', task_id='01ed'), DAGTaskNodeId(function_name='calculate_discount', task_id='9964'), DAGTaskNodeId(function_name='calculate_discount', task_id='29dc'), DAGTaskNodeId(function_name='calculate_discount', task_id='31ba')])" fillcolor=lightcoral shape=box style=filled]
+	"calculate_discount-8180" [label="calculate_discount-8180(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-2508" [label="calculate_discount-2508(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-fe99" [label="calculate_discount-fe99(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-97df" [label="calculate_discount-97df(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-3444" [label="calculate_discount-3444(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-c250" [label="calculate_discount-c250(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-5b88" [label="calculate_discount-5b88(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-6165" [label="calculate_discount-6165(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-633c" [label="calculate_discount-633c(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-8ee3" [label="calculate_discount-8ee3(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-8d65" [label="calculate_discount-8d65(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-28fa" [label="calculate_discount-28fa(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-5f2d" [label="calculate_discount-5f2d(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-4f4f" [label="calculate_discount-4f4f(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-3bb5" [label="calculate_discount-3bb5(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-0947" [label="calculate_discount-0947(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-21f5" [label="calculate_discount-21f5(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-0939" [label="calculate_discount-0939(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-91ad" [label="calculate_discount-91ad(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-f188" [label="calculate_discount-f188(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-eeff" [label="calculate_discount-eeff(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-f18d" [label="calculate_discount-f18d(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-40bb" [label="calculate_discount-40bb(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-6b7d" [label="calculate_discount-6b7d(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-974f" [label="calculate_discount-974f(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-8b22" [label="calculate_discount-8b22(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-01ed" [label="calculate_discount-01ed(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-9964" [label="calculate_discount-9964(1000.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-29dc" [label="calculate_discount-29dc(800.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-31ba" [label="calculate_discount-31ba(600.0, 0.1)" fillcolor=lightgreen shape=box style=filled]
+	"calculate_discount-8180" -> "calculate_total_revenue-baa1"
+	"calculate_discount-2508" -> "calculate_total_revenue-baa1"
+	"calculate_discount-fe99" -> "calculate_total_revenue-baa1"
+	"calculate_discount-97df" -> "calculate_total_revenue-baa1"
+	"calculate_discount-3444" -> "calculate_total_revenue-baa1"
+	"calculate_discount-c250" -> "calculate_total_revenue-baa1"
+	"calculate_discount-5b88" -> "calculate_total_revenue-baa1"
+	"calculate_discount-6165" -> "calculate_total_revenue-baa1"
+	"calculate_discount-633c" -> "calculate_total_revenue-baa1"
+	"calculate_discount-8ee3" -> "calculate_total_revenue-baa1"
+	"calculate_discount-8d65" -> "calculate_total_revenue-baa1"
+	"calculate_discount-28fa" -> "calculate_total_revenue-baa1"
+	"calculate_discount-5f2d" -> "calculate_total_revenue-baa1"
+	"calculate_discount-4f4f" -> "calculate_total_revenue-baa1"
+	"calculate_discount-3bb5" -> "calculate_total_revenue-baa1"
+	"calculate_discount-0947" -> "calculate_total_revenue-baa1"
+	"calculate_discount-21f5" -> "calculate_total_revenue-baa1"
+	"calculate_discount-0939" -> "calculate_total_revenue-baa1"
+	"calculate_discount-91ad" -> "calculate_total_revenue-baa1"
+	"calculate_discount-f188" -> "calculate_total_revenue-baa1"
+	"calculate_discount-eeff" -> "calculate_total_revenue-baa1"
+	"calculate_discount-f18d" -> "calculate_total_revenue-baa1"
+	"calculate_discount-40bb" -> "calculate_total_revenue-baa1"
+	"calculate_discount-6b7d" -> "calculate_total_revenue-baa1"
+	"calculate_discount-974f" -> "calculate_total_revenue-baa1"
+	"calculate_discount-8b22" -> "calculate_total_revenue-baa1"
+	"calculate_discount-01ed" -> "calculate_total_revenue-baa1"
+	"calculate_discount-9964" -> "calculate_total_revenue-baa1"
+	"calculate_discount-29dc" -> "calculate_total_revenue-baa1"
+	"calculate_discount-31ba" -> "calculate_total_revenue-baa1"
+}
