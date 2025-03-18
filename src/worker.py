@@ -10,16 +10,23 @@ from abc import ABC, abstractmethod
 
 import src.dag as dag
 import src.dag_task_node as dag_task_node
-import src.intermediate_storage as intermediate_storage
+import src.intermediate_storage as intermediate_storage_module
 
 class Worker(ABC):
+    @dataclass
+    class Config(ABC):
+        intermediate_storage_config: intermediate_storage_module.IntermediateStorage.Config
+
+    intermediate_storage: intermediate_storage_module.IntermediateStorage
     shutdown_flag: asyncio.Event
     worker_id: str
+    config: Config
 
-    def __init__(self, intermediateStorage: intermediate_storage.IntermediateStorage):
+    def __init__(self, config: Config):
         self.shutdown_flag = asyncio.Event()
         self.worker_id = str(uuid.uuid4())[:4]
-        self.intermediate_storage = intermediateStorage
+        self.config = config
+        self.intermediate_storage = intermediate_storage_module.IntermediateStorage(config.intermediate_storage_config)
 
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
@@ -96,7 +103,7 @@ class Worker(ABC):
     async def delegate(self, subdag: dag.DAG): pass
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: intermediate_storage.IntermediateStorage, task_id: str, polling_interval_s: float = 1.0):
+    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.IntermediateStorage, task_id: str, polling_interval_s: float = 1.0):
         # Poll Storage for final result. Asynchronous wait
         while True:
             final_result = intermediate_storage.get(task_id)
@@ -112,33 +119,36 @@ class Worker(ABC):
 
 class LocalWorker(Worker):
     @dataclass
-    class Config:
-        intermediate_storage: intermediate_storage.IntermediateStorage
+    class Config(Worker.Config):
+        pass
+
+    local_config: Config
 
     """
     Processes DAG tasks
     continuing with single downstream tasks and spawning new workers (coroutines) for branches.
     """
     def __init__(self, config: Config):
-       super().__init__(config.intermediate_storage)
-       self.config = config
+       super().__init__(config)
+       self.local_config = config
     
     async def delegate(self, subdag: dag.DAG):
-        asyncio.create_task(LocalWorker(self.config).start_executing(subdag))
+        asyncio.create_task(LocalWorker(self.local_config).start_executing(subdag))
 
 class DockerWorker(Worker):
     @dataclass
-    class Config:
+    class Config(Worker.Config):
         docker_gateway_address: str
-        intermediate_storage: intermediate_storage.IntermediateStorage
+
+    docker_config: Config
 
     """
     Invokes workers by calling a Flask web server with the serialized subsubdag
     Waits for the completion of all workers
     """
     def __init__(self, config: Config):
-        super().__init__(config.intermediate_storage)
-        self.config = config
+        super().__init__(config)
+        self.docker_config = config
 
     async def delegate(self, subdag: dag.DAG):
         '''
@@ -146,14 +156,16 @@ class DockerWorker(Worker):
         '''
         self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
         async with aiohttp.ClientSession() as session:
+            print(f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
             async with await session.post(
-                self.config.docker_gateway_address + "/job", 
+                self.docker_config.docker_gateway_address + "/job", 
                 data=json.dumps({
                     "resource_configuration": {
-                        "cpus": 2,
-                        "memory": 256,
+                        "cpus": 1,
+                        "memory": 128,
                     },
                     "subdag": base64.b64encode(cloudpickle.dumps(subdag)).decode('utf-8'),
+                    "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                 }),
                 headers={'Content-Type': 'application/json'}
             ) as response:

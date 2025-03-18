@@ -34,21 +34,22 @@ async def main():
         raise e
 
     try:
-        if len(sys.argv) != 2:
-            raise Exception("Usage: python script.py <base64_encoded_serialized_dag>")
+        if len(sys.argv) != 3:
+            raise Exception("Usage: python script.py <b64_config> <b64_subdag>")
         
         # Get the serialized DAG from command-line argument
-        serialized_data = base64.b64decode(sys.argv[1])
-        subdag = cloudpickle.loads(serialized_data)
+        config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
+        subdag = cloudpickle.loads(base64.b64decode(sys.argv[2]))
         
-        # Ensure the loaded object is a DAG
+        if not isinstance(config, worker.DockerWorker.Config):
+            raise Exception("Error: config is not a DockerWorker.Config instance")
         if not isinstance(subdag, dag.DAG):
-            raise Exception("Error: Loaded object is not a DAG instance")
+            raise Exception("Error: subdag is not a DAG instance")
         
         # Create executor and start execution
-        ex = worker.DockerWorker(subdag, "http://localhost:5000")
+        ex = worker.DockerWorker(config)
         print("Start executing subdag")
-        await ex.start_executing()
+        await ex.start_executing(subdag)
         print("Execution completed successfully")
     finally:
         # Release the lock and clean up

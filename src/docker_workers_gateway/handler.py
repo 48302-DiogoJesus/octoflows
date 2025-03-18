@@ -24,7 +24,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(cpus, memory, base64_dag):
+def process_job_async(cpus, memory, base64_config, base64_dag):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -34,7 +34,7 @@ def process_job_async(cpus, memory, base64_dag):
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_dag}"
+    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {base64_dag}"
 
     with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
         try:
@@ -68,20 +68,14 @@ def handle_job():
         memory = resource_config.get('memory', None)
         if memory is None: return jsonify({"error": "memory is required"}), 400
         memory = int(memory)
-        base64_dag = data.get('subdag', None)
-        if base64_dag is None: return jsonify({"error": "subdag is required"}), 400
+        b64subdag = data.get('subdag', None)
+        if b64subdag is None: return jsonify({"error": "'subdag' field is required"}), 400
+        b64config = data.get('config', None)
+        if b64config is None: return jsonify({"error": "'config' field is required"}), 400
 
-        # Submit the job to be processed asynchronously
-        thread_pool.submit(process_job_async, cpus, memory, base64_dag)
+        thread_pool.submit(process_job_async, cpus, memory, b64config, b64subdag)
         
-        # Immediately return 202 Accepted
-        return jsonify({
-            "message": "Job accepted for processing",
-            "resource_configuration": {
-                "cpus": cpus,
-                "memory": memory
-            }
-        }), 202
+        return "", 202 # Immediately return 202 Accepted
 
     elif request.method == 'GET':
         # Get all resource configurations and their containers

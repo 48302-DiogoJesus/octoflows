@@ -1,1 +1,0 @@
-docker run -d --cpus="1" --memory="128m" --network="host" docker_worker

@@ -11,6 +11,8 @@ import uuid
 
 R = TypeVar('R')
 
+import src.worker as worker
+
 @dataclass
 class DAGTaskNodeId:
     function_name: str

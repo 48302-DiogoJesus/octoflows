@@ -1,10 +1,17 @@
+from dataclasses import dataclass
 import redis
 
 class IntermediateStorage:
-    def __init__(self, host:str, port: int = 6379, password=None) -> None:
-        self.REDIS_HOST = host
-        self.REDIS_PORT = port
-        self.REDIS_PASSWORD = password
+    @dataclass
+    class Config:
+        host: str
+        port: int
+        password: str
+
+    config: Config
+
+    def __init__(self, config: Config) -> None:
+        self.config = config
         self._connection: redis.Redis = self._get_or_create_connection(skip_verification=True)
 
     def _get_or_create_connection(self, skip_verification: bool = False) -> redis.Redis:
@@ -12,10 +19,10 @@ class IntermediateStorage:
             return self._connection
         else:
             self._connection = redis.Redis(
-                host=self.REDIS_HOST,
-                port=self.REDIS_PORT,
+                host=self.config.host,
+                port=self.config.port,
                 db=0,
-                password=self.REDIS_PASSWORD,
+                password=self.config.password,
                 decode_responses=False # Necessary to allow serialized bytes
             )
             return self._connection

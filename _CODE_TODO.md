@@ -1,9 +1,5 @@
-- Docker Executors need to receive the docker gateway address and port
-
-- Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)
-- `.Configure(intermediate_storage_config: redis_hostname, etc.. for now)`
-- MOVE _wait_for_final_result TO AbstractWorker
-- How to serialize config + dag (merge them on the delegate function)
+- Implement generic deserialize? or abstract!
+- Delegate function should receive argument resource configuration
 
 - Avoid Redis when unneded
 - Avoid Redis on LocalExecutor (base abstract `ExternalStorage` Class (`InMemoryStorage`, `RedisStorage`))

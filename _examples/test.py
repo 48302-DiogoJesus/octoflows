@@ -16,19 +16,19 @@ def calculate_discount(original_price: float, discount_rate: float) -> float:
 
 @DAGTask
 def calculate_total_revenue(prices: list[float]) -> float:
-    time.sleep(1)
+    # time.sleep(1)
     """Calculate the total revenue from a list of prices."""
     return sum(prices)
 
-redis_intermediate_storage = IntermediateStorage(host="localhost", port=6379, password="redisdevpwd123")
+redis_intermediate_storage_config = IntermediateStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 
-# localWorkerConfig = LocalWorker.Config(
-#     intermediate_storage=redis_intermediate_storage
-# )
+localWorkerConfig = LocalWorker.Config(
+    intermediate_storage_config=redis_intermediate_storage_config
+)
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
-    intermediate_storage=redis_intermediate_storage
+    intermediate_storage_config=redis_intermediate_storage_config
 )
 
 # Define the workflow
