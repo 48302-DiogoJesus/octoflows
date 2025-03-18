@@ -4,7 +4,7 @@ import uuid
 import cloudpickle
 import graphviz
 
-import src.storage.intermediate_storage as intermediate_storage
+import src.storage.storage as storage
 import src.dag_task_node as dag_task_node
 
 class DAG:
@@ -34,47 +34,16 @@ class DAG:
 
     def compute(self, config):
         import src.worker as worker
-        if isinstance(config, worker.LocalWorker.Config):
-            return self.start_local_execution(config)
-        elif isinstance(config, worker.DockerWorker.Config):
-            return self.start_docker_execution(config)
-        else:
-            raise Exception(f"Unknown config type: {type(config)} | {config}")
-
-    # User interface must be synchronous
-    def start_docker_execution(self, config):
-        import src.worker as worker
+        wk = config.create_instance()
         async def internal():
-            wk: worker.DockerWorker
             for root_node in self.root_nodes:
-                wk = worker.DockerWorker(config)
                 asyncio.create_task(wk.delegate(self.create_subdag(root_node)))
             
+            #! "await" is needed here
             res = await worker.Worker.wait_for_result_of_task(
                 wk.intermediate_storage, # type: ignore
                 self.get_dag_task_id(self.sink_node)
             )
-            return res
-        return asyncio.run(internal())
-
-    # User interface must be synchronous
-    def start_local_execution(self, config):
-        import src.worker as worker
-        async def internal():
-            leaf_executors: list[worker.LocalWorker] = []
-            intm_storage: intermediate_storage.IntermediateStorage
-
-            for root_node in self.root_nodes:
-                ex = worker.LocalWorker(config)
-                intm_storage = ex.intermediate_storage
-                asyncio.create_task(ex.start_executing(self.create_subdag(root_node)))
-                leaf_executors.append(ex)
-            
-            res = await worker.Worker.wait_for_result_of_task(
-                intm_storage, # type: ignore
-                self.get_dag_task_id(self.sink_node)
-            )
-            for ex in leaf_executors: ex.shutdown_flag.set()
             return res
         return asyncio.run(internal())
     

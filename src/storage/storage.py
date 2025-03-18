@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from typing import Any
 import redis
 
-class IntermediateStorage(ABC):
+class Storage(ABC):
     @dataclass
     class Config(ABC):
         @abstractmethod
-        def create_instance(self) -> "IntermediateStorage": pass
+        def create_instance(self) -> "Storage": pass
 
     @abstractmethod
     def get(self, key: str) -> Any: pass

@@ -2,6 +2,7 @@ import atexit
 import os
 import signal
 import sys
+import threading
 import time
 import uuid
 from flask import Flask, request, jsonify
@@ -90,7 +91,11 @@ def handle_job():
         return jsonify({"configurations": result}), 200
 
 if __name__ == '__main__':
+    is_shutting_down_flag = threading.Event()
+
     def cleanup(signum, frame):
+        if is_shutting_down_flag.is_set(): return # avoid executing shutdown more than once
+        is_shutting_down_flag.set()
         print("Shutdown. Cleaning up...")
         container_pool.shutdown()
         thread_pool.shutdown()

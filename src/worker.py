@@ -2,6 +2,7 @@ import asyncio
 import base64
 from dataclasses import dataclass
 import json
+from types import CoroutineType
 from typing import Any
 import uuid
 import cloudpickle
@@ -10,19 +11,20 @@ from abc import ABC, abstractmethod
 
 import src.dag as dag
 import src.dag_task_node as dag_task_node
-import src.storage.intermediate_storage as intermediate_storage_module
+import src.storage.storage as intermediate_storage_module
 
 class Worker(ABC):
     @dataclass
     class Config(ABC):
-        intermediate_storage_config: intermediate_storage_module.IntermediateStorage.Config
+        intermediate_storage_config: intermediate_storage_module.Storage.Config
+        
+        @abstractmethod
+        def create_instance(self) -> "Worker": pass
 
-    intermediate_storage: intermediate_storage_module.IntermediateStorage
-    shutdown_flag: asyncio.Event
+    intermediate_storage: intermediate_storage_module.Storage
     worker_id: str
 
     def __init__(self, config: Config):
-        self.shutdown_flag = asyncio.Event()
         self.worker_id = str(uuid.uuid4())[:4]
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
 
@@ -31,7 +33,7 @@ class Worker(ABC):
         task = subdag.root_node
 
         try:
-            while not self.shutdown_flag.is_set():
+            while True:
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies...")
                 task_dependencies: dict[str, Any] = {}
@@ -43,14 +45,10 @@ class Worker(ABC):
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                upload_result = self.intermediate_storage.set(subdag.get_dag_task_id(task), cloudpickle.dumps(task_result))
-                if not upload_result: raise Exception(f"[BUG] Task {task.id.get_full_id_in_dag(subdag)}'s data could not be uploaded to Redis (set() failed)")
-
-                if self.shutdown_flag.is_set(): break
+                self.intermediate_storage.set(subdag.get_dag_task_id(task), cloudpickle.dumps(task_result))
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
-                    self.shutdown_flag.set()
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
@@ -67,8 +65,6 @@ class Worker(ABC):
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
                 
-                if self.shutdown_flag.is_set(): break
-
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
                 if len(ready_downstream) == 1:
@@ -88,7 +84,6 @@ class Worker(ABC):
                     continue
                 else:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
-                    self.shutdown_flag.set()
                     break  # Give up
         except Exception as e:
             self.log(task.id.get_full_id_in_dag(subdag), f"Error: {str(e)}") # type: ignore
@@ -101,7 +96,7 @@ class Worker(ABC):
     async def delegate(self, subdag: dag.DAG): pass
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.IntermediateStorage, task_id: str, polling_interval_s: float = 1.0):
+    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task_id: str, polling_interval_s: float = 1.0):
         # Poll Storage for final result. Asynchronous wait
         while True:
             final_result = intermediate_storage.get(task_id)
@@ -118,7 +113,8 @@ class Worker(ABC):
 class LocalWorker(Worker):
     @dataclass
     class Config(Worker.Config):
-        pass
+        def create_instance(self) -> "LocalWorker":
+            return LocalWorker(self)
 
     local_config: Config
 
@@ -131,12 +127,15 @@ class LocalWorker(Worker):
        self.local_config = config
     
     async def delegate(self, subdag: dag.DAG):
-        asyncio.create_task(LocalWorker(self.local_config).start_executing(subdag))
+        await self.start_executing(subdag)
 
 class DockerWorker(Worker):
     @dataclass
     class Config(Worker.Config):
         docker_gateway_address: str
+        
+        def create_instance(self) -> "DockerWorker":
+            return DockerWorker(self)
 
     docker_config: Config
 

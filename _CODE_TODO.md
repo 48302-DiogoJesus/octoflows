@@ -1,5 +1,8 @@
-- Abstract intermediate storage and its config (empty abstract data class)
-- Delegate function should receive argument resource configuration
+- Create InMemoryStorage
+    BUG: Multiple instances of it are being created
+- Delegate function should receive argument "resource configuration"!!!!
+
+- [NP] Find a fix for cyclic dependencies
 
 - Avoid Redis when unneded
 - Avoid Redis on LocalExecutor (base abstract `ExternalStorage` Class (`InMemoryStorage`, `RedisStorage`))

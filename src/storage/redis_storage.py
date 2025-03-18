@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 import redis
 
-import src.storage.intermediate_storage as intermediate_storage
+import src.storage.storage as storage
 
-class RedisStorage(intermediate_storage.IntermediateStorage):
+class RedisStorage(storage.Storage):
     @dataclass
-    class Config(intermediate_storage.IntermediateStorage.Config):
+    class Config(storage.Storage.Config):
         host: str
         port: int
         password: str
