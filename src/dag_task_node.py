@@ -1,5 +1,4 @@
 import ast
-import asyncio
 import copy
 from dataclasses import dataclass
 from functools import wraps
@@ -9,16 +8,8 @@ import sys
 import time
 from typing import Any, Callable, Generic, TypeVar
 import uuid
-import cloudpickle
-from enum import Enum
-
-import src.dag_task_node as dag_task_node
 
 R = TypeVar('R')
-
-class ExecutorType(Enum):
-    LOCAL = "LOCAL"
-    REMOTE_DOCKER = "REMOTE_DOCKER"
 
 @dataclass
 class DAGTaskNodeId:
@@ -84,27 +75,13 @@ class DAGTaskNode(Generic[R]):
             module for module in imports
             if not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
         }
-    
-    def _try_install_third_party_libs(self):
-        missing_modules = []
-        for module in self.third_party_libs:
-            try:
-                __import__(module)
-                # print(f"({module}) already installed")
-            except ImportError:
-                # print(f"({module}) not found, will install")
-                missing_modules.append(module)
-        
-        if missing_modules:
-            print(f"Installing missing modules: {', '.join(missing_modules)}")
-            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
-            
-            for module in missing_modules:
-                try:
-                    __import__(module)
-                    # print(f"({module}) successfully installed")
-                except ImportError:
-                    print(f"Warning: Failed to import {module} after installation")
+
+    def compute(self, config: 'worker.LocalWorker.Config | worker.DockerWorker.Config') -> R:
+        import src.dag as dag
+        _start_time = time.time()
+        dag_representation = dag.DAG(sink_node=self)
+        print(f"Created DAG in {time.time() - _start_time:.4f} seconds")
+        return dag_representation.compute(config)
 
     def visualize_dag(self, open_after: bool = True):
         import src.dag as dag
@@ -147,21 +124,7 @@ class DAGTaskNode(Generic[R]):
 
         # _clone_end_time = time.time()
         # print(f"Cloned {self.func_name} in {(_clone_end_time - _clone_start_time):.4f} seconds")
-        return cloned_node
-
-    def compute(self, executorType: ExecutorType = ExecutorType.LOCAL) -> R:
-        import src.dag as dag
-        _start_time = time.time()
-        dag_representation = dag.DAG(sink_node=self)
-        _end_time = time.time()
-        print(f"Created DAG in {_end_time - _start_time:.4f} seconds")
-        res = None
-        match executorType:
-            case ExecutorType.LOCAL:
-                res = dag_representation.start_local_execution() # type: ignore
-            case ExecutorType.REMOTE_DOCKER:
-                res = dag_representation.start_docker_execution() # type: ignore
-        return res
+        return cloned_node    
 
     def invoke(self, dependencies: dict[str, Any]):
         self._try_install_third_party_libs()
@@ -198,9 +161,9 @@ class DAGTaskNode(Generic[R]):
         # Convert func_args
         new_args = []
         for arg in self.func_args:
-            if isinstance(arg, dag_task_node.DAGTaskNode):
+            if isinstance(arg, DAGTaskNode):
                 new_args.append(arg.id)
-            elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
+            elif isinstance(arg, list) and all(isinstance(item, DAGTaskNode) for item in arg):
                 new_args.append([item.id for item in arg])
             else:
                 new_args.append(arg)
@@ -208,9 +171,9 @@ class DAGTaskNode(Generic[R]):
         # Convert func_kwargs
         new_kwargs = {}
         for key, value in self.func_kwargs.items():
-            if isinstance(value, dag_task_node.DAGTaskNode):
+            if isinstance(value, DAGTaskNode):
                 new_kwargs[key] = value.id
-            elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
+            elif isinstance(value, list) and all(isinstance(item, DAGTaskNode) for item in value):
                 new_kwargs[key] = [item.id for item in value]
             else:
                 new_kwargs[key] = value
@@ -223,6 +186,26 @@ class DAGTaskNode(Generic[R]):
     def __repr__(self):
         return f"DAGTaskNode({self.func_name}, id={self.id})"
 
+    def _try_install_third_party_libs(self):
+        missing_modules = []
+        for module in self.third_party_libs:
+            try:
+                __import__(module)
+                # print(f"({module}) already installed")
+            except ImportError:
+                # print(f"({module}) not found, will install")
+                missing_modules.append(module)
+        
+        if missing_modules:
+            print(f"Installing missing modules: {', '.join(missing_modules)}")
+            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
+            
+            for module in missing_modules:
+                try:
+                    __import__(module)
+                    # print(f"({module}) successfully installed")
+                except ImportError:
+                    print(f"Warning: Failed to import {module} after installation")
 
 def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
     """Decorator to convert a function into a DAG node task."""

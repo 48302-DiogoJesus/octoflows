@@ -1,14 +1,11 @@
-- Kill containers faster
-- Keep exexcuting workflows for more than 10 seconds to ensure containers are not killed
-- Kill all containers on shutdown
-- Kill all containers on startup (instead of getting_running_containers)
 - Docker Executors need to receive the docker gateway address and port
 
-- Rename `FlaskExecutor` to `WebServerExecutor`
 - Improve user interface (user should instantiate a `LocalExecutor.Configure() -> LocalExecutorConfiguration` and when calls compute, pass the LocalExecutorConfiguration which is used to instantiate then)
 - `.Configure(intermediate_storage_config: redis_hostname, etc.. for now)`
+- MOVE _wait_for_final_result TO AbstractWorker
+- How to serialize config + dag (merge them on the delegate function)
 
-- Avoid Redis where unneded
+- Avoid Redis when unneded
 - Avoid Redis on LocalExecutor (base abstract `ExternalStorage` Class (`InMemoryStorage`, `RedisStorage`))
 
 - Support more levels: e.g., list[list[DAGTaskNode]]

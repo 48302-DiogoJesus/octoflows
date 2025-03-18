@@ -10,7 +10,7 @@ LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windo
 
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-import src.executor as executor
+import src.worker as worker
 import src.dag as dag
 
 async def main():
@@ -46,7 +46,7 @@ async def main():
             raise Exception("Error: Loaded object is not a DAG instance")
         
         # Create executor and start execution
-        ex = executor.DockerExecutor(subdag, "http://localhost:5000") # "redis" hostname because we assume its running on same docker network
+        ex = worker.DockerWorker(subdag, "http://localhost:5000")
         print("Start executing subdag")
         await ex.start_executing()
         print("Execution completed successfully")

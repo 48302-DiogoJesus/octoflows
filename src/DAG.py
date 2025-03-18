@@ -1,17 +1,12 @@
 import asyncio
-import time
 from typing import Any
 import uuid
 import cloudpickle
 import graphviz
 
-import src.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
-import src.executor as executor
 
 class DAG:
-    _FINAL_RESULT_POLLING_TIME_S = 0.2
-
     def __init__(self, sink_node: dag_task_node.DAGTaskNode, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.master_dag_id = master_dag_id or str(uuid.uuid4())[:4]
@@ -36,42 +31,43 @@ class DAG:
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_nodes=[root_node])
 
+    def compute(self, config):
+        import src.worker as worker
+        if isinstance(config, worker.LocalWorker.Config):
+            return self.start_local_execution(config)
+        elif isinstance(config, worker.DockerWorker.Config):
+            return self.start_docker_execution(config)
+        else:
+            raise Exception(f"Unknown config type: {type(config)} | {config}")
+
     # User interface must be synchronous
-    def start_docker_execution(self):
+    def start_docker_execution(self, config):
+        import src.worker as worker
         async def internal():
             for root_node in self.root_nodes:
-                asyncio.create_task(executor.DockerExecutor(self.create_subdag(root_node), 'http://localhost:5000/').parallelize_self())
-            res = await self._wait_for_final_result()
+                asyncio.create_task(worker.DockerWorker(config).delegate(self.create_subdag(root_node)))
+            res = await worker.Worker.wait_for_result_of_task(config.intermediate_storage, self.get_dag_task_id(self.sink_node))
             return res
         return asyncio.run(internal())
 
     # User interface must be synchronous
-    def start_local_execution(self):
+    def start_local_execution(self, config):
+        import src.worker as worker
         async def internal():
-            leaf_executors: list[executor.LocalExecutor] = []
+            leaf_executors: list[worker.LocalWorker] = []
             
             for root_node in self.root_nodes:
-                ex = executor.LocalExecutor(self.create_subdag(root_node))
-                asyncio.create_task(ex.start_executing())
+                ex = worker.LocalWorker(config)
+                asyncio.create_task(ex.start_executing(self.create_subdag(root_node)))
                 leaf_executors.append(ex)
             
-            res = await self._wait_for_final_result()
+            res = await worker.Worker.wait_for_result_of_task(config.intermediate_storage, self.get_dag_task_id(self.sink_node))
             for ex in leaf_executors: ex.shutdown_flag.set()
             return res
         return asyncio.run(internal())
-
-    def get_dag_task_id(self, dag_task_node: dag_task_node.DAGTaskNode):
+    
+    def get_dag_task_id(self, dag_task_node: dag_task_node.DAGTaskNode) -> str:
         return f"{dag_task_node.id.get_full_id()}-{self.master_dag_id}"
-
-    async def _wait_for_final_result(self):
-        # Asynchronously poll Storage for final result
-        while True:
-            final_result = intermediate_storage.IntermediateStorage.get(self.get_dag_task_id(self.sink_node))
-            if final_result is not None:
-                final_result = cloudpickle.loads(final_result) # type: ignore
-                print(f"Final Result Ready: ({self.sink_node.id.get_full_id()}) => {final_result} | Type: ({type(final_result)})")
-                return final_result
-            await asyncio.sleep(self._FINAL_RESULT_POLLING_TIME_S)
 
     def _optimize_task_metadata(self):
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
