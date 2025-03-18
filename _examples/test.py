@@ -4,7 +4,7 @@ import time
 # import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.intermediate_storage import IntermediateStorage
+from src.storage.redis_storage import RedisStorage
 from src.worker import DockerWorker, LocalWorker
 from src.dag_task_node import DAGTask
 
@@ -20,7 +20,7 @@ def calculate_total_revenue(prices: list[float]) -> float:
     """Calculate the total revenue from a list of prices."""
     return sum(prices)
 
-redis_intermediate_storage_config = IntermediateStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
+redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config

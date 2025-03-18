@@ -1,4 +1,4 @@
-- Implement generic deserialize? or abstract!
+- Abstract intermediate storage and its config (empty abstract data class)
 - Delegate function should receive argument resource configuration
 
 - Avoid Redis when unneded

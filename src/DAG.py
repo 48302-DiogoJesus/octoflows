@@ -4,7 +4,7 @@ import uuid
 import cloudpickle
 import graphviz
 
-import src.intermediate_storage as intermediate_storage
+import src.storage.intermediate_storage as intermediate_storage
 import src.dag_task_node as dag_task_node
 
 class DAG:

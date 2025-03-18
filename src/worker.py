@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 import src.dag as dag
 import src.dag_task_node as dag_task_node
-import src.intermediate_storage as intermediate_storage_module
+import src.storage.intermediate_storage as intermediate_storage_module
 
 class Worker(ABC):
     @dataclass
@@ -20,13 +20,11 @@ class Worker(ABC):
     intermediate_storage: intermediate_storage_module.IntermediateStorage
     shutdown_flag: asyncio.Event
     worker_id: str
-    config: Config
 
     def __init__(self, config: Config):
         self.shutdown_flag = asyncio.Event()
         self.worker_id = str(uuid.uuid4())[:4]
-        self.config = config
-        self.intermediate_storage = intermediate_storage_module.IntermediateStorage(config.intermediate_storage_config)
+        self.intermediate_storage = config.intermediate_storage_config.create_instance()
 
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
@@ -64,7 +62,7 @@ class Worker(ABC):
                         ready_downstream.append(downstream_task)
                     else:
                         dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
-                        dependencies_met = self.intermediate_storage.increment_and_get(dc_key)
+                        dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
                         self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
                         if dependencies_met == downstream_task_total_dependencies:
                             ready_downstream.append(downstream_task)
