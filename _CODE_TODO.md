@@ -1,10 +1,9 @@
 - Delegate function should receive argument "resource configuration"!!!!
 
 - [BUG] Cutting behind roots is not enough. Since the other nodes have pointers to "upstream_nodes" (think of a DAG with a fan-out 3-1, the 1 will have pointers to the other 2)
-    fix ?: make the upstream_nodes array an array of task_ids
-        I need the FULL DATA in order to backtrack in DAG ctor (goes from sink to roots using "upstream_nodes" (confirm this))
-            after building the DAG im working with clones, can I convert the upstream stuff then??
-                don't use "_find_all_nodes_from_sink", create "_find_all_nodes_from_roots", first node without "downstream_tasks" is sink node?
+    I NEED THE CACHED RESULT FROM THE UPSTREAN TASKS. CAN'T REDUCE THEM TO IDS :(
+        UPSTREAM_TASKS = [] 1 LAYER BEHIND?
+        + register the ids of the "useless tasks" and remove them from the upstream_nodes
 - [CHECK] Print the complete subDAG (starting from the sink until no more UPSTREAM_NODES) each worker receives to ensure the roots are well cut
 - [CHECK] Ensure that separate workers use cached results from other workers ()
 

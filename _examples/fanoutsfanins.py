@@ -45,7 +45,7 @@ b2 = b([c1, c2, c3])
 
 # c5_out = c(b1)
 
-b2.visualize_dag()
+# b2.visualize_dag()
 start_time = time.time()
 result = b2.compute(config=localWorkerConfig)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

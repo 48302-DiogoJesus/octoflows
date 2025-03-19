@@ -12,11 +12,6 @@ class DAG:
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
-            # Cut DAG starting 1-level behind the root nodes
-            for node in self.root_nodes:
-                for dependency in node.upstream_nodes:
-                    dependency.upstream_nodes = []
-            # self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
             self.all_nodes, self.sink_node = DAG._find_all_nodes_from_roots(self.root_nodes)
         # FULL DAG (Find real root nodes)
         else:
@@ -24,11 +19,8 @@ class DAG:
             self.sink_node = sink_node.clone() # clone all nodes behind the sink node
             self.all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
             DAG._eliminate_fake_sink_nodes_references(self.all_nodes, self.sink_node)
+            self._optimize_task_metadata()
         
-        # Find nodes by going backwards until root nodes
-        # Add the DAG id to each task
-        self._optimize_task_metadata()
-
         if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]
 
@@ -58,28 +50,28 @@ class DAG:
         for _, node in self.all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
             # Convert func_args
-            new_args = []
+            optimized_args = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     # previous for loop adds the master dag id, we need that update
-                    new_args.append(arg.id)
+                    optimized_args.append(arg.id)
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
-                    new_args.append([item.id for item in arg])
+                    optimized_args.append([item.id for item in arg])
                 else:
-                    new_args.append(arg)
+                    optimized_args.append(arg)
             
             # Convert func_kwargs
-            new_kwargs = {}
+            optimized_kwargs = {}
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
-                    new_kwargs[key] = value.id
+                    optimized_kwargs[key] = value.id
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
-                    new_kwargs[key] = [item.id for item in value]
+                    optimized_kwargs[key] = [item.id for item in value]
                 else:
-                    new_kwargs[key] = value
+                    optimized_kwargs[key] = value
 
-            node.func_args = tuple(new_args)
-            node.func_kwargs = new_kwargs
+            node.func_args = tuple(optimized_args)
+            node.func_kwargs = optimized_kwargs
 
     def _find_sink_node_from_roots(self, root_nodes: list[dag_task_node.DAGTaskNode]):
         def dfs(node):
