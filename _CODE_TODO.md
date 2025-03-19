@@ -1,4 +1,3 @@
-- Delegate function should receive argument "resource configuration"!!!!
 - Support more levels: e.g., list[list[DAGTaskNode]]
 
 - Create another storage class (MetadataStorage) but use same DB in development
@@ -8,6 +7,14 @@
         Output data size
         Data download time
         Data upload time
+
+- Implement similar WUKONG algorithms
+    Can I wrap `Dask` functions?
+    - GEMM
+    - Tree Reduction
+    - Singular Value Decomposition
+
+- [NP] Avoid Intermediate storage - sometimes writes can be avoided (leave it up to the worker logic)
 
 - [NP] Find a fix for cyclic dependencies
 
