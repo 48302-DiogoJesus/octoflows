@@ -47,7 +47,7 @@ b2 = b([c1, c2, c3])
 
 b2.visualize_dag(open_after=False)
 start_time = time.time()
-result = b2.compute(config=localWorkerConfig)
+result = b2.compute(config=dockerWorkerConfig)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
 # result2 = b2.compute(config=dockerWorkerConfig)
 # print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")

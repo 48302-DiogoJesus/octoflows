@@ -91,7 +91,6 @@ class ContainerPoolExecutor:
             print(f"Error listing containers: {e}")
 
     def _cleanup_idle_containers(self):
-        return
         """Periodically check for and remove idle containers."""
         while not self.shutdown_flag.is_set():
             # Interruptible time.sleep() alternative

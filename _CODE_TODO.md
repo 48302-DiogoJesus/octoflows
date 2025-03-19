@@ -1,5 +1,4 @@
 - Delegate function should receive argument "resource configuration"!!!!
-
 - Support more levels: e.g., list[list[DAGTaskNode]]
 
 - Create another storage class (MetadataStorage) but use same DB in development

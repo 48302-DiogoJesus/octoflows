@@ -1,13 +1,16 @@
 import atexit
+import base64
 import os
 import signal
 import sys
 import threading
 import time
 import uuid
+import cloudpickle
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
 
+from src.resource_configuration import ResourceConfiguration
 from src.utils.logger import create_logger
 import src.docker_workers_gateway.container_pool_executor as container_pool_executor
 
@@ -28,7 +31,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(cpus, memory, base64_config, base64_dag):
+def process_job_async(resource_configuration: ResourceConfiguration, base64_config: str, base64_dag: str):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -40,7 +43,7 @@ def process_job_async(cpus, memory, base64_config, base64_dag):
 
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {base64_dag}"
 
-    with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
+    with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory) as container_id:
         try:
             logger.info(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
             exit_code = container_pool.execute_command_in_container(container_id, command)
@@ -65,19 +68,15 @@ def handle_job():
         if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
         data = request.get_json()
 
-        resource_config = data.get('resource_configuration', {})
-        cpus = resource_config.get('cpus', None)
-        if cpus is None: return jsonify({"error": "cpus is required"}), 400
-        cpus = float(cpus)
-        memory = resource_config.get('memory', None)
-        if memory is None: return jsonify({"error": "memory is required"}), 400
-        memory = int(memory)
+        resource_config_key = data.get('resource_configuration', None)
+        if resource_config_key is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
+        resource_configuration: ResourceConfiguration = cloudpickle.loads(base64.b64decode(resource_config_key))
         b64subdag = data.get('subdag', None)
         if b64subdag is None: return jsonify({"error": "'subdag' field is required"}), 400
         b64config = data.get('config', None)
         if b64config is None: return jsonify({"error": "'config' field is required"}), 400
 
-        thread_pool.submit(process_job_async, cpus, memory, b64config, b64subdag)
+        thread_pool.submit(process_job_async, resource_configuration, b64config, b64subdag)
         
         return "", 202 # Immediately return 202 Accepted
 
