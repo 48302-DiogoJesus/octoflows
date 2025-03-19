@@ -1,7 +1,5 @@
 - Delegate function should receive argument "resource configuration"!!!!
 
-- [NP] Find a fix for cyclic dependencies
-
 - [BUG] Cutting behind roots is not enough. Since the other nodes have pointers to "upstream_nodes" (think of a DAG with a fan-out 3-1, the 1 will have pointers to the other 2)
     fix ?: make the upstream_nodes array an array of task_ids
         I need the FULL DATA in order to backtrack in DAG ctor (goes from sink to roots using "upstream_nodes" (confirm this))
@@ -20,11 +18,7 @@
         Data download time
         Data upload time
 
-- [NNP] Web dashboard (Svelte or React) to visualize DAG execution in real-time
-    Cisualize Nodes, which worker executed each task
-    Complete tasks
-    Data transfers (upload download)
-    allow replays with a timeline of events
+- [NP] Find a fix for cyclic dependencies
 
 - [NNP] More WUKONG-specific stuff
     - Task Clustering (fan-ins + fan-outs)
@@ -33,3 +27,9 @@
 - [NNP] Redis key to store errors (JSON that stores stderr for each DAG task). Use redis transactions
     Client then should also poll this key periodically
 - [NNP] Allow user to specify requirements.txt dependencies so that they don't need to be downloaded at runtime
+
+- [NNP] Web dashboard (Svelte or React) to visualize DAG execution in real-time
+    Cisualize Nodes, which worker executed each task
+    Complete tasks
+    Data transfers (upload download)
+    allow replays with a timeline of events

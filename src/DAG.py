@@ -6,30 +6,30 @@ import graphviz
 import src.dag_task_node as dag_task_node
 
 class DAG:
-    def __init__(self, sink_node: dag_task_node.DAGTaskNode, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
+    def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.master_dag_id = master_dag_id or str(uuid.uuid4())[:4]
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_nodes:
             self.root_nodes: list[dag_task_node.DAGTaskNode] = root_nodes
-            self.sink_node = sink_node
             # Cut DAG starting 1-level behind the root nodes
             for node in self.root_nodes:
                 for dependency in node.upstream_nodes:
                     dependency.upstream_nodes = []
             # self.sink_node = self._find_sink_node_from_roots(self.root_nodes)#.clone() # subdag should already be iterating on clones and not the original decorated tasks
-            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
+            self.all_nodes, self.sink_node = DAG._find_all_nodes_from_roots(self.root_nodes)
         # FULL DAG (Find real root nodes)
         else:
+            if not sink_node: raise Exception("Sink node can't be None if no root nodes are provided!")
             self.sink_node = sink_node.clone() # clone all nodes behind the sink node
-            self.all_nodes: dict[str, dag_task_node.DAGTaskNode] = DAG._find_all_nodes_from_sink(self.sink_node)
-            self.root_nodes: list[dag_task_node.DAGTaskNode] = DAG._find_root_nodes(self.all_nodes)
+            self.all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
+            DAG._eliminate_fake_sink_nodes_references(self.all_nodes, self.sink_node)
         
         # Find nodes by going backwards until root nodes
         # Add the DAG id to each task
         self._optimize_task_metadata()
 
-        if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {sink_node.id.get_full_id()} has 0 root notes!")
+        if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
         self.root_node = self.root_nodes[0]
 
     def compute(self, config):
@@ -55,14 +55,14 @@ class DAG:
 
     def _optimize_task_metadata(self):
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
-        for _, node in list(self.all_nodes.items()): # Use list() to create a copy to allow mutations while iterating
+        for _, node in self.all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
             # Convert func_args
             new_args = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     # previous for loop adds the master dag id, we need that update
-                    new_args.append(node.id)
+                    new_args.append(arg.id)
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                     new_args.append([item.id for item in arg])
                 else:
@@ -98,30 +98,70 @@ class DAG:
 
         raise Exception("Cloud not find sink node from root nodes")
     
-    @classmethod
-    def _find_root_nodes(cls, all_nodes: dict[str, dag_task_node.DAGTaskNode]):
-        """Identify root nodes (nodes with no upstream dependencies)."""
-        rns = list(all_nodes.values())
-        for node in all_nodes.values():
-            for dependent_node in node.downstream_nodes:
-                for rn in rns:
-                    if rn.id.get_full_id() == dependent_node.id.get_full_id():
-                        rns.remove(rn)
-        return rns
-
-    @classmethod
-    def _find_all_nodes_from_sink(cls, sink_node: dag_task_node.DAGTaskNode) -> dict[str, dag_task_node.DAGTaskNode]:
-        """Build the complete graph by traversing from sink node upward."""
+    @staticmethod
+    def _find_all_nodes_and_root_nodes_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:
+        """
+        Traverse the DAG from the sink node and return:
+        1. A dictionary of all nodes in the DAG.
+        2. A list of root nodes (nodes with no upstream dependencies).
+        """
         all_nodes: dict[str, dag_task_node.DAGTaskNode] = {}
+        root_nodes: list[dag_task_node.DAGTaskNode] = []
+
+        def visit(node: dag_task_node.DAGTaskNode):
+            # Skip if the node has already been visited
+            if node.id.get_full_id() in all_nodes:
+                return
+            
+            # Add the node to all_nodes
+            all_nodes[node.id.get_full_id()] = node
+            
+            # If the node has no upstream nodes, it's a root node
+            if not node.upstream_nodes:
+                root_nodes.append(node)
+            
+            # Recursively visit all upstream nodes
+            for upstream_node in node.upstream_nodes:
+                visit(upstream_node)
+
+        # Start traversal from the sink node
+        visit(sink_node)
+        
+        return all_nodes, root_nodes
+
+    @staticmethod
+    def _eliminate_fake_sink_nodes_references(all_nodes: dict[str, dag_task_node.DAGTaskNode], real_sink_node: dag_task_node.DAGTaskNode):
+        # _find_all_nodes_and_root_nodes_from_sink() should NOT find sink nodes, but some valid nodes may point (DOWNESTREAM ONLY) to the fake sink nodes (no downstream nodes)
+        for _, node in all_nodes.items():
+            node.downstream_nodes = [
+                node
+                for node in node.downstream_nodes
+                if len(node.downstream_nodes) > 0 or node.id.get_full_id() == real_sink_node.id.get_full_id()
+            ]
+
+    @staticmethod
+    def _find_all_nodes_from_roots(root_nodes: list[dag_task_node.DAGTaskNode]) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:
+        """Build the complete graph by traversing from root nodes downward and find the sink node."""
+        all_nodes: dict[str, dag_task_node.DAGTaskNode] = {}
+        sink_node = None  # Will store the last visited node with no downstreams
         
         def visit(node: dag_task_node.DAGTaskNode):
-            if node.id.get_full_id() in all_nodes: return
+            nonlocal sink_node
+            if node.id.get_full_id() in all_nodes:
+                return
             all_nodes[node.id.get_full_id()] = node
-            for arg in node.upstream_nodes: visit(arg)
+            
+            if not node.downstream_nodes:  # If no downstream nodes, it might be the sink
+                sink_node = node
+            
+            for arg in node.downstream_nodes:  # Traverse downward
+                visit(arg)
         
-        visit(sink_node)
-        return all_nodes
-    
+        for root in root_nodes:
+            visit(root)
+
+        return all_nodes, sink_node # type: ignore
+
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self.all_nodes[node_id.get_full_id()]
     
@@ -141,8 +181,9 @@ class DAG:
         )
         dot.attr(rankdir="LR")  # Layout from left to right
         
-        all_nodes = cls._find_all_nodes_from_sink(sink_node)
-        root_nodes = cls._find_root_nodes(all_nodes)
+        all_nodes, root_nodes = cls._find_all_nodes_and_root_nodes_from_sink(sink_node)
+        cls._eliminate_fake_sink_nodes_references(all_nodes, sink_node)
+        
         # Add nodes
         for node_id, node in all_nodes.items():
             # Create a label showing function name and args
@@ -153,20 +194,20 @@ class DAG:
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     # dependency_strs.append(str(arg.id.get_full_id()))
-                    dependency_strs.append("_")
+                    dependency_strs.append("º")
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                     # dependency_strs.append(str([item.id.get_full_id() for item in arg]))
-                    dependency_strs.append(str(["_" for item in arg]))
+                    dependency_strs.append(str(["º" for item in arg]))
                 else:
                     dependency_strs.append(str(arg))
 
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
                     # dependency_strs.append(f"{key}={value.id.get_full_id()}")
-                    dependency_strs.append(f"{key}=_")
+                    dependency_strs.append(f"{key}=º")
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
                     # dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
-                    dependency_strs.append(f"{key}=[_ for item in value]")
+                    dependency_strs.append(f"{key}={["º" for item in value]}")
                 else:
                     dependency_strs.append(f"{key}={value}")
             
