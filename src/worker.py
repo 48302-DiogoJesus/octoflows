@@ -80,10 +80,13 @@ class Worker(ABC):
                 elif len(ready_downstream) > 1:
                     continuation_task = ready_downstream[0] # choose the first task
                     tasks_to_delegate = ready_downstream[1:]
+                    coroutines = []
                     
                     for task in tasks_to_delegate:
-                        asyncio.create_task(self.delegate(subdag.create_subdag(task)))
+                        coroutines.append(self.delegate(subdag.create_subdag(task), called_by_worker=True))
                     
+                    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+
                     # Continue with one task in this worker
                     self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                     task = subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
@@ -99,7 +102,11 @@ class Worker(ABC):
         self.log(task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG): pass
+    async def delegate(self, subdag: dag.DAG, called_by_worker: bool = True): 
+        """
+        {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
+        """
+        pass
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task_id: str, polling_interval_s: float = 1.0):
@@ -132,7 +139,7 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.DAG):
+    async def delegate(self, subdag: dag.DAG, called_by_worker: bool = True):
         await self.start_executing(subdag)
 
 class DockerWorker(Worker):
@@ -153,15 +160,15 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.DAG):
+    async def delegate(self, subdag: dag.DAG, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
+        gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
         self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
         async with aiohttp.ClientSession() as session:
-            logger.info(f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
             async with await session.post(
-                self.docker_config.docker_gateway_address + "/job", 
+                gateway_address + "/job", 
                 data=json.dumps({
                     "resource_configuration": {
                         "cpus": 1,

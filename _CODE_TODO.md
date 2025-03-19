@@ -1,6 +1,3 @@
-- [CHECK] Print the complete subDAG (starting from the sink until no more UPSTREAM_NODES) each worker receives to ensure the roots are well cut
-- [CHECK] Ensure that separate workers use cached results from other workers
-
 - Delegate function should receive argument "resource configuration"!!!!
 
 - Support more levels: e.g., list[list[DAGTaskNode]]

@@ -1,0 +1,373 @@
+2025-03-19 17:53:46,042 - src.dag_task_node - INFO - Created DAG in 0.0258 seconds
+2025-03-19 17:53:46,053 - src.worker - INFO - Worker(80bd) Task(calculate_discount-094d_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='094d'))
+2025-03-19 17:53:46,053 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='094d'))
+2025-03-19 17:53:46,056 - src.worker - INFO - Worker(80bd) Task(calculate_discount-0ee3_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0ee3'))
+2025-03-19 17:53:46,056 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0ee3'))
+2025-03-19 17:53:46,057 - src.worker - INFO - Worker(80bd) Task(calculate_discount-4580_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4580'))
+2025-03-19 17:53:46,057 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4580'))
+2025-03-19 17:53:46,058 - src.worker - INFO - Worker(80bd) Task(calculate_discount-b2fc_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b2fc'))
+2025-03-19 17:53:46,058 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b2fc'))
+2025-03-19 17:53:46,060 - src.worker - INFO - Worker(80bd) Task(calculate_discount-8cbc_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8cbc'))
+2025-03-19 17:53:46,060 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8cbc'))
+2025-03-19 17:53:46,061 - src.worker - INFO - Worker(80bd) Task(calculate_discount-44ef_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='44ef'))
+2025-03-19 17:53:46,061 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='44ef'))
+2025-03-19 17:53:46,062 - src.worker - INFO - Worker(80bd) Task(calculate_discount-35db_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='35db'))
+2025-03-19 17:53:46,062 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='35db'))
+2025-03-19 17:53:46,063 - src.worker - INFO - Worker(80bd) Task(calculate_discount-c0d9_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='c0d9'))
+2025-03-19 17:53:46,063 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='c0d9'))
+2025-03-19 17:53:46,064 - src.worker - INFO - Worker(80bd) Task(calculate_discount-9063_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9063'))
+2025-03-19 17:53:46,064 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9063'))
+2025-03-19 17:53:46,065 - src.worker - INFO - Worker(80bd) Task(calculate_discount-0818_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0818'))
+2025-03-19 17:53:46,065 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0818'))
+2025-03-19 17:53:46,067 - src.worker - INFO - Worker(80bd) Task(calculate_discount-e34a_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e34a'))
+2025-03-19 17:53:46,067 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e34a'))
+2025-03-19 17:53:46,068 - src.worker - INFO - Worker(80bd) Task(calculate_discount-0443_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0443'))
+2025-03-19 17:53:46,068 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0443'))
+2025-03-19 17:53:46,068 - src.worker - INFO - Worker(80bd) Task(calculate_discount-5ffe_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='5ffe'))
+2025-03-19 17:53:46,069 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='5ffe'))
+2025-03-19 17:53:46,070 - src.worker - INFO - Worker(80bd) Task(calculate_discount-4250_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4250'))
+2025-03-19 17:53:46,070 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4250'))
+2025-03-19 17:53:46,072 - src.worker - INFO - Worker(80bd) Task(calculate_discount-cfe8_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='cfe8'))
+2025-03-19 17:53:46,073 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='cfe8'))
+2025-03-19 17:53:46,074 - src.worker - INFO - Worker(80bd) Task(calculate_discount-b85f_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b85f'))
+2025-03-19 17:53:46,076 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b85f'))
+2025-03-19 17:53:46,076 - src.worker - INFO - Worker(80bd) Task(calculate_discount-1712_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1712'))
+2025-03-19 17:53:46,077 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1712'))
+2025-03-19 17:53:46,080 - src.worker - INFO - Worker(80bd) Task(calculate_discount-f8a6_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f8a6'))
+2025-03-19 17:53:46,080 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f8a6'))
+2025-03-19 17:53:46,081 - src.worker - INFO - Worker(80bd) Task(calculate_discount-d217_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d217'))
+2025-03-19 17:53:46,081 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d217'))
+2025-03-19 17:53:46,082 - src.worker - INFO - Worker(80bd) Task(calculate_discount-f8cc_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f8cc'))
+2025-03-19 17:53:46,082 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f8cc'))
+2025-03-19 17:53:46,083 - src.worker - INFO - Worker(80bd) Task(calculate_discount-7ee0_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7ee0'))
+2025-03-19 17:53:46,083 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7ee0'))
+2025-03-19 17:53:46,085 - src.worker - INFO - Worker(80bd) Task(calculate_discount-0504_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0504'))
+2025-03-19 17:53:46,085 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0504'))
+2025-03-19 17:53:46,118 - src.worker - INFO - Worker(80bd) Task(calculate_discount-19aa_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='19aa'))
+2025-03-19 17:53:46,118 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='19aa'))
+2025-03-19 17:53:46,119 - src.worker - INFO - Worker(80bd) Task(calculate_discount-21e2_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='21e2'))
+2025-03-19 17:53:46,119 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='21e2'))
+2025-03-19 17:53:46,122 - src.worker - INFO - Worker(80bd) Task(calculate_discount-d81b_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d81b'))
+2025-03-19 17:53:46,122 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d81b'))
+2025-03-19 17:53:46,123 - src.worker - INFO - Worker(80bd) Task(calculate_discount-a39b_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a39b'))
+2025-03-19 17:53:46,123 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a39b'))
+2025-03-19 17:53:46,124 - src.worker - INFO - Worker(80bd) Task(calculate_discount-3036_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3036'))
+2025-03-19 17:53:46,124 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3036'))
+2025-03-19 17:53:46,125 - src.worker - INFO - Worker(80bd) Task(calculate_discount-626a_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='626a'))
+2025-03-19 17:53:46,125 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='626a'))
+2025-03-19 17:53:46,127 - src.worker - INFO - Worker(80bd) Task(calculate_discount-7865_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7865'))
+2025-03-19 17:53:46,135 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7865'))
+2025-03-19 17:53:46,137 - src.worker - INFO - Worker(80bd) Task(calculate_discount-1af3_bbb3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1af3'))
+2025-03-19 17:53:46,138 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1af3'))
+2025-03-19 17:54:25,154 - src.dag_task_node - INFO - Created DAG in 0.0249 seconds
+2025-03-19 17:54:25,163 - src.worker - INFO - Worker(176e) Task(calculate_discount-94d1_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='94d1'))
+2025-03-19 17:54:25,163 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='94d1'))
+2025-03-19 17:54:25,165 - src.worker - INFO - Worker(176e) Task(calculate_discount-c377_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='c377'))
+2025-03-19 17:54:25,165 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='c377'))
+2025-03-19 17:54:25,167 - src.worker - INFO - Worker(176e) Task(calculate_discount-8e46_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8e46'))
+2025-03-19 17:54:25,168 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8e46'))
+2025-03-19 17:54:25,169 - src.worker - INFO - Worker(176e) Task(calculate_discount-3b72_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3b72'))
+2025-03-19 17:54:25,169 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3b72'))
+2025-03-19 17:54:25,170 - src.worker - INFO - Worker(176e) Task(calculate_discount-a71a_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a71a'))
+2025-03-19 17:54:25,170 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a71a'))
+2025-03-19 17:54:25,170 - src.worker - INFO - Worker(176e) Task(calculate_discount-69b3_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='69b3'))
+2025-03-19 17:54:25,170 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='69b3'))
+2025-03-19 17:54:25,172 - src.worker - INFO - Worker(176e) Task(calculate_discount-1dd5_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1dd5'))
+2025-03-19 17:54:25,172 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1dd5'))
+2025-03-19 17:54:25,172 - src.worker - INFO - Worker(176e) Task(calculate_discount-f116_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f116'))
+2025-03-19 17:54:25,172 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f116'))
+2025-03-19 17:54:25,174 - src.worker - INFO - Worker(176e) Task(calculate_discount-178a_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='178a'))
+2025-03-19 17:54:25,174 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='178a'))
+2025-03-19 17:54:25,176 - src.worker - INFO - Worker(176e) Task(calculate_discount-0e74_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0e74'))
+2025-03-19 17:54:25,176 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0e74'))
+2025-03-19 17:54:25,176 - src.worker - INFO - Worker(176e) Task(calculate_discount-77f5_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='77f5'))
+2025-03-19 17:54:25,176 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='77f5'))
+2025-03-19 17:54:25,178 - src.worker - INFO - Worker(176e) Task(calculate_discount-b138_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b138'))
+2025-03-19 17:54:25,178 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b138'))
+2025-03-19 17:54:25,178 - src.worker - INFO - Worker(176e) Task(calculate_discount-39da_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='39da'))
+2025-03-19 17:54:25,179 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='39da'))
+2025-03-19 17:54:25,179 - src.worker - INFO - Worker(176e) Task(calculate_discount-a744_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a744'))
+2025-03-19 17:54:25,179 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a744'))
+2025-03-19 17:54:25,179 - src.worker - INFO - Worker(176e) Task(calculate_discount-799b_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='799b'))
+2025-03-19 17:54:25,179 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='799b'))
+2025-03-19 17:54:25,181 - src.worker - INFO - Worker(176e) Task(calculate_discount-e41f_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e41f'))
+2025-03-19 17:54:25,181 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e41f'))
+2025-03-19 17:54:25,181 - src.worker - INFO - Worker(176e) Task(calculate_discount-8c69_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8c69'))
+2025-03-19 17:54:25,181 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8c69'))
+2025-03-19 17:54:25,183 - src.worker - INFO - Worker(176e) Task(calculate_discount-f792_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f792'))
+2025-03-19 17:54:25,183 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='f792'))
+2025-03-19 17:54:25,183 - src.worker - INFO - Worker(176e) Task(calculate_discount-e23b_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e23b'))
+2025-03-19 17:54:25,183 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e23b'))
+2025-03-19 17:54:25,185 - src.worker - INFO - Worker(176e) Task(calculate_discount-9f83_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9f83'))
+2025-03-19 17:54:25,185 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9f83'))
+2025-03-19 17:54:25,185 - src.worker - INFO - Worker(176e) Task(calculate_discount-8fb7_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8fb7'))
+2025-03-19 17:54:25,185 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='8fb7'))
+2025-03-19 17:54:25,187 - src.worker - INFO - Worker(176e) Task(calculate_discount-da21_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='da21'))
+2025-03-19 17:54:25,187 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='da21'))
+2025-03-19 17:54:25,188 - src.worker - INFO - Worker(176e) Task(calculate_discount-b650_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b650'))
+2025-03-19 17:54:25,188 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b650'))
+2025-03-19 17:54:25,189 - src.worker - INFO - Worker(176e) Task(calculate_discount-856f_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='856f'))
+2025-03-19 17:54:25,189 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='856f'))
+2025-03-19 17:54:25,190 - src.worker - INFO - Worker(176e) Task(calculate_discount-4f63_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4f63'))
+2025-03-19 17:54:25,190 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4f63'))
+2025-03-19 17:54:25,192 - src.worker - INFO - Worker(176e) Task(calculate_discount-3941_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3941'))
+2025-03-19 17:54:25,192 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3941'))
+2025-03-19 17:54:25,192 - src.worker - INFO - Worker(176e) Task(calculate_discount-b19d_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b19d'))
+2025-03-19 17:54:25,192 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='b19d'))
+2025-03-19 17:54:25,194 - src.worker - INFO - Worker(176e) Task(calculate_discount-2d06_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2d06'))
+2025-03-19 17:54:25,194 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2d06'))
+2025-03-19 17:54:25,194 - src.worker - INFO - Worker(176e) Task(calculate_discount-d128_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d128'))
+2025-03-19 17:54:25,194 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d128'))
+2025-03-19 17:54:25,196 - src.worker - INFO - Worker(176e) Task(calculate_discount-61da_622f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='61da'))
+2025-03-19 17:54:25,196 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='61da'))
+2025-03-19 17:54:33,249 - src.worker - INFO - Final Result Ready: (calculate_total_revenue-eddc-622f) => 21600.0 | Type: (<class 'float'>)
+2025-03-19 17:55:10,636 - src.dag_task_node - INFO - Created DAG in 0.0266 seconds
+2025-03-19 17:55:10,647 - src.worker - INFO - Worker(62fc) Task(calculate_discount-7aba_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7aba'))
+2025-03-19 17:55:10,647 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7aba'))
+2025-03-19 17:55:10,649 - src.worker - INFO - Worker(62fc) Task(calculate_discount-3e78_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3e78'))
+2025-03-19 17:55:10,649 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3e78'))
+2025-03-19 17:55:10,650 - src.worker - INFO - Worker(62fc) Task(calculate_discount-70f6_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='70f6'))
+2025-03-19 17:55:10,651 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='70f6'))
+2025-03-19 17:55:10,651 - src.worker - INFO - Worker(62fc) Task(calculate_discount-2dfe_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2dfe'))
+2025-03-19 17:55:10,651 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2dfe'))
+2025-03-19 17:55:10,652 - src.worker - INFO - Worker(62fc) Task(calculate_discount-43d1_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='43d1'))
+2025-03-19 17:55:10,652 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='43d1'))
+2025-03-19 17:55:10,654 - src.worker - INFO - Worker(62fc) Task(calculate_discount-1ab4_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1ab4'))
+2025-03-19 17:55:10,654 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='1ab4'))
+2025-03-19 17:55:10,655 - src.worker - INFO - Worker(62fc) Task(calculate_discount-0a23_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0a23'))
+2025-03-19 17:55:10,655 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0a23'))
+2025-03-19 17:55:10,656 - src.worker - INFO - Worker(62fc) Task(calculate_discount-ae61_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='ae61'))
+2025-03-19 17:55:10,656 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='ae61'))
+2025-03-19 17:55:10,657 - src.worker - INFO - Worker(62fc) Task(calculate_discount-da07_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='da07'))
+2025-03-19 17:55:10,658 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='da07'))
+2025-03-19 17:55:10,659 - src.worker - INFO - Worker(62fc) Task(calculate_discount-87b1_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='87b1'))
+2025-03-19 17:55:10,659 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='87b1'))
+2025-03-19 17:55:10,660 - src.worker - INFO - Worker(62fc) Task(calculate_discount-e041_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e041'))
+2025-03-19 17:55:10,660 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e041'))
+2025-03-19 17:55:10,661 - src.worker - INFO - Worker(62fc) Task(calculate_discount-d555_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d555'))
+2025-03-19 17:55:10,662 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d555'))
+2025-03-19 17:55:10,664 - src.worker - INFO - Worker(62fc) Task(calculate_discount-d09f_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d09f'))
+2025-03-19 17:55:10,665 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='d09f'))
+2025-03-19 17:55:10,665 - src.worker - INFO - Worker(62fc) Task(calculate_discount-681f_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='681f'))
+2025-03-19 17:55:10,666 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='681f'))
+2025-03-19 17:55:10,666 - src.worker - INFO - Worker(62fc) Task(calculate_discount-7f47_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7f47'))
+2025-03-19 17:55:10,667 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='7f47'))
+2025-03-19 17:55:10,667 - src.worker - INFO - Worker(62fc) Task(calculate_discount-aef7_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='aef7'))
+2025-03-19 17:55:10,667 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='aef7'))
+2025-03-19 17:55:10,668 - src.worker - INFO - Worker(62fc) Task(calculate_discount-3a6d_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3a6d'))
+2025-03-19 17:55:10,668 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3a6d'))
+2025-03-19 17:55:10,670 - src.worker - INFO - Worker(62fc) Task(calculate_discount-800e_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='800e'))
+2025-03-19 17:55:10,670 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='800e'))
+2025-03-19 17:55:10,671 - src.worker - INFO - Worker(62fc) Task(calculate_discount-e450_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e450'))
+2025-03-19 17:55:10,671 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='e450'))
+2025-03-19 17:55:10,672 - src.worker - INFO - Worker(62fc) Task(calculate_discount-70f5_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='70f5'))
+2025-03-19 17:55:10,672 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='70f5'))
+2025-03-19 17:55:10,673 - src.worker - INFO - Worker(62fc) Task(calculate_discount-0f8b_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0f8b'))
+2025-03-19 17:55:10,673 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='0f8b'))
+2025-03-19 17:55:10,674 - src.worker - INFO - Worker(62fc) Task(calculate_discount-daae_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='daae'))
+2025-03-19 17:55:10,674 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='daae'))
+2025-03-19 17:55:10,674 - src.worker - INFO - Worker(62fc) Task(calculate_discount-9ae0_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9ae0'))
+2025-03-19 17:55:10,674 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='9ae0'))
+2025-03-19 17:55:10,674 - src.worker - INFO - Worker(62fc) Task(calculate_discount-2969_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2969'))
+2025-03-19 17:55:10,677 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='2969'))
+2025-03-19 17:55:10,678 - src.worker - INFO - Worker(62fc) Task(calculate_discount-820b_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='820b'))
+2025-03-19 17:55:10,678 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='820b'))
+2025-03-19 17:55:10,679 - src.worker - INFO - Worker(62fc) Task(calculate_discount-31cf_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='31cf'))
+2025-03-19 17:55:10,679 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='31cf'))
+2025-03-19 17:55:10,680 - src.worker - INFO - Worker(62fc) Task(calculate_discount-af8f_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='af8f'))
+2025-03-19 17:55:10,680 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='af8f'))
+2025-03-19 17:55:10,681 - src.worker - INFO - Worker(62fc) Task(calculate_discount-4cc0_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4cc0'))
+2025-03-19 17:55:10,682 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='4cc0'))
+2025-03-19 17:55:10,682 - src.worker - INFO - Worker(62fc) Task(calculate_discount-a091_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a091'))
+2025-03-19 17:55:10,682 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='a091'))
+2025-03-19 17:55:10,683 - src.worker - INFO - Worker(62fc) Task(calculate_discount-3c17_34ca) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3c17'))
+2025-03-19 17:55:10,683 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(calculate_discount, id=DAGTaskNodeId(function_name='calculate_discount', task_id='3c17'))
+2025-03-19 17:55:18,752 - src.worker - INFO - Final Result Ready: (calculate_total_revenue-17af-34ca) => 21600.0 | Type: (<class 'float'>)
+2025-03-19 18:00:28,117 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:00:28,126 - src.worker - INFO - Worker(3d81) Task(a-642a_d37f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='642a'))
+2025-03-19 18:00:28,128 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='642a'))
+2025-03-19 18:00:28,128 - src.worker - INFO - Worker(3d81) Task(a-2d64_d37f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2d64'))
+2025-03-19 18:00:28,130 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2d64'))
+2025-03-19 18:00:28,131 - src.worker - INFO - Worker(3d81) Task(a-3475_d37f) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='3475'))
+2025-03-19 18:00:28,131 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='3475'))
+2025-03-19 18:00:51,298 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:00:51,307 - src.worker - INFO - Worker(8e63) Task(a-5eeb_6589) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='5eeb'))
+2025-03-19 18:00:51,307 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='5eeb'))
+2025-03-19 18:00:51,309 - src.worker - INFO - Worker(8e63) Task(a-2dd2_6589) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2dd2'))
+2025-03-19 18:00:51,309 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2dd2'))
+2025-03-19 18:00:51,311 - src.worker - INFO - Worker(8e63) Task(a-c4be_6589) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='c4be'))
+2025-03-19 18:00:51,311 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='c4be'))
+2025-03-19 18:01:40,412 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:01:40,419 - src.worker - INFO - Worker(7887) Task(a-0edf_466a) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='0edf'))
+2025-03-19 18:01:40,419 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='0edf'))
+2025-03-19 18:01:40,422 - src.worker - INFO - Worker(7887) Task(a-f5d5_466a) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='f5d5'))
+2025-03-19 18:01:40,422 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='f5d5'))
+2025-03-19 18:01:40,423 - src.worker - INFO - Worker(7887) Task(a-ef50_466a) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='ef50'))
+2025-03-19 18:01:40,424 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='ef50'))
+2025-03-19 18:03:58,780 - src.dag_task_node - INFO - Created DAG in 0.0022 seconds
+2025-03-19 18:03:58,791 - src.worker - INFO - Worker(78cf) Task(a-0fba_7f7b) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='0fba'))
+2025-03-19 18:03:58,792 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='0fba'))
+2025-03-19 18:03:58,794 - src.worker - INFO - Worker(78cf) Task(a-278e_7f7b) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='278e'))
+2025-03-19 18:03:58,794 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='278e'))
+2025-03-19 18:03:58,795 - src.worker - INFO - Worker(78cf) Task(a-5fd9_7f7b) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='5fd9'))
+2025-03-19 18:03:58,795 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='5fd9'))
+2025-03-19 18:05:50,740 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | 2) Executing...
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | 3) Handle Fan-Out a-7be7_0a37 => [['b-0ac9_0a37']]
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | Incremented DC of dependency-counter-b-0ac9_0a37 (1/3)
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-7be7_0a37) | Worker shut down!
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,742 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | 2) Executing...
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | 3) Handle Fan-Out a-3dd3_0a37 => [['b-0ac9_0a37']]
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | Incremented DC of dependency-counter-b-0ac9_0a37 (2/3)
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-3dd3_0a37) | Worker shut down!
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-a177_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-a177_0a37) | 2) Executing...
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-a177_0a37) | 3) Handle Fan-Out a-a177_0a37 => [['b-0ac9_0a37']]
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(a-a177_0a37) | Incremented DC of dependency-counter-b-0ac9_0a37 (3/3)
+2025-03-19 18:05:50,744 - src.worker - INFO - Worker(d1ac) Task(b-0ac9_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,744 - src.worker - INFO - Using cached result for a-7be7_0a37
+2025-03-19 18:05:50,744 - src.worker - INFO - Using cached result for a-3dd3_0a37
+2025-03-19 18:05:50,744 - src.worker - INFO - Using cached result for a-a177_0a37
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(b-0ac9_0a37) | 2) Executing...
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(b-0ac9_0a37) | 3) Handle Fan-Out b-0ac9_0a37 => [['c-58de_0a37', 'c-ab35_0a37', 'c-b490_0a37']]
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(c-b490_0a37) | Continuing with first of multiple downstream tasks: DAGTaskNode(c, id=DAGTaskNodeId(function_name='c', task_id='58de'))
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,745 - src.worker - INFO - Using cached result for b-0ac9_0a37
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | 2) Executing...
+2025-03-19 18:05:50,745 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | 3) Handle Fan-Out c-58de_0a37 => [['b-2061_0a37']]
+2025-03-19 18:05:50,747 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | Incremented DC of dependency-counter-b-2061_0a37 (1/3)
+2025-03-19 18:05:50,747 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:05:50,747 - src.worker - INFO - Worker(d1ac) Task(c-58de_0a37) | Worker shut down!
+2025-03-19 18:05:50,747 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,747 - src.worker - INFO - Using cached result for b-0ac9_0a37
+2025-03-19 18:05:50,747 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | 2) Executing...
+2025-03-19 18:05:50,748 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | 3) Handle Fan-Out c-ab35_0a37 => [['b-2061_0a37']]
+2025-03-19 18:05:50,748 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | Incremented DC of dependency-counter-b-2061_0a37 (2/3)
+2025-03-19 18:05:50,748 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:05:50,748 - src.worker - INFO - Worker(d1ac) Task(c-ab35_0a37) | Worker shut down!
+2025-03-19 18:05:50,748 - src.worker - INFO - Worker(d1ac) Task(c-b490_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,749 - src.worker - INFO - Using cached result for b-0ac9_0a37
+2025-03-19 18:05:50,749 - src.worker - INFO - Worker(d1ac) Task(c-b490_0a37) | 2) Executing...
+2025-03-19 18:05:50,749 - src.worker - INFO - Worker(d1ac) Task(c-b490_0a37) | 3) Handle Fan-Out c-b490_0a37 => [['b-2061_0a37']]
+2025-03-19 18:05:50,749 - src.worker - INFO - Worker(d1ac) Task(c-b490_0a37) | Incremented DC of dependency-counter-b-2061_0a37 (3/3)
+2025-03-19 18:05:50,749 - src.worker - INFO - Worker(d1ac) Task(b-2061_0a37) | 1) Grabbing Dependencies...
+2025-03-19 18:05:50,749 - src.worker - INFO - Using cached result for c-58de_0a37
+2025-03-19 18:05:50,749 - src.worker - INFO - Using cached result for c-ab35_0a37
+2025-03-19 18:05:50,749 - src.worker - INFO - Using cached result for c-b490_0a37
+2025-03-19 18:05:50,750 - src.worker - INFO - Worker(d1ac) Task(b-2061_0a37) | 2) Executing...
+2025-03-19 18:05:50,750 - src.worker - INFO - Worker(d1ac) Task(b-2061_0a37) | Last Task finished. Shutting down worker...
+2025-03-19 18:05:50,750 - src.worker - INFO - Worker(d1ac) Task(b-2061_0a37) | Worker shut down!
+2025-03-19 18:05:51,755 - src.worker - INFO - Final Result Ready: (b-2061-0a37) => 4332.0 | Type: (<class 'float'>)
+2025-03-19 18:06:00,819 - src.dag_task_node - INFO - Created DAG in 0.0022 seconds
+2025-03-19 18:06:00,828 - src.worker - INFO - Worker(6389) Task(a-c410_0c93) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='c410'))
+2025-03-19 18:06:00,829 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='c410'))
+2025-03-19 18:06:00,830 - src.worker - INFO - Worker(6389) Task(a-49cb_0c93) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='49cb'))
+2025-03-19 18:06:00,831 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='49cb'))
+2025-03-19 18:06:00,833 - src.worker - INFO - Worker(6389) Task(a-d34a_0c93) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d34a'))
+2025-03-19 18:06:00,833 - src.worker - INFO - Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d34a'))
+2025-03-19 18:07:14,715 - src.dag_task_node - INFO - Created DAG in 0.0021 seconds
+2025-03-19 18:07:14,726 - src.worker - INFO - Worker(1453) Task(a-36ff_2ef3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='36ff'))
+2025-03-19 18:07:14,729 - src.worker - INFO - Worker(1453) Task(a-b161_2ef3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='b161'))
+2025-03-19 18:07:14,729 - src.worker - INFO - Worker(1453) Task(a-3cde_2ef3) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='3cde'))
+2025-03-19 18:08:04,361 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:08:04,370 - src.worker - INFO - Worker(df2e) Task(a-7e0e_e846) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='7e0e'))
+2025-03-19 18:08:04,372 - src.worker - INFO - Worker(df2e) Task(a-fd55_e846) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='fd55'))
+2025-03-19 18:08:04,373 - src.worker - INFO - Worker(df2e) Task(a-95f9_e846) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='95f9'))
+2025-03-19 18:11:15,853 - src.dag_task_node - INFO - Created DAG in 0.0021 seconds
+2025-03-19 18:11:15,862 - src.worker - INFO - Worker(be12) Task(a-999a_1765) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='999a'))
+2025-03-19 18:11:15,865 - src.worker - INFO - Worker(be12) Task(a-671e_1765) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='671e'))
+2025-03-19 18:11:15,866 - src.worker - INFO - Worker(be12) Task(a-99f2_1765) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='99f2'))
+2025-03-19 18:13:36,516 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:13:36,526 - src.worker - INFO - Worker(1691) Task(a-0861_2981) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='0861'))
+2025-03-19 18:13:36,528 - src.worker - INFO - Worker(1691) Task(a-d66b_2981) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d66b'))
+2025-03-19 18:13:36,529 - src.worker - INFO - Worker(1691) Task(a-203a_2981) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='203a'))
+2025-03-19 18:14:33,031 - src.dag_task_node - INFO - Created DAG in 0.0040 seconds
+2025-03-19 18:14:33,040 - src.worker - INFO - Worker(6bf4) Task(a-7dc3_49ba) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='7dc3'))
+2025-03-19 18:14:33,042 - src.worker - INFO - Worker(6bf4) Task(a-379d_49ba) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='379d'))
+2025-03-19 18:14:33,043 - src.worker - INFO - Worker(6bf4) Task(a-d08e_49ba) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d08e'))
+2025-03-19 18:14:51,856 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:14:51,866 - src.worker - INFO - Worker(2b51) Task(a-b48c_86e7) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='b48c'))
+2025-03-19 18:14:51,868 - src.worker - INFO - Worker(2b51) Task(a-7882_86e7) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='7882'))
+2025-03-19 18:14:51,869 - src.worker - INFO - Worker(2b51) Task(a-a3d0_86e7) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='a3d0'))
+2025-03-19 18:17:22,603 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:17:22,614 - src.worker - INFO - Worker(e1fe) Task(a-1e98_92e4) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='1e98'))
+2025-03-19 18:17:22,616 - src.worker - INFO - Worker(e1fe) Task(a-fe82_92e4) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='fe82'))
+2025-03-19 18:17:22,616 - src.worker - INFO - Worker(e1fe) Task(a-f5b3_92e4) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='f5b3'))
+2025-03-19 18:25:06,073 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:25:06,081 - src.worker - INFO - Worker(20a7) Task(a-6b23_3414) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='6b23'))
+2025-03-19 18:25:06,083 - src.worker - INFO - Worker(20a7) Task(a-5a94_3414) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='5a94'))
+2025-03-19 18:25:06,086 - src.worker - INFO - Worker(20a7) Task(a-cc6b_3414) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='cc6b'))
+2025-03-19 18:25:10,573 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:25:10,584 - src.worker - INFO - Worker(9dec) Task(a-a522_a0cd) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='a522'))
+2025-03-19 18:25:10,585 - src.worker - INFO - Worker(9dec) Task(a-291a_a0cd) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='291a'))
+2025-03-19 18:25:10,585 - src.worker - INFO - Worker(9dec) Task(a-f46b_a0cd) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='f46b'))
+2025-03-19 18:25:52,025 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:25:52,037 - src.worker - INFO - Worker(1922) Task(a-57f3_9b4e) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='57f3'))
+2025-03-19 18:25:52,041 - src.worker - INFO - Worker(1922) Task(a-d990_9b4e) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d990'))
+2025-03-19 18:25:52,043 - src.worker - INFO - Worker(1922) Task(a-d5fb_9b4e) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='d5fb'))
+2025-03-19 18:25:55,060 - src.worker - INFO - Final Result Ready: (b-cd8d-9b4e) => 4332.0 | Type: (<class 'float'>)
+2025-03-19 18:26:09,032 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:26:09,042 - src.worker - INFO - Worker(7c48) Task(a-e0cf_e873) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='e0cf'))
+2025-03-19 18:26:09,044 - src.worker - INFO - Worker(7c48) Task(a-daa6_e873) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='daa6'))
+2025-03-19 18:26:09,045 - src.worker - INFO - Worker(7c48) Task(a-2f23_e873) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2f23'))
+2025-03-19 18:26:10,051 - src.worker - INFO - Final Result Ready: (b-edd0-e873) => 4332.0 | Type: (<class 'float'>)
+2025-03-19 18:26:10,055 - src.dag_task_node - INFO - Created DAG in 0.0020 seconds
+2025-03-19 18:26:10,061 - src.worker - INFO - Worker(be3b) Task(a-e0cf_5c28) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='e0cf'))
+2025-03-19 18:26:10,062 - src.worker - INFO - Worker(be3b) Task(a-daa6_5c28) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='daa6'))
+2025-03-19 18:26:10,063 - src.worker - INFO - Worker(be3b) Task(a-2f23_5c28) | Invoking docker gateway for subsubdag starting at: DAGTaskNode(a, id=DAGTaskNodeId(function_name='a', task_id='2f23'))
+2025-03-19 18:26:11,066 - src.worker - INFO - Final Result Ready: (b-edd0-5c28) => 4332.0 | Type: (<class 'float'>)
+2025-03-19 18:26:27,178 - src.dag_task_node - INFO - Created DAG in 0.0030 seconds
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | 2) Executing...
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | 3) Handle Fan-Out a-f62b_0766 => [['b-292e_0766']]
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | Incremented DC of dependency-counter-b-292e_0766 (1/3)
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-f62b_0766) | Worker shut down!
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | 2) Executing...
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | 3) Handle Fan-Out a-89c0_0766 => [['b-292e_0766']]
+2025-03-19 18:26:27,179 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | Incremented DC of dependency-counter-b-292e_0766 (2/3)
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-89c0_0766) | Worker shut down!
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-2337_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-2337_0766) | 2) Executing...
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-2337_0766) | 3) Handle Fan-Out a-2337_0766 => [['b-292e_0766']]
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(a-2337_0766) | Incremented DC of dependency-counter-b-292e_0766 (3/3)
+2025-03-19 18:26:27,181 - src.worker - INFO - Worker(3adc) Task(b-292e_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,181 - src.worker - INFO - Using cached result for a-f62b_0766
+2025-03-19 18:26:27,181 - src.worker - INFO - Using cached result for a-89c0_0766
+2025-03-19 18:26:27,181 - src.worker - INFO - Using cached result for a-2337_0766
+2025-03-19 18:26:27,182 - src.worker - INFO - Worker(3adc) Task(b-292e_0766) | 2) Executing...
+2025-03-19 18:26:27,182 - src.worker - INFO - Worker(3adc) Task(b-292e_0766) | 3) Handle Fan-Out b-292e_0766 => [['c-de99_0766', 'c-f838_0766', 'c-0630_0766']]
+2025-03-19 18:26:27,182 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,183 - src.worker - INFO - Using cached result for b-292e_0766
+2025-03-19 18:26:27,183 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | 2) Executing...
+2025-03-19 18:26:27,183 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | 3) Handle Fan-Out c-f838_0766 => [['b-7b0c_0766']]
+2025-03-19 18:26:27,183 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | Incremented DC of dependency-counter-b-7b0c_0766 (1/3)
+2025-03-19 18:26:27,183 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:26:27,184 - src.worker - INFO - Worker(3adc) Task(c-f838_0766) | Worker shut down!
+2025-03-19 18:26:27,184 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,184 - src.worker - INFO - Using cached result for b-292e_0766
+2025-03-19 18:26:27,184 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | 2) Executing...
+2025-03-19 18:26:27,184 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | 3) Handle Fan-Out c-0630_0766 => [['b-7b0c_0766']]
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | Incremented DC of dependency-counter-b-7b0c_0766 (2/3)
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | No ready downstream tasks found. Shutting down worker...
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | Worker shut down!
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-0630_0766) | Continuing with first of multiple downstream tasks: DAGTaskNode(c, id=DAGTaskNodeId(function_name='c', task_id='de99'))
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-de99_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,185 - src.worker - INFO - Using cached result for b-292e_0766
+2025-03-19 18:26:27,185 - src.worker - INFO - Worker(3adc) Task(c-de99_0766) | 2) Executing...
+2025-03-19 18:26:27,186 - src.worker - INFO - Worker(3adc) Task(c-de99_0766) | 3) Handle Fan-Out c-de99_0766 => [['b-7b0c_0766']]
+2025-03-19 18:26:27,186 - src.worker - INFO - Worker(3adc) Task(c-de99_0766) | Incremented DC of dependency-counter-b-7b0c_0766 (3/3)
+2025-03-19 18:26:27,186 - src.worker - INFO - Worker(3adc) Task(b-7b0c_0766) | 1) Grabbing Dependencies...
+2025-03-19 18:26:27,186 - src.worker - INFO - Using cached result for c-de99_0766
+2025-03-19 18:26:27,186 - src.worker - INFO - Using cached result for c-f838_0766
+2025-03-19 18:26:27,187 - src.worker - INFO - Using cached result for c-0630_0766
+2025-03-19 18:26:27,187 - src.worker - INFO - Worker(3adc) Task(b-7b0c_0766) | 2) Executing...
+2025-03-19 18:26:27,187 - src.worker - INFO - Worker(3adc) Task(b-7b0c_0766) | Last Task finished. Shutting down worker...
+2025-03-19 18:26:27,187 - src.worker - INFO - Worker(3adc) Task(b-7b0c_0766) | Worker shut down!
+2025-03-19 18:26:28,189 - src.worker - INFO - Final Result Ready: (b-7b0c-0766) => 4332.0 | Type: (<class 'float'>)

@@ -1,0 +1,464 @@
+2025-03-19 17:54:22,279 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 17:54:25,468 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:26,034 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2ee4d9e46ad84a5d3f5d5236ed96 | command length: 6712
+2025-03-19 17:54:26,362 - __main__ - INFO - [2025-03-19 17:54:26] 82b8) EXECUTING IN CONTAINER: e185977388ff0c973bc0b15181545a7baab4cef30ebe65c57874cf1b682b35fe | command length: 6712
+2025-03-19 17:54:26,362 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:26,747 - __main__ - INFO - [2025-03-19 17:54:26] 57e5) EXECUTING IN CONTAINER: 6c862ad5710970356b8e62932df5b8713b486207eb76de0484b31a4bfbb2d427 | command length: 6712
+2025-03-19 17:54:26,747 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:27,134 - __main__ - INFO - [2025-03-19 17:54:27] ddab) EXECUTING IN CONTAINER: 684be6801543e449f6479867412dcaf359148333689a53b42f730566c9c0d9e8 | command length: 6712
+2025-03-19 17:54:27,134 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:27,420 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:27,420 - __main__ - INFO - [2025-03-19 17:54:27] 3ae2) EXECUTING IN CONTAINER: 75bb6c73249b191fe77bcef71ba90c6e469aaad5783cade3b9e9f502ea8b2cc9 | command length: 6712
+2025-03-19 17:54:27,739 - __main__ - INFO - [2025-03-19 17:54:27] a87e) EXECUTING IN CONTAINER: 5bf20c608eb235dd1189f69255705753ff56ab30384dda336c41da641c32dbe5 | command length: 6712
+2025-03-19 17:54:27,739 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:28,125 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:28,125 - __main__ - INFO - [2025-03-19 17:54:28] 47e0) EXECUTING IN CONTAINER: 9db8c5e89cdc292de3f82d393c29b20242af47a4da1499d4e9ccd5fc124a86ac | command length: 6712
+2025-03-19 17:54:28,501 - __main__ - INFO - [2025-03-19 17:54:28] 6ec0) EXECUTING IN CONTAINER: 766411ab7d093a33a18509b0f537e70f86127063e9312dbf5ec77960721fbf41 | command length: 6712
+2025-03-19 17:54:28,502 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:28,965 - __main__ - INFO - [2025-03-19 17:54:28] 9041) EXECUTING IN CONTAINER: 33bda221fe0ac49cb12d357b73d17cd861de735f885f77224f1e1805fd4d4e8e | command length: 6712
+2025-03-19 17:54:28,965 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:54:29,277 - __main__ - INFO - [2025-03-19 17:54:29] b251) EXECUTING IN CONTAINER: 8ae62c86e11b913a3534e83a11d710a966d5eaf395efc8101da3fb2b069e2864 | command length: 6712
+2025-03-19 17:54:30,218 - __main__ - INFO - [2025-03-19 17:54:30] 489b) EXECUTING IN CONTAINER: 43d0ba7b591eeacf811f29e58182a1deb0302ee4d9e46ad84a5d3f5d5236ed96 | command length: 6712
+2025-03-19 17:54:30,328 - __main__ - INFO - [2025-03-19 17:54:30] 5f24) EXECUTING IN CONTAINER: 5bf20c608eb235dd1189f69255705753ff56ab30384dda336c41da641c32dbe5 | command length: 6712
+2025-03-19 17:54:30,526 - __main__ - INFO - [2025-03-19 17:54:30] f2ae) EXECUTING IN CONTAINER: 6c862ad5710970356b8e62932df5b8713b486207eb76de0484b31a4bfbb2d427 | command length: 6712
+2025-03-19 17:54:30,569 - __main__ - INFO - [2025-03-19 17:54:30] 841f) EXECUTING IN CONTAINER: 75bb6c73249b191fe77bcef71ba90c6e469aaad5783cade3b9e9f502ea8b2cc9 | command length: 6712
+2025-03-19 17:54:30,681 - __main__ - INFO - [2025-03-19 17:54:30] 4863) EXECUTING IN CONTAINER: 766411ab7d093a33a18509b0f537e70f86127063e9312dbf5ec77960721fbf41 | command length: 6712
+2025-03-19 17:54:30,691 - __main__ - INFO - [2025-03-19 17:54:30] bad7) EXECUTING IN CONTAINER: e185977388ff0c973bc0b15181545a7baab4cef30ebe65c57874cf1b682b35fe | command length: 6712
+2025-03-19 17:54:30,694 - __main__ - INFO - [2025-03-19 17:54:30] f869) EXECUTING IN CONTAINER: 33bda221fe0ac49cb12d357b73d17cd861de735f885f77224f1e1805fd4d4e8e | command length: 6712
+2025-03-19 17:54:30,744 - __main__ - INFO - [2025-03-19 17:54:30] 60cb) EXECUTING IN CONTAINER: 684be6801543e449f6479867412dcaf359148333689a53b42f730566c9c0d9e8 | command length: 6712
+2025-03-19 17:54:30,777 - __main__ - INFO - [2025-03-19 17:54:30] c93b) EXECUTING IN CONTAINER: 8ae62c86e11b913a3534e83a11d710a966d5eaf395efc8101da3fb2b069e2864 | command length: 6712
+2025-03-19 17:54:30,861 - __main__ - INFO - [2025-03-19 17:54:30] 2f07) EXECUTING IN CONTAINER: 9db8c5e89cdc292de3f82d393c29b20242af47a4da1499d4e9ccd5fc124a86ac | command length: 6712
+2025-03-19 17:54:31,461 - __main__ - INFO - [2025-03-19 17:54:31] 627d) EXECUTING IN CONTAINER: 43d0ba7b591eeacf811f29e58182a1deb0302ee4d9e46ad84a5d3f5d5236ed96 | command length: 6712
+2025-03-19 17:54:31,543 - __main__ - INFO - [2025-03-19 17:54:31] e88e) EXECUTING IN CONTAINER: 75bb6c73249b191fe77bcef71ba90c6e469aaad5783cade3b9e9f502ea8b2cc9 | command length: 6712
+2025-03-19 17:54:31,864 - __main__ - INFO - [2025-03-19 17:54:31] 09a8) EXECUTING IN CONTAINER: e185977388ff0c973bc0b15181545a7baab4cef30ebe65c57874cf1b682b35fe | command length: 6712
+2025-03-19 17:54:31,891 - __main__ - INFO - [2025-03-19 17:54:31] 61a0) EXECUTING IN CONTAINER: 8ae62c86e11b913a3534e83a11d710a966d5eaf395efc8101da3fb2b069e2864 | command length: 6712
+2025-03-19 17:54:31,903 - __main__ - INFO - [2025-03-19 17:54:31] ae73) EXECUTING IN CONTAINER: 5bf20c608eb235dd1189f69255705753ff56ab30384dda336c41da641c32dbe5 | command length: 6712
+2025-03-19 17:54:31,948 - __main__ - INFO - [2025-03-19 17:54:31] dbb6) EXECUTING IN CONTAINER: 684be6801543e449f6479867412dcaf359148333689a53b42f730566c9c0d9e8 | command length: 6712
+2025-03-19 17:54:31,997 - __main__ - INFO - [2025-03-19 17:54:31] e20a) EXECUTING IN CONTAINER: 33bda221fe0ac49cb12d357b73d17cd861de735f885f77224f1e1805fd4d4e8e | command length: 6712
+2025-03-19 17:54:32,036 - __main__ - INFO - [2025-03-19 17:54:32] 9e11) EXECUTING IN CONTAINER: 766411ab7d093a33a18509b0f537e70f86127063e9312dbf5ec77960721fbf41 | command length: 6712
+2025-03-19 17:54:32,072 - __main__ - INFO - [2025-03-19 17:54:32] 9644) EXECUTING IN CONTAINER: 6c862ad5710970356b8e62932df5b8713b486207eb76de0484b31a4bfbb2d427 | command length: 6712
+2025-03-19 17:54:32,250 - __main__ - INFO - [2025-03-19 17:54:32] 1303) EXECUTING IN CONTAINER: 9db8c5e89cdc292de3f82d393c29b20242af47a4da1499d4e9ccd5fc124a86ac | command length: 6712
+2025-03-19 17:54:44,284 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 43d0ba7b591eeacf811f29e58182a1deb0302ee4d9e46ad84a5d3f5d5236ed96
+2025-03-19 17:54:44,669 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container e185977388ff0c973bc0b15181545a7baab4cef30ebe65c57874cf1b682b35fe
+2025-03-19 17:54:45,029 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 6c862ad5710970356b8e62932df5b8713b486207eb76de0484b31a4bfbb2d427
+2025-03-19 17:54:45,408 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 684be6801543e449f6479867412dcaf359148333689a53b42f730566c9c0d9e8
+2025-03-19 17:54:45,778 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 75bb6c73249b191fe77bcef71ba90c6e469aaad5783cade3b9e9f502ea8b2cc9
+2025-03-19 17:54:46,160 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 5bf20c608eb235dd1189f69255705753ff56ab30384dda336c41da641c32dbe5
+2025-03-19 17:54:46,535 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 9db8c5e89cdc292de3f82d393c29b20242af47a4da1499d4e9ccd5fc124a86ac
+2025-03-19 17:54:46,909 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 766411ab7d093a33a18509b0f537e70f86127063e9312dbf5ec77960721fbf41
+2025-03-19 17:54:47,282 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 33bda221fe0ac49cb12d357b73d17cd861de735f885f77224f1e1805fd4d4e8e
+2025-03-19 17:54:47,664 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 8ae62c86e11b913a3534e83a11d710a966d5eaf395efc8101da3fb2b069e2864
+2025-03-19 17:55:03,984 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 17:55:03,984 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 17:55:04,138 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 17:55:05,594 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 17:55:10,949 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:11,272 - __main__ - INFO - [2025-03-19 17:55:11] 87bb) EXECUTING IN CONTAINER: 1fccd4c55db8955a8ca9a7e7529d3d5048bc06c640cfdf550a8547f4d4b99b30 | command length: 6712
+2025-03-19 17:55:11,272 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:11,556 - __main__ - INFO - [2025-03-19 17:55:11] 911e) EXECUTING IN CONTAINER: 2250da1f27a3f05f71858d441339c066e9feb6c08d664fd7f8ead0a52ebe0cb3 | command length: 6712
+2025-03-19 17:55:11,556 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:11,855 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:11,855 - __main__ - INFO - [2025-03-19 17:55:11] 55f8) EXECUTING IN CONTAINER: f4fcb95848bdacc7859b09a46a73428642e9679afb491632660c5b95113bab20 | command length: 6712
+2025-03-19 17:55:12,152 - __main__ - INFO - [2025-03-19 17:55:12] 48ad) EXECUTING IN CONTAINER: bb10075481edd97a63b73acadf05ead1f98f6aee31ea399a841993fb25d8e154 | command length: 6712
+2025-03-19 17:55:12,152 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:12,460 - __main__ - INFO - [2025-03-19 17:55:12] 0ef2) EXECUTING IN CONTAINER: eae680246438122d10a2bfbe0b09779dbe9b46d1a904f78ba28bffb04c3274f7 | command length: 6712
+2025-03-19 17:55:12,460 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:13,129 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+8c6ff638e8e2274c8804f7e86db6 | command length: 6712
+2025-03-19 17:55:13,543 - __main__ - INFO - [2025-03-19 17:55:13] 1e97) EXECUTING IN CONTAINER: 2a4748e0e681e84ed7cd0e01d7d5b09f4fe257f65d80de751f70d7eaa541bd23 | command length: 6712
+2025-03-19 17:55:13,543 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:13,904 - __main__ - INFO - [2025-03-19 17:55:13] 73f5) EXECUTING IN CONTAINER: 2b3ba65d90aa901414dc6ef480955c415d35c9078d27486e173de5c7c771aad2 | command length: 6712
+2025-03-19 17:55:13,904 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:14,238 - __main__ - INFO - [2025-03-19 17:55:14] 01f1) EXECUTING IN CONTAINER: 9f75510ec4ddf38fe3faec2215ad184c0bf03fcb341842fef88f2d2ab79b9ee9 | command length: 6712
+2025-03-19 17:55:14,238 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 17:55:14,591 - __main__ - INFO - [2025-03-19 17:55:14] 3e11) EXECUTING IN CONTAINER: ac1af9bf1676d507c679e61b97676033a382166a4edc8e6843c8e0c5376ed894 | command length: 6712
+2025-03-19 17:55:15,691 - __main__ - INFO - [2025-03-19 17:55:15] 9269) EXECUTING IN CONTAINER: 2b3ba65d90aa901414dc6ef480955c415d35c9078d27486e173de5c7c771aad2 | command length: 6712
+2025-03-19 17:55:15,697 - __main__ - INFO - [2025-03-19 17:55:15] a2a9) EXECUTING IN CONTAINER: 2250da1f27a3f05f71858d441339c066e9feb6c08d664fd7f8ead0a52ebe0cb3 | command length: 6712
+2025-03-19 17:55:15,719 - __main__ - INFO - [2025-03-19 17:55:15] 00f9) EXECUTING IN CONTAINER: 9f75510ec4ddf38fe3faec2215ad184c0bf03fcb341842fef88f2d2ab79b9ee9 | command length: 6712
+2025-03-19 17:55:15,907 - __main__ - INFO - [2025-03-19 17:55:15] aa65) EXECUTING IN CONTAINER: 2a4748e0e681e84ed7cd0e01d7d5b09f4fe257f65d80de751f70d7eaa541bd23 | command length: 6712
+2025-03-19 17:55:16,116 - __main__ - INFO - [2025-03-19 17:55:16] 125a) EXECUTING IN CONTAINER: bb10075481edd97a63b73acadf05ead1f98f6aee31ea399a841993fb25d8e154 | command length: 6712
+2025-03-19 17:55:16,210 - __main__ - INFO - [2025-03-19 17:55:16] 4c6b) EXECUTING IN CONTAINER: f4fcb95848bdacc7859b09a46a73428642e9679afb491632660c5b95113bab20 | command length: 6712
+2025-03-19 17:55:16,247 - __main__ - INFO - [2025-03-19 17:55:16] 0a78) EXECUTING IN CONTAINER: ac1af9bf1676d507c679e61b97676033a382166a4edc8e6843c8e0c5376ed894 | command length: 6712
+2025-03-19 17:55:16,387 - __main__ - INFO - [2025-03-19 17:55:16] b80a) EXECUTING IN CONTAINER: eae680246438122d10a2bfbe0b09779dbe9b46d1a904f78ba28bffb04c3274f7 | command length: 6712
+2025-03-19 17:55:16,441 - __main__ - INFO - [2025-03-19 17:55:16] a1f3) EXECUTING IN CONTAINER: 2c81aac61230de6c0bd441789678633eb1538c6ff638e8e2274c8804f7e86db6 | command length: 6712
+2025-03-19 17:55:16,593 - __main__ - INFO - [2025-03-19 17:55:16] 34eb) EXECUTING IN CONTAINER: 1fccd4c55db8955a8ca9a7e7529d3d5048bc06c640cfdf550a8547f4d4b99b30 | command length: 6712
+2025-03-19 17:55:16,870 - __main__ - INFO - [2025-03-19 17:55:16] d4a8) EXECUTING IN CONTAINER: 2a4748e0e681e84ed7cd0e01d7d5b09f4fe257f65d80de751f70d7eaa541bd23 | command length: 6712
+2025-03-19 17:55:16,920 - __main__ - INFO - [2025-03-19 17:55:16] d329) EXECUTING IN CONTAINER: 9f75510ec4ddf38fe3faec2215ad184c0bf03fcb341842fef88f2d2ab79b9ee9 | command length: 6712
+2025-03-19 17:55:16,926 - __main__ - INFO - [2025-03-19 17:55:16] d132) EXECUTING IN CONTAINER: 2250da1f27a3f05f71858d441339c066e9feb6c08d664fd7f8ead0a52ebe0cb3 | command length: 6712
+2025-03-19 17:55:17,214 - __main__ - INFO - [2025-03-19 17:55:17] 8b18) EXECUTING IN CONTAINER: 2b3ba65d90aa901414dc6ef480955c415d35c9078d27486e173de5c7c771aad2 | command length: 6712
+2025-03-19 17:55:17,319 - __main__ - INFO - [2025-03-19 17:55:17] c689) EXECUTING IN CONTAINER: bb10075481edd97a63b73acadf05ead1f98f6aee31ea399a841993fb25d8e154 | command length: 6712
+2025-03-19 17:55:17,324 - __main__ - INFO - [2025-03-19 17:55:17] 6a1d) EXECUTING IN CONTAINER: f4fcb95848bdacc7859b09a46a73428642e9679afb491632660c5b95113bab20 | command length: 6712
+2025-03-19 17:55:17,555 - __main__ - INFO - [2025-03-19 17:55:17] 62de) EXECUTING IN CONTAINER: ac1af9bf1676d507c679e61b97676033a382166a4edc8e6843c8e0c5376ed894 | command length: 6712
+2025-03-19 17:55:17,820 - __main__ - INFO - [2025-03-19 17:55:17] 7714) EXECUTING IN CONTAINER: 2c81aac61230de6c0bd441789678633eb1538c6ff638e8e2274c8804f7e86db6 | command length: 6712
+2025-03-19 17:55:17,851 - __main__ - INFO - [2025-03-19 17:55:17] 6864) EXECUTING IN CONTAINER: eae680246438122d10a2bfbe0b09779dbe9b46d1a904f78ba28bffb04c3274f7 | command length: 6712
+2025-03-19 17:55:17,976 - __main__ - INFO - [2025-03-19 17:55:17] 1657) EXECUTING IN CONTAINER: 9f75510ec4ddf38fe3faec2215ad184c0bf03fcb341842fef88f2d2ab79b9ee9 | command length: 6712
+2025-03-19 17:58:41,160 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 17:58:41,160 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 17:58:41,435 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 10 containers running image 'docker_worker'...
+2025-03-19 17:58:41,435 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container ac1af9bf1676
+2025-03-19 17:58:41,833 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 9f75510ec4dd
+2025-03-19 17:58:42,247 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 2b3ba65d90aa
+2025-03-19 17:58:42,669 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 2a4748e0e681
+2025-03-19 17:58:43,088 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 2c81aac61230
+2025-03-19 17:58:43,587 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container eae680246438
+2025-03-19 17:58:43,977 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container bb10075481ed
+2025-03-19 17:58:44,382 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container f4fcb95848bd
+2025-03-19 17:58:44,789 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 2250da1f27a3
+2025-03-19 17:58:45,156 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 1fccd4c55db8
+2025-03-19 17:58:45,530 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 17:58:45,531 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:00:20,399 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:00:28,397 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:28,743 - __main__ - INFO - [2025-03-19 18:00:28] 32d1) EXECUTING IN CONTAINER: cb187cf2e7e76e7b56550db04b43d833801a8a1e755d38c231b16bd7dcdcd4ae | command length: 3300
+2025-03-19 18:00:28,743 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:29,034 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:29,034 - __main__ - INFO - [2025-03-19 18:00:29] 3cf3) EXECUTING IN CONTAINER: b0d0f2a06d1a792b9cad1de7afbf159f072b16d8fb7952e0181e8eecf6159254 | command length: 3300
+2025-03-19 18:00:29,329 - __main__ - INFO - [2025-03-19 18:00:29] a274) EXECUTING IN CONTAINER: 33c05e4e917f9a91a686d4a037c71a34fb4114c6966d24bee84738ea33035eb2 | command length: 3300
+2025-03-19 18:00:40,430 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container cb187cf2e7e76e7b56550db04b43d833801a8a1e755d38c231b16bd7dcdcd4ae
+2025-03-19 18:00:40,828 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container b0d0f2a06d1a792b9cad1de7afbf159f072b16d8fb7952e0181e8eecf6159254
+2025-03-19 18:00:41,209 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 33c05e4e917f9a91a686d4a037c71a34fb4114c6966d24bee84738ea33035eb2
+2025-03-19 18:00:51,570 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:51,861 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:51,861 - __main__ - INFO - [2025-03-19 18:00:51] 43b8) EXECUTING IN CONTAINER: 876a22e756cacc181c7f0ea90777e7ae73196c17b48223252a91a027773d225f | command length: 3300
+2025-03-19 18:00:52,145 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:00:52,144 - __main__ - INFO - [2025-03-19 18:00:52] 08f1) EXECUTING IN CONTAINER: 6b504818a056c8faf19dea1ca68e60f49f404f34c1aaaa8b012f55b2fcc03f16 | command length: 3300
+2025-03-19 18:00:52,451 - __main__ - INFO - [2025-03-19 18:00:52] 6c84) EXECUTING IN CONTAINER: 870694bd978fa751fa6e7d0385a26dcf1232e309b25607798d54f3b6a1e1e1b8 | command length: 3300
+2025-03-19 18:01:02,462 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 876a22e756cacc181c7f0ea90777e7ae73196c17b48223252a91a027773d225f
+2025-03-19 18:01:02,828 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 6b504818a056c8faf19dea1ca68e60f49f404f34c1aaaa8b012f55b2fcc03f16
+2025-03-19 18:01:03,189 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 870694bd978fa751fa6e7d0385a26dcf1232e309b25607798d54f3b6a1e1e1b8
+2025-03-19 18:01:15,336 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:01:15,336 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:01:15,508 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:01:17,234 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:01:40,691 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:01:41,037 - __main__ - INFO - [2025-03-19 18:01:41] e4ca) EXECUTING IN CONTAINER: 9f78ec4a71bdcbf2b6365f03d6620020d5393f7bd8ea48e1fbe713c1d76c1d2e | command length: 3300
+2025-03-19 18:01:41,039 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:01:41,362 - __main__ - INFO - [2025-03-19 18:01:41] c1e9) EXECUTING IN CONTAINER: ff35d9b75aac5ba3cca39d696eadd48c165f342a4fca05baea4760290b3ad997 | command length: 3300
+2025-03-19 18:01:41,362 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:01:41,700 - __main__ - INFO - [2025-03-19 18:01:41] 510e) EXECUTING IN CONTAINER: 906a50b496c4076bcdc99cb04a291ac3bef70bf062dd2446a4286f94331d17ae | command length: 3300
+2025-03-19 18:03:49,911 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:03:49,911 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:03:50,096 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:03:50,096 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 906a50b496c4
+2025-03-19 18:03:50,502 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container ff35d9b75aac
+2025-03-19 18:03:50,882 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 9f78ec4a71bd
+2025-03-19 18:03:51,254 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:03:51,254 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:03:54,039 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:03:59,045 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:03:59,364 - __main__ - INFO - [2025-03-19 18:03:59] 298d) EXECUTING IN CONTAINER: 568e070aa7dc51f52b789bca8af034a4d086ed1057baacd80e51ed080f564648 | command length: 3300
+2025-03-19 18:03:59,364 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:03:59,683 - __main__ - INFO - [2025-03-19 18:03:59] e873) EXECUTING IN CONTAINER: a21519304fe6f3e94fc0772080e5201aaff24872bb0253b92c9739638072158c | command length: 3300
+2025-03-19 18:03:59,683 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:04:00,050 - __main__ - INFO - [2025-03-19 18:04:00] 6b11) EXECUTING IN CONTAINER: cd3c4fd81fc5dddb91a7c0401391cbe14ead24d27a1098908b5b5871fdd66fe4 | command length: 3300
+2025-03-19 18:06:01,088 - __main__ - INFO - [2025-03-19 18:06:01] 25ee) EXECUTING IN CONTAINER: 568e070aa7dc51f52b789bca8af034a4d086ed1057baacd80e51ed080f564648 | command length: 3300
+2025-03-19 18:06:01,088 - __main__ - INFO - [2025-03-19 18:06:01] 518f) EXECUTING IN CONTAINER: cd3c4fd81fc5dddb91a7c0401391cbe14ead24d27a1098908b5b5871fdd66fe4 | command length: 3300
+2025-03-19 18:06:01,089 - __main__ - INFO - [2025-03-19 18:06:01] 6bdc) EXECUTING IN CONTAINER: a21519304fe6f3e94fc0772080e5201aaff24872bb0253b92c9739638072158c | command length: 3300
+2025-03-19 18:07:14,996 - __main__ - INFO - [2025-03-19 18:07:14] 6cc6) EXECUTING IN CONTAINER: 568e070aa7dc51f52b789bca8af034a4d086ed1057baacd80e51ed080f564648 | command length: 3300
+2025-03-19 18:07:14,996 - __main__ - INFO - [2025-03-19 18:07:14] 1ae0) EXECUTING IN CONTAINER: cd3c4fd81fc5dddb91a7c0401391cbe14ead24d27a1098908b5b5871fdd66fe4 | command length: 3300
+2025-03-19 18:07:14,996 - __main__ - INFO - [2025-03-19 18:07:14] f64c) EXECUTING IN CONTAINER: a21519304fe6f3e94fc0772080e5201aaff24872bb0253b92c9739638072158c | command length: 3300
+2025-03-19 18:07:55,215 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:07:55,215 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:07:55,417 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:07:55,417 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container cd3c4fd81fc5
+2025-03-19 18:07:55,797 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container a21519304fe6
+2025-03-19 18:07:56,182 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 568e070aa7dc
+2025-03-19 18:07:56,569 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:07:56,569 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:07:58,281 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:08:04,631 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:08:04,941 - __main__ - INFO - [2025-03-19 18:08:04] 5fef) EXECUTING IN CONTAINER: 0aa904a0c5f142d8d9b68827a7c296f94965009e8ed4527815c68a41ca07faf6 | command length: 3300
+2025-03-19 18:08:04,941 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:08:05,251 - __main__ - INFO - [2025-03-19 18:08:05] f06a) EXECUTING IN CONTAINER: f1e02d7728218d084c73010dbd9fcfbca5f13beb4525052a0b9a826190558382 | command length: 3300
+2025-03-19 18:08:05,252 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:08:05,545 - __main__ - INFO - [2025-03-19 18:08:05] 6843) EXECUTING IN CONTAINER: da6f1f8c58a652f518c6b18333e9813be2a366771984c83d708678331fec710e | command length: 3300
+2025-03-19 18:10:48,473 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:10:48,473 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:10:48,679 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:10:48,679 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container da6f1f8c58a6
+2025-03-19 18:10:49,067 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container f1e02d772821
+2025-03-19 18:10:49,445 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 0aa904a0c5f1
+2025-03-19 18:10:49,817 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:10:49,817 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:11:01,767 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:11:16,123 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:11:16,466 - __main__ - INFO - [2025-03-19 18:11:16] 7c5b) EXECUTING IN CONTAINER: 1c1b247f88bbbb222220f0ad0f8e92b0c5b936cf1e08ab0467543a0bb2be1f14 | command length: 3300
+2025-03-19 18:11:16,467 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:11:16,791 - __main__ - INFO - [2025-03-19 18:11:16] 9498) EXECUTING IN CONTAINER: 09a68a3600c44b0ac311917b421eb5fc7526a3631b4bc23f2b423490f676b235 | command length: 3300
+2025-03-19 18:11:16,791 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:11:17,110 - __main__ - INFO - [2025-03-19 18:11:17] 1fba) EXECUTING IN CONTAINER: daa3b8f1556818cd839784f1f7a23e84281f5a82692de23ede5a101073517f6a | command length: 3300
+2025-03-19 18:11:17,787 - src.docker_workers_gateway.container_pool_executor - ERROR - STDERR:
+2025-03-19 18:11:17,788 - src.docker_workers_gateway.container_pool_executor - ERROR - Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1116, in _wrap_create_connection
+    sock = await aiohappyeyeballs.start_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohappyeyeballs/impl.py", line 141, in start_connection
+    raise OSError(first_errno, msg)
+ConnectionRefusedError: [Errno 111] Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/src/docker_worker/worker.py", line 69, in <module>
+    asyncio.run(main())
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/docker_worker/worker.py", line 55, in main
+    await ex.start_executing(subdag)
+  File "/app/src/worker.py", line 99, in start_executing
+    raise e
+  File "/app/src/worker.py", line 88, in start_executing
+    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/worker.py", line 165, in delegate
+    async with await session.post(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/client.py", line 703, in _request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 548, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1056, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1414, in _create_direct_connection
+    raise last_exc
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1383, in _create_direct_connection
+    transp, proto = await self._wrap_create_connection(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1135, in _wrap_create_connection
+    raise client_error(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host localhost:5000 ssl:default [Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)]
+2025-03-19 18:13:13,805 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:13:13,805 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:13:13,987 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:13:13,988 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container daa3b8f15568
+2025-03-19 18:13:14,380 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 09a68a3600c4
+2025-03-19 18:13:14,791 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 1c1b247f88bb
+2025-03-19 18:13:15,167 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:13:15,167 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:13:33,332 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:13:36,789 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:13:37,102 - __main__ - INFO - [2025-03-19 18:13:37] a6ca) EXECUTING IN CONTAINER: b45311727662d9e2d8b53c777e3def9cc4af0e65ce70ee55b5b125d3f2cc6b5e | command length: 3297
+2025-03-19 18:13:37,102 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:13:37,413 - __main__ - INFO - [2025-03-19 18:13:37] d458) EXECUTING IN CONTAINER: 4043d7eb1b183c54fcf84395340cdd61df437466e09256154e4d630be56d3141 | command length: 3297
+2025-03-19 18:13:37,413 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:13:37,724 - __main__ - INFO - [2025-03-19 18:13:37] 1f7c) EXECUTING IN CONTAINER: 9954c7c4c815d94b25e1810451533ab3081bb174ef0b0408dc41499721b32849 | command length: 3297
+2025-03-19 18:13:38,336 - src.docker_workers_gateway.container_pool_executor - ERROR - STDERR:
+2025-03-19 18:13:38,336 - src.docker_workers_gateway.container_pool_executor - ERROR - Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1116, in _wrap_create_connection
+    sock = await aiohappyeyeballs.start_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohappyeyeballs/impl.py", line 141, in start_connection
+    raise OSError(first_errno, msg)
+ConnectionRefusedError: [Errno 111] Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/src/docker_worker/worker.py", line 69, in <module>
+    asyncio.run(main())
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/docker_worker/worker.py", line 55, in main
+    await ex.start_executing(subdag)
+  File "/app/src/worker.py", line 99, in start_executing
+    raise e
+  File "/app/src/worker.py", line 88, in start_executing
+    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/worker.py", line 165, in delegate
+    async with await session.post(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/client.py", line 703, in _request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 548, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1056, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1414, in _create_direct_connection
+    raise last_exc
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1383, in _create_direct_connection
+    transp, proto = await self._wrap_create_connection(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1135, in _wrap_create_connection
+    raise client_error(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host localhost:5000 ssl:default [Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)]
+2025-03-19 18:14:33,303 - __main__ - INFO - [2025-03-19 18:14:33] 1824) EXECUTING IN CONTAINER: 4043d7eb1b183c54fcf84395340cdd61df437466e09256154e4d630be56d3141 | command length: 3297
+2025-03-19 18:14:33,303 - __main__ - INFO - [2025-03-19 18:14:33] c743) EXECUTING IN CONTAINER: b45311727662d9e2d8b53c777e3def9cc4af0e65ce70ee55b5b125d3f2cc6b5e | command length: 3297
+2025-03-19 18:14:33,304 - __main__ - INFO - [2025-03-19 18:14:33] b04b) EXECUTING IN CONTAINER: 9954c7c4c815d94b25e1810451533ab3081bb174ef0b0408dc41499721b32849 | command length: 3297
+2025-03-19 18:14:33,896 - src.docker_workers_gateway.container_pool_executor - ERROR - STDERR:
+2025-03-19 18:14:33,896 - src.docker_workers_gateway.container_pool_executor - ERROR - Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1116, in _wrap_create_connection
+    sock = await aiohappyeyeballs.start_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohappyeyeballs/impl.py", line 141, in start_connection
+    raise OSError(first_errno, msg)
+ConnectionRefusedError: [Errno 111] Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/src/docker_worker/worker.py", line 69, in <module>
+    asyncio.run(main())
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/docker_worker/worker.py", line 55, in main
+    await ex.start_executing(subdag)
+  File "/app/src/worker.py", line 99, in start_executing
+    raise e
+  File "/app/src/worker.py", line 88, in start_executing
+    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/worker.py", line 165, in delegate
+    async with await session.post(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/client.py", line 703, in _request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 548, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1056, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1414, in _create_direct_connection
+    raise last_exc
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1383, in _create_direct_connection
+    transp, proto = await self._wrap_create_connection(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1135, in _wrap_create_connection
+    raise client_error(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host localhost:5000 ssl:default [Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)]
+2025-03-19 18:14:45,498 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:14:45,498 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:14:45,688 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:14:45,689 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 9954c7c4c815
+2025-03-19 18:14:46,075 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 4043d7eb1b18
+2025-03-19 18:14:46,462 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container b45311727662
+2025-03-19 18:14:46,843 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:14:46,844 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:14:49,146 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:14:52,131 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:14:52,429 - __main__ - INFO - [2025-03-19 18:14:52] efeb) EXECUTING IN CONTAINER: 9c750fbb441130d951a065de2f356e2e0a7ad188273991b2f74ff6af32d0030c | command length: 3297
+2025-03-19 18:14:52,429 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:14:52,738 - __main__ - INFO - [2025-03-19 18:14:52] db34) EXECUTING IN CONTAINER: 0edef0a034840098338356bdb0104a9f8fba517654be467059ba8b040c38dd2b | command length: 3297
+2025-03-19 18:14:52,738 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:14:53,104 - __main__ - INFO - [2025-03-19 18:14:53] eb89) EXECUTING IN CONTAINER: cf2745b18b8dbeb6378c9dfa935567bf5901a76fee6ec1cfdb4780c905e59c85 | command length: 3297
+2025-03-19 18:14:53,758 - src.docker_workers_gateway.container_pool_executor - ERROR - STDERR:
+2025-03-19 18:14:53,759 - src.docker_workers_gateway.container_pool_executor - ERROR - Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1116, in _wrap_create_connection
+    sock = await aiohappyeyeballs.start_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohappyeyeballs/impl.py", line 141, in start_connection
+    raise OSError(first_errno, msg)
+ConnectionRefusedError: [Errno 111] Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/app/src/docker_worker/worker.py", line 69, in <module>
+    asyncio.run(main())
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/docker_worker/worker.py", line 55, in main
+    await ex.start_executing(subdag)
+  File "/app/src/worker.py", line 99, in start_executing
+    raise e
+  File "/app/src/worker.py", line 88, in start_executing
+    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/worker.py", line 165, in delegate
+    async with await session.post(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/client.py", line 703, in _request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 548, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1056, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1414, in _create_direct_connection
+    raise last_exc
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1383, in _create_direct_connection
+    transp, proto = await self._wrap_create_connection(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/aiohttp/connector.py", line 1135, in _wrap_create_connection
+    raise client_error(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host localhost:5000 ssl:default [Multiple exceptions: [Errno 111] Connect call failed ('::1', 5000, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5000)]
+2025-03-19 18:17:14,542 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:17:14,542 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:17:14,746 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:17:14,746 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container cf2745b18b8d
+2025-03-19 18:17:15,135 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 0edef0a03484
+2025-03-19 18:17:15,523 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 9c750fbb4411
+2025-03-19 18:17:15,918 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:17:15,919 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:17:17,019 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:17:22,877 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:17:23,109 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:17:23,354 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:24:50,526 - __main__ - INFO - Shutdown. Cleaning up...
+2025-03-19 18:24:50,526 - src.docker_workers_gateway.container_pool_executor - INFO - Shutting down container pool manager...
+2025-03-19 18:24:50,735 - src.docker_workers_gateway.container_pool_executor - INFO - Removing 3 containers running image 'docker_worker'...
+2025-03-19 18:24:50,735 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container a428281d54d1
+2025-03-19 18:24:51,071 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 7ade58fd8da0
+2025-03-19 18:24:51,426 - src.docker_workers_gateway.container_pool_executor - INFO - Removing idle container 78219d79f77d
+2025-03-19 18:24:51,777 - src.docker_workers_gateway.container_pool_executor - INFO - All containers running image 'docker_worker' have been removed.
+2025-03-19 18:24:51,777 - src.docker_workers_gateway.container_pool_executor - INFO - Container pool manager shut down.
+2025-03-19 18:25:48,340 - __main__ - INFO - Using Docker image: 'docker_worker'
+2025-03-19 18:25:52,046 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:25:52,476 - __main__ - INFO - [2025-03-19 18:25:52] 6a57) EXECUTING IN CONTAINER: 83baf87aebde7ece8c406a34ae988e4c15173b2674d9470d66bf5c702acddff5 | command length: 3297
+2025-03-19 18:25:52,476 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:25:52,812 - __main__ - INFO - [2025-03-19 18:25:52] c788) EXECUTING IN CONTAINER: 7c6eee91e63964a608e25bd49fb838bad37320515c467336207c021f562d6ae7 | command length: 3297
+2025-03-19 18:25:52,812 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:25:53,129 - __main__ - INFO - [2025-03-19 18:25:53] 2b36) EXECUTING IN CONTAINER: d23df77868469caee558a6e602b90e2d544e545c8fcbb490017fd679172f5826 | command length: 3297
+2025-03-19 18:25:53,565 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:25:53,937 - __main__ - INFO - [2025-03-19 18:25:53] 7e07) EXECUTING IN CONTAINER: 8e2e3ed4ddd562557318f49a8a0772f9be50485f6d4b401f54420a44eba64bf8 | command length: 3357
+2025-03-19 18:25:53,937 - src.docker_workers_gateway.container_pool_executor - INFO - (wait_for_container) Launching new container
+2025-03-19 18:25:54,238 - __main__ - INFO - [2025-03-19 18:25:54] bd8b) EXECUTING IN CONTAINER: 491c30ce5ffc0e040edab35cac37f7f5f661a1290b353a2f7002d013ecdd07fe | command length: 3357
+2025-03-19 18:26:09,049 - __main__ - INFO - [2025-03-19 18:26:09] 5331) EXECUTING IN CONTAINER: 7c6eee91e63964a608e25bd49fb838bad37320515c467336207c021f562d6ae7 | command length: 3297
+2025-03-19 18:26:09,049 - __main__ - INFO - [2025-03-19 18:26:09] 4b09) EXECUTING IN CONTAINER: 83baf87aebde7ece8c406a34ae988e4c15173b2674d9470d66bf5c702acddff5 | command length: 3297
+2025-03-19 18:26:09,050 - __main__ - INFO - [2025-03-19 18:26:09] 86d0) EXECUTING IN CONTAINER: 491c30ce5ffc0e040edab35cac37f7f5f661a1290b353a2f7002d013ecdd07fe | command length: 3297
+2025-03-19 18:26:09,415 - __main__ - INFO - [2025-03-19 18:26:09] 5ec5) EXECUTING IN CONTAINER: 8e2e3ed4ddd562557318f49a8a0772f9be50485f6d4b401f54420a44eba64bf8 | command length: 3357
+2025-03-19 18:26:09,416 - __main__ - INFO - [2025-03-19 18:26:09] 013b) EXECUTING IN CONTAINER: d23df77868469caee558a6e602b90e2d544e545c8fcbb490017fd679172f5826 | command length: 3357
+2025-03-19 18:26:10,067 - __main__ - INFO - [2025-03-19 18:26:10] aa48) EXECUTING IN CONTAINER: 7c6eee91e63964a608e25bd49fb838bad37320515c467336207c021f562d6ae7 | command length: 3297
+2025-03-19 18:26:10,068 - __main__ - INFO - [2025-03-19 18:26:10] 7797) EXECUTING IN CONTAINER: 83baf87aebde7ece8c406a34ae988e4c15173b2674d9470d66bf5c702acddff5 | command length: 3297
+2025-03-19 18:26:10,069 - __main__ - INFO - [2025-03-19 18:26:10] 75b0) EXECUTING IN CONTAINER: 491c30ce5ffc0e040edab35cac37f7f5f661a1290b353a2f7002d013ecdd07fe | command length: 3297
+2025-03-19 18:26:10,477 - __main__ - INFO - [2025-03-19 18:26:10] 6730) EXECUTING IN CONTAINER: 8e2e3ed4ddd562557318f49a8a0772f9be50485f6d4b401f54420a44eba64bf8 | command length: 3357
+2025-03-19 18:26:10,477 - __main__ - INFO - [2025-03-19 18:26:10] a4fa) EXECUTING IN CONTAINER: d23df77868469caee558a6e602b90e2d544e545c8fcbb490017fd679172f5826 | command length: 3357

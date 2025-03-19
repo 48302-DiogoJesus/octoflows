@@ -57,9 +57,9 @@ class ContainerPoolExecutor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        # print(f"Exit Code: {result.returncode}")
-        # print("STDOUT:")
-        # print(result.stdout.decode().strip() if result.stdout else "(No output)")
+        print(f"Exit Code: {result.returncode}")
+        print("STDOUT:")
+        print(result.stdout.decode().strip() if result.stdout else "(No output)")
         if result.stderr:
             logger.error("STDERR:")
             logger.error(result.stderr.decode().strip())
@@ -91,6 +91,7 @@ class ContainerPoolExecutor:
             print(f"Error listing containers: {e}")
 
     def _cleanup_idle_containers(self):
+        return
         """Periodically check for and remove idle containers."""
         while not self.shutdown_flag.is_set():
             # Interruptible time.sleep() alternative
