@@ -1,11 +1,7 @@
-- Delegate function should receive argument "resource configuration"!!!!
-
-- [BUG] Cutting behind roots is not enough. Since the other nodes have pointers to "upstream_nodes" (think of a DAG with a fan-out 3-1, the 1 will have pointers to the other 2)
-    I NEED THE CACHED RESULT FROM THE UPSTREAN TASKS. CAN'T REDUCE THEM TO IDS :(
-        UPSTREAM_TASKS = [] 1 LAYER BEHIND?
-        + register the ids of the "useless tasks" and remove them from the upstream_nodes
 - [CHECK] Print the complete subDAG (starting from the sink until no more UPSTREAM_NODES) each worker receives to ensure the roots are well cut
-- [CHECK] Ensure that separate workers use cached results from other workers ()
+- [CHECK] Ensure that separate workers use cached results from other workers
+
+- Delegate function should receive argument "resource configuration"!!!!
 
 - Support more levels: e.g., list[list[DAGTaskNode]]
 

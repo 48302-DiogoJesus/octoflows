@@ -7,6 +7,9 @@ from collections import defaultdict
 import subprocess
 import time
 
+from src.utils.logger import create_logger
+logger = create_logger(__name__)
+
 @dataclass
 class Container:
     id: str
@@ -58,18 +61,18 @@ class ContainerPoolExecutor:
         # print("STDOUT:")
         # print(result.stdout.decode().strip() if result.stdout else "(No output)")
         if result.stderr:
-            print("STDERR:")
-            print(result.stderr.decode().strip())
+            logger.error("STDERR:")
+            logger.error(result.stderr.decode().strip())
             sys.exit(0)
         return result.returncode
 
     def shutdown(self):
-        print("Shutting down container pool manager...")
+        logger.info("Shutting down container pool manager...")
         with self.lock: # Get the lock to avoid main thread from launching a container
             self.shutdown_flag.set()
             self.cleanup_thread.join(timeout=5)
             self._remove_all_containers()
-        print("Container pool manager shut down.")
+        logger.info("Container pool manager shut down.")
 
     def _remove_all_containers(self):
         """Remove all containers running a specific Docker image."""
@@ -79,11 +82,11 @@ class ContainerPoolExecutor:
             container_ids = result.stdout.splitlines()
             if not container_ids: return
 
-            print(f"Removing {len(container_ids)} containers running image '{self.docker_image}'...")
+            logger.info(f"Removing {len(container_ids)} containers running image '{self.docker_image}'...")
             for container_id in container_ids:
                 self._remove_container(container_id)
             
-            print(f"All containers running image '{self.docker_image}' have been removed.")
+            logger.info(f"All containers running image '{self.docker_image}' have been removed.")
         except subprocess.CalledProcessError as e:
             print(f"Error listing containers: {e}")
 
@@ -116,7 +119,7 @@ class ContainerPoolExecutor:
         """Remove a container from Docker and from our tracking."""
         try:
             # Stop and remove the container
-            print(f"Removing idle container {container_id}")
+            logger.info(f"Removing idle container {container_id}")
             subprocess.run(["docker", "stop", "-t", "0", container_id], check=True, stdout=subprocess.DEVNULL)
             subprocess.run(["docker", "rm", "-f", container_id], check=True, stdout=subprocess.DEVNULL)
             
@@ -130,7 +133,7 @@ class ContainerPoolExecutor:
                         del self.container_by_resources[resource_key]
                     del self.containers[container_id]
         except subprocess.CalledProcessError as e:
-            print(f"Error removing container {container_id}: {e}")
+            logger.error(f"Error removing container {container_id}: {e}")
             
     def _wait_for_container(self, cpus: float, memory: int) -> str:
         """
@@ -157,7 +160,7 @@ class ContainerPoolExecutor:
                     self.condition.wait()
                 else:
                     # Launch a new container
-                    print("(wait_for_container) Launching new container")
+                    logger.info("(wait_for_container) Launching new container")
                     container_id = self._launch_container(cpus, memory)
                     return container_id
     
@@ -205,30 +208,3 @@ class ContainerPoolExecutor:
                     configurations[config_key] = []
                 configurations[config_key].append(container_id)
             return configurations
-        
-# def get_initially_running_containers(self):
-#     # Get all running containers of the specified image
-#     containers = subprocess.check_output(
-#         ["docker", "ps", "--filter", f"ancestor={self.docker_image}", "--format", "{{.ID}}"],
-#         text=True
-#     ).strip().splitlines()
-    
-#     with self.lock:
-#         # Get resource information for each container
-#         for container_id in containers:
-#             inspect_output = subprocess.check_output(
-#                 ["docker", "inspect", "--format", "{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}", container_id],
-#                 text=True
-#             ).strip().split()
-            
-#             container_cpus = int(inspect_output[0]) / 1e9  # Convert nanoseconds to CPUs
-#             container_memory = int(inspect_output[1]) // (1024 * 1024)  # Convert bytes to MB
-            
-#             self.containers[container_id] = Container(
-#                 id=container_id,
-#                 cpus=container_cpus,
-#                 memory=container_memory,
-#                 is_busy=False,
-#                 last_active_time=time.time()
-#             )
-#             self.container_by_resources[(container_cpus, container_memory)].add(container_id)

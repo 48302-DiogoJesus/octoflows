@@ -10,8 +10,10 @@ from typing import Any, Callable, Generic, TypeVar
 import uuid
 
 R = TypeVar('R')
-
 import src.worker as worker
+from src.utils.logger import create_logger
+
+logger = create_logger(__name__)
 
 @dataclass
 class DAGTaskNodeId:
@@ -89,7 +91,7 @@ class DAGTaskNode(Generic[R]):
         import src.dag as dag
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
-        print(f"Created DAG in {time.time() - _start_time:.4f} seconds")
+        logger.info(f"Created DAG in {time.time() - _start_time:.4f} seconds")
         return dag_representation.compute(config)
 
     def visualize_dag(self, open_after: bool = True):
@@ -189,8 +191,6 @@ class DAGTaskNode(Generic[R]):
             else:
                 new_kwargs[key] = value
 
-        print(f"Converted {self.func_name} args to {new_args} and kwargs to {new_kwargs}")
-
         self.func_args = tuple(new_args)
         self.func_kwargs = new_kwargs
 
@@ -208,7 +208,7 @@ class DAGTaskNode(Generic[R]):
                 missing_modules.append(module)
         
         if missing_modules:
-            print(f"Installing missing modules: {', '.join(missing_modules)}")
+            logger.info(f"Installing missing modules: {', '.join(missing_modules)}")
             subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
             
             for module in missing_modules:
@@ -216,7 +216,7 @@ class DAGTaskNode(Generic[R]):
                     __import__(module)
                     # print(f"({module}) successfully installed")
                 except ImportError:
-                    print(f"Warning: Failed to import {module} after installation")
+                    logger.error(f"Warning: Failed to import {module} after installation")
 
 def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
     """Decorator to convert a function into a DAG node task."""

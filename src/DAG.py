@@ -3,7 +3,10 @@ from typing import Any
 import uuid
 import graphviz
 
+from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
+
+logger = create_logger(__name__)
 
 class DAG:
     def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_nodes: list[dag_task_node.DAGTaskNode] | None = None):

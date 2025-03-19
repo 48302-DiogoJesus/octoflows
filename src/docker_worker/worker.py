@@ -12,6 +12,9 @@ LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 import src.worker as worker
 import src.dag as dag
+from src.utils.logger import create_logger
+
+logger = create_logger(__name__)
 
 async def main():
     # Ensure only one instance of the script is running
@@ -19,7 +22,7 @@ async def main():
         if platform.system() == "Windows":
             # Windows-specific file locking
             if os.path.exists(LOCK_FILE):
-                print("Error: Another instance of the script is already running. Exiting.")
+                logger.error("Error: Another instance of the script is already running. Exiting.")
                 sys.exit(1)
             # Create the lock file
             with open(LOCK_FILE, "w") as lock_file:
@@ -30,7 +33,7 @@ async def main():
             lock_file = open(LOCK_FILE, "w")
             fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (IOError, BlockingIOError) as e:
-        print("Error: Another instance of the script is already running. Exiting.")
+        logger.error("Error: Another instance of the script is already running. Exiting.")
         raise e
 
     try:
@@ -48,9 +51,9 @@ async def main():
         
         # Create executor and start execution
         ex = worker.DockerWorker(config)
-        print("Start executing subdag")
+        logger.info("Start executing subdag")
         await ex.start_executing(subdag)
-        print("Execution completed successfully")
+        logger.info("Execution completed successfully")
     finally:
         # Release the lock and clean up
         if platform.system() == "Windows":

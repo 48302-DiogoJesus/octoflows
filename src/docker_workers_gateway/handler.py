@@ -8,18 +8,21 @@ import uuid
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
 
+from src.utils.logger import create_logger
 import src.docker_workers_gateway.container_pool_executor as container_pool_executor
+
+logger = create_logger(__name__)
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
 MAX_CONCURRENT_TASKS = 10
 
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
-    print("Set the DOCKER_IMAGE environment variable to the name of the Docker image to use.")
+    logger.warning("Set the DOCKER_IMAGE environment variable to the name of the Docker image to use.")
     sys.exit(1)
 
 DOCKER_IMAGE = DOCKER_IMAGE.strip()
-print(f"Using Docker image: '{DOCKER_IMAGE}'")
+logger.info(f"Using Docker image: '{DOCKER_IMAGE}'")
 
 app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
@@ -39,15 +42,15 @@ def process_job_async(cpus, memory, base64_config, base64_dag):
 
     with container_pool.wait_for_container(cpus=cpus, memory=memory) as container_id:
         try:
-            print(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+            logger.info(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
             exit_code = container_pool.execute_command_in_container(container_id, command)
             if exit_code == 0:
                 # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
                 return
             else:
-                print(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
+                logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
         except Exception as e:
-            print(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
+            logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
 
 
 @app.route('/job', methods=['POST', 'GET'])
@@ -96,7 +99,7 @@ if __name__ == '__main__':
     def cleanup(signum, frame):
         if is_shutting_down_flag.is_set(): return # avoid executing shutdown more than once
         is_shutting_down_flag.set()
-        print("Shutdown. Cleaning up...")
+        logger.info("Shutdown. Cleaning up...")
         container_pool.shutdown()
         thread_pool.shutdown()
         sys.exit(0)

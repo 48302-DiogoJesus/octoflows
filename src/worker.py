@@ -2,16 +2,18 @@ import asyncio
 import base64
 from dataclasses import dataclass
 import json
-from types import CoroutineType
 from typing import Any
 import uuid
 import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
+from src.utils.logger import create_logger
 import src.dag as dag
 import src.dag_task_node as dag_task_node
 import src.storage.storage as intermediate_storage_module
+
+logger = create_logger(__name__)
 
 class Worker(ABC):
     @dataclass
@@ -40,7 +42,7 @@ class Worker(ABC):
                 for dependency_task in task.upstream_nodes:
                     if dependency_task.cached_result:
                         task_dependencies[dependency_task.id.get_full_id()] = dependency_task.cached_result.result
-                        print(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
+                        logger.info(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
                         continue
                     task_output = self.intermediate_storage.get(subdag.get_dag_task_id(dependency_task))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
@@ -106,13 +108,13 @@ class Worker(ABC):
             final_result = intermediate_storage.get(task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                print(f"Final Result Ready: ({task_id}) => {final_result} | Type: ({type(final_result)})")
+                logger.info(f"Final Result Ready: ({task_id}) => {final_result} | Type: ({type(final_result)})")
                 return final_result
             await asyncio.sleep(polling_interval_s)
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        print(f"Worker({self.worker_id}) Task({task_id}) | {message}", flush=True)
+        logger.info(f"Worker({self.worker_id}) Task({task_id}) | {message}")
 
 class LocalWorker(Worker):
     @dataclass
@@ -157,7 +159,7 @@ class DockerWorker(Worker):
         '''
         self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
         async with aiohttp.ClientSession() as session:
-            print(f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
+            logger.info(f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
             async with await session.post(
                 self.docker_config.docker_gateway_address + "/job", 
                 data=json.dumps({
