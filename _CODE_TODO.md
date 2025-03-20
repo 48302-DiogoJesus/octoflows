@@ -1,6 +1,3 @@
-- Executors should act on **DAG clones** (If executor spawns multiple coroutines/threads to execute multiple subgraphs in parallel its needed)
-    downsides of cloning: can't share cached results directly
-
 - Create another field (metadata_storage) but pass it the same DB while in development
     - Collect metrics (make them persistent in Redis)
         Execution time

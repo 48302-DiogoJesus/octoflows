@@ -16,15 +16,15 @@ class DAG:
         if root_node:
             self.root_nodes = None
             self.root_node = root_node
-            self.all_nodes, self.sink_node = DAG._find_all_nodes_from_root(self.root_node)
+            self._all_nodes, self.sink_node = DAG._find_all_nodes_from_root(self.root_node)
         # FULL DAG (Find real root nodes)
         else:
             if not sink_node: raise Exception("Sink node can't be None if no root nodes are provided!")
             self.sink_node = sink_node.clone() # clone all nodes behind the sink node
-            self.all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_node_from_sink(self.sink_node)
+            self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_node_from_sink(self.sink_node)
             if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
             self.root_node = self.root_nodes[0]
-            DAG._eliminate_fake_sink_nodes_references(self.all_nodes, self.sink_node)
+            DAG._eliminate_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
     def compute(self, config):
@@ -38,7 +38,7 @@ class DAG:
             #! "await" is needed here
             res = await worker.Worker.wait_for_result_of_task(
                 wk.intermediate_storage, # type: ignore
-                self.get_dag_task_id(self.sink_node)
+                self.sink_node.id.get_full_id_in_dag(self)
             )
             return res
         return asyncio.run(internal())
@@ -46,12 +46,9 @@ class DAG:
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_node=root_node)
 
-    def get_dag_task_id(self, dag_task_node: dag_task_node.DAGTaskNode) -> str:
-        return f"{dag_task_node.id.get_full_id()}-{self.master_dag_id}"
-
     def _optimize_task_metadata(self):
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
-        for _, node in self.all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
+        for _, node in self._all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
             # Convert func_args
             optimized_args = []
@@ -158,10 +155,10 @@ class DAG:
         return all_nodes, sink_node # type: ignore
 
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
-        return self.all_nodes[node_id.get_full_id()]
+        return self._all_nodes[node_id.get_full_id()]
     
     def _get_node_by_task_id(self, task_id: str) -> Any:
-        for node in self.all_nodes.values():
+        for node in self._all_nodes.values():
             if node.id.task_id == task_id:
                 return node
         return None

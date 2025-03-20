@@ -45,14 +45,14 @@ class Worker(ABC):
                         task_dependencies[dependency_task.id.get_full_id()] = dependency_task.cached_result.result
                         logger.info(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
                         continue
-                    task_output = self.intermediate_storage.get(subdag.get_dag_task_id(dependency_task))
+                    task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                self.intermediate_storage.set(subdag.get_dag_task_id(task), cloudpickle.dumps(task_result))
+                self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), cloudpickle.dumps(task_result))
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
