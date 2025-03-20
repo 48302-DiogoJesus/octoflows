@@ -50,10 +50,10 @@ total_revenue = calculate_total_revenue(discounted_prices)
 
 # total_revenue.visualize_dag()
 start_time = time.time()
-result = total_revenue.compute(config=dockerWorkerConfig)
+result = total_revenue.compute(config=localWorkerConfig)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-# result2 = total_revenue.compute(config=dockerWorkerConfig)
-# print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
+result2 = total_revenue.compute(config=localWorkerConfig)
+print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
 
 # result2 = total_revenue.compute(local=True)
 # print(f"Total Revenue: ${result2}")

@@ -32,7 +32,7 @@ class Worker(ABC):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
 
     async def start_executing(self, subdag: dag.DAG):
-        if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_nodes)}")
+        if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         task = subdag.root_node
 
         try:
