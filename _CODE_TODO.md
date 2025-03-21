@@ -15,7 +15,9 @@
 
 - Support more levels: e.g., list[list[DAGTaskNode]]
     Find a better way to iterate through them to avoid repetition
- -Pytest? Test the DAG operations in multiple types of DAGs + DAG partitions actually work
+- Pytest? Test the DAG operations in multiple types of DAGs + DAG partitions actually work
+
+- Make the visualization dashboard also work with in-memory storage (inmemory storage exposes itself on a port?)
 
 - [NP] Avoid Intermediate storage - sometimes writes can be avoided (leave it up to the worker logic)
 

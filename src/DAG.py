@@ -5,6 +5,7 @@ import graphviz
 
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
+import src.visualization.vis as vis
 
 logger = create_logger(__name__)
 
@@ -27,16 +28,25 @@ class DAG:
             DAG._eliminate_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
-    def compute(self, config):
-        import src.worker as worker
-        wk = config.create_instance()
+    def compute(self, config, open_dashboard: bool = False):
+        from src.worker import Worker
+        from src.resource_configuration import ResourceConfiguration
+        _wk_config: Worker.Config = config
+        wk: Worker = _wk_config.create_instance()
         async def internal():
             if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
+
             for root_node in self.root_nodes:
-                asyncio.create_task(wk.delegate(self.create_subdag(root_node)))
+                asyncio.create_task(wk.delegate(
+                    self.create_subdag(root_node),
+                    resource_configuration=ResourceConfiguration.small()
+                ))
             
+            if open_dashboard:
+                vis.DAGVisualizationDashboard.start(self, _wk_config)
+
             #! "await" is needed here
-            res = await worker.Worker.wait_for_result_of_task(
+            res = await Worker.wait_for_result_of_task(
                 wk.intermediate_storage, # type: ignore
                 self.sink_node.id.get_full_id_in_dag(self)
             )

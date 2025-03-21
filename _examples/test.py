@@ -11,7 +11,7 @@ from src.dag_task_node import DAGTask
 
 @DAGTask
 def calculate_discount(original_price: float, discount_rate: float) -> float:
-    # time.sleep(2)
+    time.sleep(1)
     """Calculate the discounted price."""
     return original_price * (1 - discount_rate)
 
@@ -25,7 +25,7 @@ redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
 
 localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=inmemory_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -48,12 +48,14 @@ discounted_prices = [calculate_discount(product["original_price"], discount_rate
 # Fan-in: Aggregate results to calculate total revenue and average price
 total_revenue = calculate_total_revenue(discounted_prices)
 
+total_revenue = calculate_total_revenue([total_revenue])
+
 # total_revenue.visualize_dag()
 start_time = time.time()
-result = total_revenue.compute(config=dockerWorkerConfig)
+result = total_revenue.compute(config=localWorkerConfig, open_dashboard=True)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-result2 = total_revenue.compute(config=dockerWorkerConfig)
-print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
+# result2 = total_revenue.compute(config=localWorkerConfig)
+# print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
 
 # result2 = total_revenue.compute(local=True)
 # print(f"Total Revenue: ${result2}")

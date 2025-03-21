@@ -87,12 +87,12 @@ class DAGTaskNode(Generic[R]):
             if not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
         }
 
-    def compute(self, config: 'worker.LocalWorker.Config | worker.DockerWorker.Config') -> R:
+    def compute(self, config: 'worker.LocalWorker.Config | worker.DockerWorker.Config', open_dashboard: bool = False) -> R:
         import src.dag as dag
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
         logger.info(f"Created DAG in {time.time() - _start_time:.4f} seconds")
-        return dag_representation.compute(config)
+        return dag_representation.compute(config, open_dashboard)
 
     def visualize_dag(self, open_after: bool = True):
         import src.dag as dag
