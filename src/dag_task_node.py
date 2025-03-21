@@ -10,7 +10,6 @@ from typing import Any, Callable, Generic, TypeVar
 import uuid
 
 R = TypeVar('R')
-import src.worker as worker
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
@@ -37,7 +36,6 @@ class _CachedResultWrapper(Generic[R]):
     result: R
 
 class DAGTaskNode(Generic[R]):
-
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None)
         self.func_name = func.__name__
@@ -87,12 +85,15 @@ class DAGTaskNode(Generic[R]):
             if not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
         }
 
-    def compute(self, config: 'worker.LocalWorker.Config | worker.DockerWorker.Config', open_dashboard: bool = False) -> R:
+    """ config: worker.Worker.Config """
+    def compute(self, config, open_dashboard: bool = False) -> R:
         import src.dag as dag
+        from src.worker import Worker
+        _config: Worker.Config = config
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
         logger.info(f"Created DAG in {time.time() - _start_time:.4f} seconds")
-        return dag_representation.compute(config, open_dashboard)
+        return dag_representation.compute(_config, open_dashboard)
 
     def visualize_dag(self, open_after: bool = True):
         import src.dag as dag

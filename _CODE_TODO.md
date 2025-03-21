@@ -15,7 +15,7 @@
 
 - Support more levels: e.g., list[list[DAGTaskNode]]
     Find a better way to iterate through them to avoid repetition
-- Pytest? Test the DAG operations in multiple types of DAGs + DAG partitions actually work
+- Create more tests for more complex and edge case DAG structures + DAG compute tests
 
 - [NP] Avoid Intermediate storage - sometimes writes can be avoided (leave it up to the worker logic)
 
