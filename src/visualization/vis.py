@@ -1,5 +1,3 @@
-import asyncio
-from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 import base64
 from collections import deque
 import sys

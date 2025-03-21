@@ -25,7 +25,7 @@ redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
 
 localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=inmemory_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -43,14 +43,14 @@ c2 = c(b1)
 c3 = c(b1)
 b2 = b([c1, c2, c3])
 
-# c5_out = c(b1)
+c5_out = c(b1)
 
 # b2.visualize_dag(open_after=False)
 start_time = time.time()
-result = b2.compute(config=dockerWorkerConfig)
+result = b2.compute(config=localWorkerConfig, open_dashboard=True)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-result2 = b2.compute(config=dockerWorkerConfig)
-print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
+# result2 = b2.compute(config=localWorkerConfig)
+# print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
 
 # result2 = total_revenue.compute(local=True)
 # print(f"Total Revenue: ${result2}")

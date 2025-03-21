@@ -52,9 +52,9 @@ total_revenue = calculate_total_revenue([total_revenue])
 
 # total_revenue.visualize_dag()
 start_time = time.time()
-result = total_revenue.compute(config=localWorkerConfig, open_dashboard=True)
+result = total_revenue.compute(config=localWorkerConfig, open_dashboard=False)
 print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-# result2 = total_revenue.compute(config=localWorkerConfig)
+# result2 = total_revenue.compute(config=dockerWorkerConfig)
 # print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
 
 # result2 = total_revenue.compute(local=True)
