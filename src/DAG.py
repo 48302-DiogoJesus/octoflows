@@ -30,6 +30,7 @@ class DAG:
 
     def compute(self, config, open_dashboard: bool = False):
         from src.worker import Worker
+        from src.storage.in_memory_storage import InMemoryStorage
         from src.resource_configuration import ResourceConfiguration
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
@@ -43,6 +44,8 @@ class DAG:
                 ))
             
             if open_dashboard:
+                if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
+                    raise Exception("Can't use dashboard when using in-memory storage!")
                 vis.DAGVisualizationDashboard.start(self, _wk_config)
 
             #! "await" is needed here
