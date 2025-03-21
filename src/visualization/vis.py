@@ -97,7 +97,7 @@ class DAGVisualizationDashboard:
         # Add sidebar with controls
         with st.sidebar:
             st.header("Controls")
-            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=1)
+            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=3)
             
             st.markdown("---")
             st.write("DAG Progress:")
@@ -121,15 +121,14 @@ class DAGVisualizationDashboard:
             self._check_completed_tasks()
             
             # Render the graph using Graphviz
-            st.subheader("DAG Visualization")
             graph = self.render_graphviz()
             graph.engine = "dot"
             st.graphviz_chart(graph, use_container_width=True)
 
         while True:
-            time.sleep(refresh_rate)
             update_graph()
             st.rerun()
+            time.sleep(refresh_rate)
 
     def _check_completed_tasks(self):
         assert self.dag.root_nodes is not None
