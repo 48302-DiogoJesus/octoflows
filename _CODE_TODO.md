@@ -1,3 +1,6 @@
+- Allow dynamic fan-outs? Tasks that return iterables
+- Local execution isn't parallel (LocalWorker.delegate() is blocking)
+
 - Create another field (metadata_storage) but pass it the same DB while in development
     - Collect metrics (make them persistent in Redis)
         Execution time

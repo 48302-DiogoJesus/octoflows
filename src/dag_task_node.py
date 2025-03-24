@@ -1,4 +1,5 @@
 import ast
+import collections
 import copy
 from dataclasses import dataclass
 from functools import wraps
@@ -6,13 +7,14 @@ import inspect
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeAlias, TypeVar, Union, get_args, get_origin
 import uuid
 
 R = TypeVar('R')
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
+
 
 @dataclass
 class DAGTaskNodeId:
@@ -31,16 +33,22 @@ class DAGTaskNodeId:
         return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
 # Needed to distinguish a result=None (if R allows it) from NO result
+
 @dataclass
 class _CachedResultWrapper(Generic[R]):
     result: R
 
+MapTaskNode: TypeAlias = Callable[..., "DAGTaskNode"]
+
 class DAGTaskNode(Generic[R]):
-    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
+    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict, fan_out_idx: int = -1, fan_out_size: int = -1):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None)
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
+        self.is_dynamic_fan_out_representative = False
+        self.fan_out_idx = fan_out_idx # to know which item to use from the upstream_task result (iterable)
+        self.fan_out_size = fan_out_size # to check when a dynamic fan-out is complete more efficiently
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
@@ -48,6 +56,12 @@ class DAGTaskNode(Generic[R]):
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries()
         
+    def map(self, node: MapTaskNode) -> "DAGTaskNode":
+        # special/representative node. Will be replaced by a "real node" at runtime, right before the fan-out
+        _node: DAGTaskNode = node(self, fan_out_idx = -1)
+        _node.is_dynamic_fan_out_representative = True
+        return _node
+
     def _register_dependencies(self):
         for arg in self.func_args:
             if isinstance(arg, DAGTaskNode):
@@ -95,9 +109,9 @@ class DAGTaskNode(Generic[R]):
         logger.info(f"Created DAG in {time.time() - _start_time:.4f} seconds")
         return dag_representation.compute(_config, open_dashboard)
 
-    def visualize_dag(self, open_after: bool = True):
+    def visualize_dag(self, output_file="dag_graph.png", open_after: bool = True):
         import src.dag as dag
-        dag.DAG.visualize(sink_node=self, open_after=open_after)
+        dag.DAG.visualize(sink_node=self, output_file=output_file, open_after=open_after)
 
     def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] | None = None) -> "DAGTaskNode":
         # _clone_start_time = time.time()
@@ -220,7 +234,6 @@ class DAGTaskNode(Generic[R]):
                     logger.error(f"Warning: Failed to import {module} after installation")
 
 def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
-    """Decorator to convert a function into a DAG node task."""
     @wraps(func)
     def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
         return DAGTaskNode[R](func, args, kwargs)

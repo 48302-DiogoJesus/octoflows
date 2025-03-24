@@ -189,6 +189,21 @@ class DAG:
         all_nodes, root_nodes = cls._find_all_nodes_and_root_node_from_sink(sink_node)
         cls._eliminate_fake_sink_nodes_references(all_nodes, sink_node)
         
+        def print_argument(arg):
+            if isinstance(arg, dag_task_node.DAGTaskNode):
+                return "º"
+            elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
+                return ["º" for item in arg]
+            else:
+                if isinstance(arg, str):
+                    return f"hardcoded_str_len: {len(str(arg))}"
+                elif isinstance(arg, int) or isinstance(arg, float):
+                    return f"hardcoded_num: {arg}"
+                elif isinstance(arg, bool):
+                    return f"hardcoded_bool: {arg}"
+                else:
+                    return f"hardcoded_data_len: {len(str(arg))}"
+
         # Add nodes
         for node_id, node in all_nodes.items():
             # Create a label showing function name and args
@@ -199,22 +214,22 @@ class DAG:
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
                     # dependency_strs.append(str(arg.id.get_full_id()))
-                    dependency_strs.append("º")
+                    dependency_strs.append(print_argument(arg))
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                     # dependency_strs.append(str([item.id.get_full_id() for item in arg]))
-                    dependency_strs.append(str(["º" for item in arg]))
+                    dependency_strs.append(str([print_argument(item) for item in arg]))
                 else:
-                    dependency_strs.append(str(arg))
+                    dependency_strs.append(print_argument(arg))
 
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
                     # dependency_strs.append(f"{key}={value.id.get_full_id()}")
-                    dependency_strs.append(f"{key}=º")
+                    dependency_strs.append(f"{key}={print_argument(value)}")
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
                     # dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
-                    dependency_strs.append(f"{key}={["º" for item in value]}")
+                    dependency_strs.append(f"{key}={[print_argument(item) for item in value]}")
                 else:
-                    dependency_strs.append(f"{key}={value}")
+                    dependency_strs.append(f"{key}={print_argument(value)}")
             
             # Create the node label
             label = f"{node.id.get_full_id()}({', '.join(dependency_strs)})"

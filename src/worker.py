@@ -1,7 +1,9 @@
+from collections.abc import Iterable
 import asyncio
 import base64
 from dataclasses import dataclass
 import json
+import time
 from typing import Any
 import uuid
 import cloudpickle
@@ -44,10 +46,14 @@ class Worker(ABC):
                     if dependency_task.cached_result:
                         task_dependencies[dependency_task.id.get_full_id()] = dependency_task.cached_result.result
                         logger.info(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
-                        continue
-                    task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
+                    else:
+                        task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+                        if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                        task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
+                    # Dynamic fan-outs
+                    if task.fan_out_idx != -1:
+                        logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
+                        task_dependencies[dependency_task.id.get_full_id()] = task_dependencies[dependency_task.id.get_full_id()][task.fan_out_idx]
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
@@ -61,16 +67,31 @@ class Worker(ABC):
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => [{[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
-                for downstream_task in task.downstream_nodes:
-                    downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                    if downstream_task_total_dependencies == 1: # {task} was the only dependency
-                        ready_downstream.append(downstream_task)
-                    else:
-                        dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
-                        dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
-                        self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
-                        if dependencies_met == downstream_task_total_dependencies:
+                
+                if task.fan_out_idx != -1:
+                    # We executed a task of a dynamic fan-out, its downstream tasks can ONLY depend on the completion of all {tasks} in the fan-out
+                    if task.fan_out_size == 1:
+                        for downstream_task in task.downstream_nodes:
                             ready_downstream.append(downstream_task)
+                    else:
+                        # TODO: Replace this PLACEHOLDER code
+                        # dc_key = f"dependency-counter-{task.id.get_full_id_in_dag(subdag)}"
+                        # dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
+                        # self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{task.fan_out_size})")
+                        # if dependencies_met == task.fan_out_size:
+                        #     for downstream_task in task.downstream_nodes:
+                        pass
+                else:
+                    for downstream_task in task.downstream_nodes:
+                        downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
+                        if downstream_task_total_dependencies == 1: # {task} was the only dependency
+                            ready_downstream.append(downstream_task)
+                        else:
+                            dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
+                            dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
+                            self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
+                            if dependencies_met == downstream_task_total_dependencies:
+                                ready_downstream.append(downstream_task)
                 
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
@@ -83,12 +104,25 @@ class Worker(ABC):
                     tasks_to_delegate = ready_downstream[1:]
                     coroutines = []
                     
-                    for task in tasks_to_delegate:
-                        coroutines.append(self.delegate(
-                            subdag.create_subdag(task), 
-                            resource_configuration=ResourceConfiguration.medium(), 
-                            called_by_worker=True
-                        ))
+                    for t in tasks_to_delegate:
+                        if t.is_dynamic_fan_out_representative:
+                            # check is task_result is iterable
+                            if not isinstance(task_result, Iterable):
+                                raise Exception(f"Task {task.id.get_full_id_in_dag(subdag)} returned a non-iterable result but one of its downstream tasks ({t.id.get_full_id_in_dag(subdag)}) expected an iterable.")
+                            dynamic_fanout_size = len(task_result) # type: ignore
+                            for fo_idx in range(dynamic_fanout_size):
+                                dynamic_task = dag_task_node.DAGTaskNode(t.func_code, t.func_args, t.func_kwargs, fan_out_idx=fo_idx, fan_out_size=dynamic_fanout_size)
+                                coroutines.append(self.delegate(
+                                    subdag.create_subdag(dynamic_task), 
+                                    resource_configuration=ResourceConfiguration.medium(), 
+                                    called_by_worker=True
+                                ))
+                        else:
+                            coroutines.append(self.delegate(
+                                subdag.create_subdag(t), 
+                                resource_configuration=ResourceConfiguration.medium(), 
+                                called_by_worker=True
+                            ))
                     
                     await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
@@ -115,12 +149,14 @@ class Worker(ABC):
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task_id: str, polling_interval_s: float = 1.0):
+        start_time = time.time()
         # Poll Storage for final result. Asynchronous wait
         while True:
             final_result = intermediate_storage.get(task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                logger.info(f"Final Result Ready: ({task_id}) => {final_result} | Type: ({type(final_result)})")
+                end_time = time.time()
+                logger.info(f"Final Result Ready: ({task_id}) => Size: {len(final_result)} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
                 return final_result
             await asyncio.sleep(polling_interval_s)
 
