@@ -11,6 +11,7 @@ from typing import Any, Callable, Generic, TypeAlias, TypeVar, Union, get_args, 
 import uuid
 
 R = TypeVar('R')
+S = TypeVar('S')
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
@@ -33,32 +34,33 @@ class DAGTaskNodeId:
         return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
 # Needed to distinguish a result=None (if R allows it) from NO result
-
-@dataclass
-class _CachedResultWrapper(Generic[R]):
-    result: R
-
-MapTaskNode: TypeAlias = Callable[..., "DAGTaskNode"]
+# @dataclass
+# class _CachedResultWrapper(Generic[R]):
+#     result: R
 
 class DAGTaskNode(Generic[R]):
-    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict, fan_out_idx: int = -1, fan_out_size: int = -1):
-        self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__, task_id=None)
+    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict, dynamic_fan_out_representative_id: DAGTaskNodeId | None = None, fan_out_idx: int = -1, fan_out_size: int = -1):
+        self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
         self.is_dynamic_fan_out_representative = False
+        self.dynamic_fan_out_representative_id = dynamic_fan_out_representative_id
         self.fan_out_idx = fan_out_idx # to know which item to use from the upstream_task result (iterable)
         self.fan_out_size = fan_out_size # to check when a dynamic fan-out is complete more efficiently
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
-        self.cached_result: _CachedResultWrapper[R] | None = None
+        # self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries()
+
+        if self.fan_out_idx != -1:
+            print(f"Dynamic Fan-Out DAGTaskNode | fan_out_idx: {self.fan_out_idx} | dynamic_fan_out_representative_id: {self.dynamic_fan_out_representative_id} | upstream_len: {len(self.upstream_nodes)} | func_args: {self.func_args}")
         
-    def map(self, node: MapTaskNode) -> "DAGTaskNode":
+    def map(self, decorated_node: Callable[..., "DAGTaskNode[S]"]) -> "DAGTaskNode[list[S]]":
         # special/representative node. Will be replaced by a "real node" at runtime, right before the fan-out
-        _node: DAGTaskNode = node(self, fan_out_idx = -1)
+        _node: DAGTaskNode = decorated_node(self)
         _node.is_dynamic_fan_out_representative = True
         return _node
 
@@ -179,7 +181,7 @@ class DAGTaskNode(Generic[R]):
         # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
         res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
-        self.cached_result = _CachedResultWrapper(res)
+        # self.cached_result = _CachedResultWrapper(res)
         return res
 
     def _try_convert_node_func_args_to_ids(self):
@@ -210,7 +212,7 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = new_kwargs
 
     def __repr__(self):
-        return f"DAGTaskNode({self.func_name}, id={self.id})"
+        return f"DAGTaskNode({self.func_name}, id={self.id}, dyn_fanout_idx={self.fan_out_idx})"
 
     def _try_install_third_party_libs(self):
         missing_modules = []

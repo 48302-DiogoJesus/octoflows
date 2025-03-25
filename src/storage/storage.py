@@ -11,6 +11,8 @@ class Storage(ABC):
     @abstractmethod
     def get(self, key: str) -> Any: pass
     @abstractmethod
+    def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
+    @abstractmethod
     def set(self, key: str, value, expire=None) -> Any: pass
     @abstractmethod
     def atomic_increment_and_get(self, key: str) -> Any: pass

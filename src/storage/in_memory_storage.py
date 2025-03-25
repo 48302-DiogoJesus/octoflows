@@ -40,6 +40,14 @@ class InMemoryStorage(storage.Storage):
             elif key in self._expiry:
                 del self._expiry[key]
 
+    def exists(self, *keys: str) -> Any:
+        with self._lock:
+            keys_found = 0
+            for key in keys:
+                if key in self._data:
+                    keys_found += 1
+            return keys_found
+
     def atomic_increment_and_get(self, key: str):
         with self._lock:
             # Get current value or initialize to 0

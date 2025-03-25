@@ -49,9 +49,11 @@ class DAG:
                 vis.DAGVisualizationDashboard.start(self, _wk_config)
 
             #! "await" is needed here
+            logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
             res = await Worker.wait_for_result_of_task(
                 wk.intermediate_storage, # type: ignore
-                self.sink_node.id.get_full_id_in_dag(self)
+                self.sink_node,
+                self
             )
             return res
         return asyncio.run(internal())
@@ -177,7 +179,7 @@ class DAG:
         return None
     
     @classmethod
-    def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", highlight_roots=True, highlight_sink=True, open_after=True):
+    def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", open_after=True):
         # Create a new directed graph
         dot = graphviz.Digraph(
             comment="DAG Visualization",
@@ -206,10 +208,6 @@ class DAG:
 
         # Add nodes
         for node_id, node in all_nodes.items():
-            # Create a label showing function name and args
-            # for dependency in node.upstream_nodes:
-            #     dependency_strs.append(str(dependency.task_id))
-            
             dependency_strs = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
@@ -237,12 +235,9 @@ class DAG:
             # Determine node style based on whether it's a root or sink node
             node_style = "filled"
             node_color = "lightblue"
-            
-            if highlight_roots and node in root_nodes:
-                node_color = "lightgreen"  # Root nodes in green
-            
-            if highlight_sink and node.id.get_full_id() == sink_node.id.get_full_id():
-                node_color = "lightcoral"  # Sink node in red
+
+            if node.is_dynamic_fan_out_representative:
+                node_color = "lightyellow"
             
             # Add the node to the graph
             dot.node(node_id, label=label, shape="box", style=node_style, fillcolor=node_color)

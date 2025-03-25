@@ -40,24 +40,39 @@ class Worker(ABC):
         try:
             while True:
                 # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies...")
+                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies | Dynamic Task: {task.fan_out_idx != -1}...")
                 task_dependencies: dict[str, Any] = {}
-                for dependency_task in task.upstream_nodes:
-                    if dependency_task.cached_result:
-                        task_dependencies[dependency_task.id.get_full_id()] = dependency_task.cached_result.result
-                        logger.info(f"Using cached result for {dependency_task.id.get_full_id_in_dag(subdag)}")
-                    else:
-                        task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-                        if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-                        task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output) # type: ignore
-                    # Dynamic fan-outs
-                    if task.fan_out_idx != -1:
-                        logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
-                        task_dependencies[dependency_task.id.get_full_id()] = task_dependencies[dependency_task.id.get_full_id()][task.fan_out_idx]
+                # Dynamic fan-outs
+                if task.fan_out_idx != -1:
+                    if len(task.upstream_nodes) != 1: raise Exception(f"task: {task.id.get_full_id_in_dag(subdag)} Dynamic fan-out tasks can only have 1 upstream task. Got {len(task.upstream_nodes)}")
+                    dependency_task = task.upstream_nodes[0]
+                    logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
+                    task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)[task.fan_out_idx]
+                else:
+                    logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks")
+                    for dependency_task in task.upstream_nodes:
+                        if dependency_task.is_dynamic_fan_out_representative:
+                            fanout_ids = self.intermediate_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")
+                            if fanout_ids is None: raise Exception(f"[BUG] Dynamic fan-out ids for {dependency_task.id.get_full_id_in_dag(subdag)}'s are not available")
+                            fanout_ids: list[str] = cloudpickle.loads(fanout_ids) # type: ignore
+                            # Dynamic Fan-outs: "reduce" phase
+                            aggregated_outputs = []
+                            for fanout_id in fanout_ids:
+                                task_output = self.intermediate_storage.get(fanout_id)
+                                if task_output is None: raise Exception(f"[BUG] Dynamic fan-out task {fanout_id}'s data is not available")
+                                aggregated_outputs.append(cloudpickle.loads(task_output))
+                            task_dependencies[dependency_task.id.get_full_id()] = aggregated_outputs
+                        else:
+                            task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+                            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
+                self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to {task.id.get_full_id_in_dag(subdag)}")
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), cloudpickle.dumps(task_result))
 
                 if len(task.downstream_nodes) == 0: 
@@ -65,74 +80,74 @@ class Worker(ABC):
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id_in_dag(subdag), f"3) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => [{[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => [{[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}]")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 
-                if task.fan_out_idx != -1:
-                    # We executed a task of a dynamic fan-out, its downstream tasks can ONLY depend on the completion of all {tasks} in the fan-out
-                    if task.fan_out_size == 1:
-                        for downstream_task in task.downstream_nodes:
-                            ready_downstream.append(downstream_task)
-                    else:
-                        # TODO: Replace this PLACEHOLDER code
-                        # dc_key = f"dependency-counter-{task.id.get_full_id_in_dag(subdag)}"
-                        # dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
-                        # self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{task.fan_out_size})")
-                        # if dependencies_met == task.fan_out_size:
-                        #     for downstream_task in task.downstream_nodes:
-                        pass
-                else:
-                    for downstream_task in task.downstream_nodes:
-                        downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                        if downstream_task_total_dependencies == 1: # {task} was the only dependency
+                for downstream_task in task.downstream_nodes:
+                    dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
+                    dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
+
+                    downstream_task_total_dependencies = 0
+                    for unode in subdag.get_node_by_id(downstream_task.id).upstream_nodes:
+                        if unode.is_dynamic_fan_out_representative:
+                            fan_out_task_ids = self.intermediate_storage.get(f"dynamic-fanout-ids-{unode.id.get_full_id_in_dag(subdag)}")
+                            if fan_out_task_ids is None: break # A fan-out that this DT depends on was not created yet. {downstream_task} is def. not ready
+                            fan_out_task_ids = cloudpickle.loads(fan_out_task_ids)
+                            downstream_task_total_dependencies += len(fan_out_task_ids)
+                        else:
+                            downstream_task_total_dependencies += 1
+
+                    self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
+                    if dependencies_met == downstream_task_total_dependencies:
+                        if not downstream_task.is_dynamic_fan_out_representative:
                             ready_downstream.append(downstream_task)
                         else:
-                            dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
-                            dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
-                            self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
-                            if dependencies_met == downstream_task_total_dependencies:
-                                ready_downstream.append(downstream_task)
-                
+                            if not isinstance(task_result, Iterable):
+                                raise Exception(f"Task {task.id.get_full_id_in_dag(subdag)} returned a non-iterable result but one of its downstream tasks ({downstream_task.id.get_full_id_in_dag(subdag)}) expected an iterable.")
+                            dynamic_fanout_size = len(task_result) # type: ignore
+                            if dynamic_fanout_size == 0: 
+                                raise Exception(f"Task {task.id.get_full_id_in_dag(subdag)} returned an empty iterable but one of its downstream tasks ({downstream_task.id.get_full_id_in_dag(subdag)}) expected a non-empty iterable.")
+                            logger.info(f"Splitting {downstream_task.id.get_full_id_in_dag(subdag)} into {dynamic_fanout_size} tasks")
+                            fanout_task_ids = [] # use list to keep the order
+                            # Dynamic Fan-outs: "map" phase
+                            for fo_idx in range(dynamic_fanout_size):
+                                node = dag_task_node.DAGTaskNode(
+                                        downstream_task.func_code, downstream_task.func_args, downstream_task.func_kwargs, 
+                                        # task_id=f"{downstream_task.id.task_id}-{fo_idx}",
+                                        dynamic_fan_out_representative_id=downstream_task.id,
+                                        fan_out_idx=fo_idx,
+                                        fan_out_size=dynamic_fanout_size
+                                    )
+                                fanout_task_ids.append(node.id.get_full_id_in_dag(subdag))
+                                node.upstream_nodes = downstream_task.upstream_nodes
+                                node.downstream_nodes = downstream_task.downstream_nodes
+                                ready_downstream.append(node)
+                            self.intermediate_storage.set(f"dynamic-fanout-ids-{downstream_task.id.get_full_id_in_dag(subdag)}", cloudpickle.dumps(fanout_task_ids))
+
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
-                if len(ready_downstream) == 1:
-                    task = subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
-                    continue
-                ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
-                elif len(ready_downstream) > 1:
-                    continuation_task = ready_downstream[0] # choose the first task
-                    tasks_to_delegate = ready_downstream[1:]
-                    coroutines = []
-                    
-                    for t in tasks_to_delegate:
-                        if t.is_dynamic_fan_out_representative:
-                            # check is task_result is iterable
-                            if not isinstance(task_result, Iterable):
-                                raise Exception(f"Task {task.id.get_full_id_in_dag(subdag)} returned a non-iterable result but one of its downstream tasks ({t.id.get_full_id_in_dag(subdag)}) expected an iterable.")
-                            dynamic_fanout_size = len(task_result) # type: ignore
-                            for fo_idx in range(dynamic_fanout_size):
-                                dynamic_task = dag_task_node.DAGTaskNode(t.func_code, t.func_args, t.func_kwargs, fan_out_idx=fo_idx, fan_out_size=dynamic_fanout_size)
-                                coroutines.append(self.delegate(
-                                    subdag.create_subdag(dynamic_task), 
-                                    resource_configuration=ResourceConfiguration.medium(), 
-                                    called_by_worker=True
-                                ))
-                        else:
-                            coroutines.append(self.delegate(
-                                subdag.create_subdag(t), 
-                                resource_configuration=ResourceConfiguration.medium(), 
-                                called_by_worker=True
-                            ))
-                    
-                    await asyncio.gather(*coroutines) # wait for the delegations to be accepted
-
-                    # Continue with one task in this worker
-                    self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
-                    task = subdag.get_node_by_id(ready_downstream[0].id) # type: ignore downstream_task_id)
-                    continue
-                else:
+                if len(ready_downstream) == 0:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
                     break  # Give up
+
+                ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
+                continuation_task = ready_downstream[0] # choose the first task
+                tasks_to_delegate = ready_downstream[1:]
+                coroutines = []
+                
+                for t in tasks_to_delegate:
+                    self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
+                    coroutines.append(self.delegate(
+                        subdag.create_subdag(t), 
+                        resource_configuration=ResourceConfiguration.medium(), 
+                        called_by_worker=True
+                    ))
+                
+                await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+
+                # Continue with one task in this worker
+                self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
+                task = continuation_task # type: ignore downstream_task_id)
         except Exception as e:
             self.log(task.id.get_full_id_in_dag(subdag), f"Error: {str(e)}") # type: ignore
             raise e
@@ -148,17 +163,36 @@ class Worker(ABC):
         pass
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task_id: str, polling_interval_s: float = 1.0):
+    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
         start_time = time.time()
         # Poll Storage for final result. Asynchronous wait
+        task_id = task.id.get_full_id_in_dag(dag)
+        is_task_dynamic_fan_out = task.is_dynamic_fan_out_representative
+        first_iter = True
         while True:
-            final_result = intermediate_storage.get(task_id)
-            if final_result is not None:
-                final_result = cloudpickle.loads(final_result) # type: ignore
+            if not first_iter: await asyncio.sleep(polling_interval_s)
+            first_iter = False
+
+            if is_task_dynamic_fan_out:
+                fanout_task_ids = intermediate_storage.get(f"dynamic-fanout-ids-{task_id}")
+                if fanout_task_ids is None: continue
+                final_result_ids = cloudpickle.loads(fanout_task_ids)
+                fanout_tasks_ready = intermediate_storage.exists(*final_result_ids)
+                if fanout_tasks_ready != len(final_result_ids): continue # not all tasks are ready
+                aggregated_result = []
+                for final_result_id in final_result_ids:
+                    final_result = intermediate_storage.get(final_result_id)
+                    aggregated_result.append(cloudpickle.loads(final_result)) # type: ignore
                 end_time = time.time()
-                logger.info(f"Final Result Ready: ({task_id}) => Size: {len(final_result)} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
-                return final_result
-            await asyncio.sleep(polling_interval_s)
+                logger.info(f"Dynamic Fan-Out Final Result Ready: ({task_id}) => Size: {len(aggregated_result)} | Type: ({type(aggregated_result)}) | Time: {end_time - start_time}s")
+                return aggregated_result
+            else:
+                final_result = intermediate_storage.get(task_id)
+                if final_result is not None:
+                    final_result = cloudpickle.loads(final_result) # type: ignore
+                    end_time = time.time()
+                    logger.info(f"Final Result Ready: ({task_id}) => Size: {len(final_result)} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
+                    return final_result
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""

@@ -45,6 +45,10 @@ class RedisStorage(storage.Storage):
         # Atomically increment and get the new value
         return conn.incr(key, amount=1)
 
+    def exists(self, *keys: str):
+        conn = self._get_or_create_connection()
+        return conn.exists(*keys)
+    
     def close_connection(self):
         self._connection.close()
 
@@ -53,3 +57,4 @@ class RedisStorage(storage.Storage):
             return self._connection.ping()
         except redis.ConnectionError:
             return False
+
