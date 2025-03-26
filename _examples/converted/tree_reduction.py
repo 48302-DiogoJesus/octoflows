@@ -36,6 +36,6 @@ sink: DAGTaskNode = L[0] # type: ignore
 
 for i in range(1):
     start_time = time.time()
-    result = sink.compute(config=localWorkerConfig)
-    # result = sink.compute(config=dockerWorkerConfig, open_dashboard=True)
+    # result = sink.compute(config=localWorkerConfig)
+    result = sink.compute(config=dockerWorkerConfig)
     print(f"[{i}] Result: ${result} | Makespan: {time.time() - start_time}s")

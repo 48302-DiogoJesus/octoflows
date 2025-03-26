@@ -37,6 +37,7 @@ class DAG:
         wk: Worker = _wk_config.create_instance()
         async def internal():
             if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
+            Worker.store_full_dag(wk.metadata_storage, self)
 
             if open_dashboard:
                 if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):

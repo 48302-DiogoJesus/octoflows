@@ -10,6 +10,7 @@ LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windo
 
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.dag_task_node import DAGTaskNodeId
 import src.worker as worker
 import src.dag as dag
 from src.utils.logger import create_logger
@@ -37,22 +38,29 @@ async def main():
         raise e
 
     try:
-        if len(sys.argv) != 3:
-            raise Exception("Usage: python script.py <b64_config> <b64_subdag>")
+        if len(sys.argv) != 4:
+            raise Exception("Usage: python script.py <b64_config> <dag_id> <task_id>")
         
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
-        subdag = cloudpickle.loads(base64.b64decode(sys.argv[2]))
+        dag_id = str(sys.argv[2])
+        b64_task_id = str(sys.argv[3])
         
         if not isinstance(config, worker.DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
-        if not isinstance(subdag, dag.DAG):
-            raise Exception("Error: subdag is not a DAG instance")
+        
+        wk = worker.DockerWorker(config)
+
+        fulldag = wk.get_full_dag(dag_id)
+        if not isinstance(fulldag, dag.DAG):
+            raise Exception("Error: fulldag is not a DAG instance")
+        
+        task_id: DAGTaskNodeId = cloudpickle.loads(base64.b64decode(b64_task_id))
+        subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
         
         # Create executor and start execution
-        ex = worker.DockerWorker(config)
         logger.info("Start executing subdag")
-        await ex.start_executing(subdag)
+        await wk.start_executing(subdag)
         logger.info("Execution completed successfully")
     finally:
         # Release the lock and clean up

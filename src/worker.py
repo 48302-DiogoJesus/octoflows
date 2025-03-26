@@ -14,20 +14,20 @@ from src.resource_configuration import ResourceConfiguration
 from src.utils.logger import create_logger
 import src.dag as dag
 import src.dag_task_node as dag_task_node
-import src.storage.storage as intermediate_storage_module
+import src.storage.storage as storage_module
 
 logger = create_logger(__name__)
 
 class Worker(ABC):
     @dataclass
     class Config(ABC):
-        intermediate_storage_config: intermediate_storage_module.Storage.Config
-        metadata_storage_config: intermediate_storage_module.Storage.Config | None = None
+        intermediate_storage_config: storage_module.Storage.Config
+        metadata_storage_config: storage_module.Storage.Config | None = None
         
         @abstractmethod
         def create_instance(self) -> "Worker": pass
 
-    intermediate_storage: intermediate_storage_module.Storage
+    intermediate_storage: storage_module.Storage
     worker_id: str
 
     def __init__(self, config: Config):
@@ -165,7 +165,16 @@ class Worker(ABC):
         pass
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: intermediate_storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
+    def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.DAG):
+        metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
+
+    def get_full_dag(self, dag_id: str) -> dag.DAG:
+        dag = self.metadata_storage.get(f"dag-{dag_id}")
+        if dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
+        return cloudpickle.loads(dag)
+
+    @staticmethod
+    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
         start_time = time.time()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)
@@ -248,7 +257,8 @@ class DockerWorker(Worker):
                 gateway_address + "/job", 
                 data=json.dumps({
                     "resource_configuration": base64.b64encode(cloudpickle.dumps(resource_configuration)).decode('utf-8'),
-                    "subdag": base64.b64encode(cloudpickle.dumps(subdag)).decode('utf-8'),
+                    "dag_id": subdag.master_dag_id,
+                    "task_id": base64.b64encode(cloudpickle.dumps(subdag.root_node.id)).decode('utf-8'),
                     "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                 }),
                 headers={'Content-Type': 'application/json'}

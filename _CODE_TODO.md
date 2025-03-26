@@ -1,5 +1,8 @@
 - Tree reduction 512 can't be sent to container Docker. Argument too long
     Send the entire dag to Storage and the invocation only contains the task id where the worker should start from
+    TODO:
+        - When/Where to store the entire serialized dag in MDS (doesn't need to be b64 serialized, cloudpickle is enough)
+        - Gateway handler forward ids to Docker worker.py + worker.py grabbing from metadata storage
 
 - Add support for a DAGTaskNode to be a DAG itself (handle DAG completion differently?)
     - Is this necessary to allow Dynamic multi-level fan-outs? 1 - N (each of {N} fans-out to {X} or even to {1}) [currently_not_supported]

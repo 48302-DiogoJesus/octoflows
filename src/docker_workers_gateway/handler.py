@@ -31,7 +31,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(resource_configuration: ResourceConfiguration, base64_config: str, base64_dag: str):
+def process_job_async(resource_configuration: ResourceConfiguration, base64_config: str, dag_id: str, task_id: str):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -41,7 +41,7 @@ def process_job_async(resource_configuration: ResourceConfiguration, base64_conf
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {base64_dag}"
+    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {task_id}"
 
     with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory) as container_id:
         try:
@@ -71,12 +71,14 @@ def handle_job():
         resource_config_key = data.get('resource_configuration', None)
         if resource_config_key is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
         resource_configuration: ResourceConfiguration = cloudpickle.loads(base64.b64decode(resource_config_key))
-        b64subdag = data.get('subdag', None)
-        if b64subdag is None: return jsonify({"error": "'subdag' field is required"}), 400
+        dag_id = data.get('dag_id', None)
+        if dag_id is None: return jsonify({"error": "'dag_id' field is required"}), 400
+        b64_task_id = data.get('task_id', None)
+        if b64_task_id is None: return jsonify({"error": "'task_id' field is required"}), 400
         b64config = data.get('config', None)
         if b64config is None: return jsonify({"error": "'config' field is required"}), 400
 
-        thread_pool.submit(process_job_async, resource_configuration, b64config, b64subdag)
+        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_id)
         
         return "", 202 # Immediately return 202 Accepted
 
