@@ -113,7 +113,7 @@ def merge_image_parts(processed_chunks: List[bytes]) -> bytes:
 
 # WORKFLOW DEFINITION
 if __name__ == "__main__":
-    image_data: bytes = open("test_image.jpg", "rb").read()
+    image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
 
     num_chunks = determine_chunks_amount(image_data)
     chunks = split_image(image_data, num_chunks)
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     processed_chunks = [grayscale_image_part(chunk) for chunk in chunks]
 
     final_image = merge_image_parts(processed_chunks)
-    final_image.visualize_dag(open_after=True)
+    # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
     final_image = final_image.compute(config=localWorkerConfig)
 
     image = Image.open(io.BytesIO(final_image))

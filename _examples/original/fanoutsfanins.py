@@ -42,15 +42,11 @@ c1 = c(b1)
 c2 = c(b1)
 c3 = c(b1)
 b2 = b([c1, c2, c3])
+c4 = c(b1)
 
-c5_out = c(b1)
+# c4.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "fanoutsfanins"), open_after=False)
 
-# b2.visualize_dag(open_after=False)
-start_time = time.time()
-result = b2.compute(config=localWorkerConfig, open_dashboard=True)
-print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
-# result2 = b2.compute(config=localWorkerConfig)
-# print(f"Total Revenue: ${result2} | Makespan: {time.time() - start_time}s")
-
-# result2 = total_revenue.compute(local=True)
-# print(f"Total Revenue: ${result2}")
+for i in range(1):
+    start_time = time.time()
+    result = c4.compute(config=localWorkerConfig, open_dashboard=True)
+    print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

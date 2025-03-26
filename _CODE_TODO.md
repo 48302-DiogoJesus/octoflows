@@ -1,11 +1,9 @@
-- Tree reduction 512 can't be sent to container Docker. Argument too long
-    Send the entire dag to Storage and the invocation only contains the task id where the worker should start from
-    TODO:
-        - When/Where to store the entire serialized dag in MDS (doesn't need to be b64 serialized, cloudpickle is enough)
-        - Gateway handler forward ids to Docker worker.py + worker.py grabbing from metadata storage
+- Implement similar WUKONG algorithms
+    - GEMM
 
-- Add support for a DAGTaskNode to be a DAG itself (handle DAG completion differently?)
-    - Is this necessary to allow Dynamic multi-level fan-outs? 1 - N (each of {N} fans-out to {X} or even to {1}) [currently_not_supported]
+- Can I currently support a workflow where image is divided into fixed chunks, MULTIPLE transformations (separate "DAGTasks") are applied to each branch and then fan-in to build final image
+
+- Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
 - BUG: After removing a fake sink node, go back to its upstream nodes and check them after this removal
     could be a chain of tasks that don't endup in the sink
@@ -19,23 +17,20 @@
         Output data size
         Data download time
         Data upload time
+        Which worker id executed it
         Visualization capabilities (separate program that creates graphics)
+        Upload them efficiently
 
-- Implement similar WUKONG algorithms
-    Can I wrap `Dask` functions?
-    - GEMM
-    - Tree Reduction
-    - Singular Value Decomposition
+## Performance Optimizations
+- See where it's suitable to use storage in an async way (make the storage implementations offer "sync" and "async" functions)
+    - Parallelize
+- Local implementation is slower than Dasks (e.g., Tree Reduction): could hint at some internal structure inneficiencies
 
+- Create more tests for more complex and edge case DAG structures + DAG compute tests
 - Support more levels: e.g., list[list[DAGTaskNode]]
     Find a better way to iterate through them to avoid repetition
-- Create more tests for more complex and edge case DAG structures + DAG compute tests
 
-- [NP] Avoid Intermediate storage - sometimes writes can be avoided (leave it up to the worker logic)
-
-- [NP] Find a fix for cyclic dependencies
-
-- [NNP] More WUKONG-specific stuff
+- [NNP] Implement WUKONG-specific optimizations
     - Task Clustering (fan-ins + fan-outs)
     - Delayed I/O
 

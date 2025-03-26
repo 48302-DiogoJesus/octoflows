@@ -250,4 +250,4 @@ class DAG:
                 dot.edge(node_id, downstream_node.id.get_full_id())
         
         # Render the graph to a file and open it
-        dot.render(filename=output_file.split('.')[0], cleanup=True, view=open_after)
+        dot.render(filename=output_file, cleanup=True, view=open_after)
