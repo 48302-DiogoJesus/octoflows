@@ -194,10 +194,8 @@ class DAG:
         cls._eliminate_fake_sink_nodes_references(all_nodes, sink_node)
         
         def print_argument(arg):
-            if isinstance(arg, dag_task_node.DAGTaskNode):
+            if isinstance(arg, dag_task_node.DAGTaskNode) or isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                 return "º"
-            elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
-                return ["º" for item in arg]
             else:
                 if isinstance(arg, str):
                     return f"hardcoded_str_len: {len(str(arg))}"
@@ -217,7 +215,7 @@ class DAG:
                     dependency_strs.append(print_argument(arg))
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                     # dependency_strs.append(str([item.id.get_full_id() for item in arg]))
-                    dependency_strs.append(str([print_argument(item) for item in arg]))
+                    dependency_strs.append(print_argument(arg))
                 else:
                     dependency_strs.append(print_argument(arg))
 
