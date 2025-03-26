@@ -1,3 +1,4 @@
+import tempfile
 import base64
 from collections import deque
 import sys
@@ -24,18 +25,32 @@ class DAGVisualizationDashboard:
 
     @staticmethod
     def start(dag, worker_config):
-        b64_dag = base64.b64encode(cloudpickle.dumps(dag)).decode('utf-8')
-        b64_worker_config = base64.b64encode(cloudpickle.dumps(worker_config)).decode('utf-8')
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.dag') as dag_file, \
+            tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.config') as config_file:
+            
+            dag_file.write(base64.b64encode(cloudpickle.dumps(dag)).decode('utf-8'))
+            config_file.write(base64.b64encode(cloudpickle.dumps(worker_config)).decode('utf-8'))
+            
+            dag_path = dag_file.name
+            config_path = config_file.name
         
         current_script = os.path.abspath(__file__)
         dashboard_process = subprocess.Popen(
-            ["streamlit", "run", current_script, b64_worker_config, b64_dag],
-            stdout=subprocess.PIPE, # Comment to see stdout and stderr from streamlit process here
-            stderr=subprocess.PIPE  # Comment to see stdout and stderr from streamlit process here
+            ["streamlit", "run", current_script, config_path, dag_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
-        
+
         def cleanup():
-            if dashboard_process.poll() is None: # Check if process is still running
+            # try:
+            #     if os.path.exists(dag_path):
+            #         os.unlink(dag_path)
+            #     if os.path.exists(config_path):
+            #         os.unlink(config_path)
+            # except Exception as e:
+            #     print(f"Error deleting temp files: {e}")
+            
+            if dashboard_process.poll() is None: 
                 time.sleep(3) # Give the dashboard time to show it's completed
                 try:
                     dashboard_process.terminate()
@@ -147,16 +162,30 @@ class DAGVisualizationDashboard:
 if __name__ == "__main__":
     from src.worker import Worker
     from src.dag import DAG
+    import sys
+    import base64
+    import cloudpickle
+    
     if len(sys.argv) != 3:
-        raise Exception("Usage: python script.py <b64_config> <b64_subdag>")
+        raise Exception("Usage: python script.py <config_path> <dag_path>")
     
-    # Get the serialized DAG from command-line argument
-    config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
-    dag = cloudpickle.loads(base64.b64decode(sys.argv[2]))
+    try:
+        # Read and decode the config file
+        with open(sys.argv[1], 'r') as config_file:
+            config = cloudpickle.loads(base64.b64decode(config_file.read()))
+        
+        # Read and decode the DAG file
+        with open(sys.argv[2], 'r') as dag_file:
+            dag = cloudpickle.loads(base64.b64decode(dag_file.read()))
+        
+        if not isinstance(config, Worker.Config):
+            raise Exception("Error: config is not a Worker.Config instance")
+        if not isinstance(dag, DAG):
+            raise Exception("Error: dag is not a DAG instance")
+        
+        DAGVisualizationDashboard(dag, config).run_dashboard()
     
-    if not isinstance(config, Worker.Config):
-        raise Exception("Error: config is not a Worker.Config instance")
-    if not isinstance(dag, DAG):
-        raise Exception("Error: dag is not a DAG instance")
-    
-    DAGVisualizationDashboard(dag, config).run_dashboard()
+    except FileNotFoundError as e:
+        raise Exception(f"Temp file not found: {e}")
+    except Exception as e:
+        raise Exception(f"Error loading dashboard data: {e}")

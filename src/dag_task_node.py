@@ -24,16 +24,16 @@ class DAGTaskNodeId:
 
     def __init__(self, function_name: str, task_id: str | None = None):
         self.function_name = function_name
-        self.task_id = task_id or str(uuid.uuid4())[:4]
+        self.task_id = task_id or str(uuid.uuid4())
 
-    def get_full_id(self) -> str: 
+    def get_full_id(self) -> str:
         return f"{self.function_name}-{self.task_id}"
     
-    # can't be typed because or circular import error......
-    def get_full_id_in_dag(self, dag: Any) -> str: 
+    # can't be typed because of circular import error.......
+    def get_full_id_in_dag(self, dag: Any) -> str:
         return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
-# Needed to distinguish a result=None (if R allows it) from NO result
+# Needed to distinguish a result=None (if R allows it) from "NO result yet"
 # @dataclass
 # class _CachedResultWrapper(Generic[R]):
 #     result: R
@@ -108,7 +108,7 @@ class DAGTaskNode(Generic[R]):
         _config: Worker.Config = config
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
-        logger.info(f"Created DAG in {time.time() - _start_time:.4f} seconds")
+        logger.warning(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {time.time() - _start_time:.4f} seconds")
         return dag_representation.compute(_config, open_dashboard)
 
     def visualize_dag(self, output_file="dag_graph.png", open_after: bool = True):
@@ -124,7 +124,7 @@ class DAGTaskNode(Generic[R]):
         if self.id.task_id in cloned_nodes:
             return cloned_nodes[self.id.task_id]
 
-        cloned_node = copy.deepcopy(self) # needs to be deepcopy
+        cloned_node = copy.copy(self) # ! needs to be deepcopy?? bad performance
         cloned_nodes[self.id.task_id] = cloned_node
 
         # Clone the upstream and downstream nodes

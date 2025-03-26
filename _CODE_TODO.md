@@ -1,5 +1,9 @@
-- Allow dynamic fan-outs? Tasks that return iterables
-- Local execution isn't parallel (LocalWorker.delegate() is blocking)
+- Tree reduction 512 can't be sent to container Docker. Argument too long
+    Send the entire dag to Storage and the invocation only contains the task id where the worker should start from
+
+- Add support for a DAGTaskNode to be a DAG itself (handle DAG completion differently?)
+    - Is this necessary to allow Dynamic multi-level fan-outs? 1 - N (each of {N} fans-out to {X} or even to {1}) [currently_not_supported]
+
 - BUG: After removing a fake sink node, go back to its upstream nodes and check them after this removal
     could be a chain of tasks that don't endup in the sink
     maybe change algorithm to check paths instead of individual nodes (if a path doesn't end up at the sink node, delete it)

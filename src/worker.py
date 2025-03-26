@@ -22,6 +22,7 @@ class Worker(ABC):
     @dataclass
     class Config(ABC):
         intermediate_storage_config: intermediate_storage_module.Storage.Config
+        metadata_storage_config: intermediate_storage_module.Storage.Config | None = None
         
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -30,8 +31,9 @@ class Worker(ABC):
     worker_id: str
 
     def __init__(self, config: Config):
-        self.worker_id = str(uuid.uuid4())[:4]
+        self.worker_id = str(uuid.uuid4())
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
+        self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
 
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
@@ -54,7 +56,7 @@ class Worker(ABC):
                     logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks")
                     for dependency_task in task.upstream_nodes:
                         if dependency_task.is_dynamic_fan_out_representative:
-                            fanout_ids = self.intermediate_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")
+                            fanout_ids = self.metadata_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")
                             if fanout_ids is None: raise Exception(f"[BUG] Dynamic fan-out ids for {dependency_task.id.get_full_id_in_dag(subdag)}'s are not available")
                             fanout_ids: list[str] = cloudpickle.loads(fanout_ids) # type: ignore
                             # Dynamic Fan-outs: "reduce" phase
@@ -80,17 +82,17 @@ class Worker(ABC):
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => [{[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}]")
+                self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 
                 for downstream_task in task.downstream_nodes:
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
-                    dependencies_met = self.intermediate_storage.atomic_increment_and_get(dc_key)
+                    dependencies_met = self.metadata_storage.atomic_increment_and_get(dc_key)
 
                     downstream_task_total_dependencies = 0
                     for unode in subdag.get_node_by_id(downstream_task.id).upstream_nodes:
                         if unode.is_dynamic_fan_out_representative:
-                            fan_out_task_ids = self.intermediate_storage.get(f"dynamic-fanout-ids-{unode.id.get_full_id_in_dag(subdag)}")
+                            fan_out_task_ids = self.metadata_storage.get(f"dynamic-fanout-ids-{unode.id.get_full_id_in_dag(subdag)}")
                             if fan_out_task_ids is None: break # A fan-out that this DT depends on was not created yet. {downstream_task} is def. not ready
                             fan_out_task_ids = cloudpickle.loads(fan_out_task_ids)
                             downstream_task_total_dependencies += len(fan_out_task_ids)
@@ -122,7 +124,7 @@ class Worker(ABC):
                                 node.upstream_nodes = downstream_task.upstream_nodes
                                 node.downstream_nodes = downstream_task.downstream_nodes
                                 ready_downstream.append(node)
-                            self.intermediate_storage.set(f"dynamic-fanout-ids-{downstream_task.id.get_full_id_in_dag(subdag)}", cloudpickle.dumps(fanout_task_ids))
+                            self.metadata_storage.set(f"dynamic-fanout-ids-{downstream_task.id.get_full_id_in_dag(subdag)}", cloudpickle.dumps(fanout_task_ids))
 
                 # Delegate Downstream Tasks Execution
                 ## 1 Task ?: the same worker continues with it
@@ -191,7 +193,7 @@ class Worker(ABC):
                 if final_result is not None:
                     final_result = cloudpickle.loads(final_result) # type: ignore
                     end_time = time.time()
-                    logger.info(f"Final Result Ready: ({task_id}) => Size: {len(final_result)} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
+                    logger.info(f"Final Result Ready: ({task_id}) => Size: {len(str(final_result))} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
                     return final_result
 
     def log(self, task_id: str, message: str):
@@ -215,12 +217,12 @@ class LocalWorker(Worker):
        self.local_config = config
     
     async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration = ResourceConfiguration.small(), called_by_worker: bool = True):
-        await self.start_executing(subdag)
+        await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
     @dataclass
     class Config(Worker.Config):
-        docker_gateway_address: str
+        docker_gateway_address: str = "http://localhost:5000"
         
         def create_instance(self) -> "DockerWorker":
             return DockerWorker(self)

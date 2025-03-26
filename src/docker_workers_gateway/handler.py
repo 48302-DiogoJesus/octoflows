@@ -17,7 +17,7 @@ import src.docker_workers_gateway.container_pool_executor as container_pool_exec
 logger = create_logger(__name__)
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker/worker.py"
-MAX_CONCURRENT_TASKS = 10
+MAX_CONCURRENT_TASKS = 20
 
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
@@ -36,7 +36,7 @@ def process_job_async(resource_configuration: ResourceConfiguration, base64_conf
     Process a job asynchronously.
     This function will be run in a separate thread.
     """
-    job_id = str(uuid.uuid4())[:4]
+    job_id = str(uuid.uuid4())
 
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())

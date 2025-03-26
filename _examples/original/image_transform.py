@@ -1,11 +1,11 @@
 import os
 import sys
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 import numpy as np
 import io
 from typing import List, Tuple
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
 from src.worker import DockerWorker, LocalWorker
@@ -57,10 +57,7 @@ def determine_chunks_amount(image_data: bytes) -> int:
     image = Image.open(io.BytesIO(image_data)).convert("RGB")
     width, _ = image.size
     
-    if width <= 256:
-        return 1
-    else:
-        return min(width // 256, 10)
+    return min(width // 64, 10)
 
 @DAGTask
 def split_image(image_data: bytes, num_chunks: int = 4) -> list[bytes]:
@@ -76,15 +73,32 @@ def split_image(image_data: bytes, num_chunks: int = 4) -> list[bytes]:
     
     return chunk_bytes
 
+def add_border_to_image(image: Image.Image, border_width: int = 2, border_color: str = "black") -> Image.Image:
+    return ImageOps.expand(image, border=border_width, fill=border_color)
+
 @DAGTask
 def grayscale_image_part(chunk_data: bytes) -> bytes:
     """Convert a single image chunk to grayscale"""
     image = Image.open(io.BytesIO(chunk_data))
     grayscale = image.convert('L')
+    grayscale = add_border_to_image(grayscale)
     
     byte_arr = io.BytesIO()
     grayscale.save(byte_arr, format=image.format)
     return byte_arr.getvalue()
+
+@DAGTask
+def blur_image_part(chunk_data: bytes, blur_radius: int = 3) -> bytes:
+    image = Image.open(io.BytesIO(chunk_data))
+    blurred_img = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    blurred_img = add_border_to_image(blurred_img)
+
+    # Save blurred image to bytes
+    blurred_bytes = io.BytesIO()
+    blurred_img.save(blurred_bytes, format=image.format)
+    blurred_bytes.seek(0)
+    
+    return blurred_bytes.getvalue()
 
 @DAGTask
 def merge_image_parts(processed_chunks: List[bytes]) -> bytes:
@@ -97,29 +111,19 @@ def merge_image_parts(processed_chunks: List[bytes]) -> bytes:
     combined.save(byte_arr, format=images[0].format)
     return byte_arr.getvalue()
 
-@DAGTask
-def blur_image_part(chunk_data: bytes, blur_radius: int = 5) -> bytes:
-    image = Image.open(io.BytesIO(chunk_data))
-    blurred_img = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-    
-    # Save blurred image to bytes
-    blurred_bytes = io.BytesIO()
-    blurred_img.save(blurred_bytes, format=image.format)
-    blurred_bytes.seek(0)
-    
-    return blurred_bytes.getvalue()
-
 # WORKFLOW DEFINITION
 if __name__ == "__main__":
     image_data: bytes = open("test_image.jpg", "rb").read()
 
     num_chunks = determine_chunks_amount(image_data)
     chunks = split_image(image_data, num_chunks)
-    processed_chunks = chunks.map(grayscale_image_part)
+    chunks = chunks.compute(config=localWorkerConfig)
+    
+    # processed_chunks = chunks.map(grayscale_image_part)
+    processed_chunks = [grayscale_image_part(chunk) for chunk in chunks]
+
     final_image = merge_image_parts(processed_chunks)
-
-    # final_image.visualize_dag(open_after=True)
-
+    final_image.visualize_dag(open_after=True)
     final_image = final_image.compute(config=localWorkerConfig)
 
     image = Image.open(io.BytesIO(final_image))

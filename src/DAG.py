@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Any
 import uuid
 import graphviz
@@ -12,7 +13,7 @@ logger = create_logger(__name__)
 class DAG:
     def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_node: dag_task_node.DAGTaskNode | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
-        self.master_dag_id = master_dag_id or str(uuid.uuid4())[:4]
+        self.master_dag_id = master_dag_id or str(uuid.uuid4())
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_node:
             self.root_nodes = None
@@ -25,7 +26,7 @@ class DAG:
             self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_node_from_sink(self.sink_node)
             if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
             self.root_node = self.root_nodes[0]
-            DAG._eliminate_fake_sink_nodes_references(self._all_nodes, self.sink_node)
+            # DAG._eliminate_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
     def compute(self, config, open_dashboard: bool = False):
@@ -37,16 +38,16 @@ class DAG:
         async def internal():
             if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
 
+            if open_dashboard:
+                if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
+                    raise Exception("Can't use dashboard when using in-memory storage!")
+                vis.DAGVisualizationDashboard.start(self, _wk_config)
+            
             for root_node in self.root_nodes:
                 asyncio.create_task(wk.delegate(
                     self.create_subdag(root_node),
                     resource_configuration=ResourceConfiguration.small()
                 ))
-            
-            if open_dashboard:
-                if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
-                    raise Exception("Can't use dashboard when using in-memory storage!")
-                vis.DAGVisualizationDashboard.start(self, _wk_config)
 
             #! "await" is needed here
             logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
