@@ -81,9 +81,9 @@ if __name__ == "__main__":
 
     start_time = time.time()
     # ! Not included in the workflow, not @DAGTask
-    a_chunks = create_matrix_chunks(matrix_a, row_chunk_size=CHUNK_SIZE, col_chunk_size=CHUNK_SIZE)
+    a_chunks = create_matrix_chunks(matrix_a, row_chunk_size=CHUNK_SIZE, col_chunk_size=matrix_a.shape[1])
     # ! Not included in the workflow, not @DAGTask
-    b_chunks = create_matrix_chunks(matrix_b, row_chunk_size=CHUNK_SIZE, col_chunk_size=CHUNK_SIZE)
+    b_chunks = create_matrix_chunks(matrix_b, row_chunk_size=matrix_b.shape[0], col_chunk_size=CHUNK_SIZE)
     print(f"Created {len(a_chunks) + len(b_chunks)} chunks for matrices in {time.time() - start_time:.4f} seconds")
 
     start_time = time.time()
@@ -99,11 +99,7 @@ if __name__ == "__main__":
 
     # distributed_result.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "gemm"), open_after=True)
 
-    correct_result = np.matmul(matrix_a, matrix_b)
-
     start_time = time.time()
     distributed_result = distributed_result.compute(config=localWorkerConfig)
     print(f"GEMM completed in {time.time() - start_time:.4f} seconds")
-    print(f"Is Multiplication correct: {np.allclose(correct_result, distributed_result)}")
-    print(f"Correct Result: {correct_result}")
-    print(f"Distributed Result: {distributed_result}")
+    print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)}")
