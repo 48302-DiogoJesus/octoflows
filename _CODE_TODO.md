@@ -1,6 +1,9 @@
 - Implement similar WUKONG algorithms
     - GEMM
 
+- Make compute() return a Future so that users can execute multiple independent workflows in parallel and grab their results
+    can test on wordcount, image_transform, gemmm
+
 - Can I currently support a workflow where image is divided into fixed chunks, MULTIPLE transformations (separate "DAGTasks") are applied to each branch and then fan-in to build final image
 
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
