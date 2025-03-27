@@ -40,5 +40,5 @@ def test_tree_reduction_2048():
         start_time = time.time()
         # result = sink.compute(config=localWorkerConfig)
         result = sink.compute(config=get_worker_config())
-        assert result == 8386560
+        assert result == 2096128
         logger.info(f"[{i}] Result: ${result} | Makespan: {time.time() - start_time}s")

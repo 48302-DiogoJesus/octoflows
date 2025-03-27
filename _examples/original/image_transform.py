@@ -119,8 +119,11 @@ if __name__ == "__main__":
     chunks = split_image(image_data, num_chunks)
     chunks = chunks.compute(config=localWorkerConfig)
     
-    # processed_chunks = chunks.map(grayscale_image_part)
-    processed_chunks = [grayscale_image_part(chunk) for chunk in chunks]
+    processed_chunks = []
+    for chunk in chunks:
+        grayscaled = grayscale_image_part(chunk)
+        blurred = blur_image_part(grayscaled)
+        processed_chunks.append(blurred)
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)

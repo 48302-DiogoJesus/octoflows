@@ -1,15 +1,13 @@
-- Run all tests on Docker
-- Implement SVD1 and SVD2
+- Implement SVD1 and SVD2?
+
 - Make compute() return a Future? so that users can execute multiple independent workflows in parallel and grab their results
     can test on wordcount, image_transform, gemmm
-
-- Can I currently support a workflow where image is divided into fixed chunks, MULTIPLE transformations (separate "DAGTasks") are applied to each branch and then fan-in to build final image
 
 - Create more tests for more complex and edge case DAG structures + DAG compute tests
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
-- Create another field (metadata_storage) but pass it the same DB while in development
-    - Collect metrics (make them persistent in Redis)
+- Change the worker_config.metadata_storage to `MetadataStorage(Storage)`
+    - Collect metrics (make them PERSISTENT in Redis)
         Execution time
         Input data size
         Output data size
@@ -18,8 +16,9 @@
         Which worker id executed it
         Visualization capabilities (separate program that creates graphics)
         Upload them efficiently
+- A way to analyse important metrics from stored data. Separate python program that reads redis and creates dashboard
 
-## Performance Optimizations
+## Performance Optimizations (after MetadataStorage metrics can be analyzed)
 - See where it's suitable to use storage in an async way (make the storage implementations offer "sync" and "async" functions)
     - Parallelize
 - Local implementation is slower than Dasks (e.g., Tree Reduction): could hint at some internal structure inneficiencies
