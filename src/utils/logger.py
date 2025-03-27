@@ -4,7 +4,7 @@ import sys
 def create_logger(name: str):
     logger = logging.getLogger(name)
     if not logger.hasHandlers():
-        level = logging.WARNING
+        level = logging.INFO
         logger.setLevel(level)
         
         console_handler = logging.StreamHandler(sys.stdout)

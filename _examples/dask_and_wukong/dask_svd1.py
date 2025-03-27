@@ -3,7 +3,7 @@ import dask.array as da
 
 # Create a random Dask array
 # Example: 1000x500 matrix
-X = da.random.random((200000, 1000), chunks=(10000, 1000))
+X = da.random.random((200_000, 1_000), chunks=(10_000, 1_000))
 u, s, v = da.linalg.svd(X)
 
 # Start the computation.
