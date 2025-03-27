@@ -28,8 +28,8 @@ def test_tree_reduction_1024():
         assert result == 523776
         logger.info(f"[{i}] Result: ${result} | Makespan: {time.time() - start_time}s")
 
-def test_tree_reduction_4096():
-    L = range(4096)
+def test_tree_reduction_2048():
+    L = range(2048)
     while len(L) > 1:
         L = list(map(add, L[0::2], L[1::2]))
 

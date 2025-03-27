@@ -1,9 +1,11 @@
+- Run all tests on Docker
 - Implement SVD1 and SVD2
 - Make compute() return a Future? so that users can execute multiple independent workflows in parallel and grab their results
     can test on wordcount, image_transform, gemmm
 
 - Can I currently support a workflow where image is divided into fixed chunks, MULTIPLE transformations (separate "DAGTasks") are applied to each branch and then fan-in to build final image
 
+- Create more tests for more complex and edge case DAG structures + DAG compute tests
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
 - Create another field (metadata_storage) but pass it the same DB while in development
@@ -23,7 +25,6 @@
 - Local implementation is slower than Dasks (e.g., Tree Reduction): could hint at some internal structure inneficiencies
 - Local implementation could use threads instead of coroutines? (test to check concurrency errors)
 
-- Create more tests for more complex and edge case DAG structures + DAG compute tests
 - Support more levels: e.g., list[list[DAGTaskNode]]
     Find a better way to iterate through them to avoid repetition
 

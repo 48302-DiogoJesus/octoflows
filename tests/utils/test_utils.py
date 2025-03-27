@@ -18,4 +18,4 @@ dockerWorkerConfig = DockerWorker.Config(
 )
 
 def get_worker_config():
-    return localWorkerConfig
+    return dockerWorkerConfig

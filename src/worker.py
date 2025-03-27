@@ -158,7 +158,7 @@ class Worker(ABC):
         self.log(task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration, called_by_worker: bool = True): 
+    async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -251,7 +251,7 @@ class DockerWorker(Worker):
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
         gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway for subsubdag starting at: {subdag.root_node}")
+        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address})")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
                 gateway_address + "/job", 

@@ -1,7 +1,8 @@
 import os
 import sys
-import time
-# import numpy as np
+
+import numpy as np
+from dask.array import from_array
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.storage.in_memory_storage import InMemoryStorage
@@ -46,7 +47,8 @@ c4 = c(b2)
 
 # c4.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "fanoutsfanins"), open_after=True)
 
-for i in range(1):
-    start_time = time.time()
-    result = c4.compute(config=localWorkerConfig)
-    print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
+print(f"TPLIBS: {c4.third_party_libs}")
+# for i in range(1):
+#     start_time = time.time()
+#     result = c4.compute(config=localWorkerConfig)
+#     print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

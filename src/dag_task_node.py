@@ -53,7 +53,7 @@ class DAGTaskNode(Generic[R]):
         self.upstream_nodes: list[DAGTaskNode] = []
         # self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
-        self.third_party_libs: set[str] = self._find_third_party_libraries()
+        self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
 
         if self.fan_out_idx != -1:
             print(f"Dynamic Fan-Out DAGTaskNode | fan_out_idx: {self.fan_out_idx} | dynamic_fan_out_representative_id: {self.dynamic_fan_out_representative_id} | upstream_len: {len(self.upstream_nodes)} | func_args: {self.func_args}")
@@ -83,22 +83,24 @@ class DAGTaskNode(Generic[R]):
                     self.upstream_nodes.append(item)
                     item.downstream_nodes.append(self)
 
-    def _find_third_party_libraries(self) -> set[str]:
+    def _find_third_party_libraries(self, exlude_libs: set[str] = set()) -> set[str]:
         func_file_path = inspect.getfile(self.func_code)
         with open(func_file_path, "r") as file:
             tree = ast.parse(file.read(), filename=func_file_path)
 
-        imports = set[str]()
+        imports = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                for alias in node.names: imports.add(alias.name)
+                for alias in node.names: 
+                    imports.add(alias.name.split('.')[0])  # Only take top-level package
             elif isinstance(node, ast.ImportFrom):
                 module = node.module
-                if module: imports.add(module)
+                if module: 
+                    imports.add(module.split('.')[0])  # Only take top-level package
 
         return {
             module for module in imports
-            if not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
+            if module not in exlude_libs and not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
         }
 
     """ config: worker.Worker.Config """
@@ -226,7 +228,10 @@ class DAGTaskNode(Generic[R]):
         
         if missing_modules:
             logger.info(f"Installing missing modules: {', '.join(missing_modules)}")
-            subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Failed to install {', '.join(missing_modules)}: {e}")
             
             for module in missing_modules:
                 try:

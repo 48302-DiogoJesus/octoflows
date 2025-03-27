@@ -44,10 +44,12 @@ class DAG:
                     raise Exception("Can't use dashboard when using in-memory storage!")
                 vis.DAGVisualizationDashboard.start(self, _wk_config)
             
+            logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
             for root_node in self.root_nodes:
                 asyncio.create_task(wk.delegate(
                     self.create_subdag(root_node),
-                    resource_configuration=ResourceConfiguration.small()
+                    resource_configuration=ResourceConfiguration.small(),
+                    called_by_worker=False
                 ))
 
             #! "await" is needed here

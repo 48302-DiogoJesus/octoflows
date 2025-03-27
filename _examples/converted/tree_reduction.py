@@ -27,12 +27,12 @@ def add(x: float, y: float) -> float:
     return x + y
 
 # Define the workflow
-L = range(1024)
+L = range(4096)
 while len(L) > 1:
   L = list(map(add, L[0::2], L[1::2]))
 
 sink: DAGTaskNode = L[0] # type: ignore
-sink.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "tree_reduction"), open_after=True)
+# sink.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "tree_reduction"), open_after=True)
 
 for i in range(1):
     start_time = time.time()
