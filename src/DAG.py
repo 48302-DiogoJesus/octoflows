@@ -29,38 +29,36 @@ class DAG:
             DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
-    def compute(self, config, open_dashboard: bool = False):
+    async def compute(self, config, open_dashboard: bool = False):
         from src.worker import Worker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.resource_configuration import ResourceConfiguration
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
-        async def internal():
-            if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
-            Worker.store_full_dag(wk.metadata_storage, self)
+        if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
+        Worker.store_full_dag(wk.metadata_storage, self)
 
-            if open_dashboard:
-                if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
-                    raise Exception("Can't use dashboard when using in-memory storage!")
-                vis.DAGVisualizationDashboard.start(self, _wk_config)
-            
-            logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
-            for root_node in self.root_nodes:
-                asyncio.create_task(wk.delegate(
-                    self.create_subdag(root_node),
-                    resource_configuration=ResourceConfiguration.small(),
-                    called_by_worker=False
-                ))
+        if open_dashboard:
+            if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
+                raise Exception("Can't use dashboard when using in-memory storage!")
+            vis.DAGVisualizationDashboard.start(self, _wk_config)
+        
+        logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
+        for root_node in self.root_nodes:
+            asyncio.create_task(wk.delegate(
+                self.create_subdag(root_node),
+                resource_configuration=ResourceConfiguration.small(),
+                called_by_worker=False
+            ))
 
-            #! "await" is needed here
-            logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
-            res = await Worker.wait_for_result_of_task(
-                wk.intermediate_storage, # type: ignore
-                self.sink_node,
-                self
-            )
-            return res
-        return asyncio.run(internal())
+        #! "await" is needed here
+        logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
+        res = await Worker.wait_for_result_of_task(
+            wk.intermediate_storage, # type: ignore
+            self.sink_node,
+            self
+        )
+        return res
     
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_node=root_node)

@@ -7,15 +7,14 @@
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
 - Change the worker_config.metadata_storage to `MetadataStorage(Storage)`
-    - Collect metrics (make them PERSISTENT in Redis)
-        Execution time
-        Input data size
-        Output data size
-        Data download time
-        Data upload time
-        Which worker id executed it
+    - Collect metrics as Events (make them PERSISTENT in Redis):
+        TaskExecutionMetrics(worker_id, execution_time, input_data_size, output_data_size, input_download_time, output_upload_size)
         Visualization capabilities (separate program that creates graphics)
-        Upload them efficiently
+        Metrics upload strategy configurable in the `MetadataStorage` class:
+            before worker shutdown (all do these)
+            after each task
+            periodic (X seconds)
+            after queue fills up (X queue size)
 - A way to analyse important metrics from stored data. Separate python program that reads redis and creates dashboard
 
 ## Performance Optimizations (after MetadataStorage metrics can be analyzed)

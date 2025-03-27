@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from PIL import Image, ImageFilter, ImageOps
@@ -112,11 +113,12 @@ def merge_image_parts(processed_chunks: List[bytes]) -> bytes:
     return byte_arr.getvalue()
 
 # WORKFLOW DEFINITION
-if __name__ == "__main__":
+def main():
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
 
     num_chunks = determine_chunks_amount(image_data)
     chunks = split_image(image_data, num_chunks)
+    # chunks = chunks.compute(config=localWorkerConfig)
     chunks = chunks.compute(config=localWorkerConfig)
     
     processed_chunks = []
@@ -131,3 +133,7 @@ if __name__ == "__main__":
 
     image = Image.open(io.BytesIO(final_image))
     image.show()
+
+if __name__ == "__main__":
+    # asyncio.run(main())
+    main()
