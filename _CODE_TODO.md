@@ -6,11 +6,6 @@
 
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
-- BUG: After removing a fake sink node, go back to its upstream nodes and check them after this removal
-    could be a chain of tasks that don't endup in the sink
-    maybe change algorithm to check paths instead of individual nodes (if a path doesn't end up at the sink node, delete it)
-    INSTEAD OF REMOVING THEM. THROW ERROR AT CLIENT!
-
 - Create another field (metadata_storage) but pass it the same DB while in development
     - Collect metrics (make them persistent in Redis)
         Execution time

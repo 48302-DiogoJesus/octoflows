@@ -74,7 +74,7 @@ class Worker(ABC):
                 # 2. EXECUTE TASK
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to {task.id.get_full_id_in_dag(subdag)}")
+                self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), cloudpickle.dumps(task_result))
 
                 if len(task.downstream_nodes) == 0: 

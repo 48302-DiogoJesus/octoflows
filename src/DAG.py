@@ -26,7 +26,7 @@ class DAG:
             self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_node_from_sink(self.sink_node)
             if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
             self.root_node = self.root_nodes[0]
-            # DAG._eliminate_fake_sink_nodes_references(self._all_nodes, self.sink_node)
+            DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
     def compute(self, config, open_dashboard: bool = False):
@@ -140,14 +140,25 @@ class DAG:
         return all_nodes, root_nodes
 
     @staticmethod
-    def _eliminate_fake_sink_nodes_references(all_nodes: dict[str, dag_task_node.DAGTaskNode], real_sink_node: dag_task_node.DAGTaskNode):
+    def _check_for_fake_sink_nodes_references(all_nodes: dict[str, dag_task_node.DAGTaskNode], real_sink_node: dag_task_node.DAGTaskNode):
         # _find_all_nodes_and_root_nodes_from_sink() should NOT find sink nodes, but some valid nodes may point (DOWNESTREAM ONLY) to the fake sink nodes (no downstream nodes)
-        for _, node in all_nodes.items():
-            node.downstream_nodes = [
-                node
-                for node in node.downstream_nodes
-                if len(node.downstream_nodes) > 0 or node.id.get_full_id() == real_sink_node.id.get_full_id()
-            ]
+        def recursive_find_invalid_sink_nodes(node: dag_task_node.DAGTaskNode, visited: set[str] | None = None):
+            if visited is None:
+                visited = set()
+            
+            node_id = node.id.get_full_id()
+            if node_id in visited: return
+            visited.add(node_id)
+            
+            if not node.downstream_nodes and node_id != real_sink_node.id.get_full_id():
+                raise Exception(f"[ClientError] Invalid DAG! There can only be one sink node. Found more that 1 node with 0 downstream tasks (function_name={node.func_name})!")
+            
+            # Recursively check downstream nodes
+            for downstream_node in node.downstream_nodes:
+                recursive_find_invalid_sink_nodes(downstream_node, visited)
+    
+        for node in all_nodes.values():
+            recursive_find_invalid_sink_nodes(node)
 
     @staticmethod
     def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:
@@ -191,7 +202,7 @@ class DAG:
         dot.attr(rankdir="LR")  # Layout from left to right
         
         all_nodes, root_nodes = cls._find_all_nodes_and_root_node_from_sink(sink_node)
-        cls._eliminate_fake_sink_nodes_references(all_nodes, sink_node)
+        cls._check_for_fake_sink_nodes_references(all_nodes, sink_node)
         
         def print_argument(arg):
             if isinstance(arg, dag_task_node.DAGTaskNode) or isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
