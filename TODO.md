@@ -1,6 +1,3 @@
-- Try executing with sync client again
-- parallelize writes with threads (management on the storage client)
-
 - Create more tests for more complex and edge case DAG structures + DAG compute tests
 - Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
