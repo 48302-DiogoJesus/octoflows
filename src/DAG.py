@@ -58,6 +58,8 @@ class DAG:
             self.sink_node,
             self
         )
+
+        if wk.metrics_storage_config: wk.metrics_storage_config.flush()
         return res
     
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":

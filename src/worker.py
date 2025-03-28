@@ -11,6 +11,8 @@ import aiohttp
 from abc import ABC, abstractmethod
 
 from src.resource_configuration import ResourceConfiguration
+from src.storage.metrics import metrics_storage
+from src.storage.metrics.metrics_storage import TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
 import src.dag as dag
 import src.dag_task_node as dag_task_node
@@ -23,6 +25,7 @@ class Worker(ABC):
     class Config(ABC):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
+        metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
         
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -34,10 +37,18 @@ class Worker(ABC):
         self.worker_id = str(uuid.uuid4())
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
+        self.metrics_storage_config = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
 
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         task = subdag.root_node
+        task_metrics = TaskMetrics(
+            worker_id = self.worker_id,
+            execution_time = -1,
+            input_metrics = [],
+            output_metrics = None,
+            downstream_invocation_times = None,
+        )
 
         try:
             while True:
@@ -49,33 +60,61 @@ class Worker(ABC):
                     if len(task.upstream_nodes) != 1: raise Exception(f"task: {task.id.get_full_id_in_dag(subdag)} Dynamic fan-out tasks can only have 1 upstream task. Got {len(task.upstream_nodes)}")
                     dependency_task = task.upstream_nodes[0]
                     logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
+                    timer = time.time()
                     task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                    # ! This is a dynamic fan-out. Metrics should differentiate if this feature is not removed
+                    task_metrics.input_metrics.append(TaskInputMetrics(
+                        task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                        size=len(task_output),
+                        time=time.time() - timer
+                    ))
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)[task.fan_out_idx]
                 else:
                     logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks")
                     for dependency_task in task.upstream_nodes:
                         if dependency_task.is_dynamic_fan_out_representative:
-                            fanout_ids = self.metadata_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")
-                            if fanout_ids is None: raise Exception(f"[BUG] Dynamic fan-out ids for {dependency_task.id.get_full_id_in_dag(subdag)}'s are not available")
-                            fanout_ids: list[str] = cloudpickle.loads(fanout_ids) # type: ignore
+                            fanout_task_ids = self.metadata_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")
+                            if fanout_task_ids is None: raise Exception(f"[BUG] Dynamic fan-out ids for {dependency_task.id.get_full_id_in_dag(subdag)}'s are not available")
+                            fanout_task_ids: list[str] = cloudpickle.loads(fanout_task_ids) # type: ignore
                             # Dynamic Fan-outs: "reduce" phase
                             aggregated_outputs = []
-                            for fanout_id in fanout_ids:
-                                task_output = self.intermediate_storage.get(fanout_id)
-                                if task_output is None: raise Exception(f"[BUG] Dynamic fan-out task {fanout_id}'s data is not available")
+                            for fanout_task_id in fanout_task_ids:
+                                timer = time.time()
+                                task_output = self.intermediate_storage.get(fanout_task_id)
+                                if task_output is None: raise Exception(f"[BUG] Dynamic fan-out task {fanout_task_id}'s data is not available")
+                                # ! need to think about how to handle dynamic fan-out reduce phase metrics collection
+                                # task_metrics.input_metrics.append(TaskIOMetrics(
+                                #     task_id=dependency_task.id.get_full_id_in_dag(dynamic_fanout_size),
+                                #     size=len(task_output),
+                                #     time=time.time() - timer
+                                # ))
                                 aggregated_outputs.append(cloudpickle.loads(task_output))
                             task_dependencies[dependency_task.id.get_full_id()] = aggregated_outputs
                         else:
+                            timer = time.time()
                             task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                            task_metrics.input_metrics.append(TaskInputMetrics(
+                                task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                                size=len(task_output),
+                                time=time.time() - timer
+                            ))
                             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
                 # 2. EXECUTE TASK
+                timer = time.time()
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
+                task_metrics.execution_time = time.time() - timer
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
-                self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), cloudpickle.dumps(task_result))
+                timer = time.time()
+                task_result_serialized = cloudpickle.dumps(task_result)
+                self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
+                task_metrics.output_metrics = TaskOutputMetrics(
+                    size=len(task_result_serialized),
+                    time=time.time() - timer
+                )
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
@@ -130,6 +169,7 @@ class Worker(ABC):
                 ## 1 Task ?: the same worker continues with it
                 if len(ready_downstream) == 0:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
+                    if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break  # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
@@ -137,15 +177,20 @@ class Worker(ABC):
                 tasks_to_delegate = ready_downstream[1:]
                 coroutines = []
                 
+                task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
                     self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
+                    timer = time.time()
                     coroutines.append(self.delegate(
-                        subdag.create_subdag(t), 
-                        resource_configuration=ResourceConfiguration.medium(), 
+                        subdag.create_subdag(t),
+                        resource_configuration=ResourceConfiguration.medium(),
                         called_by_worker=True
                     ))
+                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time=time.time() - timer))
                 
                 await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+
+                if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
 
                 # Continue with one task in this worker
                 self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")

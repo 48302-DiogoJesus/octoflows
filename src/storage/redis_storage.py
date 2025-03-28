@@ -27,7 +27,9 @@ class RedisStorage(storage.Storage):
                 port=self.redis_config.port,
                 db=0,
                 password=self.redis_config.password,
-                decode_responses=False # Necessary to allow serialized bytes
+                decode_responses=False, # Necessary to allow serialized bytes
+                socket_connect_timeout=5,
+                socket_timeout=5
             )
             return self._connection
 
