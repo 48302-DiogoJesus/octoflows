@@ -1,284 +1,329 @@
 import os
 import sys
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import cloudpickle
 import redis
+import cloudpickle
 import graphviz
 from typing import Optional
+from dataclasses import asdict
+import pandas as pd
+import plotly.express as px
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.storage.metrics.metrics_storage import TaskMetrics
 
-# Redis connection configuration
-METRICS_KEY_PREFIX = "metrics-storage-"
-DAG_KEY_PREFIX = "dag-"
-
-def get_metrics_storage_redis_connection():
-    """Create and return a Redis connection for metrics (port 6380)"""
+# Redis connection setup
+def get_redis_connection(port: int = 6379):
     return redis.Redis(
-        host="localhost",
-        port=6380,
-        password="redisdevpwd123",
-        db=0,
+        host='localhost',
+        port=port,
+        password='redisdevpwd123',
         decode_responses=False
     )
 
-def get_dag_storage_redis_connection():
-    """Create and return a Redis connection for DAG information (port 6379)"""
-    return redis.Redis(
-        host="localhost",
-        port=6379,
-        password="redisdevpwd123",
-        db=0,
-        decode_responses=False
+def format_bytes(size: float) -> str:
+    """Convert bytes to human-readable format"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size < 1024.0:
+            return f"{size:.2f} {unit}"
+        size /= 1024.0
+    return f"{size:.2f} TB"
+
+def get_function_group(task_id: str, func_name: str) -> str:
+    """Extract the function group from task ID and function name"""
+    # For tasks like "grayscale_image_part-1e783776-abe4-4e1a-8ec2-81df12192b0b"
+    # we want to group them as "grayscale_image_part"
+    if '-' in task_id:
+        base_part = task_id.split('-')[0]
+        if base_part.startswith(func_name.split('_')[0]):
+            return base_part
+    return func_name
+
+# Main app
+def main():
+    st.title("DAG Visualization Dashboard")
+    
+    # Connect to Redis
+    dag_redis = get_redis_connection(6379)
+    metrics_redis = get_redis_connection(6380)
+    
+    # Get all DAG keys
+    dag_keys = [key for key in dag_redis.keys() if key.startswith(b'dag-')]
+    
+    if not dag_keys:
+        st.warning("No DAGs found in Redis")
+        return
+    
+    # Select DAG - use session state to track changes
+    if 'prev_dag_key' not in st.session_state:
+        st.session_state.prev_dag_key = None
+    
+    selected_dag_key = st.selectbox(
+        "Select a DAG to visualize",
+        options=dag_keys,
+        format_func=lambda x: x.decode('utf-8')
     )
-
-def get_available_dags(r_dag) -> list[str]:
-    """Get all available DAG IDs from the DAG Redis database"""
-    dag_ids = []
-    for key in r_dag.scan_iter(f"{DAG_KEY_PREFIX}*"):
-        try:
-            dag_id = key.decode().replace(DAG_KEY_PREFIX, "")
-            dag_ids.append(dag_id)
-        except Exception as e:
-            st.warning(f"Failed to process DAG key {key}: {str(e)}")
-            continue
-    return sorted(dag_ids)
-
-def load_dag(r_dag, dag_id: str):
-    """Load a DAG from Redis"""
-    key = f"{DAG_KEY_PREFIX}{dag_id}"
-    raw_data = r_dag.get(key)
-    if raw_data:
-        return cloudpickle.loads(raw_data)
-    return None
-
-def load_metrics_for_dag(r_metrics, dag_id: str) -> list[TaskMetrics]:
-    """Load metrics for a specific DAG from the metrics Redis database"""
-    metrics = []
-    pattern = f"{METRICS_KEY_PREFIX}*_{dag_id}"
-    for key in r_metrics.scan_iter(pattern):
-        try:
-            raw_data = r_metrics.get(key)
-            if raw_data:
-                metric = cloudpickle.loads(raw_data)
-                original_key = key.decode()
-                metric.task_id = original_key.replace(METRICS_KEY_PREFIX, "").replace(f"_{dag_id}", "")
-                metrics.append(metric)
-        except Exception as e:
-            st.warning(f"Failed to load metric from key {key}: {str(e)}")
-            continue
-    return metrics
-
-def create_task_metrics_df(metrics_list: list[TaskMetrics]):
-    """Create a pandas DataFrame from a list of TaskMetrics-like objects"""
-    data = []
     
-    for metric in metrics_list:
-        try:
-            input_size = sum([getattr(m, 'size', 0) for m in metric.input_metrics]) if metric.input_metrics else 0
-            input_time = sum([getattr(m, 'time', 0) for m in metric.input_metrics]) if metric.input_metrics else 0
-            downstream = metric.downstream_invocation_times
-            
-            data.append({
-                "task_id": metric.task_id,
-                "worker_id": metric.worker_id,
-                "execution_time_ms": metric.execution_time_ms,
-                "total_input_size": input_size,
-                "total_input_time": input_time,
-                "output_size": metric.output_metrics.size,
-                "output_time_ms": metric.output_metrics.time_ms,
-                "num_downstream_tasks": len(downstream) if downstream else 0
-            })
-        except Exception as e:
-            st.warning(f"Failed to process metric: {str(e)}")
-            continue
+    # Reset task selection if DAG changed
+    if selected_dag_key != st.session_state.prev_dag_key:
+        if 'selected_task_id' in st.session_state:
+            del st.session_state.selected_task_id
+        st.session_state.prev_dag_key = selected_dag_key
     
-    return pd.DataFrame(data)
-
-def visualize_dag(dag, selected_task_id: Optional[str] = None):
-    """Create a Graphviz visualization of the DAG with optional highlighting"""
+    # Deserialize DAG
+    try:
+        dag_data = dag_redis.get(selected_dag_key)
+        dag = cloudpickle.loads(dag_data)
+    except Exception as e:
+        st.error(f"Failed to deserialize DAG: {e}")
+        return
+    
+    # Create graph visualization
+    st.subheader("DAG Structure")
     dot = graphviz.Digraph()
-    dot.attr(rankdir='LR')  # Left to right layout
     
-    # Add all nodes
+    # Add all nodes to the graph
     for node_id, node in dag._all_nodes.items():
-        # Simplify the label to show just the task name
-        label = node.id.task_id
-        
-        # Highlight the selected node
-        if selected_task_id and node.id.task_id == selected_task_id:
-            dot.node(node_id, label, style='filled', fillcolor='lightblue', shape='box')
-        else:
-            dot.node(node_id, label, shape='box')
+        label = f"{node.func_name}\\n({node_id})"
+        dot.node(node_id, label=label)
     
     # Add all edges
-    for node in dag._all_nodes.values():
+    for node_id, node in dag._all_nodes.items():
         for downstream_node in node.downstream_nodes:
-            dot.edge(node.id.get_full_id(), downstream_node.id.get_full_id())
+            dot.edge(node_id, downstream_node.id.get_full_id())
     
-    return dot
-
-def show_task_details(metrics: TaskMetrics, dag_node):
-    """Display detailed information about a specific task"""
-    st.write(f"**Task ID:** {dag_node.id.task_id}")
-    st.write(f"**Function Name:** {dag_node.func_name}")
-    st.write(f"**Worker ID:** {metrics.worker_id}")
-    st.write(f"**Execution Time:** {metrics.execution_time_ms}ms")
+    st.graphviz_chart(dot)
     
-    # Show upstream/downstream relationships
-    st.write("**DAG Relationships:**")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("**Upstream Tasks:**")
-        if dag_node.upstream_nodes:
-            for upstream in dag_node.upstream_nodes:
-                st.write(f"- {upstream.id.task_id}")
-        else:
-            st.write("None (Root task)")
+    # DAG-level metrics section
+    st.subheader("DAG Performance Metrics")
     
-    with col2:
-        st.write("**Downstream Tasks:**")
-        if dag_node.downstream_nodes:
-            for downstream in dag_node.downstream_nodes:
-                st.write(f"- {downstream.id.task_id}")
-        else:
-            st.write("None (Sink task)")
+    # Collect all metrics for this DAG
+    dag_metrics = []
+    total_data_transferred = 0
+    total_time_executing_tasks_ms = 0
+    task_metrics_data = []
+    function_groups = set()
     
-    # Input metrics
-    st.write("**Input Metrics:**")
-    input_metrics = metrics.input_metrics
-    if input_metrics:
-        input_data = []
-        for m in input_metrics:
-            input_data.append({
-                "task_id": m.task_id,
-                "size": m.size,
-                "time_ms": m.time_ms
-            })
-        st.dataframe(pd.DataFrame(input_data))
+    for task_id in dag._all_nodes.keys():
+        metrics_key = f"metrics-storage-{task_id}_{dag.master_dag_id}"
+        metrics_data = metrics_redis.get(metrics_key)
+        
+        if metrics_data:
+            try:
+                metrics = cloudpickle.loads(metrics_data)
+                dag_metrics.append(metrics)
+                
+                func_name = dag._all_nodes[task_id].func_name
+                function_group = get_function_group(task_id, func_name)
+                function_groups.add(function_group)
+                
+                # Calculate data transferred (sum of all input sizes + output size)
+                task_data = 0
+                for input_metric in metrics.input_metrics:
+                    task_data += input_metric.size
+                if metrics.output_metrics:
+                    task_data += metrics.output_metrics.size
+                
+                total_data_transferred += task_data
+                total_time_executing_tasks_ms += metrics.execution_time_ms
+                
+                # Prepare data for visualization
+                task_metrics_data.append({
+                    'task_id': task_id,
+                    'function_name': func_name,
+                    'function_group': function_group,
+                    'execution_time_ms': metrics.execution_time_ms,
+                    'data_transferred': task_data,
+                    'worker_id': metrics.worker_id,
+                    'input_count': len(metrics.input_metrics),
+                    'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
+                    'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
+                })
+                
+            except Exception as e:
+                st.warning(f"Failed to deserialize metrics for task {task_id}: {e}")
+    
+    if not dag_metrics:
+        st.warning("No metrics found for any tasks in this DAG")
     else:
-        st.write("No input metrics available")
-    
-    # Output metrics
-    output_metrics = metrics.output_metrics
-    st.write("**Output Metrics:**")
-    if output_metrics:
-        st.write(f"Size: {output_metrics.size} bytes")
-        st.write(f"Time: {output_metrics.time_ms}ms")
-    else:
-        st.write("No output metrics available")
-    
-    # Downstream tasks
-    downstream = metrics.downstream_invocation_times
-    st.write("**Downstream Invocation Times:**")
-    if downstream:
-        downstream_data = []
-        for m in downstream:
-            downstream_data.append({
-                "task_id": m.task_id,
-                "time_ms": m.time_ms
-            })
-        st.dataframe(pd.DataFrame(downstream_data))
-    else:
-        st.write("No downstream tasks")
-
-def main():
-    st.title("Task Metrics Dashboard")
-    st.write("Visualizing task execution metrics and DAG structure from Redis")
-    
-    # Initialize Redis connections
-    r_metrics = get_metrics_storage_redis_connection()
-    r_dag = get_dag_storage_redis_connection()
-    
-    # Get available DAGs
-    with st.spinner("Loading available DAGs..."):
-        try:
-            dag_ids = get_available_dags(r_dag)
-            if not dag_ids:
-                st.warning("No DAGs found in Redis.")
-                return
-        except Exception as e:
-            st.error(f"Failed to load DAGs: {str(e)}")
-            return
-    
-    # DAG selection
-    selected_dag = st.selectbox("Select a DAG", dag_ids)
-    
-    # Load DAG structure
-    with st.spinner(f"Loading DAG structure for {selected_dag}..."):
-        try:
-            dag = load_dag(r_dag, selected_dag)
-            if not dag:
-                st.warning(f"No DAG structure found for {selected_dag}")
-                return
-        except Exception as e:
-            st.error(f"Failed to load DAG structure: {str(e)}")
-            return
-    
-    # Load metrics for selected DAG
-    with st.spinner(f"Loading metrics for DAG {selected_dag}..."):
-        try:
-            metrics_list = load_metrics_for_dag(r_metrics, selected_dag)
-            if not metrics_list:
-                st.warning(f"No metrics found for DAG {selected_dag}")
-                return
-            df = create_task_metrics_df(metrics_list)
-        except Exception as e:
-            st.error(f"Failed to load metrics: {str(e)}")
-            return
-    
-    # Display DAG visualization
-    st.subheader("DAG Visualization")
-    
-    # Create two columns - one for the graph, one for task selection
-    col1, col2 = st.columns([3, 1])
-    
-    with col2:
-        # Task selection dropdown
-        task_options = [node.id.task_id for node in dag._all_nodes.values()]
-        selected_task_id = st.selectbox(
-            "Select a task to inspect", 
-            options=task_options,
-            index=0,
-            key="task_select"
+        # Create dataframe for visualizations
+        metrics_df = pd.DataFrame(task_metrics_data)
+        
+        # DAG Summary Stats
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Tasks", len(dag._all_nodes))
+        with col2:
+            st.metric("Total Time Executing Tasks ", f"{(total_time_executing_tasks_ms / 1000):.3f} s")
+            avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
+            st.metric("Avg Task Execution Time", f"{(avg_time / 1000):.3f} s")
+        with col3:
+            st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+            avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
+            st.metric("Avg Data per Task", format_bytes(avg_data))
+        
+        # Group metrics by function group
+        grouped_df = metrics_df.groupby('function_group').agg({
+            'execution_time_ms': ['sum', 'mean', 'count'],
+            'data_transferred': ['sum', 'mean'],
+            'worker_id': pd.Series.mode
+        }).reset_index()
+        
+        # Flatten multi-index columns
+        grouped_df.columns = ['_'.join(col).strip('_') for col in grouped_df.columns.values]
+        
+        # Execution Time Visualization by Function Group
+        st.subheader("Task Execution Times by Function Group")
+        fig = px.bar(
+            grouped_df,
+            x='function_group',
+            y='execution_time_ms_sum',
+            color='worker_id_mode',
+            hover_data=['execution_time_ms_mean', 'execution_time_ms_count'],
+            labels={
+                'function_group': 'Function Group',
+                'execution_time_ms_sum': 'Total Execution Time (ms)',
+                'execution_time_ms_mean': 'Average Time (ms)',
+                'execution_time_ms_count': 'Task Count',
+                'worker_id_mode': 'Most Common Worker'
+            },
+            title="Total Execution Time by Function Group"
         )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Data Transfer Visualization by Function Group
+        st.subheader("Data Transfer by Function Group")
+        col1, col2 = st.columns(2)
+        with col1:
+            fig = px.pie(
+                grouped_df,
+                names='function_group',
+                values='data_transferred_sum',
+                hover_data=['execution_time_ms_count'],
+                title="Data Transferred by Function Group"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        with col2:
+            fig = px.scatter(
+                grouped_df,
+                x='execution_time_ms_sum',
+                y='data_transferred_sum',
+                color='function_group',
+                size='execution_time_ms_count',
+                hover_name='function_group',
+                hover_data=['execution_time_ms_count'],
+                labels={
+                    'execution_time_ms_sum': 'Total Execution Time (ms)',
+                    'data_transferred_sum': 'Total Data Transferred (bytes)',
+                    'execution_time_ms_count': 'Number of Tasks'
+                },
+                title="Execution Time vs Data Transferred by Function Group"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Worker Distribution by Function Group
+        st.subheader("Worker Distribution by Function Group")
+        worker_df = metrics_df.groupby(['function_group', 'worker_id']).agg({
+            'execution_time_ms': 'sum',
+            'data_transferred': 'sum',
+            'task_id': 'count'
+        }).reset_index()
+        worker_df = worker_df.rename(columns={'task_id': 'task_count'})
+        
+        fig = px.bar(
+            worker_df,
+            x='function_group',
+            y='task_count',
+            color='worker_id',
+            title="Task Distribution by Worker and Function Group",
+            labels={
+                'function_group': 'Function Group',
+                'task_count': 'Number of Tasks',
+                'worker_id': 'Worker ID'
+            }
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Show detailed metrics per function group
+        st.subheader("Detailed Metrics per Function Group")
+        with st.expander("View Function Group Metrics"):
+            st.dataframe(grouped_df)
     
-    with col1:
-        # Visualize DAG with selected task highlighted
-        dot = visualize_dag(dag, selected_task_id)
-        st.graphviz_chart(dot, use_container_width=True)
+    # Task selection - use session state to track changes
+    st.subheader("Task Details")
+    task_ids = list(dag._all_nodes.keys())
     
-    # Find the selected task's metrics and DAG node
-    selected_metric = next(
-        (m for m in metrics_list if m.task_id == selected_task_id),
-        None
+    # Initialize selected_task_id in session state if not present
+    if 'selected_task_id' not in st.session_state:
+        st.session_state.selected_task_id = task_ids[0] if task_ids else None
+    
+    # Create the selectbox and update session state on change
+    new_selection = st.selectbox(
+        "Select a task to view details",
+        options=task_ids,
+        index=task_ids.index(st.session_state.selected_task_id) if st.session_state.selected_task_id in task_ids else 0,
+        format_func=lambda x: x,
+        key='task_selectbox'
     )
     
-    selected_dag_node = dag._get_node_by_task_id(selected_task_id)
+    # Update the selected task ID in session state
+    st.session_state.selected_task_id = new_selection
+    # Clear previous metrics to ensure fresh display
+    metrics_container = st.container()
     
-    if selected_metric and selected_dag_node:
-        show_task_details(selected_metric, selected_dag_node)
-    else:
-        st.warning("No details available for selected task")
-    
-    # Metrics overview section
-    st.subheader("Metrics Overview")
-    
-    if st.checkbox("Show raw metrics data"):
-        st.dataframe(df)
-    
-    # Execution time chart
-    st.subheader("Execution Time by Task")
-    fig, ax = plt.subplots(figsize=(10, 4))
-    df_sorted = df.sort_values("execution_time_ms", ascending=False)
-    ax.bar(df_sorted["task_id"], df_sorted["execution_time_ms"])
-    ax.set_ylabel("Execution Time (ms)")
-    ax.set_xlabel("Task ID")
-    plt.xticks(rotation=45, ha='right')
-    st.pyplot(fig)
+    # Show task details and metrics
+    if st.session_state.selected_task_id:
+        with metrics_container:
+            # Get the task node
+            task_node = dag._all_nodes[st.session_state.selected_task_id]
+            
+            # Display basic task info
+            with st.expander("Task Information"):
+                st.write(f"**Function Name:** {task_node.func_name}")
+                st.write(f"**Task ID:** {st.session_state.selected_task_id}")
+                st.write(f"**Upstream Tasks:** {len(task_node.upstream_nodes)}")
+                st.write(f"**Downstream Tasks:** {len(task_node.downstream_nodes)}")
+            
+            # Try to find metrics for this task
+            metrics_key = f"metrics-storage-{st.session_state.selected_task_id}_{dag.master_dag_id}"
+            metrics_data = metrics_redis.get(metrics_key)
+            
+            # stored on session state to force re-render
+            st.session_state.metrics = cloudpickle.loads(metrics_data)
+            metrics = st.session_state.metrics
+            
+            # Display metrics
+            with st.expander("Execution Metrics"):
+                st.write(f"**Task ID:** {st.session_state.selected_task_id}")
+                st.write(f"**Worker ID:** {metrics.worker_id}")
+                st.write(f"**Total Execution Time:** {metrics.execution_time_ms:.2f} ms")
+                
+                # Calculate data transferred for this task
+                input_data = sum(m.size for m in metrics.input_metrics)
+                output_data = metrics.output_metrics.size if metrics.output_metrics else 0
+                total_data = input_data + output_data
+                
+                st.write(f"**Total Data Transferred:** {format_bytes(total_data)}")
+                st.write(f"**Breakdown:**")
+                st.write(f"- Input: {format_bytes(input_data)} ({len(metrics.input_metrics)} inputs)")
+                st.write(f"- Output: {format_bytes(output_data)}")
+                
+                # Input metrics table
+                st.subheader("Input Metrics")
+                input_df = pd.DataFrame([asdict(m) for m in metrics.input_metrics])
+                st.table(input_df)
+                
+                # Output metrics
+                st.subheader("Output Metrics")
+                output_df = pd.DataFrame([asdict(metrics.output_metrics)])
+                st.table(output_df)
+                
+                # Downstream invocation times
+                if metrics.downstream_invocation_times:
+                    st.subheader("Downstream Invocations")
+                    downstream_df = pd.DataFrame([asdict(m) for m in metrics.downstream_invocation_times])
+                    st.table(downstream_df)
+                else:
+                    st.write("No downstream invocations recorded")
 
 if __name__ == "__main__":
     main()

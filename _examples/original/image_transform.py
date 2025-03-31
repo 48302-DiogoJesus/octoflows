@@ -6,22 +6,36 @@ import numpy as np
 import io
 from typing import List, Tuple
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
 from src.worker import DockerWorker, LocalWorker
 from src.dag_task_node import DAGTask, DAGTaskNode
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
+# INTERMEDIATE STORAGE
+redis_intermediate_storage_config = RedisStorage.Config(
+   host="localhost", port=6379, password="redisdevpwd123"
+)
+# INTERMEDIATE STORAGE
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
 
+# METRICS STORAGE
+redis_metrics_storage_config = RedisStorage.Config(
+   host="localhost", port=6380, password="redisdevpwd123"
+)
+
 localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config,
+    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
+    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config, upload_strategy=MetricsStorage.UploadStrategy.AFTER_EACH_TASK)
 )
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config,
+    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config, upload_strategy=MetricsStorage.UploadStrategy.AFTER_EACH_TASK)
 )
 
 def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.Image]:
@@ -117,6 +131,7 @@ def main():
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
 
     num_chunks = determine_chunks_amount(image_data)
+    print("Number of chunks:", num_chunks)
     chunks = split_image(image_data, num_chunks)
     # chunks = chunks.compute(config=localWorkerConfig)
     chunks = chunks.compute(config=localWorkerConfig)
@@ -131,8 +146,8 @@ def main():
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
     final_image = final_image.compute(config=localWorkerConfig)
 
-    image = Image.open(io.BytesIO(final_image))
-    image.show()
+    # image = Image.open(io.BytesIO(final_image))
+    # image.show()
 
 if __name__ == "__main__":
     # asyncio.run(main())

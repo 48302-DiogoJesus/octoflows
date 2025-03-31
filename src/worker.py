@@ -118,6 +118,7 @@ class Worker(ABC):
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
+                    if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
