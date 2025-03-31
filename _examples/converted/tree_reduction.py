@@ -41,7 +41,7 @@ def add(x: float, y: float) -> float:
     return x + y
 
 # Define the workflow
-L = range(2048)
+L = range(10)
 while len(L) > 1:
   L = list(map(add, L[0::2], L[1::2]))
 

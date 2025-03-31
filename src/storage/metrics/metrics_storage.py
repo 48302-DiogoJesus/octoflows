@@ -12,24 +12,24 @@ from src.storage.storage import Storage
 class TaskInputMetrics:
     task_id: str
     size: float
-    time: float
+    time_ms: float
 
 @dataclass
 class TaskOutputMetrics:
     size: float
-    time: float
+    time_ms: float
 
 @dataclass
 class TaskInvocationMetrics:
     task_id: str
-    time: float
+    time_ms: float
 
 @dataclass
 class TaskMetrics:
     worker_id: str
-    execution_time: float
+    execution_time_ms: float
     input_metrics: list[TaskInputMetrics]
-    output_metrics: TaskOutputMetrics | None # None only while no result is produced. Should never be None on the Storage
+    output_metrics: TaskOutputMetrics
     downstream_invocation_times: list[TaskInvocationMetrics] | None # Can be None if no downstream task was ready
 
 class MetricsStorage:
@@ -62,10 +62,10 @@ class MetricsStorage:
 
         [
             self.storage.set(
-                f"{self.KEY_PREFIX}-{task_id}", 
+                f"{self.KEY_PREFIX}{key}", 
                 cloudpickle.dumps(metrics)
             )
-            for task_id, metrics in self.cached_metrics.items()
+            for key, metrics in self.cached_metrics.items()
         ]
         
         end = time.time()

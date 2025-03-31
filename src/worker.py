@@ -44,9 +44,9 @@ class Worker(ABC):
         task = subdag.root_node
         task_metrics = TaskMetrics(
             worker_id = self.worker_id,
-            execution_time = -1,
+            execution_time_ms = -1,
             input_metrics = [],
-            output_metrics = None,
+            output_metrics = None, # type: ignore
             downstream_invocation_times = None,
         )
 
@@ -60,14 +60,14 @@ class Worker(ABC):
                     if len(task.upstream_nodes) != 1: raise Exception(f"task: {task.id.get_full_id_in_dag(subdag)} Dynamic fan-out tasks can only have 1 upstream task. Got {len(task.upstream_nodes)}")
                     dependency_task = task.upstream_nodes[0]
                     logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
-                    timer = time.time()
+                    timer = time.perf_counter()
                     task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                     # ! This is a dynamic fan-out. Metrics should differentiate if this feature is not removed
                     task_metrics.input_metrics.append(TaskInputMetrics(
                         task_id=dependency_task.id.get_full_id_in_dag(subdag),
                         size=len(task_output),
-                        time=time.time() - timer
+                        time_ms=(time.perf_counter() - timer) * 1000
                     ))
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)[task.fan_out_idx]
                 else:
@@ -80,40 +80,40 @@ class Worker(ABC):
                             # Dynamic Fan-outs: "reduce" phase
                             aggregated_outputs = []
                             for fanout_task_id in fanout_task_ids:
-                                timer = time.time()
+                                timer = time.perf_counter()
                                 task_output = self.intermediate_storage.get(fanout_task_id)
                                 if task_output is None: raise Exception(f"[BUG] Dynamic fan-out task {fanout_task_id}'s data is not available")
                                 # ! need to think about how to handle dynamic fan-out reduce phase metrics collection
                                 # task_metrics.input_metrics.append(TaskIOMetrics(
                                 #     task_id=dependency_task.id.get_full_id_in_dag(dynamic_fanout_size),
                                 #     size=len(task_output),
-                                #     time=time.time() - timer
+                                #     time=time.perf_counter() - timer
                                 # ))
                                 aggregated_outputs.append(cloudpickle.loads(task_output))
                             task_dependencies[dependency_task.id.get_full_id()] = aggregated_outputs
                         else:
-                            timer = time.time()
+                            timer = time.perf_counter()
                             task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                             task_metrics.input_metrics.append(TaskInputMetrics(
                                 task_id=dependency_task.id.get_full_id_in_dag(subdag),
                                 size=len(task_output),
-                                time=time.time() - timer
+                                time_ms=(time.perf_counter() - timer) * 1000
                             ))
                             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
                 # 2. EXECUTE TASK
-                timer = time.time()
+                timer = time.perf_counter()
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
-                task_metrics.execution_time = time.time() - timer
+                task_metrics.execution_time_ms = (time.perf_counter() - timer) * 1000
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
-                timer = time.time()
+                timer = time.perf_counter()
                 task_result_serialized = cloudpickle.dumps(task_result)
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
                     size=len(task_result_serialized),
-                    time=time.time() - timer
+                    time_ms=(time.perf_counter() - timer) * 1000
                 )
 
                 if len(task.downstream_nodes) == 0: 
@@ -166,7 +166,6 @@ class Worker(ABC):
                             self.metadata_storage.set(f"dynamic-fanout-ids-{downstream_task.id.get_full_id_in_dag(subdag)}", cloudpickle.dumps(fanout_task_ids))
 
                 # Delegate Downstream Tasks Execution
-                ## 1 Task ?: the same worker continues with it
                 if len(ready_downstream) == 0:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
                     if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
@@ -176,17 +175,17 @@ class Worker(ABC):
                 continuation_task = ready_downstream[0] # choose the first task
                 tasks_to_delegate = ready_downstream[1:]
                 coroutines = []
-                
+
                 task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
                     self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
-                    timer = time.time()
+                    timer = time.perf_counter()
                     coroutines.append(self.delegate(
                         subdag.create_subdag(t),
                         resource_configuration=ResourceConfiguration.medium(),
                         called_by_worker=True
                     ))
-                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time=time.time() - timer))
+                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=(time.perf_counter() - timer) * 1000))
                 
                 await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
@@ -220,7 +219,7 @@ class Worker(ABC):
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
-        start_time = time.time()
+        start_time = time.perf_counter()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)
         is_task_dynamic_fan_out = task.is_dynamic_fan_out_representative
@@ -239,14 +238,14 @@ class Worker(ABC):
                 for final_result_id in final_result_ids:
                     final_result = intermediate_storage.get(final_result_id)
                     aggregated_result.append(cloudpickle.loads(final_result)) # type: ignore
-                end_time = time.time()
+                end_time = time.perf_counter()
                 logger.info(f"Dynamic Fan-Out Final Result Ready: ({task_id}) => Size: {len(aggregated_result)} | Type: ({type(aggregated_result)}) | Time: {end_time - start_time}s")
                 return aggregated_result
             else:
                 final_result = intermediate_storage.get(task_id)
                 if final_result is not None:
                     final_result = cloudpickle.loads(final_result) # type: ignore
-                    end_time = time.time()
+                    end_time = time.perf_counter()
                     logger.info(f"Final Result Ready: ({task_id}) => Size: {len(str(final_result))} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
                     return final_result
 

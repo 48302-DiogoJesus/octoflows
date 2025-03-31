@@ -1,0 +1,1 @@
+rdcli -p 6379 -a "redisdevpwd123" FLUSHALL && rdcli -p 6380 -a "redisdevpwd123" FLUSHALL

@@ -1,6 +1,3 @@
-- Create more tests for more complex and edge case DAG structures + DAG compute tests
-- Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
-
 - Change the worker_config.metadata_storage to `MetricsStorage(Storage)`
         TaskExecutionMetrics(task_id, worker_id, execution_time, input_data_size, output_data_size, input_download_time, output_upload_size)
         [TODO] Store DAGTaskNodeId instance (to preserve func name etc..) instead of String
@@ -13,14 +10,16 @@
 
 - Make all examples use MetricsStorage
 - Remove intermediate results of a dag after complete (last task is responsible for this)
+- Create more tests for more complex and edge case DAG structures + DAG compute tests
+- Add tests for asserting node count and final result of new workflows: tree reduction, gemm, wordcount, image_transform, svd
 
 ## Performance Optimizations (after MetadataStorage metrics can be analyzed)
 - See where it's suitable to use storage in an async way (make the storage implementations offer "sync" and "async" functions)
     - Parallelize
 - Local implementation is slower than Dasks (e.g., Tree Reduction): could hint at some internal structure inneficiencies
 - Local implementation could use threads instead of coroutines? (test to check concurrency errors)
-- Parallel fan-out invocations (don't wait for previous invocation to suceed)
-- Grab required inputs in parallel
+- Parallelize {fanout invocations} (don't wait for previous invocation to succeed)
+- Parallelize dependency grabbing
 
 - [NP] Support more levels: e.g., list[list[DAGTaskNode]]
     Find examples where this makes sense (arg: dict[str, DAGTaskNode])
