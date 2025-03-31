@@ -42,16 +42,16 @@ class Worker(ABC):
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         task = subdag.root_node
-        task_metrics = TaskMetrics(
-            worker_id = self.worker_id,
-            execution_time_ms = -1,
-            input_metrics = [],
-            output_metrics = None, # type: ignore
-            downstream_invocation_times = None,
-        )
 
         try:
             while True:
+                task_metrics = TaskMetrics(
+                    worker_id = self.worker_id,
+                    execution_time_ms = -1,
+                    input_metrics = [],
+                    output_metrics = None, # type: ignore
+                    downstream_invocation_times = None,
+                )
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies | Dynamic Task: {task.fan_out_idx != -1}...")
                 task_dependencies: dict[str, Any] = {}
@@ -64,14 +64,14 @@ class Worker(ABC):
                     task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                     # ! This is a dynamic fan-out. Metrics should differentiate if this feature is not removed
-                    task_metrics.input_metrics.append(TaskInputMetrics(
-                        task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                        size=len(task_output),
-                        time_ms=(time.perf_counter() - timer) * 1000
-                    ))
+                    # task_metrics.input_metrics.append(TaskInputMetrics(
+                    #     task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                    #     size=len(task_output),
+                    #     time_ms=(time.perf_counter() - timer) * 1000
+                    # ))
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)[task.fan_out_idx]
                 else:
-                    logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks")
+                    logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
                     for dependency_task in task.upstream_nodes:
                         if dependency_task.is_dynamic_fan_out_representative:
                             fanout_task_ids = self.metadata_storage.get(f"dynamic-fanout-ids-{dependency_task.id.get_full_id_in_dag(subdag)}")

@@ -54,19 +54,18 @@ class MetricsStorage:
         self.cached_metrics: dict[str, TaskMetrics] = {}
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
+        print(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
         self.cached_metrics[task_id] = metrics
 
     def flush(self):
         print("Flushing metrics to storage...")
         start = time.time()
 
-        [
+        for key, metrics in self.cached_metrics.items():
             self.storage.set(
                 f"{self.KEY_PREFIX}{key}", 
                 cloudpickle.dumps(metrics)
             )
-            for key, metrics in self.cached_metrics.items()
-        ]
         
         end = time.time()
         print(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
