@@ -27,6 +27,10 @@
 
 - [NP] Support for dynamic fan-outs?
 
+- [NP] Add retry mechanisms
+    - On a task level (logic inside a worker)
+    - On a worker level (how to report this error if we don't have a centralized Job queue?)
+
 - [NNP] Implement WUKONG-specific optimizations
     - Task Clustering (fan-ins + fan-outs)
     - Delayed I/O
