@@ -1,5 +1,7 @@
 import os
 import sys
+
+from src.storage.metrics.metrics_storage import TaskMetrics
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
@@ -142,7 +144,7 @@ def main():
 
             # Graph configuration
             config = Config(
-                width="100%", # type: ignore
+                width="70%", # type: ignore
                 height=600,
                 directed=True,
                 physics=False,
@@ -175,36 +177,66 @@ def main():
                 if metrics_data:
                     metrics = cloudpickle.loads(metrics_data)
                     
-                    # Display compact metrics
+                    # Basic task info
                     st.metric("Function", task_node.func_name)
                     st.metric("Worker", metrics.worker_id)
                     st.metric("Execution Time", f"{metrics.execution_time_ms:.2f} ms")
                     
-                    input_data = sum(m.size for m in metrics.input_metrics)
-                    output_data = metrics.output_metrics.size if metrics.output_metrics else 0
-                    st.metric("Total Data", format_bytes(input_data + output_data))
-                    
+                    # Connections info
                     st.write("**Connections:**")
                     st.write(f"Upstream: {len(task_node.upstream_nodes)}")
                     st.write(f"Downstream: {len(task_node.downstream_nodes)}")
                     
-                    # Button to show more details in an expander
-                    with st.expander("Detailed Metrics"):
-                        st.write("**Input Metrics:**")
-                        st.write(f"Count: {len(metrics.input_metrics)}")
-                        st.write(f"Total Size: {format_bytes(input_data)}")
-                        
-                        st.write("\n**Output Metrics:**")
-                        if metrics.output_metrics:
-                            st.write(f"Size: {format_bytes(output_data)}")
-                        else:
-                            st.write("No output metrics")
+                    # Output metrics (if available)
+                    if metrics.output_metrics:
+                        st.write("**Output Metrics:**")
+                        output_data = metrics.output_metrics.size
+                        st.metric("Size", format_bytes(output_data))
+                    else:
+                        st.write("**No output metrics available**")
                 else:
                     st.warning("No metrics found for this task")
                     st.write(f"**Function:** {task_node.func_name}")
                     st.write(f"**Task ID:** {st.session_state.selected_task_id}")
                     st.write(f"**Upstream:** {len(task_node.upstream_nodes)}")
                     st.write(f"**Downstream:** {len(task_node.downstream_nodes)}")
+        
+        # Input metrics section below the DAG visualization
+        if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
+            metrics_key = f"metrics-storage-{st.session_state.selected_task_id}_{dag.master_dag_id}"
+            metrics_data = metrics_redis.get(metrics_key)
+            
+            if metrics_data:
+                metrics: TaskMetrics = cloudpickle.loads(metrics_data)
+                
+                if metrics.input_metrics:
+                    st.subheader("Input Metrics Details")
+                    
+                    # Create a dataframe for the input metrics
+                    input_df = pd.DataFrame([{
+                        'Source Task': m.task_id,
+                        'Size': format_bytes(m.size),
+                        'Download Time (ms)': m.time_ms
+                    } for m in metrics.input_metrics])
+                    
+                    # Calculate and display total input data
+                    total_input = sum(m.size for m in metrics.input_metrics)
+                    st.write(f"**Total Input Data:** {format_bytes(total_input)}")
+                    
+                    # Display the input metrics table
+                    st.dataframe(
+                        input_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "Source Task": st.column_config.TextColumn(width="medium"),
+                            "Size": st.column_config.TextColumn(width="small"),
+                            "Data Type": st.column_config.TextColumn(width="medium"),
+                            "Transfer Time (ms)": st.column_config.NumberColumn(width="small")
+                        }
+                    )
+                else:
+                    st.write("**No input metrics available for this task**")
     
     # Metrics tabs (unchanged from original)
     with tab_summary:
@@ -284,11 +316,10 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Tasks", len(dag._all_nodes))
-                st.metric("Tasks with Metrics", len(dag_metrics))
             with col2:
-                st.metric("Total Execution Time", f"{(total_time_executing_tasks_ms / 1000):.3f} s")
+                st.metric("Total Time Executing Tasks", f"{(total_time_executing_tasks_ms / 1000):.3f} s")
                 avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
-                st.metric("Avg Task Time", f"{(avg_time / 1000):.3f} s")
+                st.metric("Avg Task Execution Time", f"{(avg_time / 1000):.3f} s")
             with col3:
                 st.metric("Total Data", format_bytes(total_data_transferred))
                 avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
