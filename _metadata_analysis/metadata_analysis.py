@@ -115,6 +115,8 @@ def main():
                 visited.add(node_id)
                 node_levels[node_id] = level
 
+                print(node_id)
+
                 # Create node
                 nodes.append(Node(
                     id=node_id, 
@@ -255,8 +257,7 @@ def main():
             dag_metrics.append(metrics)
             
             func_name = dag._all_nodes[task_id].func_name
-            function_group = get_function_group(task_id, func_name)
-            function_groups.add(function_group)
+            function_groups.add(func_name)
             
             if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
                 _task_with_earliest_start_time = metrics
@@ -284,11 +285,10 @@ def main():
                 'task_id': task_id,
                 'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp).strftime("%Y-%m-%d %H:%M:%S:%f"),
                 'function_name': func_name,
-                'function_group': function_group,
                 'execution_time_ms': metrics.execution_time_ms,
-                'data_transferred': task_data,
                 'worker_id': metrics.worker_id,
                 'input_count': len(metrics.input_metrics),
+                'input_size': sum([m.size for m in metrics.input_metrics]),
                 'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
                 'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
             })
@@ -298,18 +298,16 @@ def main():
 
         # Create dataframe for visualizations
         metrics_df = pd.DataFrame(task_metrics_data)
-        grouped_df = metrics_df.groupby('function_group').agg({
-            'execution_time_ms': ['sum', 'mean', 'count'],
-            'data_transferred': ['sum', 'mean']
+        grouped_df = metrics_df.groupby('function_name').agg({
+            'execution_time_ms': ['sum', 'mean', 'count']
         }).reset_index()
         
         # Flatten multi-index columns
         grouped_df.columns = ['_'.join(col).strip('_') for col in grouped_df.columns.values]
         
         # Worker distribution data
-        worker_df = metrics_df.groupby(['function_group', 'worker_id']).agg({
+        worker_df = metrics_df.groupby(['function_name', 'worker_id']).agg({
             'execution_time_ms': 'sum',
-            'data_transferred': 'sum',
             'task_id': 'count'
         }).reset_index()
         worker_df = worker_df.rename(columns={'task_id': 'task_count'})
@@ -329,6 +327,7 @@ def main():
         with col3:
             st.metric("Unique Workers", metrics_df['worker_id'].nunique())
             st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
+            st.metric("Total Worker Invocations ", f"{sum(len(m.downstream_invocation_times) for m in dag_metrics if m.downstream_invocation_times)}") # type: ignore
         with col4:
             st.metric("Unique Tasks", len(function_groups))
             st.metric("Total Invocation Time", f"{total_time_invoking_tasks_ms:.2f} ms")
@@ -389,18 +388,17 @@ def main():
 
         st.subheader("Raw Task Metrics")
         raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
+        columns_to_exclude = {"input_count", "function_name"} 
+        columns_to_show = [col for col in raw_task_df.columns if col not in columns_to_exclude]
         st.dataframe(
-            raw_task_df,
+            raw_task_df[columns_to_show],
             use_container_width=True,
             column_config={
                 "task_id": st.column_config.TextColumn("Task ID"),
                 "task_started_at": st.column_config.TextColumn("Started At"),
-                "function_name": st.column_config.TextColumn("Function"),
-                "function_group": st.column_config.TextColumn("Group"),
                 "execution_time_ms": st.column_config.NumberColumn("Exec Time (ms)", format="%.2f"),
-                "data_transferred": st.column_config.NumberColumn("Data Transferred"),
                 "worker_id": st.column_config.TextColumn("Worker"),
-                "input_count": st.column_config.NumberColumn("Inputs"),
+                "input_size": st.column_config.NumberColumn("Input Size"),
                 "output_size": st.column_config.NumberColumn("Output Size"),
                 "downstream_calls": st.column_config.NumberColumn("Downstream Calls")
             }
@@ -413,17 +411,17 @@ def main():
                 
                 with col1:
                     # Total Execution Time per Function Group
-                    total_time_df = metrics_df.groupby('function_group')['execution_time_ms'].sum().reset_index()
+                    total_time_df = metrics_df.groupby('function_name')['execution_time_ms'].sum().reset_index()
                     fig = px.bar(
                         total_time_df,
-                        x='function_group',
+                        x='function_name',
                         y='execution_time_ms',
                         labels={
-                            'function_group': 'Function Group',
+                            'function_name': 'Function Group',
                             'execution_time_ms': 'Total Execution Time (ms)'
                         },
                         title="Total Execution Time by Function",
-                        color='function_group',
+                        color='function_name',
                         text_auto='.2s'
                     )
                     fig.update_layout(showlegend=False)
@@ -431,17 +429,17 @@ def main():
                 
                 with col2:
                     # Average Execution Time per Function Group
-                    avg_time_df = metrics_df.groupby('function_group')['execution_time_ms'].mean().reset_index()
+                    avg_time_df = metrics_df.groupby('function_name')['execution_time_ms'].mean().reset_index()
                     fig = px.bar(
                         avg_time_df,
-                        x='function_group',
+                        x='function_name',
                         y='execution_time_ms',
                         labels={
-                            'function_group': 'Function Group',
+                            'function_name': 'Function Group',
                             'execution_time_ms': 'Average Execution Time (ms)'
                         },
                         title="Average Execution Time by Function",
-                        color='function_group',
+                        color='function_name',
                         text_auto='.2s'
                     )
                     fig.update_layout(showlegend=False)
@@ -494,12 +492,12 @@ def main():
             with col1:
                 fig = px.bar(
                     worker_df,
-                    x='function_group',
+                    x='function_name',
                     y='task_count',
                     color='worker_id',
                     title="Task Distribution by Worker and Function Group",
                     labels={
-                        'function_group': 'Function Group',
+                        'function_name': 'Function Group',
                         'task_count': 'Number of Tasks',
                         'worker_id': 'Worker ID'
                     }
@@ -508,7 +506,7 @@ def main():
             with col2:
                 fig = px.sunburst(
                     worker_df,
-                    path=['worker_id', 'function_group'],
+                    path=['worker_id', 'function_name'],
                     values='task_count',
                     title="Worker-Function Group Task Distribution"
                 )
