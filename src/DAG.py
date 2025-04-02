@@ -57,7 +57,7 @@ class DAG:
             wk.intermediate_storage, # type: ignore
             self.sink_node,
             self,
-            polling_interval_s=0.05
+            polling_interval_s=0.1
         )
 
         if wk.metrics_storage_config: wk.metrics_storage_config.flush()

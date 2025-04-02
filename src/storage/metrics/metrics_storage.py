@@ -28,9 +28,10 @@ class TaskInvocationMetrics:
 class TaskMetrics:
     worker_id: str
     started_at_timestamp: float # time at which the task started being processed by a worker
-    execution_time_ms: float
     input_metrics: list[TaskInputMetrics]
     total_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)
+    execution_time_ms: float
+    update_dependency_counters_time_ms: float
     output_metrics: TaskOutputMetrics
     downstream_invocation_times: list[TaskInvocationMetrics] | None # Can be None if no downstream task was ready
     total_invocation_time_ms: float # time to do all invocations

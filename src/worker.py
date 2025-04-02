@@ -59,12 +59,13 @@ class Worker(ABC):
         try:
             while True:
                 task_metrics = TaskMetrics(
-                    started_at_timestamp = time.time(),
                     worker_id = self.worker_id,
-                    execution_time_ms = 0,
+                    started_at_timestamp = time.time(),
                     input_metrics = [],
-                    output_metrics = None, # type: ignore
                     total_input_download_time_ms = 0,
+                    execution_time_ms = 0,
+                    update_dependency_counters_time_ms = 0,
+                    output_metrics = None, # type: ignore
                     downstream_invocation_times = None,
                     total_invocation_time_ms=0
                 )
@@ -143,6 +144,8 @@ class Worker(ABC):
                 self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 
+                updating_dependency_counters_timer = StopWatch()
+
                 for downstream_task in task.downstream_nodes:
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
                     dependencies_met = self.metadata_storage.atomic_increment_and_get(dc_key)
@@ -183,6 +186,8 @@ class Worker(ABC):
                                 node.downstream_nodes = downstream_task.downstream_nodes
                                 ready_downstream.append(node)
                             self.metadata_storage.set(f"dynamic-fanout-ids-{downstream_task.id.get_full_id_in_dag(subdag)}", cloudpickle.dumps(fanout_task_ids))
+
+                task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 # Delegate Downstream Tasks Execution
                 if len(ready_downstream) == 0:
@@ -240,7 +245,7 @@ class Worker(ABC):
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
-        start_time = time.perf_counter()
+        start_time = StopWatch()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)
         is_task_dynamic_fan_out = task.is_dynamic_fan_out_representative
@@ -259,15 +264,13 @@ class Worker(ABC):
                 for final_result_id in final_result_ids:
                     final_result = intermediate_storage.get(final_result_id)
                     aggregated_result.append(cloudpickle.loads(final_result)) # type: ignore
-                end_time = time.perf_counter()
-                logger.info(f"Dynamic Fan-Out Final Result Ready: ({task_id}) => Size: {len(aggregated_result)} | Type: ({type(aggregated_result)}) | Time: {end_time - start_time}s")
+                logger.info(f"Dynamic Fan-Out Final Result Ready: ({task_id}) => Size: {len(aggregated_result)} | Type: ({type(aggregated_result)}) | Time: {start_time.stop()} ms")
                 return aggregated_result
             else:
                 final_result = intermediate_storage.get(task_id)
                 if final_result is not None:
                     final_result = cloudpickle.loads(final_result) # type: ignore
-                    end_time = time.perf_counter()
-                    logger.info(f"Final Result Ready: ({task_id}) => Size: {len(str(final_result))} | Type: ({type(final_result)}) | Time: {end_time - start_time}s")
+                    logger.info(f"Final Result Ready: ({task_id}) => Size: {len(str(final_result))} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
                     return final_result
 
     def log(self, task_id: str, message: str):

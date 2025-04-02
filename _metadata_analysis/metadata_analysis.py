@@ -46,7 +46,7 @@ def get_function_group(task_id: str, func_name: str) -> str:
 def main():
     # Configure page layout for wider usage
     st.set_page_config(layout="wide")
-    st.title("DAG Visualization Dashboard")
+    st.title("DAG Metrics Dashboard")
     
     # Connect to Redis
     dag_redis = get_redis_connection(6379)
@@ -64,7 +64,7 @@ def main():
         st.session_state.prev_dag_key = None
     
     selected_dag_key = st.selectbox(
-        "Select a DAG to visualize",
+        "Current DAG",
         options=dag_keys,
         format_func=lambda x: x.decode('utf-8')
     )
@@ -85,7 +85,7 @@ def main():
     
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
-        "DAG Visualization", 
+        "Visualization", 
         "Summary", 
         "Execution Times", 
         "Data Transfer", 
@@ -94,8 +94,6 @@ def main():
     
     # Visualization tab
     with tab_viz:
-        st.subheader("DAG Structure")
-        
         # Create columns for graph and task details
         graph_col, details_col = st.columns([2, 1])
         
@@ -161,7 +159,7 @@ def main():
                 st.session_state.selected_task_id = selected_node
         
         with details_col:
-            st.subheader("Task Details")
+            st.subheader("Selected Task Details")
             
             # Initialize selected_task_id if not set
             if 'selected_task_id' not in st.session_state:
@@ -176,34 +174,27 @@ def main():
                 metrics_data = metrics_redis.get(metrics_key)
                 
                 if metrics_data:
-                    metrics = cloudpickle.loads(metrics_data)
+                    metrics = cloudpickle.loads(metrics_data) # type: ignore
                     
                     # Basic task info
                     st.metric("Function", task_node.func_name)
                     st.metric("Worker", metrics.worker_id)
                     col1, col2 = st.columns(2)
+                    output_data = metrics.output_metrics.size
                     with col1:
-                        st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
-                    with col2:
+                        total_task_handling_time = metrics.total_input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
+                        st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
                         st.metric("Dependencies Download Time", f"{metrics.total_input_download_time_ms:.2f} ms")
-                    
-                    # Connections info
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric(f"Tasks Upstream", len(task_node.upstream_nodes))
+                        st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
+                        st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
+                        st.metric("Tasks Upstream", len(task_node.upstream_nodes))
                     with col2:
-                        st.metric(f"Tasks Downstream", len(task_node.downstream_nodes))
-                    
-                    # Output metrics (if available)
-                    if metrics.output_metrics:
-                        output_data = metrics.output_metrics.size
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Output Size", format_bytes(output_data))
-                        with col2:
-                            st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
-                    else:
-                        st.write("**No output metrics available**")
+                        st.metric("", "")
+                        st.metric("", "")
+                        st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
+                        st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
+                        st.metric("Output Size", format_bytes(output_data))
+                        st.metric("Tasks Downstream", len(task_node.downstream_nodes))
                 else:
                     st.warning("No metrics found for this task")
                     st.write(f"**Function:** {task_node.func_name}")
@@ -256,6 +247,8 @@ def main():
         total_time_executing_tasks_ms = 0
         total_time_uploading_data_ms = 0
         total_time_downloading_data_ms = 0
+        total_time_invoking_tasks_ms = 0
+        total_time_updating_dependency_counters_ms = 0
         task_metrics_data = []
         function_groups = set()
         
@@ -276,6 +269,9 @@ def main():
 
             if _task_with_latest_start_time is None or metrics.started_at_timestamp > _task_with_latest_start_time.started_at_timestamp:
                 _task_with_latest_start_time = metrics
+
+            total_time_invoking_tasks_ms += metrics.total_invocation_time_ms
+            total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms
 
             # Calculate data transferred
             task_data = 0
@@ -303,9 +299,6 @@ def main():
                 'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
             })
 
-        print("Last task: ", _task_with_latest_start_time)
-        print("First task: ", _task_with_earliest_start_time)
-
         last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
         makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
 
@@ -329,33 +322,35 @@ def main():
         worker_df = worker_df.rename(columns={'task_id': 'task_count'})
         
         # DAG Summary Stats in columns
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
+        task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
         with col1:
             st.metric("Total Tasks", len(dag._all_nodes))
-            st.metric("Total Time Executing Tasks", f"{total_time_executing_tasks_ms:.2f} ms")
-            avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
-            st.metric("Avg Task Execution Time", f"{avg_time:.2f} ms")
-        with col2:
-            st.metric("Makespan", f"{makespan_ms} ms")
-            st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+            st.metric(f"Total Time Executing Tasks (avg: {task_execution_time_avg:.2f} ms)", f"{total_time_executing_tasks_ms:.2f} ms")
             st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+        with col2:
+            st.metric("Makespan", f"{makespan_ms:.2f} ms")
+            st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
             avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
+            st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
         with col3:
             st.metric("Unique Workers", metrics_df['worker_id'].nunique())
             st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-            st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
-            st.metric("", "")
-            st.metric("", "")
         with col4:
             st.metric("Unique Tasks", len(function_groups))
+            st.metric("Total Invocation Time", f"{total_time_invoking_tasks_ms:.2f} ms")
+        with col5:
             st.metric("", "")
             st.metric("", "")
+            st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
+
 
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
             "Data Download": total_time_downloading_data_ms,
             "Data Upload": total_time_uploading_data_ms,
-            "Invocation Time": sum(m.total_invocation_time_ms for m in dag_metrics)
+            "Invocation Time": total_time_invoking_tasks_ms,
+            "DC Updates": total_time_updating_dependency_counters_ms
         }
         
         # Calculate accounted time
@@ -384,7 +379,8 @@ def main():
                 "Data Download": "#EF553B",
                 "Data Upload": "#00CC96",
                 "Invocation Time": "#AB63FA",
-                "Other": "#333333"  # Dark color for unaccounted time
+                "DC Updates": "#DB61CE",
+                "Unknown": "#333333"
             }
         )
         fig.update_traces(
@@ -397,7 +393,7 @@ def main():
         st.subheader("Function Group Metrics")
         st.dataframe(grouped_df, use_container_width=True)
 
-        st.subheader("All Task Metrics")
+        st.subheader("Raw Task Metrics")
         raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
         st.dataframe(
             raw_task_df,
