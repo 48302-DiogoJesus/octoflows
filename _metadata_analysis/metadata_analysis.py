@@ -1,6 +1,9 @@
+import colorsys
 from datetime import datetime
+import hashlib
 import os
 import sys
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -14,6 +17,7 @@ import pandas as pd
 import plotly.express as px
 
 from src.dag import DAG
+from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import TaskMetrics
 
 # Redis connection setup
@@ -83,6 +87,65 @@ def main():
         st.error(f"Failed to deserialize DAG: {e}")
         return
     
+    # Collect all metrics for this DAG
+    dag_metrics: list[TaskMetrics] = []
+    total_data_transferred = 0
+    total_time_executing_tasks_ms = 0
+    total_time_uploading_data_ms = 0
+    total_time_downloading_data_ms = 0
+    total_time_invoking_tasks_ms = 0
+    total_time_updating_dependency_counters_ms = 0
+    task_metrics_data = []
+    function_groups = set()
+    
+    _task_with_earliest_start_time = None
+    _task_with_latest_start_time = None
+    for task_id in dag._all_nodes.keys():
+        metrics_key = f"metrics-storage-{task_id}_{dag.master_dag_id}"
+        metrics_data = metrics_redis.get(metrics_key)
+        metrics = cloudpickle.loads(metrics_data) # type: ignore
+        dag_metrics.append(metrics)
+        
+        func_name = dag._all_nodes[task_id].func_name
+        function_groups.add(func_name)
+        
+        if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
+            _task_with_earliest_start_time = metrics
+
+        if _task_with_latest_start_time is None or metrics.started_at_timestamp > _task_with_latest_start_time.started_at_timestamp:
+            _task_with_latest_start_time = metrics
+
+        total_time_invoking_tasks_ms += metrics.total_invocation_time_ms
+        total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms
+
+        # Calculate data transferred
+        task_data = 0
+        for input_metric in metrics.input_metrics:
+            task_data += input_metric.size
+            total_time_downloading_data_ms += input_metric.time_ms
+        if metrics.output_metrics:
+            task_data += metrics.output_metrics.size
+            total_time_uploading_data_ms += metrics.output_metrics.time_ms
+        
+        total_data_transferred += task_data
+        total_time_executing_tasks_ms += metrics.execution_time_ms
+
+        # Prepare data for visualization
+        task_metrics_data.append({
+            'task_id': task_id,
+            'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp).strftime("%Y-%m-%d %H:%M:%S:%f"),
+            'function_name': func_name,
+            'execution_time_ms': metrics.execution_time_ms,
+            'worker_id': metrics.worker_id,
+            'input_count': len(metrics.input_metrics),
+            'input_size': sum([m.size for m in metrics.input_metrics]),
+            'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
+            'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
+        })
+
+    last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
+    makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
+
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
         "Visualization", 
@@ -105,9 +168,26 @@ def main():
             node_levels = {}  # Tracks hierarchy levels
             visited = set()
 
-            def traverse_dag(node, level=0):
+            def get_color_for_worker(worker_id):
+               # Create a hash of the worker_id
+                hash_obj = hashlib.md5(worker_id.encode())
+                hash_int = int(hash_obj.hexdigest(), 16)
+
+                # Generate a hue value that is more spaced out
+                hue = (hash_int % 360)  # Full hue spectrum (0-359 degrees)
+                saturation = 0.7  # Keep colors vibrant
+                lightness = 0.5   # Ensure colors are not too dark or too bright
+
+                # Convert HSL to RGB (values between 0-1)
+                r, g, b = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
+
+                # Scale to 0-255 and format as RGB
+                return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
+
+            def traverse_dag(node: DAGTaskNode, level=0):
                 """ Recursively traverse DAG from root nodes """
                 node_id = node.id.get_full_id()
+                worker_id = [m for m in task_metrics_data if m["task_id"] == node.id.get_full_id()][0]['worker_id']
 
                 if node_id in visited:
                     return  # Prevents duplicate processing
@@ -115,17 +195,19 @@ def main():
                 visited.add(node_id)
                 node_levels[node_id] = level
 
-                print(node_id)
-
                 # Create node
                 nodes.append(Node(
                     id=node_id, 
                     label=node.func_name,
-                    size=20, 
-                    color="green", 
-                    shape="dot",  
+                    title=f"task_id: {node_id}\nworker_id: {worker_id}",
+                    size=20,
+                    color=get_color_for_worker(worker_id),
+                    shape="dot",
                     font={"color": "white", "size": 10, "face": "Arial"},
-                    level=level
+                    level=level,
+                    # Additional label for worker_id
+                    labelHighlightBold=True,
+                    # This may require custom configuration depending on your graph library
                 ))
 
                 # Process downstream nodes
@@ -136,8 +218,8 @@ def main():
                         arrow="to",
                         color="#ffffff"
                     ))
-                    traverse_dag(downstream, level + 1)  # Increase level
-
+                    traverse_dag(downstream, level + 1)
+                    
             # Start traversal from all root nodes
             assert dag.root_nodes
             for root in dag.root_nodes:
@@ -237,65 +319,6 @@ def main():
     
     # Metrics tabs (unchanged from original)
     with tab_summary:
-        # Collect all metrics for this DAG
-        dag_metrics: list[TaskMetrics] = []
-        total_data_transferred = 0
-        total_time_executing_tasks_ms = 0
-        total_time_uploading_data_ms = 0
-        total_time_downloading_data_ms = 0
-        total_time_invoking_tasks_ms = 0
-        total_time_updating_dependency_counters_ms = 0
-        task_metrics_data = []
-        function_groups = set()
-        
-        _task_with_earliest_start_time = None
-        _task_with_latest_start_time = None
-        for task_id in dag._all_nodes.keys():
-            metrics_key = f"metrics-storage-{task_id}_{dag.master_dag_id}"
-            metrics_data = metrics_redis.get(metrics_key)
-            metrics = cloudpickle.loads(metrics_data) # type: ignore
-            dag_metrics.append(metrics)
-            
-            func_name = dag._all_nodes[task_id].func_name
-            function_groups.add(func_name)
-            
-            if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
-                _task_with_earliest_start_time = metrics
-
-            if _task_with_latest_start_time is None or metrics.started_at_timestamp > _task_with_latest_start_time.started_at_timestamp:
-                _task_with_latest_start_time = metrics
-
-            total_time_invoking_tasks_ms += metrics.total_invocation_time_ms
-            total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms
-
-            # Calculate data transferred
-            task_data = 0
-            for input_metric in metrics.input_metrics:
-                task_data += input_metric.size
-                total_time_downloading_data_ms += input_metric.time_ms
-            if metrics.output_metrics:
-                task_data += metrics.output_metrics.size
-                total_time_uploading_data_ms += metrics.output_metrics.time_ms
-            
-            total_data_transferred += task_data
-            total_time_executing_tasks_ms += metrics.execution_time_ms
-
-            # Prepare data for visualization
-            task_metrics_data.append({
-                'task_id': task_id,
-                'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp).strftime("%Y-%m-%d %H:%M:%S:%f"),
-                'function_name': func_name,
-                'execution_time_ms': metrics.execution_time_ms,
-                'worker_id': metrics.worker_id,
-                'input_count': len(metrics.input_metrics),
-                'input_size': sum([m.size for m in metrics.input_metrics]),
-                'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
-                'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
-            })
-
-        last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
-        makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
-
         # Create dataframe for visualizations
         metrics_df = pd.DataFrame(task_metrics_data)
         grouped_df = metrics_df.groupby('function_name').agg({
