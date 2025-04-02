@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import sys
 
@@ -258,109 +259,162 @@ def main():
         task_metrics_data = []
         function_groups = set()
         
+        _task_with_earliest_start_time = None
+        _task_with_latest_start_time = None
         for task_id in dag._all_nodes.keys():
             metrics_key = f"metrics-storage-{task_id}_{dag.master_dag_id}"
             metrics_data = metrics_redis.get(metrics_key)
+            metrics = cloudpickle.loads(metrics_data) # type: ignore
+            dag_metrics.append(metrics)
             
-            if metrics_data:
-                metrics = cloudpickle.loads(metrics_data) # type: ignore
-                dag_metrics.append(metrics)
-                
-                func_name = dag._all_nodes[task_id].func_name
-                function_group = get_function_group(task_id, func_name)
-                function_groups.add(function_group)
-                
-                # Calculate data transferred
-                task_data = 0
-                for input_metric in metrics.input_metrics:
-                    task_data += input_metric.size
-                    total_time_downloading_data_ms += input_metric.time_ms
-                if metrics.output_metrics:
-                    task_data += metrics.output_metrics.size
-                    total_time_uploading_data_ms += metrics.output_metrics.time_ms
-                
-                total_data_transferred += task_data
-                total_time_executing_tasks_ms += metrics.execution_time_ms
-                
-                # Prepare data for visualization
-                task_metrics_data.append({
-                    'task_id': task_id,
-                    'function_name': func_name,
-                    'function_group': function_group,
-                    'execution_time_ms': metrics.execution_time_ms,
-                    'data_transferred': task_data,
-                    'worker_id': metrics.worker_id,
-                    'input_count': len(metrics.input_metrics),
-                    'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
-                    'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
-                })
-        
-        if not dag_metrics:
-            st.warning("No metrics found for any tasks in this DAG")
-        else:
-            # Create dataframe for visualizations
-            metrics_df = pd.DataFrame(task_metrics_data)
-            grouped_df = metrics_df.groupby('function_group').agg({
-                'execution_time_ms': ['sum', 'mean', 'count'],
-                'data_transferred': ['sum', 'mean'],
-                'worker_id': pd.Series.mode
-            }).reset_index()
+            func_name = dag._all_nodes[task_id].func_name
+            function_group = get_function_group(task_id, func_name)
+            function_groups.add(function_group)
             
-            # Flatten multi-index columns
-            grouped_df.columns = ['_'.join(col).strip('_') for col in grouped_df.columns.values]
-            
-            # Worker distribution data
-            worker_df = metrics_df.groupby(['function_group', 'worker_id']).agg({
-                'execution_time_ms': 'sum',
-                'data_transferred': 'sum',
-                'task_id': 'count'
-            }).reset_index()
-            worker_df = worker_df.rename(columns={'task_id': 'task_count'})
-            
-            # DAG Summary Stats in columns
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Tasks", len(dag._all_nodes))
-                st.metric("Total Time Executing Tasks", f"{(total_time_executing_tasks_ms / 1000):.3f} s")
-                st.metric("Total Data Transferred", format_bytes(total_data_transferred))
-            with col2:
-                st.metric("Unique Workers", metrics_df['worker_id'].nunique())
-                avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
-                st.metric("Avg Task Execution Time", f"{(avg_time / 1000):.3f} s")
-                avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
-                st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
-            with col3:
-                st.metric("Unique Tasks", len(function_groups))
-                st.metric("", "")
-                st.metric("", "")
-                st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
-            with col4:
-                st.metric("", "")
-                st.metric("", "")
-                st.metric("", "")
-                st.metric("", "")
-                st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-            
-            st.subheader("Function Group Metrics")
-            st.dataframe(grouped_df, use_container_width=True)
+            if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
+                _task_with_earliest_start_time = metrics
 
-            st.subheader("All Task Metrics")
-            raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
-            st.dataframe(
-                raw_task_df,
-                use_container_width=True,
-                column_config={
-                    "task_id": st.column_config.TextColumn("Task ID"),
-                    "function_name": st.column_config.TextColumn("Function"),
-                    "function_group": st.column_config.TextColumn("Group"),
-                    "execution_time_ms": st.column_config.NumberColumn("Exec Time (ms)", format="%.2f"),
-                    "data_transferred": st.column_config.NumberColumn("Data Transferred"),
-                    "worker_id": st.column_config.TextColumn("Worker"),
-                    "input_count": st.column_config.NumberColumn("Inputs"),
-                    "output_size": st.column_config.NumberColumn("Output Size"),
-                    "downstream_calls": st.column_config.NumberColumn("Downstream Calls")
-                }
-            )
+            if _task_with_latest_start_time is None or metrics.started_at_timestamp > _task_with_latest_start_time.started_at_timestamp:
+                _task_with_latest_start_time = metrics
+
+            # Calculate data transferred
+            task_data = 0
+            for input_metric in metrics.input_metrics:
+                task_data += input_metric.size
+                total_time_downloading_data_ms += input_metric.time_ms
+            if metrics.output_metrics:
+                task_data += metrics.output_metrics.size
+                total_time_uploading_data_ms += metrics.output_metrics.time_ms
+            
+            total_data_transferred += task_data
+            total_time_executing_tasks_ms += metrics.execution_time_ms
+
+            # Prepare data for visualization
+            task_metrics_data.append({
+                'task_id': task_id,
+                'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp).strftime("%Y-%m-%d %H:%M:%S:%f"),
+                'function_name': func_name,
+                'function_group': function_group,
+                'execution_time_ms': metrics.execution_time_ms,
+                'data_transferred': task_data,
+                'worker_id': metrics.worker_id,
+                'input_count': len(metrics.input_metrics),
+                'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
+                'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
+            })
+
+        print("Last task: ", _task_with_latest_start_time)
+        print("First task: ", _task_with_earliest_start_time)
+
+        last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
+        makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
+
+        # Create dataframe for visualizations
+        metrics_df = pd.DataFrame(task_metrics_data)
+        grouped_df = metrics_df.groupby('function_group').agg({
+            'execution_time_ms': ['sum', 'mean', 'count'],
+            'data_transferred': ['sum', 'mean'],
+            'worker_id': pd.Series.mode
+        }).reset_index()
+        
+        # Flatten multi-index columns
+        grouped_df.columns = ['_'.join(col).strip('_') for col in grouped_df.columns.values]
+        
+        # Worker distribution data
+        worker_df = metrics_df.groupby(['function_group', 'worker_id']).agg({
+            'execution_time_ms': 'sum',
+            'data_transferred': 'sum',
+            'task_id': 'count'
+        }).reset_index()
+        worker_df = worker_df.rename(columns={'task_id': 'task_count'})
+        
+        # DAG Summary Stats in columns
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Tasks", len(dag._all_nodes))
+            st.metric("Total Time Executing Tasks", f"{total_time_executing_tasks_ms:.2f} ms")
+            avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
+            st.metric("Avg Task Execution Time", f"{avg_time:.2f} ms")
+        with col2:
+            st.metric("Makespan", f"{makespan_ms} ms")
+            st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+            st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+            avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
+        with col3:
+            st.metric("Unique Workers", metrics_df['worker_id'].nunique())
+            st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
+            st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
+            st.metric("", "")
+            st.metric("", "")
+        with col4:
+            st.metric("Unique Tasks", len(function_groups))
+            st.metric("", "")
+            st.metric("", "")
+
+        breakdown_data = {
+            "Task Execution": total_time_executing_tasks_ms,
+            "Data Download": total_time_downloading_data_ms,
+            "Data Upload": total_time_uploading_data_ms,
+            "Invocation Time": sum(m.total_invocation_time_ms for m in dag_metrics)
+        }
+        
+        # Calculate accounted time
+        accounted_time = sum(breakdown_data.values())
+        unaccounted_time = max(0, makespan_ms - accounted_time)
+        
+        # Add unaccounted time if needed
+        if unaccounted_time > 0:
+            breakdown_data["Other"] = unaccounted_time
+        
+        # Create pie chart
+        breakdown_df = pd.DataFrame({
+            "Component": breakdown_data.keys(),
+            "Time (ms)": breakdown_data.values()
+        })
+       
+        st.subheader("Makespan Breakdown")
+        fig = px.pie(
+            breakdown_df,
+            names="Component",
+            values="Time (ms)",
+            title="",
+            color="Component",
+            color_discrete_map={
+                "Task Execution": "#636EFA",
+                "Data Download": "#EF553B",
+                "Data Upload": "#00CC96",
+                "Invocation Time": "#AB63FA",
+                "Other": "#333333"  # Dark color for unaccounted time
+            }
+        )
+        fig.update_traces(
+            textposition='inside',
+            textinfo='percent+label',
+            hovertemplate="%{label}:<br>%{value:.2f} ms<br>%{percent}"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Function Group Metrics")
+        st.dataframe(grouped_df, use_container_width=True)
+
+        st.subheader("All Task Metrics")
+        raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
+        st.dataframe(
+            raw_task_df,
+            use_container_width=True,
+            column_config={
+                "task_id": st.column_config.TextColumn("Task ID"),
+                "task_started_at": st.column_config.TextColumn("Started At"),
+                "function_name": st.column_config.TextColumn("Function"),
+                "function_group": st.column_config.TextColumn("Group"),
+                "execution_time_ms": st.column_config.NumberColumn("Exec Time (ms)", format="%.2f"),
+                "data_transferred": st.column_config.NumberColumn("Data Transferred"),
+                "worker_id": st.column_config.TextColumn("Worker"),
+                "input_count": st.column_config.NumberColumn("Inputs"),
+                "output_size": st.column_config.NumberColumn("Output Size"),
+                "downstream_calls": st.column_config.NumberColumn("Downstream Calls")
+            }
+        )
     
         with tab_exec:
             if dag_metrics:

@@ -56,7 +56,8 @@ class DAG:
         res = await Worker.wait_for_result_of_task(
             wk.intermediate_storage, # type: ignore
             self.sink_node,
-            self
+            self,
+            polling_interval_s=0.05
         )
 
         if wk.metrics_storage_config: wk.metrics_storage_config.flush()
