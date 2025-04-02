@@ -29,8 +29,10 @@ class TaskMetrics:
     worker_id: str
     execution_time_ms: float
     input_metrics: list[TaskInputMetrics]
+    total_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)
     output_metrics: TaskOutputMetrics
     downstream_invocation_times: list[TaskInvocationMetrics] | None # Can be None if no downstream task was ready
+    total_invocation_time_ms: float # time to do all invocations
 
 class MetricsStorage:
     KEY_PREFIX = "metrics-storage-"

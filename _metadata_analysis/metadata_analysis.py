@@ -1,7 +1,6 @@
 import os
 import sys
 
-from src.storage.metrics.metrics_storage import TaskMetrics
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
@@ -14,6 +13,7 @@ import pandas as pd
 import plotly.express as px
 
 from src.dag import DAG
+from src.storage.metrics.metrics_storage import TaskMetrics
 
 # Redis connection setup
 def get_redis_connection(port: int = 6379):
@@ -96,7 +96,7 @@ def main():
         st.subheader("DAG Structure")
         
         # Create columns for graph and task details
-        graph_col, details_col = st.columns([3, 1])
+        graph_col, details_col = st.columns([2, 1])
         
         with graph_col:
             from streamlit_agraph import agraph, Node, Edge, Config
@@ -180,18 +180,27 @@ def main():
                     # Basic task info
                     st.metric("Function", task_node.func_name)
                     st.metric("Worker", metrics.worker_id)
-                    st.metric("Execution Time", f"{metrics.execution_time_ms:.2f} ms")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
+                    with col2:
+                        st.metric("Dependencies Download Time", f"{metrics.total_input_download_time_ms:.2f} ms")
                     
                     # Connections info
-                    st.write("**Connections:**")
-                    st.write(f"Upstream: {len(task_node.upstream_nodes)}")
-                    st.write(f"Downstream: {len(task_node.downstream_nodes)}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric(f"Tasks Upstream", len(task_node.upstream_nodes))
+                    with col2:
+                        st.metric(f"Tasks Downstream", len(task_node.downstream_nodes))
                     
                     # Output metrics (if available)
                     if metrics.output_metrics:
-                        st.write("**Output Metrics:**")
                         output_data = metrics.output_metrics.size
-                        st.metric("Size", format_bytes(output_data))
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Output Size", format_bytes(output_data))
+                        with col2:
+                            st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
                     else:
                         st.write("**No output metrics available**")
                 else:
@@ -240,13 +249,12 @@ def main():
     
     # Metrics tabs (unchanged from original)
     with tab_summary:
-        # DAG-level metrics section
-        st.subheader("DAG Performance Metrics")
-        
         # Collect all metrics for this DAG
-        dag_metrics = []
+        dag_metrics: list[TaskMetrics] = []
         total_data_transferred = 0
         total_time_executing_tasks_ms = 0
+        total_time_uploading_data_ms = 0
+        total_time_downloading_data_ms = 0
         task_metrics_data = []
         function_groups = set()
         
@@ -255,39 +263,37 @@ def main():
             metrics_data = metrics_redis.get(metrics_key)
             
             if metrics_data:
-                try:
-                    metrics = cloudpickle.loads(metrics_data) # type: ignore
-                    dag_metrics.append(metrics)
-                    
-                    func_name = dag._all_nodes[task_id].func_name
-                    function_group = get_function_group(task_id, func_name)
-                    function_groups.add(function_group)
-                    
-                    # Calculate data transferred
-                    task_data = 0
-                    for input_metric in metrics.input_metrics:
-                        task_data += input_metric.size
-                    if metrics.output_metrics:
-                        task_data += metrics.output_metrics.size
-                    
-                    total_data_transferred += task_data
-                    total_time_executing_tasks_ms += metrics.execution_time_ms
-                    
-                    # Prepare data for visualization
-                    task_metrics_data.append({
-                        'task_id': task_id,
-                        'function_name': func_name,
-                        'function_group': function_group,
-                        'execution_time_ms': metrics.execution_time_ms,
-                        'data_transferred': task_data,
-                        'worker_id': metrics.worker_id,
-                        'input_count': len(metrics.input_metrics),
-                        'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
-                        'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
-                    })
-                    
-                except Exception as e:
-                    st.warning(f"Failed to deserialize metrics for task {task_id}: {e}")
+                metrics = cloudpickle.loads(metrics_data) # type: ignore
+                dag_metrics.append(metrics)
+                
+                func_name = dag._all_nodes[task_id].func_name
+                function_group = get_function_group(task_id, func_name)
+                function_groups.add(function_group)
+                
+                # Calculate data transferred
+                task_data = 0
+                for input_metric in metrics.input_metrics:
+                    task_data += input_metric.size
+                    total_time_downloading_data_ms += input_metric.time_ms
+                if metrics.output_metrics:
+                    task_data += metrics.output_metrics.size
+                    total_time_uploading_data_ms += metrics.output_metrics.time_ms
+                
+                total_data_transferred += task_data
+                total_time_executing_tasks_ms += metrics.execution_time_ms
+                
+                # Prepare data for visualization
+                task_metrics_data.append({
+                    'task_id': task_id,
+                    'function_name': func_name,
+                    'function_group': function_group,
+                    'execution_time_ms': metrics.execution_time_ms,
+                    'data_transferred': task_data,
+                    'worker_id': metrics.worker_id,
+                    'input_count': len(metrics.input_metrics),
+                    'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
+                    'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
+                })
         
         if not dag_metrics:
             st.warning("No metrics found for any tasks in this DAG")
@@ -312,94 +318,134 @@ def main():
             worker_df = worker_df.rename(columns={'task_id': 'task_count'})
             
             # DAG Summary Stats in columns
-            st.subheader("Overall Metrics")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Total Tasks", len(dag._all_nodes))
-            with col2:
                 st.metric("Total Time Executing Tasks", f"{(total_time_executing_tasks_ms / 1000):.3f} s")
+                st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+            with col2:
+                st.metric("Unique Workers", metrics_df['worker_id'].nunique())
                 avg_time = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
                 st.metric("Avg Task Execution Time", f"{(avg_time / 1000):.3f} s")
-            with col3:
-                st.metric("Total Data", format_bytes(total_data_transferred))
                 avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
-                st.metric("Avg Data per Task", format_bytes(avg_data))
+                st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
+            with col3:
+                st.metric("Unique Tasks", len(function_groups))
+                st.metric("", "")
+                st.metric("", "")
+                st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
             with col4:
-                unique_workers = metrics_df['worker_id'].nunique()
-                st.metric("Unique Workers", unique_workers)
-                st.metric("Function Groups", len(function_groups))
+                st.metric("", "")
+                st.metric("", "")
+                st.metric("", "")
+                st.metric("", "")
+                st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
             
             st.subheader("Function Group Metrics")
             st.dataframe(grouped_df, use_container_width=True)
+
+            st.subheader("All Task Metrics")
+            raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
+            st.dataframe(
+                raw_task_df,
+                use_container_width=True,
+                column_config={
+                    "task_id": st.column_config.TextColumn("Task ID"),
+                    "function_name": st.column_config.TextColumn("Function"),
+                    "function_group": st.column_config.TextColumn("Group"),
+                    "execution_time_ms": st.column_config.NumberColumn("Exec Time (ms)", format="%.2f"),
+                    "data_transferred": st.column_config.NumberColumn("Data Transferred"),
+                    "worker_id": st.column_config.TextColumn("Worker"),
+                    "input_count": st.column_config.NumberColumn("Inputs"),
+                    "output_size": st.column_config.NumberColumn("Output Size"),
+                    "downstream_calls": st.column_config.NumberColumn("Downstream Calls")
+                }
+            )
     
-    with tab_exec:
-        if dag_metrics:
-            st.subheader("Execution Time Analysis")
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.bar(
-                    grouped_df,
-                    x='function_group',
-                    y='execution_time_ms_sum',
-                    color='worker_id_mode',
-                    hover_data=['execution_time_ms_mean', 'execution_time_ms_count'],
-                    labels={
-                        'function_group': 'Function Group',
-                        'execution_time_ms_sum': 'Total Execution Time (ms)',
-                        'execution_time_ms_mean': 'Average Time (ms)',
-                        'execution_time_ms_count': 'Task Count',
-                        'worker_id_mode': 'Most Common Worker'
-                    },
-                    title="Total Execution Time by Function Group"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            with col2:
-                fig = px.box(
-                    metrics_df,
-                    x='function_group',
-                    y='execution_time_ms',
-                    color='worker_id',
-                    points="all",
-                    hover_data=['task_id'],
-                    title="Execution Time Distribution by Function Group"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-    
-    with tab_data:
-        if dag_metrics:
-            st.subheader("Data Transfer Analysis")
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.pie(
-                    grouped_df,
-                    names='function_group',
-                    values='data_transferred_sum',
-                    hover_data=['execution_time_ms_count'],
-                    title="Data Transferred by Function Group"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            with col2:
-                fig = px.scatter(
-                    metrics_df,
-                    x='execution_time_ms',
-                    y='data_transferred',
-                    color='function_group',
-                    size='output_size',
-                    hover_name='task_id',
-                    hover_data=['worker_id', 'input_count'],
-                    log_y=True,
-                    labels={
-                        'execution_time_ms': 'Execution Time (ms)',
-                        'data_transferred': 'Data Transferred (bytes)',
-                        'output_size': 'Output Size'
-                    },
-                    title="Execution Time vs Data Transferred"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-    
+        with tab_exec:
+            if dag_metrics:
+                # Create two columns for the charts
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Total Execution Time per Function Group
+                    total_time_df = metrics_df.groupby('function_group')['execution_time_ms'].sum().reset_index()
+                    fig = px.bar(
+                        total_time_df,
+                        x='function_group',
+                        y='execution_time_ms',
+                        labels={
+                            'function_group': 'Function Group',
+                            'execution_time_ms': 'Total Execution Time (ms)'
+                        },
+                        title="Total Execution Time by Function",
+                        color='function_group',
+                        text_auto='.2s'
+                    )
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    # Average Execution Time per Function Group
+                    avg_time_df = metrics_df.groupby('function_group')['execution_time_ms'].mean().reset_index()
+                    fig = px.bar(
+                        avg_time_df,
+                        x='function_group',
+                        y='execution_time_ms',
+                        labels={
+                            'function_group': 'Function Group',
+                            'execution_time_ms': 'Average Execution Time (ms)'
+                        },
+                        title="Average Execution Time by Function",
+                        color='function_group',
+                        text_auto='.2s'
+                    )
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+        with tab_data:
+            if dag_metrics:
+                # Collect all individual transfer metrics
+                download_throughputs = []
+                upload_throughputs = []
+                total_data_downloaded = 0
+                total_data_uploaded = 0
+
+                for task_metrics in dag_metrics:
+                    # Calculate download throughputs for each input
+                    for input_metric in task_metrics.input_metrics:
+                        if input_metric.time_ms > 0:
+                            throughput = (input_metric.size / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                            download_throughputs.append(throughput)
+                        total_data_downloaded += input_metric.size
+
+                    # Calculate upload throughput for output if available
+                    if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
+                        throughput = (task_metrics.output_metrics.size / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        upload_throughputs.append(throughput)
+                        total_data_uploaded += task_metrics.output_metrics.size
+
+                # Calculate average throughputs
+                avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0
+                avg_upload_throughput = sum(upload_throughputs) / len(upload_throughputs) if upload_throughputs else 0
+
+                # Display metrics in columns
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
+                    st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
+                with col2:
+                    st.metric("Download Throughput (avg)", f"{avg_download_throughput:.2f} MB/s")
+                    st.metric("Upload Throughput (avg)", f"{avg_upload_throughput:.2f} MB/s")
+                with col3:
+                    st.metric("Number of Downloads", len(download_throughputs))
+                    st.metric("Number of Uploads", len(upload_throughputs))
+                with col4:
+                    st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
+                    st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+
     with tab_workers:
         if dag_metrics:
-            st.subheader("Worker Distribution")
             col1, col2 = st.columns(2)
             with col1:
                 fig = px.bar(

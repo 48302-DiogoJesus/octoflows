@@ -50,11 +50,14 @@ class Worker(ABC):
                     execution_time_ms = -1,
                     input_metrics = [],
                     output_metrics = None, # type: ignore
+                    total_input_download_time_ms = -1,
                     downstream_invocation_times = None,
+                    total_invocation_time_ms=-1
                 )
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies | Dynamic Task: {task.fan_out_idx != -1}...")
                 task_dependencies: dict[str, Any] = {}
+                dependency_download_timer = time.perf_counter()
                 # Dynamic fan-outs
                 if task.fan_out_idx != -1:
                     if len(task.upstream_nodes) != 1: raise Exception(f"task: {task.id.get_full_id_in_dag(subdag)} Dynamic fan-out tasks can only have 1 upstream task. Got {len(task.upstream_nodes)}")
@@ -102,6 +105,7 @@ class Worker(ABC):
                             ))
                             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
+                task_metrics.total_input_download_time_ms = (time.perf_counter() - dependency_download_timer) * 1000
                 # 2. EXECUTE TASK
                 timer = time.perf_counter()
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
@@ -176,6 +180,7 @@ class Worker(ABC):
                 continuation_task = ready_downstream[0] # choose the first task
                 tasks_to_delegate = ready_downstream[1:]
                 coroutines = []
+                total_invocation_time_timer = time.perf_counter()
 
                 task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
@@ -189,6 +194,7 @@ class Worker(ABC):
                     task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=(time.perf_counter() - timer) * 1000))
                 
                 await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+                task_metrics.total_invocation_time_ms = (time.perf_counter() - total_invocation_time_timer) * 1000
 
                 if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
 
