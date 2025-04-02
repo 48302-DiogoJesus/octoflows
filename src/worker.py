@@ -226,6 +226,8 @@ class Worker(ABC):
 
         # Cleanup
         self.log(task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
+        if self.metrics_storage_config:
+            self.metrics_storage_config.flush()
 
     @abstractmethod
     async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration, called_by_worker: bool = False): 

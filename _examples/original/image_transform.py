@@ -35,6 +35,7 @@ localWorkerConfig = LocalWorker.Config(
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
+    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config, upload_strategy=MetricsStorage.UploadStrategy.AFTER_EACH_TASK)
 )
 
@@ -144,7 +145,7 @@ def main():
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
-    final_image = final_image.compute(config=localWorkerConfig)
+    final_image = final_image.compute(config=dockerWorkerConfig)
 
     # image = Image.open(io.BytesIO(final_image))
     # image.show()

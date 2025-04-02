@@ -172,35 +172,29 @@ def main():
                 # Try to find metrics for this task
                 metrics_key = f"metrics-storage-{st.session_state.selected_task_id}_{dag.master_dag_id}"
                 metrics_data = metrics_redis.get(metrics_key)
+                if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
                 
-                if metrics_data:
-                    metrics = cloudpickle.loads(metrics_data) # type: ignore
-                    
-                    # Basic task info
-                    st.metric("Function", task_node.func_name)
-                    st.metric("Worker", metrics.worker_id)
-                    col1, col2 = st.columns(2)
-                    output_data = metrics.output_metrics.size
-                    with col1:
-                        total_task_handling_time = metrics.total_input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
-                        st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
-                        st.metric("Dependencies Download Time", f"{metrics.total_input_download_time_ms:.2f} ms")
-                        st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
-                        st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
-                        st.metric("Tasks Upstream", len(task_node.upstream_nodes))
-                    with col2:
-                        st.metric("", "")
-                        st.metric("", "")
-                        st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
-                        st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
-                        st.metric("Output Size", format_bytes(output_data))
-                        st.metric("Tasks Downstream", len(task_node.downstream_nodes))
-                else:
-                    st.warning("No metrics found for this task")
-                    st.write(f"**Function:** {task_node.func_name}")
-                    st.write(f"**Task ID:** {st.session_state.selected_task_id}")
-                    st.write(f"**Upstream:** {len(task_node.upstream_nodes)}")
-                    st.write(f"**Downstream:** {len(task_node.downstream_nodes)}")
+                metrics = cloudpickle.loads(metrics_data) # type: ignore
+                
+                # Basic task info
+                st.metric("Function", task_node.func_name)
+                st.metric("Worker", metrics.worker_id)
+                col1, col2 = st.columns(2)
+                output_data = metrics.output_metrics.size
+                with col1:
+                    total_task_handling_time = metrics.total_input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
+                    st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
+                    st.metric("Dependencies Download Time", f"{metrics.total_input_download_time_ms:.2f} ms")
+                    st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
+                    st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
+                    st.metric("Tasks Upstream", len(task_node.upstream_nodes))
+                with col2:
+                    st.metric("", "")
+                    st.metric("", "")
+                    st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
+                    st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
+                    st.metric("Output Size", format_bytes(output_data))
+                    st.metric("Tasks Downstream", len(task_node.downstream_nodes))
         
         # Input metrics section below the DAG visualization
         if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
