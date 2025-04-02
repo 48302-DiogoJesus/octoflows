@@ -300,8 +300,7 @@ def main():
         metrics_df = pd.DataFrame(task_metrics_data)
         grouped_df = metrics_df.groupby('function_group').agg({
             'execution_time_ms': ['sum', 'mean', 'count'],
-            'data_transferred': ['sum', 'mean'],
-            'worker_id': pd.Series.mode
+            'data_transferred': ['sum', 'mean']
         }).reset_index()
         
         # Flatten multi-index columns
@@ -339,6 +338,7 @@ def main():
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
 
 
+        total_times = total_time_executing_tasks_ms + total_time_downloading_data_ms + total_time_uploading_data_ms + total_time_invoking_tasks_ms + total_time_updating_dependency_counters_ms
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
             "Data Download": total_time_downloading_data_ms,
@@ -349,7 +349,7 @@ def main():
         
         # Calculate accounted time
         accounted_time = sum(breakdown_data.values())
-        unaccounted_time = max(0, makespan_ms - accounted_time)
+        unaccounted_time = max(0, total_times - accounted_time)
         
         # Add unaccounted time if needed
         if unaccounted_time > 0:
@@ -361,7 +361,7 @@ def main():
             "Time (ms)": breakdown_data.values()
         })
        
-        st.subheader("Makespan Breakdown")
+        st.subheader("Times Breakdown")
         fig = px.pie(
             breakdown_df,
             names="Component",

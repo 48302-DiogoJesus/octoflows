@@ -135,13 +135,13 @@ def main():
     print("Number of chunks:", num_chunks)
     chunks = split_image(image_data, num_chunks)
     # chunks = chunks.compute(config=localWorkerConfig)
-    chunks = chunks.compute(config=localWorkerConfig)
+    chunks = chunks.compute(config=dockerWorkerConfig)
     
     processed_chunks = []
     for chunk in chunks:
-        grayscaled = grayscale_image_part(chunk)
-        blurred = blur_image_part(grayscaled)
-        processed_chunks.append(blurred)
+        blurred = blur_image_part(chunk)
+        grayscaled = grayscale_image_part(blurred)
+        processed_chunks.append(grayscaled)
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)

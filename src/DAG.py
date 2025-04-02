@@ -13,7 +13,7 @@ logger = create_logger(__name__)
 class DAG:
     def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_node: dag_task_node.DAGTaskNode | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
-        self.master_dag_id = master_dag_id or str(uuid.uuid4())
+        self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}{str(uuid.uuid4())}"
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_node:
             self.root_nodes = None
