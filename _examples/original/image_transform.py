@@ -1,10 +1,8 @@
-import asyncio
 import os
 import sys
 from PIL import Image, ImageFilter, ImageOps
-import numpy as np
 import io
-from typing import List, Tuple
+from typing import List
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -134,8 +132,8 @@ def main():
     num_chunks = determine_chunks_amount(image_data)
     print("Number of chunks:", num_chunks)
     chunks = split_image(image_data, num_chunks)
-    # chunks = chunks.compute(config=localWorkerConfig)
-    chunks = chunks.compute(config=dockerWorkerConfig)
+    chunks = chunks.compute(config=localWorkerConfig)
+    # chunks = chunks.compute(config=dockerWorkerConfig)
     
     processed_chunks = []
     for chunk in chunks:

@@ -1,20 +1,19 @@
+import seaborn as sns
 import colorsys
 from datetime import datetime
 import hashlib
 import os
 import sys
-
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+from matplotlib import pyplot as plt
+import numpy as np
+from streamlit_agraph import agraph, Node, Edge, Config
 import streamlit as st
 import redis
 import cloudpickle
-import graphviz
-from typing import Optional
-from dataclasses import asdict
 import pandas as pd
 import plotly.express as px
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.dag import DAG
 from src.dag_task_node import DAGTaskNode
@@ -161,8 +160,6 @@ def main():
         graph_col, details_col = st.columns([2, 1])
         
         with graph_col:
-            from streamlit_agraph import agraph, Node, Edge, Config
-
             nodes = []
             edges = []
             node_levels = {}  # Tracks hierarchy levels
@@ -232,7 +229,7 @@ def main():
                 directed=True,
                 physics=False,
                 hierarchical=True,
-                hierarchical_sort_method="directed",
+                hierarchical_sort_method="directed"
             )
 
             # Get selected node from graph interaction
@@ -369,14 +366,6 @@ def main():
             "DC Updates": total_time_updating_dependency_counters_ms
         }
         
-        # Calculate accounted time
-        accounted_time = sum(breakdown_data.values())
-        unaccounted_time = max(0, total_times - accounted_time)
-        
-        # Add unaccounted time if needed
-        if unaccounted_time > 0:
-            breakdown_data["Other"] = unaccounted_time
-        
         # Create pie chart
         breakdown_df = pd.DataFrame({
             "Component": breakdown_data.keys(),
@@ -406,7 +395,7 @@ def main():
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Function Group Metrics")
+        st.subheader("Metrics by Function/Task type")
         st.dataframe(grouped_df, use_container_width=True)
 
         st.subheader("Raw Task Metrics")
@@ -468,46 +457,129 @@ def main():
                     fig.update_layout(showlegend=False)
                     st.plotly_chart(fig, use_container_width=True)
                 
-        with tab_data:
-            if dag_metrics:
-                # Collect all individual transfer metrics
-                download_throughputs = []
-                upload_throughputs = []
-                total_data_downloaded = 0
-                total_data_uploaded = 0
+    with tab_data:
+        if dag_metrics:
+            # Collect all individual transfer metrics
+            download_throughputs = []
+            upload_throughputs = []
+            all_transfer_speeds = []  # In bytes/ms
+            total_data_downloaded = 0
+            total_data_uploaded = 0
 
-                for task_metrics in dag_metrics:
-                    # Calculate download throughputs for each input
-                    for input_metric in task_metrics.input_metrics:
-                        if input_metric.time_ms > 0:
-                            throughput = (input_metric.size / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                            download_throughputs.append(throughput)
-                        total_data_downloaded += input_metric.size
+            for task_metrics in dag_metrics:
+                # Calculate download throughputs for each input
+                for input_metric in task_metrics.input_metrics:
+                    if input_metric.time_ms > 0:
+                        throughput_mb = (input_metric.size / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        speed_bytes_ms = input_metric.size / input_metric.time_ms  # bytes/ms
+                        download_throughputs.append(throughput_mb)
+                        all_transfer_speeds.append(speed_bytes_ms)
+                    total_data_downloaded += input_metric.size
 
-                    # Calculate upload throughput for output if available
-                    if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
-                        throughput = (task_metrics.output_metrics.size / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                        upload_throughputs.append(throughput)
-                        total_data_uploaded += task_metrics.output_metrics.size
+                # Calculate upload throughput for output if available
+                if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
+                    throughput_mb = (task_metrics.output_metrics.size / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.size / task_metrics.output_metrics.time_ms  # bytes/ms
+                    upload_throughputs.append(throughput_mb)
+                    all_transfer_speeds.append(speed_bytes_ms)
+                    total_data_uploaded += task_metrics.output_metrics.size
 
-                # Calculate average throughputs
-                avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0
-                avg_upload_throughput = sum(upload_throughputs) / len(upload_throughputs) if upload_throughputs else 0
+            # Calculate average throughputs
+            avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0
+            avg_upload_throughput = sum(upload_throughputs) / len(upload_throughputs) if upload_throughputs else 0
 
-                # Display metrics in columns
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
-                    st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
-                with col2:
-                    st.metric("Download Throughput (avg)", f"{avg_download_throughput:.2f} MB/s")
-                    st.metric("Upload Throughput (avg)", f"{avg_upload_throughput:.2f} MB/s")
-                with col3:
-                    st.metric("Number of Downloads", len(download_throughputs))
-                    st.metric("Number of Uploads", len(upload_throughputs))
-                with col4:
-                    st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-                    st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+            # Display metrics in columns
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
+                st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
+            with col2:
+                st.metric("Download Throughput (avg)", f"{avg_download_throughput:.2f} MB/s")
+                st.metric("Upload Throughput (avg)", f"{avg_upload_throughput:.2f} MB/s")
+            with col3:
+                st.metric("Number of Downloads", len(download_throughputs))
+                st.metric("Number of Uploads", len(upload_throughputs))
+            with col4:
+                st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
+                st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+
+            # Add transfer speeds distribution visualization
+            st.subheader("Transfer Speeds Distribution")
+            
+            if all_transfer_speeds:
+                # Calculate percentiles
+                percentiles = [5, 25, 50, 75, 95]
+                percentile_values = np.percentile(all_transfer_speeds, percentiles)
+                
+                # Create figure with smaller size and custom background
+                fig, ax = plt.subplots(figsize=(8, 4))  # Reduced from (10, 6)
+                fig.patch.set_alpha(0)  # Light gray background
+                # fig.patch.set_facecolor('#636EFA')  # Light gray background
+                ax.set_facecolor('none')  # Same for axis background
+                
+                # Plot histogram with KDE
+                sns.histplot(all_transfer_speeds, bins=30, kde=True, ax=ax, color='#1f77b4')  # Added specific color
+                
+                # Add percentile lines
+                colors = ['red', 'orange', 'green', 'blue', 'purple']
+                for i, p in enumerate(percentiles):
+                    ax.axvline(percentile_values[i], color=colors[i], linestyle='--', 
+                            linewidth=2, label=f'{p}th: {percentile_values[i]:.2f} bytes/ms')
+                
+                # Customize the plot
+                ax.set_title('Transfer Speeds Distribution with Percentile Markers', color="white")
+                ax.set_xlabel('Transfer Speed (bytes/ms)', color="white")
+                ax.set_ylabel('Frequency', color="white")
+                ax.legend()
+                ax.tick_params(axis='both', colors='white')  # Makes x & y axis numbers white
+                ax.legend(facecolor='none', edgecolor='none', labelcolor='white')
+                ax.grid(True, alpha=0.2, color='lightgray')
+                for spine in ax.spines.values():
+                    spine.set_color('white')
+                
+                st.pyplot(fig, use_container_width=False)
+                
+                # Add percentile predictions section
+                st.subheader("Transfer Time Predictions")
+                
+                # Create input for data size
+                data_size = st.number_input("Enter data size (bytes) for prediction:", min_value=1, value=1000000)
+                
+                # Calculate predictions for each percentile
+                predictions = []
+                for i, p in enumerate(percentiles):
+                    speed = percentile_values[i]
+                    if speed > 0:
+                        time_ms = data_size / speed
+                        predictions.append({
+                            "Percentile": f"{p}th",
+                            "Speed (bytes/ms)": f"{speed:.2f}",
+                            "Predicted Time (ms)": f"{time_ms:.2f}",
+                            "Description": [
+                                "Very conservative estimate (95% confidence)",
+                                "Conservative estimate (75% confidence)",
+                                "Median speed (typical case)",
+                                "Optimistic estimate (25% confidence)",
+                                "Very optimistic estimate (5% confidence)"
+                            ][i]
+                        })
+                
+                # Display predictions as a table
+                if predictions:
+                    predictions_df = pd.DataFrame(predictions)
+                    st.dataframe(
+                        predictions_df,
+                        use_container_width=True,
+                        column_config={
+                            "Percentile": st.column_config.TextColumn(width="small"),
+                            "Speed (bytes/ms)": st.column_config.NumberColumn(width="medium"),
+                            "Predicted Time (ms)": st.column_config.NumberColumn(width="medium"),
+                            "Description": st.column_config.TextColumn(width="large")
+                        },
+                        hide_index=True
+                    )
+            else:
+                st.warning("No transfer metrics available for visualization")
 
     with tab_workers:
         if dag_metrics:

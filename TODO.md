@@ -1,3 +1,5 @@
+- Use Windsurf to refactor dashboard code
+
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
 
 - Metrics Digestion
