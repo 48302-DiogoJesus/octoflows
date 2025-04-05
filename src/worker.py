@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 import asyncio
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import time
 from typing import Any
@@ -10,7 +10,8 @@ import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
-from src.resource_configuration import TaskWorkerResourcesConfiguration
+from src.utils.timer import Timer
+from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
@@ -20,25 +21,13 @@ import src.storage.storage as storage_module
 
 logger = create_logger(__name__)
 
-class StopWatch:
-    is_stopped = False
-
-    def __init__(self):
-        self.start_time = time.perf_counter()
-
-    def stop(self):
-        """ returns in milliseconds """
-        if self.is_stopped: raise Exception("StopWatch is already stopped")
-        total_time = (time.perf_counter() - self.start_time) * 1000
-        self.is_stopped = True
-        return total_time
-
 class Worker(ABC):
     @dataclass
     class Config(ABC):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
+        available_resource_configurations: list[TaskWorkerResourceConfiguration] = field(default_factory=list)
         
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -72,13 +61,13 @@ class Worker(ABC):
                 # 1. DOWNLOAD DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies | Dynamic Task: {task.fan_out_idx != -1}...")
                 task_dependencies: dict[str, Any] = {}
-                dependency_download_timer = StopWatch()
+                dependency_download_timer = Timer()
                 # Dynamic fan-outs
                 if task.fan_out_idx != -1:
                     if len(task.upstream_nodes) != 1: raise Exception(f"task: {task.id.get_full_id_in_dag(subdag)} Dynamic fan-out tasks can only have 1 upstream task. Got {len(task.upstream_nodes)}")
                     dependency_task = task.upstream_nodes[0]
                     logger.info(f"DYNAMIC FAN-OUT: Grabbing {dependency_task.id.get_full_id_in_dag(subdag)}.output[{task.fan_out_idx}]")
-                    dfotimer = StopWatch()
+                    dfotimer = Timer()
                     task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                     # ! This is a dynamic fan-out. Metrics should differentiate if this feature is not removed
@@ -110,7 +99,7 @@ class Worker(ABC):
                                 aggregated_outputs.append(cloudpickle.loads(task_output))
                             task_dependencies[dependency_task.id.get_full_id()] = aggregated_outputs
                         else:
-                            fotimer = StopWatch()
+                            fotimer = Timer()
                             task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                             task_metrics.input_metrics.append(TaskInputMetrics(
@@ -122,12 +111,12 @@ class Worker(ABC):
                 
                 task_metrics.total_input_download_time_ms = dependency_download_timer.stop()
                 # 2. EXECUTE TASK
-                exec_timer = StopWatch()
+                exec_timer = Timer()
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
                 task_metrics.execution_time_ms = exec_timer.stop()
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
-                output_upload_timer = StopWatch()
+                output_upload_timer = Timer()
                 task_result_serialized = cloudpickle.dumps(task_result)
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
@@ -144,7 +133,7 @@ class Worker(ABC):
                 self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}")
                 ready_downstream: list[dag_task_node.DAGTaskNode] = []
                 
-                updating_dependency_counters_timer = StopWatch()
+                updating_dependency_counters_timer = Timer()
 
                 for downstream_task in task.downstream_nodes:
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
@@ -199,15 +188,15 @@ class Worker(ABC):
                 continuation_task = ready_downstream[0] # choose the first task
                 tasks_to_delegate = ready_downstream[1:]
                 coroutines = []
-                total_invocation_time_timer = StopWatch()
+                total_invocation_time_timer = Timer()
 
                 task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
                     self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
-                    dwn_invoke_timer = StopWatch()
+                    dwn_invoke_timer = Timer()
                     coroutines.append(self.delegate(
                         subdag.create_subdag(t),
-                        resource_configuration=TaskWorkerResourcesConfiguration(cpus=1, memory=128),
+                        resource_configuration=TaskWorkerResourceConfiguration(cpus=1, memory=128),
                         called_by_worker=True
                     ))
                     task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=dwn_invoke_timer.stop()))
@@ -230,7 +219,7 @@ class Worker(ABC):
             self.metrics_storage_config.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = False): 
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -247,7 +236,7 @@ class Worker(ABC):
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
-        start_time = StopWatch()
+        start_time = Timer()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)
         is_task_dynamic_fan_out = task.is_dynamic_fan_out_representative
@@ -295,7 +284,7 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = True):
         await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
@@ -316,7 +305,7 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''

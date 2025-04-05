@@ -109,23 +109,23 @@ class DAGTaskNode(Generic[R]):
         }
 
     """ config: worker.Worker.Config """
-    def compute(self, config, open_dashboard: bool = False) -> R:
+    def compute(self, config, planner = None, open_dashboard: bool = False) -> R:
         import src.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
         logger.warning(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {time.time() - _start_time:.4f} seconds")
-        return asyncio.run(dag_representation.compute(_config, open_dashboard))
+        return asyncio.run(dag_representation.compute(_config, planner, open_dashboard))
 
-    async def compute_async(self, config, open_dashboard: bool = False) -> R:
+    async def compute_async(self, config, planner = None, open_dashboard: bool = False) -> R:
         import src.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
         _start_time = time.time()
         dag_representation = dag.DAG(sink_node=self)
         logger.warning(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {time.time() - _start_time:.4f} seconds")
-        res = await dag_representation.compute(_config, open_dashboard)
+        res = await dag_representation.compute(_config, planner, open_dashboard)
         return res
 
     def visualize_dag(self, output_file="dag_graph.png", open_after: bool = True):

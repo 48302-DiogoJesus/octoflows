@@ -39,16 +39,16 @@ class TaskMetrics:
 class MetricsStorage:
     KEY_PREFIX = "metrics-storage-"
 
-    class UploadStrategy(Enum):
-        BEFORE_SHUTDOWN = 1
-        AFTER_EACH_TASK = 2
-        PERIODIC = 3 # requires user to specify interval
-        AFTER_N_METRICS = 4 # uses a queue
+    # class UploadStrategy(Enum):
+    #     BEFORE_SHUTDOWN = 1
+    #     AFTER_EACH_TASK = 2
+    #     PERIODIC = 3 # requires user to specify interval
+    #     AFTER_N_METRICS = 4 # uses a queue
 
     @dataclass
     class Config:
         storage_config: Storage.Config
-        upload_strategy: "MetricsStorage.UploadStrategy"
+        # upload_strategy: "MetricsStorage.UploadStrategy"
 
         def create_instance(self) -> "MetricsStorage":
             return MetricsStorage(self.storage_config)

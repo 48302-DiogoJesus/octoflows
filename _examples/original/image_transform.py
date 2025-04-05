@@ -6,7 +6,8 @@ from typing import List
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.resource_configuration import TaskWorkerResourcesConfiguration
+from src.planning.dag_planner import DummyDAGPlanner, SimpleDAGPlanner
+from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
@@ -28,14 +29,19 @@ redis_metrics_storage_config = RedisStorage.Config(
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config, upload_strategy=MetricsStorage.UploadStrategy.AFTER_EACH_TASK)
+    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config)
 )
 
 dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config, upload_strategy=MetricsStorage.UploadStrategy.AFTER_EACH_TASK)
+    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
+    
+    docker_gateway_address="http://localhost:5000",
+    available_resource_configurations=[
+        TaskWorkerResourceConfiguration(cpus=1, memory=128),
+        TaskWorkerResourceConfiguration(cpus=2, memory=256)
+    ]
 )
 
 def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.Image]:
@@ -145,7 +151,7 @@ def main():
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
-    final_image = final_image.compute(config=localWorkerConfig)
+    final_image = final_image.compute(config=dockerWorkerConfig, planner=DummyDAGPlanner)
 
     # image = Image.open(io.BytesIO(final_image))
     # image.show()

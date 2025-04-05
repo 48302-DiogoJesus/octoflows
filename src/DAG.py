@@ -4,6 +4,7 @@ from typing import Any
 import uuid
 import graphviz
 
+from src.planning.dag_planner import DAGPlanner
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
@@ -29,14 +30,26 @@ class DAG:
             DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
 
-    async def compute(self, config, open_dashboard: bool = False):
-        from src.worker import Worker
+    async def compute(self, config, planner: DAGPlanner | None = None, open_dashboard: bool = False):
+        from src.worker import Worker, LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
-        from src.resource_configuration import TaskWorkerResourcesConfiguration
+        from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+        from src.planning.dag_planner import DAGPlanner
         _wk_config: Worker.Config = config
+        _planner: DAGPlanner | None = planner
         wk: Worker = _wk_config.create_instance()
         if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
         Worker.store_full_dag(wk.metadata_storage, self)
+
+        if _planner:
+            if isinstance(_wk_config, LocalWorker):
+                raise Exception("Can't do DAG Planning with local worker!")
+            if _wk_config.metrics_storage_config is None:
+                raise Exception("Can't do DAG Planning without metrics storage config!")
+            if len(_wk_config.available_resource_configurations) == 0:
+                raise Exception("Can't do DAG Planning without available resource configurations!")
+            
+            _planner.plan(self, _wk_config.metrics_storage_config, _wk_config.available_resource_configurations, "avg")
 
         if open_dashboard:
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
@@ -47,7 +60,7 @@ class DAG:
         for root_node in self.root_nodes:
             asyncio.create_task(wk.delegate(
                 self.create_subdag(root_node),
-                resource_configuration=TaskWorkerResourcesConfiguration(cpus=1, memory=128),
+                resource_configuration=TaskWorkerResourceConfiguration(cpus=1, memory=128),
                 called_by_worker=False
             ))
 

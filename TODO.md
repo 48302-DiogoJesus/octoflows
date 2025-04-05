@@ -1,7 +1,15 @@
-- Add `annotations` Set attribute to tasks (`TaskAnnotation` super class)
-- Store the worker **resource configuration** in the Metrics (look at the annotations)
-- **Planning** step before client calls `delegate` that adds annotations
-    Abstract, think about it
+- Use the `DummyDAGPlanner` to influence the delegations
+    - Look at the annotations before delegating
+    - Pass it to the gateway in the http request
+    - Verify => Disable killing inactive containers
+- Store the current worker **resource configuration** in the Metrics (look at the annotations (Dynamically using python code won't work))
+
+- Make the dashboard show stats about the worker configuration as well
+
+- Implement basic **Planning** algorithm
+    see my report
+
+- REFACTOR: WorkerConfigs should be separated from Workers because they are more `DAGExecutionConfigs` that `WorkerConfigs`
 
 - Change the DAG id format: dag-{timestamp}-{sink_node_func_name}-{uuid[:4]}
 
