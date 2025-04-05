@@ -6,6 +6,7 @@ from typing import List
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.resource_configuration import TaskWorkerResourcesConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
@@ -130,6 +131,7 @@ def main():
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
 
     num_chunks = determine_chunks_amount(image_data)
+
     print("Number of chunks:", num_chunks)
     chunks = split_image(image_data, num_chunks)
     chunks = chunks.compute(config=localWorkerConfig)
@@ -143,7 +145,7 @@ def main():
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
-    final_image = final_image.compute(config=dockerWorkerConfig)
+    final_image = final_image.compute(config=localWorkerConfig)
 
     # image = Image.open(io.BytesIO(final_image))
     # image.show()

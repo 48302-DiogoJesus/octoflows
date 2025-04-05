@@ -1,6 +1,6 @@
+from abc import ABC
 import ast
 import asyncio
-import collections
 import copy
 from dataclasses import dataclass
 from functools import wraps
@@ -8,7 +8,7 @@ import inspect
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Generic, TypeAlias, TypeVar, Union, get_args, get_origin
+from typing import Any, Callable, Generic, Type, TypeAlias, TypeVar, Union, get_args, get_origin
 import uuid
 
 R = TypeVar('R')
@@ -39,6 +39,9 @@ class DAGTaskNodeId:
 # class _CachedResultWrapper(Generic[R]):
 #     result: R
 
+@dataclass
+class TaskAnnotation(ABC): pass
+
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict, dynamic_fan_out_representative_id: DAGTaskNodeId | None = None, fan_out_idx: int = -1, fan_out_size: int = -1):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
@@ -52,6 +55,7 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
+        self.annotations: list[TaskAnnotation] = []
         # self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
@@ -196,6 +200,21 @@ class DAGTaskNode(Generic[R]):
         res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
         # self.cached_result = _CachedResultWrapper(res)
         return res
+
+    T = TypeVar('T', bound='TaskAnnotation')
+
+    def add_annotation(self, annotation: TaskAnnotation):
+        for existing in self.annotations:
+            if type(existing) is type(annotation): raise ValueError(f"Annotation of type {type(annotation)} already exists on task {self.id}")
+        
+        self.annotations.append(annotation)
+        return True
+
+    def get_annotation(self, annotation_type: Type[T]) -> T | None:
+        for annotation in self.annotations:
+            if isinstance(annotation, annotation_type):
+                return annotation
+        return None
 
     def _try_convert_node_func_args_to_ids(self):
         """

@@ -1,22 +1,23 @@
-- Use Windsurf to refactor dashboard code
+- Add `annotations` Set attribute to tasks (`TaskAnnotation` super class)
+- Store the worker **resource configuration** in the Metrics (look at the annotations)
+- **Planning** step before client calls `delegate` that adds annotations
+    Abstract, think about it
+
+- Change the DAG id format: dag-{timestamp}-{sink_node_func_name}-{uuid[:4]}
+
+- Make all examples use MetricsStorage
+- Remove intermediate results of a dag after complete (sink task is responsible for this)
 
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
 
-- Metrics Digestion
-    - what types of things to store? (percentiles, averages, median)
-    - research incremental updates to them (percentiles, averages, median)
-
+- [NNP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
+    NOTE: I tried it, but redis server was crashing when i used asyncredis library
 - Metrics upload strategy configurable in the `MetricsStorage` class:
     before worker shutdown (all do these)
     after each task
     periodic (X seconds)
     after queue fills up (X queue size)
 
-- Make all examples use MetricsStorage
-- Remove intermediate results of a dag after complete (sink task is responsible for this)
-
-- [NP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
-    NOTE: I tried it, but redis server was crashing when i used asyncredis library
 
 # Evaluation
 - [NNP] Implement WUKONG-specific optimizations

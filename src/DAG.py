@@ -32,7 +32,7 @@ class DAG:
     async def compute(self, config, open_dashboard: bool = False):
         from src.worker import Worker
         from src.storage.in_memory_storage import InMemoryStorage
-        from src.resource_configuration import ResourceConfiguration
+        from src.resource_configuration import TaskWorkerResourcesConfiguration
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
         if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
@@ -47,7 +47,7 @@ class DAG:
         for root_node in self.root_nodes:
             asyncio.create_task(wk.delegate(
                 self.create_subdag(root_node),
-                resource_configuration=ResourceConfiguration.small(),
+                resource_configuration=TaskWorkerResourcesConfiguration(cpus=1, memory=128),
                 called_by_worker=False
             ))
 

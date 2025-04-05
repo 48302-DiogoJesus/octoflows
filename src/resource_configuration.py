@@ -1,18 +1,9 @@
 from dataclasses import dataclass
 
+from src.dag_task_node import TaskAnnotation
+
+
 @dataclass
-class ResourceConfiguration:
+class TaskWorkerResourcesConfiguration(TaskAnnotation):
     cpus: float
     memory: int
-
-    @staticmethod
-    def small():
-        return ResourceConfiguration(cpus=1, memory=128)
-    
-    @staticmethod
-    def medium():
-        return ResourceConfiguration(cpus=2, memory=256)
-    
-    @staticmethod
-    def large():
-        return ResourceConfiguration(cpus=4, memory=512)

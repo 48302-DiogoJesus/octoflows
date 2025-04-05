@@ -10,7 +10,7 @@ import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
-from src.resource_configuration import ResourceConfiguration
+from src.resource_configuration import TaskWorkerResourcesConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
@@ -207,7 +207,7 @@ class Worker(ABC):
                     dwn_invoke_timer = StopWatch()
                     coroutines.append(self.delegate(
                         subdag.create_subdag(t),
-                        resource_configuration=ResourceConfiguration.medium(),
+                        resource_configuration=TaskWorkerResourcesConfiguration(cpus=1, memory=128),
                         called_by_worker=True
                     ))
                     task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=dwn_invoke_timer.stop()))
@@ -230,7 +230,7 @@ class Worker(ABC):
             self.metrics_storage_config.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration, called_by_worker: bool = False): 
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -295,7 +295,7 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration = ResourceConfiguration.small(), called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = True):
         await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
@@ -316,7 +316,7 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.DAG, resource_configuration: ResourceConfiguration = ResourceConfiguration.small(), called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourcesConfiguration, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''

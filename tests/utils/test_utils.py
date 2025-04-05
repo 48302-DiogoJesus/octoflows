@@ -9,13 +9,15 @@ redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
 
 localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=inmemory_intermediate_storage_config
+    intermediate_storage_config=inmemory_intermediate_storage_config,
+    metrics_storage_config=None
 )
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config,
+    metrics_storage_config=None
 )
 
 def get_worker_config():
-    return dockerWorkerConfig
+    return localWorkerConfig
