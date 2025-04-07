@@ -40,6 +40,7 @@ class Worker(ABC):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
         self.metrics_storage_config = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
+        self.available_resource_configurations = config.available_resource_configurations
 
     async def start_executing(self, subdag: dag.DAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
@@ -47,8 +48,10 @@ class Worker(ABC):
 
         try:
             while True:
+                workerResourceConfig: TaskWorkerResourceConfiguration | None = task.get_annotation(TaskWorkerResourceConfiguration)
                 task_metrics = TaskMetrics(
                     worker_id = self.worker_id,
+                    worker_resource_configuration=workerResourceConfig,
                     started_at_timestamp = time.time(),
                     input_metrics = [],
                     total_input_download_time_ms = 0,
@@ -192,14 +195,18 @@ class Worker(ABC):
 
                 task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
-                    self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
-                    dwn_invoke_timer = Timer()
+                    workerResourcesConfig = t.get_annotation(TaskWorkerResourceConfiguration)
+                    if workerResourcesConfig is None and len(self.available_resource_configurations) > 0:
+                        workerResourcesConfig = self.available_resource_configurations[0]
+                        
+                    self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t} with resources: {workerResourcesConfig}")
+                    delegate_invoke_timer = Timer()
                     coroutines.append(self.delegate(
                         subdag.create_subdag(t),
-                        resource_configuration=TaskWorkerResourceConfiguration(cpus=1, memory=128),
+                        resource_configuration=workerResourcesConfig,
                         called_by_worker=True
                     ))
-                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=dwn_invoke_timer.stop()))
+                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=delegate_invoke_timer.stop()))
                 
                 await asyncio.gather(*coroutines) # wait for the delegations to be accepted
                 task_metrics.total_invocation_time_ms = total_invocation_time_timer.stop()
@@ -219,7 +226,7 @@ class Worker(ABC):
             self.metrics_storage_config.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = False): 
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -284,7 +291,7 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
         await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
@@ -305,12 +312,15 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
+        if not resource_configuration: 
+            raise Exception("Resource configuration is required for DockerWorker to delegation!")
+
         gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address})")
+        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {resource_configuration}")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
                 gateway_address + "/job", 

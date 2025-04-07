@@ -39,8 +39,6 @@ class DAG:
         _planner: DAGPlanner | None = planner
         wk: Worker = _wk_config.create_instance()
         if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
-        Worker.store_full_dag(wk.metadata_storage, self)
-
         if _planner:
             if isinstance(_wk_config, LocalWorker):
                 raise Exception("Can't do DAG Planning with local worker!")
@@ -51,6 +49,9 @@ class DAG:
             
             _planner.plan(self, _wk_config.metrics_storage_config, _wk_config.available_resource_configurations, "avg")
 
+        # ! Need to PLAN, then STORE, because after the full dag is stored on redis, all workers will use that!
+        Worker.store_full_dag(wk.metadata_storage, self)
+
         if open_dashboard:
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
                 raise Exception("Can't use dashboard when using in-memory storage!")
@@ -58,9 +59,10 @@ class DAG:
         
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         for root_node in self.root_nodes:
+            root_node_worker_config = root_node.get_annotation(TaskWorkerResourceConfiguration)
             asyncio.create_task(wk.delegate(
                 self.create_subdag(root_node),
-                resource_configuration=TaskWorkerResourceConfiguration(cpus=1, memory=128),
+                resource_configuration=root_node_worker_config,
                 called_by_worker=False
             ))
 

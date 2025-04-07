@@ -7,6 +7,7 @@ import time
 import cloudpickle
 import concurrent
 from src.storage.storage import Storage
+from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 @dataclass
 class TaskInputMetrics:
@@ -27,6 +28,7 @@ class TaskInvocationMetrics:
 @dataclass
 class TaskMetrics:
     worker_id: str
+    worker_resource_configuration: TaskWorkerResourceConfiguration | None
     started_at_timestamp: float # time at which the task started being processed by a worker
     input_metrics: list[TaskInputMetrics]
     total_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)

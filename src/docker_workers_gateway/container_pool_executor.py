@@ -57,13 +57,13 @@ class ContainerPoolExecutor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        print(f"Exit Code: {result.returncode}")
-        print("STDOUT:")
-        print(result.stdout.decode().strip() if result.stdout else "(No output)")
-        if result.stderr:
-            logger.error("STDERR:")
-            logger.error(result.stderr.decode().strip())
-            sys.exit(0)
+        # print(f"Exit Code: {result.returncode}")
+        # print("STDOUT:")
+        # print(result.stdout.decode().strip() if result.stdout else "(No output)")
+        # if result.stderr:
+        #     logger.error("STDERR:")
+        #     logger.error(result.stderr.decode().strip())
+        #     sys.exit(0)
         return result.returncode
 
     def shutdown(self):

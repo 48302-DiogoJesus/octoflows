@@ -70,7 +70,8 @@ def handle_job():
 
         resource_config_key = data.get('resource_configuration', None)
         if resource_config_key is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
-        resource_configuration: TaskWorkerResourceConfiguration = cloudpickle.loads(base64.b64decode(resource_config_key))
+        resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
+        if resource_configuration is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
         dag_id = data.get('dag_id', None)
         if dag_id is None: return jsonify({"error": "'dag_id' field is required"}), 400
         b64_task_id = data.get('task_id', None)

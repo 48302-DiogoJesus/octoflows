@@ -1,13 +1,13 @@
-- Use the `DummyDAGPlanner` to influence the delegations
-    - Look at the annotations before delegating
-    - Pass it to the gateway in the http request
-    - Verify => Disable killing inactive containers
-- Store the current worker **resource configuration** in the Metrics (look at the annotations (Dynamically using python code won't work))
-
 - Make the dashboard show stats about the worker configuration as well
 
 - Implement basic **Planning** algorithm
-    see my report
+    Implement `MetadataAccess` to provide the predictions
+    See my report for the algorithm insight
+        simulate best resources on all tasks
+        find critical path
+        alleviate resources on tasks outside the critical path
+            re-simulate to ensure the critical path is still the same
+            do this N amount of times
 
 - REFACTOR: WorkerConfigs should be separated from Workers because they are more `DAGExecutionConfigs` that `WorkerConfigs`
 

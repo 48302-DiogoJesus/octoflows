@@ -35,7 +35,7 @@ class DummyDAGPlanner(DAGPlanner):
         _dag: DAG = dag
         for node_id, node in _dag._all_nodes.items():
             logger.info(f"Adding annotation to node: {node_id}")
-            node.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory=128))
+            node.add_annotation(TaskWorkerResourceConfiguration(cpus=2, memory=256))
         return
 
 class SimpleDAGPlanner(DAGPlanner):

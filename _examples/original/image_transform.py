@@ -39,7 +39,7 @@ dockerWorkerConfig = DockerWorker.Config(
     
     docker_gateway_address="http://localhost:5000",
     available_resource_configurations=[
-        TaskWorkerResourceConfiguration(cpus=1, memory=128),
+        TaskWorkerResourceConfiguration(cpus=1, memory=128), # will be the default/fallback
         TaskWorkerResourceConfiguration(cpus=2, memory=256)
     ]
 )

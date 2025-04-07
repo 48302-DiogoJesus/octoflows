@@ -96,6 +96,7 @@ def main():
     total_time_updating_dependency_counters_ms = 0
     task_metrics_data = []
     function_groups = set()
+    worker_configs = []  # To store worker resource configurations
     
     _task_with_earliest_start_time = None
     _task_with_latest_start_time = None
@@ -107,7 +108,7 @@ def main():
         
         func_name = dag._all_nodes[task_id].func_name
         function_groups.add(func_name)
-        
+
         if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
             _task_with_earliest_start_time = metrics
 
@@ -136,6 +137,8 @@ def main():
             'function_name': func_name,
             'execution_time_ms': metrics.execution_time_ms,
             'worker_id': metrics.worker_id,
+            'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus if metrics.worker_resource_configuration else -1,
+            'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory if metrics.worker_resource_configuration else -1,
             'input_count': len(metrics.input_metrics),
             'input_size': sum([m.size for m in metrics.input_metrics]),
             'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
@@ -357,7 +360,6 @@ def main():
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
 
 
-        total_times = total_time_executing_tasks_ms + total_time_downloading_data_ms + total_time_uploading_data_ms + total_time_invoking_tasks_ms + total_time_updating_dependency_counters_ms
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
             "Data Download": total_time_downloading_data_ms,
@@ -400,7 +402,7 @@ def main():
 
         st.subheader("Raw Task Metrics")
         raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
-        columns_to_exclude = {"input_count", "function_name"} 
+        columns_to_exclude = { "input_count", "function_name" }
         columns_to_show = [col for col in raw_task_df.columns if col not in columns_to_exclude]
         st.dataframe(
             raw_task_df[columns_to_show],
@@ -410,6 +412,8 @@ def main():
                 "task_started_at": st.column_config.TextColumn("Started At"),
                 "execution_time_ms": st.column_config.NumberColumn("Exec Time (ms)", format="%.2f"),
                 "worker_id": st.column_config.TextColumn("Worker"),
+                "worker_resource_configuration_cpus": st.column_config.TextColumn("Worker Resources (CPUs)"),
+                "worker_resource_configuration_ram": st.column_config.TextColumn("Worker Resources (RAM MBs)"),
                 "input_size": st.column_config.NumberColumn("Input Size"),
                 "output_size": st.column_config.NumberColumn("Output Size"),
                 "downstream_calls": st.column_config.NumberColumn("Downstream Calls")
@@ -417,45 +421,198 @@ def main():
         )
     
         with tab_exec:
-            if dag_metrics:
-                # Create two columns for the charts
-                col1, col2 = st.columns(2)
+            # Create two columns for the charts
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Total Execution Time per Function Group
+                total_time_df = metrics_df.groupby('function_name')['execution_time_ms'].sum().reset_index()
+                fig = px.bar(
+                    total_time_df,
+                    x='function_name',
+                    y='execution_time_ms',
+                    labels={
+                        'function_name': 'Function Group',
+                        'execution_time_ms': 'Total Execution Time (ms)'
+                    },
+                    title="Total Execution Time by Function",
+                    color='function_name',
+                    text_auto='.2s'
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                # Average Execution Time per Function Group
+                avg_time_df = metrics_df.groupby('function_name')['execution_time_ms'].mean().reset_index()
+                fig = px.bar(
+                    avg_time_df,
+                    x='function_name',
+                    y='execution_time_ms',
+                    labels={
+                        'function_name': 'Function Group',
+                        'execution_time_ms': 'Average Execution Time (ms)'
+                    },
+                    title="Average Execution Time by Function",
+                    color='function_name',
+                    text_auto='.2s'
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
                 
-                with col1:
-                    # Total Execution Time per Function Group
-                    total_time_df = metrics_df.groupby('function_name')['execution_time_ms'].sum().reset_index()
-                    fig = px.bar(
-                        total_time_df,
-                        x='function_name',
-                        y='execution_time_ms',
-                        labels={
-                            'function_name': 'Function Group',
-                            'execution_time_ms': 'Total Execution Time (ms)'
-                        },
-                        title="Total Execution Time by Function",
-                        color='function_name',
-                        text_auto='.2s'
-                    )
-                    fig.update_layout(showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
+            # Add worker resource charts
+            st.subheader("Worker Resource Utilization")
+            
+            # Create columns for resource charts
+            res_col1, res_col2 = st.columns(2)
+            
+            with res_col1:
+                # CPU distribution by worker
+                if 'worker_resource_configuration_cpus' in metrics_df.columns:
+                    cpu_df = metrics_df[metrics_df['worker_resource_configuration_cpus'] > 0]  # Filter out invalid entries
+                    if not cpu_df.empty:
+                        fig = px.box(
+                            cpu_df,
+                            x='worker_id',
+                            y='worker_resource_configuration_cpus',
+                            color='worker_id',
+                            labels={
+                                'worker_id': 'Worker ID',
+                                'worker_resource_configuration_cpus': 'CPU Cores'
+                            },
+                            title="CPU Cores per Worker"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("No valid CPU data available")
+            
+            with res_col2:
+                # RAM distribution by worker
+                if 'worker_resource_configuration_ram' in metrics_df.columns:
+                    ram_df = metrics_df[metrics_df['worker_resource_configuration_ram'] > 0]  # Filter out invalid entries
+                    if not ram_df.empty:
+                        fig = px.box(
+                            ram_df,
+                            x='worker_id',
+                            y='worker_resource_configuration_ram',
+                            color='worker_id',
+                            labels={
+                                'worker_id': 'Worker ID',
+                                'worker_resource_configuration_ram': 'RAM (MB)'
+                            },
+                            title="RAM Allocation per Worker (MB)"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("No valid RAM data available")
+            
+            # Resource usage by function group
+            st.subheader("Resource Usage by Function Group")
+            
+            # Create columns for function group charts
+            func_col1, func_col2 = st.columns(2)
+            
+            with func_col1:
+                # CPU usage by function group
+                if 'worker_resource_configuration_cpus' in metrics_df.columns:
+                    cpu_func_df = metrics_df[metrics_df['worker_resource_configuration_cpus'] > 0]
+                    if not cpu_func_df.empty:
+                        fig = px.box(
+                            cpu_func_df,
+                            x='function_name',
+                            y='worker_resource_configuration_cpus',
+                            color='function_name',
+                            labels={
+                                'function_name': 'Function Group',
+                                'worker_resource_configuration_cpus': 'CPU Cores'
+                            },
+                            title="CPU Cores by Function Group"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            with func_col2:
+                # RAM usage by function group
+                if 'worker_resource_configuration_ram' in metrics_df.columns:
+                    ram_func_df = metrics_df[metrics_df['worker_resource_configuration_ram'] > 0]
+                    if not ram_func_df.empty:
+                        fig = px.box(
+                            ram_func_df,
+                            x='function_name',
+                            y='worker_resource_configuration_ram',
+                            color='function_name',
+                            labels={
+                                'function_name': 'Function Group',
+                                'worker_resource_configuration_ram': 'RAM (MB)'
+                            },
+                            title="RAM Allocation by Function Group (MB)"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            # Scatter plot of execution time vs resources
+            st.subheader("Execution Time vs Resource Allocation")
+            
+            if 'worker_resource_configuration_cpus' in metrics_df.columns and 'worker_resource_configuration_ram' in metrics_df.columns:
+                resource_df = metrics_df[
+                    (metrics_df['worker_resource_configuration_cpus'] > 0) & 
+                    (metrics_df['worker_resource_configuration_ram'] > 0)
+                ]
                 
-                with col2:
-                    # Average Execution Time per Function Group
-                    avg_time_df = metrics_df.groupby('function_name')['execution_time_ms'].mean().reset_index()
-                    fig = px.bar(
-                        avg_time_df,
-                        x='function_name',
+                if not resource_df.empty:
+                    # Create two columns for side-by-side plots
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Original CPU vs Execution Time plot
+                        fig_cpu = px.scatter(
+                            resource_df,
+                            x='worker_resource_configuration_cpus',
+                            y='execution_time_ms',
+                            color='function_name',
+                            hover_data=['task_id', 'worker_id'],
+                            labels={
+                                'worker_resource_configuration_cpus': 'CPU Cores',
+                                'execution_time_ms': 'Execution Time (ms)',
+                                'function_name': 'Function Group'
+                            },
+                            title="Execution Time vs CPU Cores"
+                        )
+                        st.plotly_chart(fig_cpu, use_container_width=True)
+                    
+                    with col2:
+                        # New RAM vs Execution Time plot
+                        fig_ram = px.scatter(
+                            resource_df,
+                            x='worker_resource_configuration_ram',
+                            y='execution_time_ms',
+                            color='function_name',
+                            hover_data=['task_id', 'worker_id'],
+                            labels={
+                                'worker_resource_configuration_ram': 'RAM Allocation (MB)',
+                                'execution_time_ms': 'Execution Time (ms)',
+                                'function_name': 'Function Group'
+                            },
+                            title="Execution Time vs RAM Allocation"
+                        )
+                        st.plotly_chart(fig_ram, use_container_width=True)
+                    
+                    # Combined plot showing both CPU and RAM impact
+                    st.subheader("Execution Time vs Resource Allocation (Combined View)")
+                    fig_combined = px.scatter(
+                        resource_df,
+                        x='worker_resource_configuration_cpus',
                         y='execution_time_ms',
-                        labels={
-                            'function_name': 'Function Group',
-                            'execution_time_ms': 'Average Execution Time (ms)'
-                        },
-                        title="Average Execution Time by Function",
+                        size='worker_resource_configuration_ram',
                         color='function_name',
-                        text_auto='.2s'
+                        hover_data=['task_id', 'worker_id'],
+                        labels={
+                            'worker_resource_configuration_cpus': 'CPU Cores',
+                            'execution_time_ms': 'Execution Time (ms)',
+                            'worker_resource_configuration_ram': 'RAM (MB)',
+                            'function_name': 'Function Group'
+                        },
+                        title="Execution Time vs CPU Cores (Size=RAM Allocation)"
                     )
-                    fig.update_layout(showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig_combined, use_container_width=True)
                 
     with tab_data:
         if dag_metrics:
