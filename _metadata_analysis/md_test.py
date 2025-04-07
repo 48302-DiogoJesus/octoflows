@@ -31,61 +31,9 @@ def split_task_id(task_id: str) -> tuple[str, str, str]:
 def predict_remote_transfer_time(
     metrics: list[TaskMetrics],
     data_size: float,
-    sla: Optional[Literal["median", "avg"]] = "median",
-    percentile_value: Optional[float] = None
+    percentile_value: float = 50 # median by default
 ) -> float:
-    """
-    Predicts the time to transfer data of a given size based on historical metrics.
-    
-    Args:
-        metrics: List of historical task metrics to analyze
-        data_size: Size of data to predict transfer time for (in same units as input/output metrics)
-        sla: Either "median", "avg", or None (if using percentile_value)
-        percentile_value: Optional percentile value (e.g., 95 for 95th percentile)
-    
-    Returns:
-        Predicted transfer time in milliseconds
-    
-    Raises:
-        ValueError: If no metrics are provided or invalid parameters are given
-    """
-    if not metrics:
-        raise ValueError("No metrics provided for prediction")
-    
-    # Collect all transfer speeds (size/time) from both inputs and outputs
-    transfer_speeds = []
-    
-    for task_metric in metrics:
-        # Add input transfer speeds
-        for input_metric in task_metric.input_metrics:
-            if input_metric.time_ms > 0:  # Avoid division by zero
-                transfer_speeds.append(input_metric.size / input_metric.time_ms)
-        
-        # Add output transfer speed
-        if task_metric.output_metrics.time_ms > 0:
-            transfer_speeds.append(task_metric.output_metrics.size / task_metric.output_metrics.time_ms)
-    
-    if not transfer_speeds:
-        raise ValueError("No transfer metrics available in the provided data")
-    
-    # Calculate the appropriate speed based on SLA
-    if percentile_value is not None:
-        if percentile_value < 0 or percentile_value > 100:
-            raise ValueError("Percentile value must be between 0 and 100")
-        speed = np.percentile(transfer_speeds, percentile_value)
-    elif sla == "median":
-        speed = statistics.median(transfer_speeds)
-    elif sla == "avg":
-        speed = statistics.mean(transfer_speeds)
-    else:
-        raise ValueError("Invalid SLA parameter. Must be 'median', 'avg', or use percentile_value")
-    
-    # Handle case where speed is 0 (shouldn't happen due to checks above)
-    if speed <= 0:
-        return float('inf')
-    
-    # Calculate predicted time
-    return data_size / speed
+    return -1
 
 # Function to extract transfer speeds from TaskMetrics
 def extract_transfer_speeds(metrics: List[TaskMetrics]):
@@ -113,6 +61,150 @@ def extract_transfer_speeds(metrics: List[TaskMetrics]):
         'all': all_speeds
     }
 
+def print_percentile_values(speeds):
+    """Prints percentile values for upload, download, and all transfers"""
+    percentiles = [10, 25, 50, 75, 90]
+    
+    print("\nTransfer Speed Percentiles (bytes/ms)")
+    print("=" * 45)
+    
+    for direction in ['download', 'upload', 'all']:
+        if not speeds[direction]:
+            continue
+            
+        data = speeds[direction]
+        percentile_values = np.percentile(data, percentiles)
+        
+        print(f"\n{direction.capitalize()} Speeds:")
+        print("-" * 40)
+        print(f"{'Percentile':<12} | {'Speed (bytes/ms)':>15} | {'Interpretation':<20}")
+        print("-" * 40)
+        
+        for p, val in zip(percentiles, percentile_values):
+            interpretation = {
+                10: "Worst 10%",
+                25: "Lower quartile",
+                50: "Median",
+                75: "Upper quartile",
+                90: "Best 10%"
+            }[p]
+            print(f"{f'P{p}':<12} | {val:>15.2f} | {interpretation:<20}")
+
+def plot_combined_speed_analysis(speeds):
+    """Combined visualization showing both percentile curves and histograms"""
+    # Create figure with 2 rows and 3 columns
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig.suptitle('Comprehensive Transfer Speed Analysis', fontsize=16, y=1.02)
+    
+    # Common parameters
+    percentiles = np.arange(101)
+    histogram_percentiles = [10, 25, 50, 75, 90]
+    colors = {'download': 'b', 'upload': 'r', 'all': 'g'}
+    
+    for col, direction in enumerate(['download', 'upload', 'all']):
+        if not speeds[direction]:
+            continue
+            
+        data = speeds[direction]
+        
+        # --- Top row: Percentile plots ---
+        ax_top = axes[0, col]
+        dir_percentiles = np.percentile(data, percentiles)
+        ax_top.plot(percentiles, dir_percentiles, colors[direction] + '-')
+        ax_top.set_title(f'{direction.capitalize()} Speed Percentiles')
+        ax_top.set_xlabel('Percentile')
+        ax_top.set_ylabel('Speed (bytes/ms)')
+        ax_top.grid(True)
+        
+        # --- Bottom row: Histograms ---
+        ax_bottom = axes[1, col]
+        sns.histplot(data, bins=50, ax=ax_bottom, color=colors[direction], 
+                    alpha=0.6, kde=True, stat='density')
+        
+        # Mark percentiles on histogram
+        percentiles_values = np.percentile(data, histogram_percentiles)
+        for p_val, p in zip(histogram_percentiles, percentiles_values):
+            ax_bottom.axvline(p, color='k', linestyle='--', alpha=0.7)
+            ax_bottom.text(p, ax_bottom.get_ylim()[1]*0.9, f'P{p_val}', 
+                          rotation=90, va='top', ha='right', backgroundcolor='w')
+        
+        ax_bottom.set_title(f'{direction.capitalize()} Speed Distribution')
+        ax_bottom.set_xlabel('Speed (bytes/ms)')
+        ax_bottom.set_ylabel('Density')
+        ax_bottom.grid(True)
+    
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig('data_transfer_percentiles.png')
+
+def predict_transfer_time(
+    speeds: dict, 
+    data_size: float, 
+    direction: Literal['upload', 'download', 'all'], 
+    sla: float = 50,
+) -> float:
+    if direction not in speeds or not speeds[direction]:
+        raise ValueError(f"No speed data available for direction: {direction}")
+    
+    if sla < 0 or sla > 100:
+        raise ValueError("SLA must be between 0 and 100")
+    
+    percentile = 100 - sla
+    speed = np.percentile(speeds[direction], percentile)
+    
+    if speed <= 0:
+        return float('inf')
+    
+    return data_size / speed
+
+def interactive_prediction(speeds: dict):
+    """Interactive console interface for transfer time prediction"""
+    print("\nTransfer Time Predictor")
+    print("----------------------")
+    
+    while True:
+        try:
+            print("\nOptions:")
+            print("1. Predict transfer time")
+            print("2. Exit")
+            choice = input("Enter your choice (1-2): ").strip()
+            
+            if choice == '2':
+                break
+                
+            if choice != '1':
+                print("Invalid choice, please try again")
+                continue
+                
+            # Get prediction parameters
+            data_size = float(input("Enter data size in bytes: "))
+            direction = input("Enter direction (upload/download/all): ").lower().strip()
+            if direction not in ['upload', 'download', 'all']:
+                print("Invalid direction, must be 'upload', 'download', or 'all'")
+                continue
+                
+            confidence = float(input("Enter confidence percentile (0-100): "))
+            if confidence < 0 or confidence > 100:
+                print("Confidence must be between 0 and 100")
+                continue
+                
+            # Calculate and display prediction
+            time_ms = predict_transfer_time(speeds, data_size, direction, confidence)
+            
+            if time_ms == float('inf'):
+                print("Prediction: Transfer speed at this percentile is 0 (infinite time)")
+            else:
+                print(f"\nPredicted transfer time at {confidence}th percentile:")
+                print(f"- Direction: {direction}")
+                print(f"- Data size: {data_size:,} bytes")
+                print(f"- Time: {time_ms:.2f} ms")
+                print(f"- Equivalent to {time_ms/1000:.2f} seconds")
+                
+        except ValueError as e:
+            print(f"Error: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+
 if __name__ == "__main__":
     # Get all keys
     keys = client.keys('*')
@@ -132,57 +224,12 @@ if __name__ == "__main__":
             print(f"Key: {key.decode('utf-8')} has no value")
 
     print(f"Got {len(task_metrics)} task metrics")
-    # res1 = predict_remote_transfer_time(task_metrics, 500, sla="median")
-    # res2 = predict_remote_transfer_time(task_metrics, 500, sla="avg")
-    # res3 = predict_remote_transfer_time(task_metrics, 500, sla=None, percentile_value=95)
-    
-    # print("Res1: ", res1, "ms")
-    # print("Res2: ", res2, "ms")
-    # print("Res3: ", res3, "ms")
-
     # Extract speeds
     speeds = extract_transfer_speeds(task_metrics)
+    
+    # plot_combined_speed_analysis(speeds)
 
-    # Create a larger figure with just the single plot
-    plt.figure(figsize=(12, 8))
+    print_percentile_values(speeds)
 
-    # Visualize percentiles
-    percentiles = [5, 25, 50, 75, 95]
-    percentile_values = np.percentile(speeds['all'], percentiles)
-
-    # Create the histogram with KDE
-    sns.histplot(speeds['all'], bins=30, kde=True)
-
-    # Add the percentile lines with clearer labels
-    for i, p in enumerate(percentiles):
-        plt.axvline(percentile_values[i], color=f'C{i}', linestyle='--', 
-                    linewidth=2, label=f'{p}th percentile: {percentile_values[i]:.2f} bytes/ms')
-
-    # Add descriptive annotations for each percentile
-    annotations = [
-        "5th: Very conservative estimate (95% confidence)",
-        "25th: Conservative estimate (75% confidence)",
-        "50th: Median speed (typical case)",
-        "75th: Optimistic estimate (25% confidence)",
-        "95th: Very optimistic estimate (5% confidence)"
-    ]
-
-    # Add annotations to the right side of the plot
-    for i, p in enumerate(percentiles):
-        y_pos = 0.9 - (i * 0.05)
-        plt.annotate(annotations[i], xy=(0.65, y_pos), xycoords='axes fraction',
-                    bbox=dict(boxstyle="round,pad=0.3", fc=f"C{i}", alpha=0.2))
-
-    # Make the title and labels larger and more descriptive
-    plt.title('Transfer Speeds Distribution with Percentile Markers', fontsize=16)
-    plt.xlabel('Transfer Speed (bytes/ms)', fontsize=14)
-    plt.ylabel('Frequency', fontsize=14)
-    plt.legend(loc='upper left', fontsize=12)
-
-    # Add a grid for better readability
-    plt.grid(True, alpha=0.3)
-
-    # Adjust layout and save
-    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-    plt.savefig('transfer_speeds_percentiles.png', dpi=300)
+    interactive_prediction(speeds)
     

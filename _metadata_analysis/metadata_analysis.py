@@ -138,7 +138,7 @@ def main():
             'execution_time_ms': metrics.execution_time_ms,
             'worker_id': metrics.worker_id,
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus if metrics.worker_resource_configuration else -1,
-            'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory if metrics.worker_resource_configuration else -1,
+            'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb if metrics.worker_resource_configuration else -1,
             'input_count': len(metrics.input_metrics),
             'input_size': sum([m.size for m in metrics.input_metrics]),
             'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,

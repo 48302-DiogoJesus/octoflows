@@ -43,7 +43,7 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {task_id}"
 
-    with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory) as container_id:
+    with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb) as container_id:
         try:
             logger.info(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
             exit_code = container_pool.execute_command_in_container(container_id, command)

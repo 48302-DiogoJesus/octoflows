@@ -6,4 +6,4 @@ from src.dag_task_node import TaskAnnotation
 @dataclass
 class TaskWorkerResourceConfiguration(TaskAnnotation):
     cpus: float
-    memory: int
+    memory_mb: int
