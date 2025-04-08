@@ -1,4 +1,5 @@
 - Implement `MetadataAccess` to provide the predictions on `md_test.py`
+- Split data transfer into data upload and data download
 
 - Implement basic **Planning** algorithm
     See my report for the algorithm insight
