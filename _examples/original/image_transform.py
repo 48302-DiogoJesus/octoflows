@@ -29,7 +29,7 @@ redis_metrics_storage_config = RedisStorage.Config(
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config)
+    # metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config)
 )
 
 dockerWorkerConfig = DockerWorker.Config(

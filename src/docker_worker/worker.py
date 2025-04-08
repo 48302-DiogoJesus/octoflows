@@ -6,14 +6,14 @@ import cloudpickle
 import os
 import platform
 
-from src.storage.metrics.metrics_storage import FullDAGPrepareTime
-from src.utils.timer import Timer
 
 # Define a lock file path
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
 
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.storage.metrics.metrics_storage import FullDAGPrepareTime
+from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNodeId
 import src.worker as worker
 import src.dag as dag
@@ -66,7 +66,7 @@ async def main():
 
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
-                dag_id, 
+                task_id.get_full_id_in_dag(fulldag),
                 FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdag_time_ms=create_subdag_time_ms)
             )
 

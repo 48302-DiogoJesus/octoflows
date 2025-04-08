@@ -1,9 +1,8 @@
-- Probably broken dashboard with new namespaces
 - Store a new metric (time taken to download the full dag serialized + show it in the pie chart)
     the worker handler needs to pass it to the worker
+- Implement `MetadataAccess` to provide the predictions on `md_test.py`
 
 - Implement basic **Planning** algorithm
-    Implement `MetadataAccess` to provide the predictions
     See my report for the algorithm insight
         simulate best resources on all tasks
         find critical path

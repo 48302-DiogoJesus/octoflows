@@ -9,7 +9,7 @@ import cloudpickle
 import seaborn as sns
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.storage.metrics.metrics_storage import MetricsStorage, TaskMetrics
+from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
 
 client = redis.Redis(
     host='localhost',
@@ -42,29 +42,54 @@ def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"\tDownstream Invocation Times: {m.downstream_invocation_times}")
     print(f"\tTotal Invocation Time: {m.total_invocation_time_ms} ms")
 
-def get_all_task_metrics():
-    # TODO
-    pass
+def get_all_task_metrics() -> list[tuple[str, TaskMetrics]]:
+    keys = client.keys('metrics-storage-tasks-*')
 
-def get_all_dag_prepare_metrics():
-    # TODO
-    pass
-
-if __name__ == "__main__":
-    # Get all keys
-    keys = client.keys('*')
-
-    # task_metrics: list[TaskMetrics] = []
+    task_metrics: list[tuple[str, TaskMetrics]] = []
 
     # Deserialize each value using cloudpickle
     for key in keys:
         serialized_value = client.get(key)
         if serialized_value:
             deserialized: TaskMetrics = cloudpickle.loads(serialized_value) # type: ignore
-            if not isinstance(deserialized, TaskMetrics):
-                raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
+            if not isinstance(deserialized, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
             task_id = key.decode('utf-8')
-            print_task_metrics(task_id, deserialized)
-            # task_metrics.append(deserialized)
+            task_metrics.append((task_id, deserialized))
         else:
             print(f"Key: {key.decode('utf-8')} has no value")
+    
+    return task_metrics
+
+def get_all_dag_prepare_metrics() -> list[FullDAGPrepareTime]:
+    keys = client.keys('metrics-storage-dag-*')
+
+    task_metrics: list[FullDAGPrepareTime] = []
+
+    # Deserialize each value using cloudpickle
+    for key in keys:
+        serialized_value = client.get(key)
+        if serialized_value:
+            deserialized: FullDAGPrepareTime = cloudpickle.loads(serialized_value) # type: ignore
+            if not isinstance(deserialized, FullDAGPrepareTime): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
+            task_metrics.append(deserialized)
+        else:
+            print(f"Key: {key.decode('utf-8')} has no value")
+    
+    return task_metrics
+
+def print_dag_prepare_metrics(dag_prep_metric: FullDAGPrepareTime):
+    print(f"> DAG Fetch Time")
+    print(f"\t> Download Time: {dag_prep_metric.download_time_ms} ms")
+    print(f"\tDownload Time: {dag_prep_metric.create_subdag_time_ms} ms")
+    print(f"\tSize: {dag_prep_metric.size_bytes} bytes")
+
+if __name__ == "__main__":
+    task_metrics = get_all_task_metrics()
+    print(f"Got {len(task_metrics)} task metrics")
+    for task_metric in task_metrics:
+        print_task_metrics(task_metric[0], task_metric[1])
+
+    dag_prepare_metrics = get_all_dag_prepare_metrics()
+    print(f"Got {len(dag_prepare_metrics)} dag prepare metrics")
+    for dag_prepare_metric in dag_prepare_metrics:
+        print_dag_prepare_metrics(dag_prepare_metric)

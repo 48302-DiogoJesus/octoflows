@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.dag import DAG
 from src.dag_task_node import DAGTaskNode
-from src.storage.metrics.metrics_storage import TaskMetrics
+from src.storage.metrics.metrics_storage import MetricsStorage, TaskMetrics
 
 # Redis connection setup
 def get_redis_connection(port: int = 6379):
@@ -101,7 +101,7 @@ def main():
     _task_with_earliest_start_time = None
     _task_with_latest_start_time = None
     for task_id in dag._all_nodes.keys():
-        metrics_key = f"metrics-storage-{task_id}_{dag.master_dag_id}"
+        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
         metrics = cloudpickle.loads(metrics_data) # type: ignore
         dag_metrics.append(metrics)
@@ -254,7 +254,7 @@ def main():
                 task_node = dag._all_nodes[st.session_state.selected_task_id]
                 
                 # Try to find metrics for this task
-                metrics_key = f"metrics-storage-{st.session_state.selected_task_id}_{dag.master_dag_id}"
+                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
                 metrics_data = metrics_redis.get(metrics_key)
                 if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
                 
@@ -282,7 +282,7 @@ def main():
         
         # Input metrics section below the DAG visualization
         if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
-            metrics_key = f"metrics-storage-{st.session_state.selected_task_id}_{dag.master_dag_id}"
+            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
             metrics_data = metrics_redis.get(metrics_key)
             
             if metrics_data:

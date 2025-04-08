@@ -211,7 +211,7 @@ def interactive_prediction(speeds: dict):
 
 if __name__ == "__main__":
     # Get all keys
-    keys = client.keys('*')
+    keys = client.keys('metrics-storage-tasks-*')
 
     task_metrics: list[tuple[str, TaskMetrics]] = []
     start = time.time()

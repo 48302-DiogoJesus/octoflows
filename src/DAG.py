@@ -49,7 +49,7 @@ class DAG:
             
             _planner.plan(self, _wk_config.metrics_storage_config, _wk_config.available_resource_configurations, "avg")
 
-        if isinstance(wk, LocalWorker):
+        if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
             Worker.store_full_dag(wk.metadata_storage, self)
 

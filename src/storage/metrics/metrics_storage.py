@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import time
 
 import cloudpickle
+from src.dag_task_node import DAGTaskNodeId
 from src.storage.storage import Storage
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
@@ -71,9 +72,9 @@ class MetricsStorage:
         print(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
         self.cached_metrics[f"{self.TASK_METRICS_KEY_PREFIX}{task_id}"] = metrics
 
-    def store_dag_download_time(self, dag_id: str, dag_download_metrics: FullDAGPrepareTime):
-        print(f"Caching download time for DAG {dag_id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
-        self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{dag_id}"] = dag_download_metrics
+    def store_dag_download_time(self, id: str, dag_download_metrics: FullDAGPrepareTime):
+        print(f"Caching download time for root node {id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
+        self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
 
     def flush(self):
         print("Flushing metrics to storage...")
