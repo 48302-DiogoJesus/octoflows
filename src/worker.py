@@ -3,6 +3,7 @@ import asyncio
 import base64
 from dataclasses import dataclass, field
 import json
+import pickle
 import time
 from typing import Any
 import uuid
@@ -13,7 +14,7 @@ from abc import ABC, abstractmethod
 from src.utils.timer import Timer
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
-from src.storage.metrics.metrics_storage import TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
+from src.storage.metrics.metrics_storage import FullDAGPrepareTime, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
 import src.dag as dag
 import src.dag_task_node as dag_task_node
@@ -39,7 +40,7 @@ class Worker(ABC):
         self.worker_id = str(uuid.uuid4())
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
-        self.metrics_storage_config = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
+        self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.available_resource_configurations = config.available_resource_configurations
 
     async def start_executing(self, subdag: dag.DAG):
@@ -54,6 +55,7 @@ class Worker(ABC):
                     worker_resource_configuration=workerResourceConfig,
                     started_at_timestamp = time.time(),
                     input_metrics = [],
+                    hardcoded_input_metrics = [],
                     total_input_download_time_ms = 0,
                     execution_time_ms = 0,
                     update_dependency_counters_time_ms = 0,
@@ -107,11 +109,17 @@ class Worker(ABC):
                             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
                             task_metrics.input_metrics.append(TaskInputMetrics(
                                 task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                                size=len(task_output),
+                                size_bytes=len(task_output),
                                 time_ms=fotimer.stop()
                             ))
                             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
+                # Register the size of hardcoded arguments as well
+                for func_arg in task.func_args:
+                    if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
+                    # Use pickle because if func_arg is a list, len() will return the number of items, not bytes (for example)
+                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=len(pickle.dumps(func_arg))))
+
                 task_metrics.total_input_download_time_ms = dependency_download_timer.stop()
                 # 2. EXECUTE TASK
                 exec_timer = Timer()
@@ -123,13 +131,13 @@ class Worker(ABC):
                 task_result_serialized = cloudpickle.dumps(task_result)
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
-                    size=len(task_result_serialized),
+                    size_bytes=len(task_result_serialized),
                     time_ms=output_upload_timer.stop()
                 )
 
                 if len(task.downstream_nodes) == 0: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
-                    if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
+                    if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
                 # 3. HANDLE FAN-OUT (1-1 or 1-N)
@@ -184,7 +192,7 @@ class Worker(ABC):
                 # Delegate Downstream Tasks Execution
                 if len(ready_downstream) == 0:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
-                    if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
+                    if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break  # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
@@ -211,7 +219,7 @@ class Worker(ABC):
                 await asyncio.gather(*coroutines) # wait for the delegations to be accepted
                 task_metrics.total_invocation_time_ms = total_invocation_time_timer.stop()
 
-                if self.metrics_storage_config: self.metrics_storage_config.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
+                if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
 
                 # Continue with one task in this worker
                 self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
@@ -222,8 +230,8 @@ class Worker(ABC):
 
         # Cleanup
         self.log(task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
-        if self.metrics_storage_config:
-            self.metrics_storage_config.flush()
+        if self.metrics_storage:
+            self.metrics_storage.flush()
 
     @abstractmethod
     async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
@@ -236,10 +244,12 @@ class Worker(ABC):
     def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.DAG):
         metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
 
-    def get_full_dag(self, dag_id: str) -> dag.DAG:
-        dag = self.metadata_storage.get(f"dag-{dag_id}")
-        if dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
-        return cloudpickle.loads(dag)
+    def get_full_dag(self, dag_id: str) -> tuple[int, dag.DAG]:
+        serialized_dag = self.metadata_storage.get(f"dag-{dag_id}")
+        if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
+        deserialized = cloudpickle.loads(serialized_dag)
+        if not isinstance(deserialized, dag.DAG): raise Exception("Error: fulldag is not a DAG instance")
+        return (len(serialized_dag), deserialized)
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):

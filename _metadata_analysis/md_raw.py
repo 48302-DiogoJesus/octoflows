@@ -20,7 +20,7 @@ client = redis.Redis(
 
 def split_task_id(task_id: str) -> tuple[str, str, str]:
     """ returns [function_name, task_id, dag_id] """
-    task_id = task_id.removeprefix(MetricsStorage.KEY_PREFIX)
+    task_id = task_id.removeprefix(MetricsStorage.TASK_METRICS_KEY_PREFIX)
     splits = task_id.split("-", maxsplit=1)
     function_name = splits[0]
     splits_2 = splits[1].split("_")
@@ -33,13 +33,22 @@ def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"\tWorker Id: {m.worker_id}")
     print(f"\tWorker Resource Configuration: {m.worker_resource_configuration}")
     print(f"\tStarted At Timestamp: {m.started_at_timestamp}")
-    print(f"\tInput Metrics Len: {len(m.input_metrics)}")
+    print(f"\tInput Metrics Len: {len(m.input_metrics)} | Sum: {sum(input_metric.size_bytes for input_metric in m.input_metrics)} bytes")
+    print(f"\tHardcoded Input Metrics Len: {len(m.hardcoded_input_metrics)} | Sum: {sum(h_input_metric.size_bytes for h_input_metric in m.hardcoded_input_metrics)} bytes")
     print(f"\tTotal Input Download Time: {m.total_input_download_time_ms} ms")
     print(f"\tExecution Time: {m.execution_time_ms} ms")
     print(f"\tUpdate Dependency Counters Time: {m.update_dependency_counters_time_ms} ms")
     print(f"\tOutput Metrics: {m.output_metrics}")
     print(f"\tDownstream Invocation Times: {m.downstream_invocation_times}")
     print(f"\tTotal Invocation Time: {m.total_invocation_time_ms} ms")
+
+def get_all_task_metrics():
+    # TODO
+    pass
+
+def get_all_dag_prepare_metrics():
+    # TODO
+    pass
 
 if __name__ == "__main__":
     # Get all keys

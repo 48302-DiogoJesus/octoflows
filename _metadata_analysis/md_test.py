@@ -1,6 +1,8 @@
+from collections import defaultdict
 import os
 import statistics
 import sys
+import time
 from typing import List, Literal, Optional
 from matplotlib import pyplot as plt
 import numpy as np
@@ -20,7 +22,7 @@ client = redis.Redis(
 
 def split_task_id(task_id: str) -> tuple[str, str, str]:
     """ returns [function_name, task_id, dag_id] """
-    task_id = task_id.removeprefix(MetricsStorage.KEY_PREFIX)
+    task_id = task_id.removeprefix(MetricsStorage.TASK_METRICS_KEY_PREFIX)
     splits = task_id.split("-", maxsplit=1)
     function_name = splits[0]
     splits_2 = splits[1].split("_")
@@ -28,37 +30,39 @@ def split_task_id(task_id: str) -> tuple[str, str, str]:
     dag_id = splits_2[1]
     return function_name, task_id, dag_id
 
-def predict_remote_transfer_time(
-    metrics: list[TaskMetrics],
-    data_size: float,
-    percentile_value: float = 50 # median by default
-) -> float:
-    return -1
+# Input => Output relationship (consider hardcoded inputs)
+def extract_task_io(task_metrics: list[tuple[str, TaskMetrics]]) -> dict[str, tuple[int, int]]:
+    function_metrics: dict[str, tuple[int, int]] = {}
+    
+    for task_id, metrics in task_metrics:
+        function_name, _, _ = split_task_id(task_id)
+        function_metrics[function_name] = (
+            sum(input_metric.size_bytes for input_metric in metrics.input_metrics) + sum(h_input_metric.size_bytes for h_input_metric in metrics.hardcoded_input_metrics),
+            metrics.output_metrics.size_bytes
+        )
+    
+    return function_metrics
 
-# Function to extract transfer speeds from TaskMetrics
-def extract_transfer_speeds(metrics: List[TaskMetrics]):
+# Input
+def extract_task_io_speeds(metrics: List[tuple[str, TaskMetrics]]):
     upload_speeds = []
     download_speeds = []
-    all_speeds = []
     
-    for task_metric in metrics:
+    for _, task_metric in metrics:
         # Extract download speeds (input metrics)
         for input_metric in task_metric.input_metrics:
             if input_metric.time_ms > 0:
-                speed = input_metric.size / input_metric.time_ms
+                speed = input_metric.size_bytes / input_metric.time_ms
                 download_speeds.append(speed)
-                all_speeds.append(speed)
         
         # Extract upload speeds (output metrics)
         if task_metric.output_metrics.time_ms > 0:
-            speed = task_metric.output_metrics.size / task_metric.output_metrics.time_ms
+            speed = task_metric.output_metrics.size_bytes / task_metric.output_metrics.time_ms
             upload_speeds.append(speed)
-            all_speeds.append(speed)
     
     return {
         'upload': upload_speeds,
-        'download': download_speeds,
-        'all': all_speeds
+        'download': download_speeds
     }
 
 def print_percentile_values(speeds):
@@ -68,7 +72,7 @@ def print_percentile_values(speeds):
     print("\nTransfer Speed Percentiles (bytes/ms)")
     print("=" * 45)
     
-    for direction in ['download', 'upload', 'all']:
+    for direction in ['download', 'upload']:
         if not speeds[direction]:
             continue
             
@@ -99,9 +103,9 @@ def plot_combined_speed_analysis(speeds):
     # Common parameters
     percentiles = np.arange(101)
     histogram_percentiles = [10, 25, 50, 75, 90]
-    colors = {'download': 'b', 'upload': 'r', 'all': 'g'}
+    colors = {'download': 'b', 'upload': 'r' }
     
-    for col, direction in enumerate(['download', 'upload', 'all']):
+    for col, direction in enumerate(['download', 'upload']):
         if not speeds[direction]:
             continue
             
@@ -140,7 +144,7 @@ def plot_combined_speed_analysis(speeds):
 def predict_transfer_time(
     speeds: dict, 
     data_size: float, 
-    direction: Literal['upload', 'download', 'all'], 
+    direction: Literal['upload', 'download'], 
     sla: float = 50,
 ) -> float:
     if direction not in speeds or not speeds[direction]:
@@ -178,9 +182,9 @@ def interactive_prediction(speeds: dict):
                 
             # Get prediction parameters
             data_size = float(input("Enter data size in bytes: "))
-            direction = input("Enter direction (upload/download/all): ").lower().strip()
-            if direction not in ['upload', 'download', 'all']:
-                print("Invalid direction, must be 'upload', 'download', or 'all'")
+            direction = input("Enter direction (upload/download): ").lower().strip()
+            if direction not in ['upload', 'download']:
+                print("Invalid direction, must be 'upload' or 'download'")
                 continue
                 
             confidence = float(input("Enter confidence percentile (0-100): "))
@@ -209,7 +213,8 @@ if __name__ == "__main__":
     # Get all keys
     keys = client.keys('*')
 
-    task_metrics: list[TaskMetrics] = []
+    task_metrics: list[tuple[str, TaskMetrics]] = []
+    start = time.time()
 
     # Deserialize each value using cloudpickle
     for key in keys:
@@ -218,18 +223,23 @@ if __name__ == "__main__":
             deserialized: TaskMetrics = cloudpickle.loads(serialized_value) # type: ignore
             if not isinstance(deserialized, TaskMetrics):
                 raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
-            # task_id = key.decode('utf-8')
-            task_metrics.append(deserialized)
+            task_id = key.decode('utf-8')
+            task_metrics.append((task_id, deserialized))
         else:
             print(f"Key: {key.decode('utf-8')} has no value")
 
-    print(f"Got {len(task_metrics)} task metrics")
-    # Extract speeds
-    speeds = extract_transfer_speeds(task_metrics)
+    print(f"Got {len(task_metrics)} task metrics in {time.time() - start:.4f} seconds")
+
+    tasks_speeds = extract_task_io_speeds(task_metrics)
+    print("Task Speeds")
+    print(tasks_speeds)
     
+    tasks_io = extract_task_io(task_metrics)
+    print("Task I/O")
+    print(tasks_io)
+
     # plot_combined_speed_analysis(speeds)
 
-    print_percentile_values(speeds)
-
-    interactive_prediction(speeds)
+    # print_percentile_values(speeds)
+    # interactive_prediction(speeds)
     

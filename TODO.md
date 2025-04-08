@@ -1,4 +1,6 @@
-- Make the dashboard show stats about the worker configuration as well
+- Probably broken dashboard with new namespaces
+- Store a new metric (time taken to download the full dag serialized + show it in the pie chart)
+    the worker handler needs to pass it to the worker
 
 - Implement basic **Planning** algorithm
     Implement `MetadataAccess` to provide the predictions

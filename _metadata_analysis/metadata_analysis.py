@@ -121,10 +121,10 @@ def main():
         # Calculate data transferred
         task_data = 0
         for input_metric in metrics.input_metrics:
-            task_data += input_metric.size
+            task_data += input_metric.size_bytes
             total_time_downloading_data_ms += input_metric.time_ms
         if metrics.output_metrics:
-            task_data += metrics.output_metrics.size
+            task_data += metrics.output_metrics.size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.time_ms
         
         total_data_transferred += task_data
@@ -140,8 +140,8 @@ def main():
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus if metrics.worker_resource_configuration else -1,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb if metrics.worker_resource_configuration else -1,
             'input_count': len(metrics.input_metrics),
-            'input_size': sum([m.size for m in metrics.input_metrics]),
-            'output_size': metrics.output_metrics.size if metrics.output_metrics else 0,
+            'input_size': sum([m.size_bytes for m in metrics.input_metrics]),
+            'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
             'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
         })
 
@@ -264,7 +264,7 @@ def main():
                 st.metric("Function", task_node.func_name)
                 st.metric("Worker", metrics.worker_id)
                 col1, col2 = st.columns(2)
-                output_data = metrics.output_metrics.size
+                output_data = metrics.output_metrics.size_bytes
                 with col1:
                     total_task_handling_time = metrics.total_input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
@@ -294,12 +294,12 @@ def main():
                     # Create a dataframe for the input metrics
                     input_df = pd.DataFrame([{
                         'Source Task': m.task_id,
-                        'Size': format_bytes(m.size),
+                        'Size': format_bytes(m.size_bytes),
                         'Download Time (ms)': m.time_ms
                     } for m in metrics.input_metrics])
                     
                     # Calculate and display total input data
-                    total_input = sum(m.size for m in metrics.input_metrics)
+                    total_input = sum(m.size_bytes for m in metrics.input_metrics)
                     st.write(f"**Total Input Data:** {format_bytes(total_input)}")
                     
                     # Display the input metrics table
@@ -627,19 +627,19 @@ def main():
                 # Calculate download throughputs for each input
                 for input_metric in task_metrics.input_metrics:
                     if input_metric.time_ms > 0:
-                        throughput_mb = (input_metric.size / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                        speed_bytes_ms = input_metric.size / input_metric.time_ms  # bytes/ms
+                        throughput_mb = (input_metric.size_bytes / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        speed_bytes_ms = input_metric.size_bytes / input_metric.time_ms  # bytes/ms
                         download_throughputs.append(throughput_mb)
                         all_transfer_speeds.append(speed_bytes_ms)
-                    total_data_downloaded += input_metric.size
+                    total_data_downloaded += input_metric.size_bytes
 
                 # Calculate upload throughput for output if available
                 if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
-                    throughput_mb = (task_metrics.output_metrics.size / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.output_metrics.size / task_metrics.output_metrics.time_ms  # bytes/ms
+                    throughput_mb = (task_metrics.output_metrics.size_bytes / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.size_bytes / task_metrics.output_metrics.time_ms  # bytes/ms
                     upload_throughputs.append(throughput_mb)
                     all_transfer_speeds.append(speed_bytes_ms)
-                    total_data_uploaded += task_metrics.output_metrics.size
+                    total_data_uploaded += task_metrics.output_metrics.size_bytes
 
             # Calculate average throughputs
             avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0

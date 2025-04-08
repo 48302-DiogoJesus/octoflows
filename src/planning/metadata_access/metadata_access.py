@@ -15,5 +15,5 @@ class MetadataAccess:
     def predict_output_size(self, task_id: str, input_size: int , sla: SLA) -> int:
         return -1
 
-    def predict_execution_time (self, task_id: str, input_size: int, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA) -> list[tuple[TaskWorkerResourceConfiguration, float]]:
+    def predict_execution_time(self, task_id: str, input_size: int, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA) -> list[tuple[TaskWorkerResourceConfiguration, float]]:
         return []

@@ -1,9 +1,13 @@
 import asyncio
 import sys
 import base64
+import time
 import cloudpickle
 import os
 import platform
+
+from src.storage.metrics.metrics_storage import FullDAGPrepareTime
+from src.utils.timer import Timer
 
 # Define a lock file path
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
@@ -51,13 +55,21 @@ async def main():
         
         wk = worker.DockerWorker(config)
 
-        fulldag = wk.get_full_dag(dag_id)
-        if not isinstance(fulldag, dag.DAG):
-            raise Exception("Error: fulldag is not a DAG instance")
-        
+        dag_download_time_ms = Timer()
+        dag_size_bytes, fulldag = wk.get_full_dag(dag_id)
+        dag_download_time_ms = dag_download_time_ms.stop()
+
+        create_subdag_time_ms = Timer()
         task_id: DAGTaskNodeId = cloudpickle.loads(base64.b64decode(b64_task_id))
         subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-        
+        create_subdag_time_ms = create_subdag_time_ms.stop()
+
+        if wk.metrics_storage:
+            wk.metrics_storage.store_dag_download_time(
+                dag_id, 
+                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdag_time_ms=create_subdag_time_ms)
+            )
+
         # Create executor and start execution
         logger.info("Start executing subdag")
         await wk.start_executing(subdag)

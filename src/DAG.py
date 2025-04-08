@@ -49,8 +49,9 @@ class DAG:
             
             _planner.plan(self, _wk_config.metrics_storage_config, _wk_config.available_resource_configurations, "avg")
 
-        # ! Need to PLAN, then STORE, because after the full dag is stored on redis, all workers will use that!
-        Worker.store_full_dag(wk.metadata_storage, self)
+        if isinstance(wk, LocalWorker):
+            # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
+            Worker.store_full_dag(wk.metadata_storage, self)
 
         if open_dashboard:
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
