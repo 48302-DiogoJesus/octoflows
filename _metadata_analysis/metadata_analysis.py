@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.dag import DAG
 from src.dag_task_node import DAGTaskNode
-from src.storage.metrics.metrics_storage import MetricsStorage, TaskMetrics
+from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
 
 # Redis connection setup
 def get_redis_connection(port: int = 6379):
@@ -96,7 +96,6 @@ def main():
     total_time_updating_dependency_counters_ms = 0
     task_metrics_data = []
     function_groups = set()
-    worker_configs = []  # To store worker resource configurations
     
     _task_with_earliest_start_time = None
     _task_with_latest_start_time = None
@@ -147,6 +146,18 @@ def main():
 
     last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
     makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
+
+    keys = metrics_redis.keys('metrics-storage-dag-*')
+    dag_prepare_metrics = []
+    for key in keys:
+        serialized_value = metrics_redis.get(key)
+        deserialized: FullDAGPrepareTime = cloudpickle.loads(serialized_value) # type: ignore
+        if not isinstance(deserialized, FullDAGPrepareTime): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
+        dag_prepare_metrics.append({
+            "dag_download_time": deserialized.download_time_ms,
+            "create_subdag_time": deserialized.create_subdag_time_ms,
+            "dag_size": deserialized.size_bytes
+        })
 
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
@@ -338,6 +349,9 @@ def main():
         # DAG Summary Stats in columns
         col1, col2, col3, col4, col5 = st.columns(5)
         task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
+        avg_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
+        avg_subdag_create_time = sum(m['create_subdag_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
+        avg_dag_size = sum(m['dag_size'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
         with col1:
             st.metric("Total Tasks", len(dag._all_nodes))
             st.metric(f"Total Time Executing Tasks (avg: {task_execution_time_avg:.2f} ms)", f"{total_time_executing_tasks_ms:.2f} ms")
@@ -354,18 +368,20 @@ def main():
         with col4:
             st.metric("Unique Tasks", len(function_groups))
             st.metric("Total Invocation Time", f"{total_time_invoking_tasks_ms:.2f} ms")
+            st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
         with col5:
-            st.metric("", "")
-            st.metric("", "")
+            st.metric("DAG Size", format_bytes(avg_dag_size))
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
+            st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
 
-
+        total_time_downloading_dag_ms = sum(m['dag_download_time'] for m in dag_prepare_metrics)
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
             "Data Download": total_time_downloading_data_ms,
             "Data Upload": total_time_uploading_data_ms,
             "Invocation Time": total_time_invoking_tasks_ms,
-            "DC Updates": total_time_updating_dependency_counters_ms
+            "DC Updates": total_time_updating_dependency_counters_ms,
+            "DAG Download Time": total_time_downloading_dag_ms
         }
         
         # Create pie chart

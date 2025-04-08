@@ -1,5 +1,3 @@
-- Store a new metric (time taken to download the full dag serialized + show it in the pie chart)
-    the worker handler needs to pass it to the worker
 - Implement `MetadataAccess` to provide the predictions on `md_test.py`
 
 - Implement basic **Planning** algorithm
@@ -18,6 +16,10 @@
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
 
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
+
+- [PERFORMANCE] Storing the full dag on redis is costly
+    - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
+    - If below a certain bytes threshold, pass the subDAG in the invocation itself
 
 - [NNP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
     NOTE: I tried it, but redis server was crashing when i used asyncredis library
