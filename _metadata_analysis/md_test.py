@@ -160,17 +160,21 @@ def predict_execution_time(
     function_name: str,
     input_size: float,
     resource_config: TaskWorkerResourceConfiguration,
-    sla: float = 50
+    sla: float = 50,
+    use_all_resources: bool = True,
+    similarity_threshold: float = 0.1
 ) -> float:
     """
-    Predicts execution time for a function given input size and resource configuration
+    Enhanced execution time prediction that considers all historical data with weighted adjustments
     
     Args:
         task_metrics: List of historical task metrics
         function_name: Name of the function to predict
         input_size: Size of input data in bytes
         resource_config: Worker resource configuration
-        sla: Confidence level (0-100) where higher means more conservative prediction
+        sla: Confidence level (0-100)
+        use_all_resources: Whether to use data from all resource configs (with adjustments)
+        similarity_threshold: Threshold for considering resources similar (default 10%)
         
     Returns:
         Predicted execution time in milliseconds
@@ -178,36 +182,51 @@ def predict_execution_time(
     if sla < 0 or sla > 100:
         raise ValueError("SLA must be between 0 and 100")
     
-    # Filter metrics for the specific function and similar resource configurations
+    # Collect all relevant metrics for the function
     relevant_metrics = []
     for task_id, metrics in task_metrics:
         fn_name, _, _ = _split_task_id(task_id)
-        if fn_name == function_name:
-            # Check if resource configuration is similar (within 10%)
-            if metrics.worker_resource_configuration:
-                cpu_ratio = metrics.worker_resource_configuration.cpus / resource_config.cpus
-                mem_ratio = metrics.worker_resource_configuration.memory_mb / resource_config.memory_mb
-                if 0.9 <= cpu_ratio <= 1.1 and 0.9 <= mem_ratio <= 1.1:
-                    relevant_metrics.append(metrics)
+        if fn_name == function_name and metrics.worker_resource_configuration:
+            relevant_metrics.append(metrics)
     
     if not relevant_metrics:
-        raise ValueError(f"No historical data found for function {function_name} with similar resource configuration")
+        raise ValueError(f"No historical data found for function {function_name}")
     
-    # Calculate execution time per byte (normalized by input size)
-    normalized_times = []
+    # Calculate normalized execution times with resource adjustment factors
+    weighted_times = []
+    
     for metrics in relevant_metrics:
-        total_input = sum(m.size_bytes for m in metrics.input_metrics) + sum(m.size_bytes for m in metrics.hardcoded_input_metrics)
-        if total_input > 0:
-            normalized_times.append(metrics.execution_time_ms / total_input)
+        total_input = sum(m.size_bytes for m in metrics.input_metrics) + \
+                     sum(m.size_bytes for m in metrics.hardcoded_input_metrics)
+        
+        if total_input <= 0:
+            continue
+            
+        # Calculate resource adjustment factors
+        hist_cpu = metrics.worker_resource_configuration.cpus
+        hist_mem = metrics.worker_resource_configuration.memory_mb
+        
+        # CPU adjustment (inverse relationship - more CPUs should mean faster)
+        cpu_factor = hist_cpu / resource_config.cpus if resource_config.cpus > 0 else 1
+        
+        # Memory adjustment (complex relationship - we'll use square root for diminishing returns)
+        mem_factor = np.sqrt(hist_mem / resource_config.memory_mb) if resource_config.memory_mb > 0 else 1
+        
+        # Combine factors (weighted average)
+        resource_factor = 0.7 * cpu_factor + 0.3 * mem_factor
+        
+        # Calculate normalized time with resource adjustment
+        normalized_time = (metrics.execution_time_ms / total_input) * resource_factor
+        weighted_times.append(normalized_time)
     
-    if not normalized_times:
+    if not weighted_times:
         raise ValueError("No valid input size data available for prediction")
     
     # Calculate the normalized time at the requested percentile
     percentile = 100 - sla
-    normalized_time = np.percentile(normalized_times, percentile)
+    predicted_normalized = np.percentile(weighted_times, percentile)
     
-    return normalized_time * input_size
+    return predicted_normalized * input_size
 
 ### INTERACTIVE PREDICTIONS ###
 def interactive_data_transfer_speed_prediction(speeds: dict):
