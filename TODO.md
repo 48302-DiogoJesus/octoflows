@@ -14,6 +14,7 @@
 
 - [REFACTOR] 
     - Clearer separation between a fulldag and a subdag
+    - Create more custom exceptions for DAG structure
 
 - [PERFORMANCE] Storing the full dag on redis is costly
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)

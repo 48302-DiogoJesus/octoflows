@@ -1,7 +1,10 @@
 import os
 import sys
 
+import pytest
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.dag import MultipleSinkNodesError
 from tests.utils.test_utils import get_worker_config
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
@@ -41,3 +44,16 @@ def test_dag_2():
 
     res = t4.compute(config=worker_config)
     assert res == "-1--1--2"
+
+def test_dag_fake_sink_node():
+    """ 
+    DAG where the last task depends on a task that one of its upstream tasks also depends on.
+    Cutting the subdag naively would make this not work
+    """
+    from src.dag import DAG
+    t1 = task_a("", "1")
+    t2 = task_a(t1, "2")
+    t3 = task_a(t1, "3")
+
+    with pytest.raises(MultipleSinkNodesError):
+        DAG(sink_node=t3)

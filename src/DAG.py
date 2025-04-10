@@ -11,7 +11,28 @@ import src.visualization.vis as vis
 
 logger = create_logger(__name__)
 
+# class SubDAG:
+#     def __init__(self, root_node: dag_task_node.DAGTaskNode):
+#         self.dag = dag
+
+class DAGError(Exception):
+    """Base class for all DAG-related exceptions"""
+    pass
+
+class MultipleSinkNodesError(DAGError):
+    """Raised when more than one sink node is detected in the DAG"""
+    def __init__(self, func_name: str):
+        message = f"[ClientError] Invalid DAG! There can only be one sink node. Found more than 1 node with 0 downstream tasks (function_name={func_name})!"
+        super().__init__(message)
+        
+class MultipleSinkNodesErrors(DAGError):
+    """Raised when more than one sink node is detected in the DAG"""
+    def __init__(self, func_name: str):
+        message = f"[ClientError] Invalid DAG! There can only be one sink node. Found more than 1 node with 0 downstream tasks (function_name={func_name})!"
+        super().__init__(message)
+
 class DAG:
+
     def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_node: dag_task_node.DAGTaskNode | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
         self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}" # type: ignore
@@ -169,7 +190,7 @@ class DAG:
             visited.add(node_id)
             
             if not node.downstream_nodes and node_id != real_sink_node.id.get_full_id():
-                raise Exception(f"[ClientError] Invalid DAG! There can only be one sink node. Found more that 1 node with 0 downstream tasks (function_name={node.func_name})!")
+                raise MultipleSinkNodesError(node.func_name)
             
             # Recursively check downstream nodes
             for downstream_node in node.downstream_nodes:
