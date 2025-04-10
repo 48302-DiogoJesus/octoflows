@@ -1,5 +1,4 @@
-- Implement `MetadataAccess` to provide the predictions on `md_test.py`
-- Split data transfer into data upload and data download
+- `MetadataAccess` grab the cached metrics on the ctor
 
 - Implement basic **Planning** algorithm
     See my report for the algorithm insight
@@ -9,18 +8,16 @@
             re-simulate to ensure the critical path is still the same
             do this N amount of times
 
-- REFACTOR: WorkerConfigs should be separated from Workers because they are more `DAGExecutionConfigs` that `WorkerConfigs`
-
-- Change the DAG id format: dag-{timestamp}-{sink_node_func_name}-{uuid[:4]}
-
-- Make all examples use MetricsStorage
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
-
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
+
+- [REFACTOR] 
+    - Clearer separation between a fulldag and a subdag
 
 - [PERFORMANCE] Storing the full dag on redis is costly
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
     - If below a certain bytes threshold, pass the subDAG in the invocation itself
+    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
 
 - [NNP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
     NOTE: I tried it, but redis server was crashing when i used asyncredis library
