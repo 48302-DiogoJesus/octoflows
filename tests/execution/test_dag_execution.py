@@ -57,3 +57,16 @@ def test_dag_fake_sink_node():
 
     with pytest.raises(MultipleSinkNodesError):
         DAG(sink_node=t3)
+
+def test_dag_execution_root_node_ahead():
+    t1 = task_a("", "1")
+    t2 = task_a(t1, "")
+    t3 = task_a(t1, "")
+    t4 = task_a(t2, "")
+    t6 = task_a("", "6") # loose node/root node ahead
+    t5 = task_a(t3, t6)
+    t7 = task_a(t4, t5)
+
+    result = t7.compute(config=worker_config)
+
+    assert result == "-1----1---6"

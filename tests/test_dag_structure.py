@@ -13,6 +13,10 @@ logger = create_logger(__name__)
 def task_a(input: str) -> str:
     return f"{input}b"
 
+@dag_task_node.DAGTask
+def task_b(input: str) -> str:
+    return f"{input}"
+
 def test_dag_task_cloning():
     # t1 => [t2, t3]
     t1 = task_a("1")
@@ -60,3 +64,20 @@ def test_dag_no_fan_ins_no_fan_outs():
     assert len(t4.downstream_nodes) == 1
     assert len(t5.upstream_nodes) == 1
     assert len(t5.downstream_nodes) == 0
+
+def test_dag_root_node_ahead():
+    from src.dag import DAG
+    t1 = task_a("1")
+    t2 = task_a(t1)
+    t3 = task_a(t1)
+    t4 = task_a(t2)
+    t6 = task_b("") # loose node/root node ahead
+    t5 = task_a(t3, t6)
+    t7 = task_a(t4, t5)
+
+    dag = DAG(sink_node=t7)
+    dag.visualize(sink_node=t7, open_after=True)
+
+    assert dag.root_nodes
+    assert len(dag.root_nodes) == 2
+    assert len(dag._all_nodes) == 7

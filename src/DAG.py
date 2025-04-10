@@ -45,7 +45,7 @@ class DAG:
         else:
             if not sink_node: raise Exception("Sink node can't be None if no root nodes are provided!")
             self.sink_node = sink_node.clone() # clone all nodes behind the sink node
-            self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_node_from_sink(self.sink_node)
+            self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
             if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
             self.root_node = self.root_nodes[0]
             DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
@@ -148,7 +148,7 @@ class DAG:
         raise Exception("Cloud not find sink node from root nodes")
     
     @staticmethod
-    def _find_all_nodes_and_root_node_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:
+    def _find_all_nodes_and_root_nodes_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:
         """
         Traverse the DAG from the sink node and return:
         1. A dictionary of all nodes in the DAG.
@@ -240,7 +240,7 @@ class DAG:
         )
         dot.attr(rankdir="LR")  # Layout from left to right
         
-        all_nodes, root_nodes = cls._find_all_nodes_and_root_node_from_sink(sink_node)
+        all_nodes, root_nodes = cls._find_all_nodes_and_root_nodes_from_sink(sink_node)
         cls._check_for_fake_sink_nodes_references(all_nodes, sink_node)
         
         def print_argument(arg):
