@@ -1,5 +1,10 @@
-- `MetadataAccess` grab the cached metrics on the ctor
 - Add metrics storage to tree reduction and test it
+    - Check how much "downloading the DAG" weights
+- `MetadataAccess` grab the cached metrics on the ctor
+
+- [REFACTOR] 
+    - Clearer separation between a fulldag and a subdag
+    - Create more custom exceptions for DAG structure
 
 - Implement basic **Planning** algorithm
     See my report for the algorithm insight
@@ -11,10 +16,6 @@
 
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
-
-- [REFACTOR] 
-    - Clearer separation between a fulldag and a subdag
-    - Create more custom exceptions for DAG structure
 
 - [PERFORMANCE] Storing the full dag on redis is costly
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)

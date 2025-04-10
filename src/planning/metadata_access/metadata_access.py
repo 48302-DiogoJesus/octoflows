@@ -1,3 +1,4 @@
+from typing import Literal
 import numpy as np
 from src.planning.dag_planner import SLA
 from src.storage.metrics import metrics_storage
@@ -5,7 +6,8 @@ from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 
 class MetadataAccess:
-    cached_data_transfer_speeds: list[float] # bytes/ms
+    cached_upload_speeds: list[float] # bytes/ms
+    cached_download_speeds: list[float] # bytes/ms
     cached_io_ratios: dict[str, list[float]] # i/o for each function_name
     cached_task_metrics: dict[str, metrics_storage.TaskMetrics]
 
@@ -14,20 +16,22 @@ class MetadataAccess:
         self.metrics_storage = metrics_storage
         pass
 
-    def predict_remote_download_time(self, data_size_bytes: int, sla: SLA) -> float:
+    def predict_remote_time(self, type: Literal['upload', 'download'], data_size_bytes: int, sla: SLA) -> float:
+        cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
+
         if sla == "avg":
             # Calculate average speed when SLA is "avg"
-            speed_bytes_per_ms = np.mean(self.cached_data_transfer_speeds)
+            speed_bytes_per_ms = np.mean(cached_data)
         else:
             # Existing percentile-based calculation
             if sla.value < 0 or sla.value > 100: 
                 raise ValueError("SLA must be between 0 and 100")
-            speed_bytes_per_ms = np.percentile(self.cached_data_transfer_speeds, 100 - sla.value)
+            speed_bytes_per_ms = np.percentile(cached_data, 100 - sla.value)
         
         if speed_bytes_per_ms <= 0:
             return float('inf')
         
-        return data_size_bytes / speed_bytes_per_ms
+        return data_size_bytes / speed_bytes_per_ms # type: ignore
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> float:
         if input_size < 0: raise ValueError("Input size cannot be negative")
