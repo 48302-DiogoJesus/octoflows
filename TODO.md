@@ -1,4 +1,5 @@
 - `MetadataAccess` grab the cached metrics on the ctor
+- Add metrics storage to tree reduction and test it
 
 - Implement basic **Planning** algorithm
     See my report for the algorithm insight

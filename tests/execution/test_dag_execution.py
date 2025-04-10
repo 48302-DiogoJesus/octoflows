@@ -22,3 +22,22 @@ def test_execution_dag_no_fan_ins_no_fan_outs():
 
     result = t5.compute(config=worker_config)
     assert result == "-1-2-3-4-5"
+
+def test_dag_2():
+    """ 
+    DAG where the last task depends on a task that one of its upstream tasks also depends on.
+    Cutting the subdag naively would make this not work
+    """
+    from src.dag import DAG
+    t1 = task_a("", "1")
+    t2 = task_a("", "2")
+    t3 = task_a(t1, t2)
+    t4 = task_a(t1, t3)
+
+    dag = DAG(sink_node=t4)
+    assert dag.root_nodes
+    assert len(dag.root_nodes) == 2
+    assert len(dag._all_nodes) == 4
+
+    res = t4.compute(config=worker_config)
+    assert res == "-1--1--2"
