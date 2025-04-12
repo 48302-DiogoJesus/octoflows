@@ -16,6 +16,7 @@ class TaskInputMetrics:
     task_id: str
     size_bytes: int
     time_ms: float
+    normalized_time_ms: float
 
 @dataclass
 class TaskHardcodedInputMetrics:
@@ -25,6 +26,7 @@ class TaskHardcodedInputMetrics:
 class TaskOutputMetrics:
     size_bytes: int
     time_ms: float
+    normalized_time_ms: float
 
 @dataclass
 class TaskInvocationMetrics:

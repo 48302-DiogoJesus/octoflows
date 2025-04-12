@@ -111,7 +111,8 @@ class Worker(ABC):
                             task_metrics.input_metrics.append(TaskInputMetrics(
                                 task_id=dependency_task.id.get_full_id_in_dag(subdag),
                                 size_bytes=len(task_output),
-                                time_ms=fotimer.stop()
+                                time_ms=fotimer.stop(),
+                                normalized_time_ms=fotimer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                             ))
                             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
@@ -135,7 +136,8 @@ class Worker(ABC):
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=len(task_result_serialized),
-                    time_ms=output_upload_timer.stop()
+                    time_ms=output_upload_timer.stop(),
+                    normalized_time_ms=output_upload_timer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                 )
 
                 if len(task.downstream_nodes) == 0: 
