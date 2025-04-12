@@ -4,6 +4,8 @@ import sys
 import numpy as np
 from dask.array import from_array
 
+from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
@@ -31,7 +33,11 @@ localWorkerConfig = LocalWorker.Config(
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config,
+    available_resource_configurations=[
+        TaskWorkerResourceConfiguration(cpus=1, memory_mb=128), # will be the default/fallback
+        TaskWorkerResourceConfiguration(cpus=2, memory_mb=256)
+    ]
 )
 
 # Define the workflow

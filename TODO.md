@@ -1,6 +1,14 @@
-- Add metrics storage to tree reduction and test it
-    - Check how much "downloading the DAG" weights
-- `MetadataAccess` grab the cached metrics on the ctor
+- Normalize TIME of metrics collection by memory using a baseline memory (512mb for example)
+    - e.g., task.normalized_execution_time = exec_time * (memory_used/512)
+        - do same for data transfer times
+    !! keep the existing field !! add a new one prefixed "normalized_"
+    only use the "normalized_" for predictions and the other for statistics (makespan, time spent doing X)
+- Namespaces for Task Annotations per algorithm: ALGORITHM_NAME_PRELOAD
+    - how to make workers follow annotations in a scalable manner?
+        Annotations become classes that override parts of the worker code?
+
+- [DONE] `MetadataAccess` grab the cached metrics on the ctor
+- [DONE] Store metrics by namespace (Redis key format) (change dag id format <time>_<sink_name>_<uuid>_<dag_signature>)
 
 - [REFACTOR] 
     - Clearer separation between a fulldag and a subdag

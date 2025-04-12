@@ -1,10 +1,12 @@
 import asyncio
+import hashlib
 import time
 from typing import Any
 import uuid
 import graphviz
 
 from src.planning.dag_planner import DAGPlanner
+from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
@@ -35,7 +37,6 @@ class DAG:
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_node: dag_task_node.DAGTaskNode | None = None):
         """Create a DAG from sink node (node with no downstream tasks)."""
-        self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}" # type: ignore
         # SUB-DAG (Stop searching for nodes at "fake" root nodes)
         if root_node:
             self.root_nodes = None
@@ -50,6 +51,9 @@ class DAG:
             self.root_node = self.root_nodes[0]
             DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
             self._optimize_task_metadata()
+        
+        self.structure_hash = self.get_structure_hash()
+        self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.structure_hash}" # type: ignore
 
     async def compute(self, config, planner: DAGPlanner | None = None, open_dashboard: bool = False):
         from src.worker import Worker, LocalWorker
@@ -65,10 +69,12 @@ class DAG:
                 raise Exception("Can't do DAG Planning with local worker!")
             if _wk_config.metrics_storage_config is None:
                 raise Exception("Can't do DAG Planning without metrics storage config!")
+            if wk.metrics_storage is None:
+                raise Exception("Can't do DAG Planning without worker metrics storage!")
             if len(_wk_config.available_resource_configurations) == 0:
                 raise Exception("Can't do DAG Planning without available resource configurations!")
             
-            _planner.plan(self, _wk_config.metrics_storage_config, _wk_config.available_resource_configurations, "avg")
+            _planner.plan(self, MetadataAccess(self.structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
@@ -101,6 +107,17 @@ class DAG:
     
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
         return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_node=root_node)
+
+    def get_structure_hash(self) -> str:
+        """ Create a hash from the DAG structure (only including function_names and their relationships) """
+        hasher = hashlib.sha256()
+        
+        for node in sorted(self._all_nodes.values(), key=lambda n: n.func_name):
+            hasher.update(node.func_name.encode())
+            for downstream in sorted(node.downstream_nodes, key=lambda n: n.func_name):
+                hasher.update(downstream.func_name.encode())
+                
+        return hasher.hexdigest()
 
     def _optimize_task_metadata(self):
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''

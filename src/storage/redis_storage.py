@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import redis
 
+from src.storage.metrics import metrics_storage
 import src.storage.storage as storage
 
 class RedisStorage(storage.Storage):
@@ -59,4 +60,9 @@ class RedisStorage(storage.Storage):
             return self._connection.ping()
         except redis.ConnectionError:
             return False
+
+    def keys(self, pattern: str) -> list:
+        conn = self._get_or_create_connection()
+        return conn.keys(pattern) # type: ignore
+
 

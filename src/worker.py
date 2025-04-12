@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from src.utils.timer import Timer
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
-from src.storage.metrics.metrics_storage import FullDAGPrepareTime, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
 import src.dag as dag
 import src.dag_task_node as dag_task_node
@@ -58,6 +58,7 @@ class Worker(ABC):
                     hardcoded_input_metrics = [],
                     total_input_download_time_ms = 0,
                     execution_time_ms = 0,
+                    normalized_execution_time_ms = 0,
                     update_dependency_counters_time_ms = 0,
                     output_metrics = None, # type: ignore
                     downstream_invocation_times = None,
@@ -126,6 +127,8 @@ class Worker(ABC):
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
                 task_metrics.execution_time_ms = exec_timer.stop()
+                task_metrics.normalized_execution_time_ms = \
+                    task_metrics.execution_time_ms * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
                 output_upload_timer = Timer()
                 task_result_serialized = cloudpickle.dumps(task_result)

@@ -16,3 +16,5 @@ class Storage(ABC):
     def set(self, key: str, value, expire=None) -> Any: pass
     @abstractmethod
     def atomic_increment_and_get(self, key: str) -> Any: pass
+    @abstractmethod
+    def keys(self, pattern: str) -> list: pass

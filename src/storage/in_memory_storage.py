@@ -60,3 +60,7 @@ class InMemoryStorage(storage.Storage):
             self._data[key] = new_value
             
             return new_value
+
+    def keys(self, pattern: str) -> list:
+        raise NotImplementedError
+

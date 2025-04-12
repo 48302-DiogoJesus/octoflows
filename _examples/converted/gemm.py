@@ -2,8 +2,6 @@ import os
 import sys
 import time
 import numpy as np
-import hashlib
-import math
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.storage.in_memory_storage import InMemoryStorage

@@ -3,26 +3,22 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
+from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.storage.metrics import metrics_storage
+from src.planning.sla import SLA, Percentile
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
-
-@dataclass
-class Percentile:
-    value: int
-
-SLA: TypeAlias = Literal["avg"] | Percentile
 
 logger = create_logger(__name__)
 
 class DAGPlanner(ABC):
     @staticmethod
     @abstractmethod
-    def plan(dag, metrics_storage_config: metrics_storage.MetricsStorage.Config, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA): 
+    def plan(dag, metadata_access: MetadataAccess, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA): 
         """
         dag: dag.DAG
-        metrics_storage_config: MetricsStorage.Config ??
+        metadata_access: MetadataAccess
 
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
@@ -30,7 +26,7 @@ class DAGPlanner(ABC):
 
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod
-    def plan(dag, metrics_storage_config: metrics_storage.MetricsStorage.Config, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
+    def plan(dag, metadata_access: MetadataAccess, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
         from src.dag import DAG
         _dag: DAG = dag
         for node_id, node in _dag._all_nodes.items():
@@ -39,7 +35,7 @@ class DummyDAGPlanner(DAGPlanner):
 
 class SimpleDAGPlanner(DAGPlanner):
     @staticmethod
-    def plan(dag, metrics_storage_config: metrics_storage.MetricsStorage.Config, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
+    def plan(dag, metadata_access: MetadataAccess, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
         """
         dag: dag.DAG
 

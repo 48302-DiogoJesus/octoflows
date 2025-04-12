@@ -11,6 +11,8 @@ import time
 from typing import Any, Callable, Generic, Type, TypeAlias, TypeVar, Union, get_args, get_origin
 import uuid
 
+from src.utils.timer import Timer
+
 R = TypeVar('R')
 S = TypeVar('S')
 from src.utils.logger import create_logger
@@ -113,18 +115,18 @@ class DAGTaskNode(Generic[R]):
         import src.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
-        _start_time = time.time()
+        timer = Timer()
         dag_representation = dag.DAG(sink_node=self)
-        logger.warning(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {time.time() - _start_time:.4f} seconds")
+        logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
         return asyncio.run(dag_representation.compute(_config, planner, open_dashboard))
 
     async def compute_async(self, config, planner = None, open_dashboard: bool = False) -> R:
         import src.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
-        _start_time = time.time()
+        timer = Timer()
         dag_representation = dag.DAG(sink_node=self)
-        logger.warning(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {time.time() - _start_time:.4f} seconds")
+        logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
         res = await dag_representation.compute(_config, planner, open_dashboard)
         return res
 
