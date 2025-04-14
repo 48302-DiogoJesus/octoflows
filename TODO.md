@@ -1,18 +1,14 @@
-- Recheck how dag_download_time is calculated (its too much time)
-    - Try to, locally, understand how much time cloudpickle serialization of the tree_reduction_512 DAG takes 
-        (redis download is ~23ms, acceptable: < 5ms)
-- [REFACTOR] 
-    - Clearer separation between a fulldag and a subdag
-    - Create more custom exceptions for DAG structure
-
 - [DONE] `MetadataAccess` grab the cached metrics on the ctor
 - [DONE] Store metrics by namespace (Redis key format) (change dag id format <time>_<sink_name>_<uuid>_<dag_signature>)
 - [DONE] Normalize TIME of metrics collection by memory using a baseline memory (512mb)
     - kept previous times (real times)
     - added normalized fields for "task execution times" and "data transfer times"
 
+- [REFACTOR]
+    - Clearer separation between a fulldag and a subdag
+    - Create more custom exceptions for DAG structure
 
-- Implement first **Planning** algorithm
+- Implement the first **Planning** algorithm
     See my report for the algorithm insight
         simulate best resources on all tasks
         find critical path

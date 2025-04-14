@@ -2,6 +2,8 @@ import os
 import sys
 import time
 
+import cloudpickle
+
 
 # import numpy as np
 
