@@ -1,7 +1,7 @@
 from typing import Literal
 import numpy as np
 from src.planning.sla import SLA
-from src.storage.metrics.metrics_storage import TaskMetrics, MetricsStorage
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskMetrics, MetricsStorage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -12,7 +12,8 @@ class MetadataAccess:
     cached_upload_speeds: list[float] = [] # bytes/ms
     cached_download_speeds: list[float] = [] # bytes/ms
     cached_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
-    cached_task_metrics: dict[str, TaskMetrics] = {}
+    # Value: dict[memory_mb, list[normalized_execution_time_ms / input_size_bytes]]
+    cached_execution_time_per_byte: dict[str, list[float]] = {}
 
     def __init__(self, dag_structure_hash: str, metrics_storage: MetricsStorage):
         self.metrics_storage = metrics_storage
@@ -26,9 +27,13 @@ class MetadataAccess:
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             
             task_id = key.decode('utf-8')
-            # ALL METRICS (TODO: MAY NOT NEED ALL THE DATA FOR PREDICTING EXECUTION TIMES)
-            self.cached_task_metrics[task_id] = metrics
             function_name = self._split_task_id(task_id)[0]
+            if metrics.worker_resource_configuration:
+                total_input_size = sum(i.size_bytes for i in metrics.input_metrics) + sum(h.size_bytes for h in metrics.hardcoded_input_metrics)
+                if metrics.normalized_execution_time_ms == 0: continue
+                if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
+                self.cached_execution_time_per_byte[function_name].append(metrics.normalized_execution_time_ms / total_input_size)
+
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
                 self.cached_io_ratios[function_name] = []
@@ -37,46 +42,48 @@ class MetadataAccess:
             self.cached_io_ratios[function_name].append(output / input if input > 0 else 0)
             # UPLOAD SPEEDS
             if metrics.output_metrics.time_ms > 0:
-                self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.time_ms)
+                self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms)
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics:
                 if input_metric.time_ms > 0:
-                    self.cached_download_speeds.append(input_metric.size_bytes / input_metric.time_ms)
-        
-        logger.info(f"Metadata loaded in {timer.stop():.3f} ms")
-        exit()
+                    self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
 
-    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, sla: SLA) -> float:
-        cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
-
-        if sla == "avg":
-            # Calculate average speed when SLA is "avg"
-            speed_bytes_per_ms = np.mean(cached_data)
-        else:
-            # Existing percentile-based calculation
-            if sla.value < 0 or sla.value > 100: 
-                raise ValueError("SLA must be between 0 and 100")
-            speed_bytes_per_ms = np.percentile(cached_data, 100 - sla.value)
-        
-        if speed_bytes_per_ms <= 0:
-            return float('inf')
-        
-        return data_size_bytes / speed_bytes_per_ms # type: ignore
-
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> float:
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> float | None:
+        """
+        Returns:
+            Predicted output size in bytes
+            None if no data is available
+        """
         if input_size < 0: raise ValueError("Input size cannot be negative")
-        if function_name not in self.cached_io_ratios:
-            raise ValueError(f"Empty I/O ratio data for function: {function_name}")
+        if function_name not in self.cached_io_ratios: return None
         
         function_io_ratios = self.cached_io_ratios[function_name]
         if sla == "avg":
-            # Calculate average ratio when SLA is "avg"
             ratio = np.mean(function_io_ratios)
         else:
             if sla.value < 0 or sla.value > 100: raise ValueError("SLA must be between 0 and 100")
             ratio = np.percentile(function_io_ratios, 100 - sla.value)
         
-        return input_size * ratio
+        return input_size * ratio # type: ignore
+
+    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA) -> float | None:
+        """
+        Returns:
+            Predicted data transfer time in milliseconds
+            None if no data is available
+        """
+        cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
+
+        if sla == "avg":
+            normalized_speed_bytes_per_ms = np.mean(cached_data)
+        else:
+            if sla.value < 0 or sla.value > 100: 
+                raise ValueError("SLA must be between 0 and 100")
+            normalized_speed_bytes_per_ms = np.percentile(cached_data, 100 - sla.value)
+        
+        if normalized_speed_bytes_per_ms <= 0: return None
+        
+        return (data_size_bytes / normalized_speed_bytes_per_ms) * (BASELINE_MEMORY_MB / resource_config.memory_mb) # type: ignore
 
     def predict_execution_time(
         self,
@@ -84,7 +91,7 @@ class MetadataAccess:
         input_size: int,
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
-    ) -> float:
+    ) -> float | None:
         """Predict execution time for a function given input size and resources.
         
         Args:
@@ -95,31 +102,23 @@ class MetadataAccess:
         
         Returns:
             Predicted execution time in milliseconds
+            None if no data is available
         """
-        # Input validation
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
-
-        # Collect relevant metrics for the function
-        relevant_metrics: list[metrics_storage.TaskMetrics] = []
-        for task_id, metrics in self.cached_task_metrics.items():
-            fn_name, _, _ = self._split_task_id(task_id)
-            if fn_name == function_name and metrics.worker_resource_configuration is not None:
-                relevant_metrics.append(metrics)
+        normalized_ms_per_byte_for_function = self.cached_execution_time_per_byte.get(function_name, [])
         
-        if not relevant_metrics:
-            raise ValueError(f"No historical data found for function {function_name}")
-
-        weighted_times = self._calculate_weighted_times(relevant_metrics, resource_config)
+        if not normalized_ms_per_byte_for_function: return None
         
-        if not weighted_times: raise ValueError("No valid input size data available for prediction")
-
         if sla == "avg":
-            predicted_normalized = np.mean(weighted_times)
+            ms_per_byte = np.mean(normalized_ms_per_byte_for_function)
         else:
-            percentile = 100 - sla.value
-            predicted_normalized = np.percentile(weighted_times, percentile)
-
-        return predicted_normalized * input_size
+            if sla.value < 0 or sla.value > 100:
+                raise ValueError("SLA must be between 0 and 100")
+            ms_per_byte = np.percentile(normalized_ms_per_byte_for_function, 100 - sla.value)
+        
+        if ms_per_byte <= 0: return None
+        
+        return (ms_per_byte * input_size) * (BASELINE_MEMORY_MB / resource_config.memory_mb) # type: ignore
 
     def _calculate_weighted_times(
         self,

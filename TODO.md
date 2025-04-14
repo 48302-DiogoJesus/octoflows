@@ -1,3 +1,6 @@
+- Dashboard => On "Summary", show the total time spent downloading the DAG
+- Recheck how dag_download_time is calculated (its too much time)
+
 - Namespaces for Task Annotations per algorithm: ALGORITHM_NAME_PRELOAD
     - how to make workers follow annotations in a scalable manner?
         Annotations become classes that override parts of the worker code?

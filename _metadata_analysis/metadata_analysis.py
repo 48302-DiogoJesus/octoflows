@@ -148,11 +148,13 @@ def main():
     makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
 
     keys = metrics_redis.keys('metrics-storage-dag-*')
+    total_time_downloading_dag_ms = 0
     dag_prepare_metrics = []
     for key in keys:
         serialized_value = metrics_redis.get(key)
         deserialized: FullDAGPrepareTime = cloudpickle.loads(serialized_value) # type: ignore
         if not isinstance(deserialized, FullDAGPrepareTime): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
+        total_time_downloading_dag_ms += deserialized.download_time_ms
         dag_prepare_metrics.append({
             "dag_download_time": deserialized.download_time_ms,
             "create_subdag_time": deserialized.create_subdag_time_ms,
@@ -356,25 +358,29 @@ def main():
             st.metric("Total Tasks", len(dag._all_nodes))
             st.metric(f"Total Time Executing Tasks (avg: {task_execution_time_avg:.2f} ms)", f"{total_time_executing_tasks_ms:.2f} ms")
             st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+            st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
         with col2:
             st.metric("Makespan", f"{makespan_ms:.2f} ms")
             st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
             avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
             st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
+            st.metric("DAG Size", format_bytes(avg_dag_size))
         with col3:
             st.metric("Unique Workers", metrics_df['worker_id'].nunique())
             st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-            st.metric("Total Worker Invocations ", f"{sum(len(m.downstream_invocation_times) for m in dag_metrics if m.downstream_invocation_times)}") # type: ignore
+            st.metric("Total Worker Invocations (excludes initial) ", f"{sum(len(m.downstream_invocation_times) for m in dag_metrics if m.downstream_invocation_times)}") # type: ignore
+            st.metric("Total Time Downloading DAG", f"{total_time_downloading_dag_ms:.2f} ms")
         with col4:
             st.metric("Unique Tasks", len(function_groups))
             st.metric("Total Invocation Time", f"{total_time_invoking_tasks_ms:.2f} ms")
-            st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
-        with col5:
-            st.metric("DAG Size", format_bytes(avg_dag_size))
-            st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
+            st.metric("", "")
+            st.metric("", "")
             st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
+        with col5:
+            st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
+            st.metric("", "")
+            st.metric("", "")
 
-        total_time_downloading_dag_ms = sum(m['dag_download_time'] for m in dag_prepare_metrics)
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
             "Data Download": total_time_downloading_data_ms,
