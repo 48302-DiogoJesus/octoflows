@@ -55,16 +55,16 @@ class DAG:
         self.structure_hash = self.get_structure_hash()
         self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.structure_hash}" # type: ignore
 
-    async def compute(self, config, planner: DAGPlanner | None = None, open_dashboard: bool = False):
+    async def compute(self, config, planner: type[DAGPlanner] | None = None, open_dashboard: bool = False):
         from src.worker import Worker, LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.worker_resource_configuration import TaskWorkerResourceConfiguration
         from src.planning.dag_planner import DAGPlanner
         _wk_config: Worker.Config = config
-        _planner: DAGPlanner | None = planner
+        _planner: type[DAGPlanner] | None = planner
         wk: Worker = _wk_config.create_instance()
         if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
-        if _planner:
+        if _planner is not None:
             if isinstance(_wk_config, LocalWorker):
                 raise Exception("Can't do DAG Planning with local worker!")
             if _wk_config.metrics_storage_config is None:

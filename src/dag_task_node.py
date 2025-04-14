@@ -143,10 +143,11 @@ class DAGTaskNode(Generic[R]):
         if self.id.task_id in cloned_nodes:
             return cloned_nodes[self.id.task_id]
 
-        cloned_node = copy.copy(self) # ! needs to be deepcopy?? bad performance
+        cloned_node = copy.copy(self)
         cloned_nodes[self.id.task_id] = cloned_node
 
         # Clone the upstream and downstream nodes
+        cloned_node.annotations = copy.copy(self.annotations)
         cloned_node.upstream_nodes = [node.clone(cloned_nodes) for node in self.upstream_nodes]
         cloned_node.downstream_nodes = [node.clone(cloned_nodes) for node in self.downstream_nodes]
 

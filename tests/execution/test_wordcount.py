@@ -6,10 +6,11 @@ import re
 from collections import Counter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from tests.utils.test_utils import get_worker_config
+from tests.utils.test_utils import get_planner, get_worker_config
 from src.dag_task_node import DAGTask
 
 worker_config = get_worker_config()
+selected_planner = get_planner()
 
 def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -80,7 +81,7 @@ def test_wordcount_shakespeare():
     word_counts = [count_words_in_chunk(words) for words in word_lists]
     final_word_count = merge_word_counts(word_counts)
 
-    distributed_result = final_word_count.compute(config=worker_config, open_dashboard=False)
+    distributed_result = final_word_count.compute(config=worker_config, planner=selected_planner, open_dashboard=False)
     distributed_result_hash = hash_dict(distributed_result)
 
     with open(INPUT_FILE, 'r', encoding='utf-8') as file:

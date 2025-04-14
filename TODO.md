@@ -1,9 +1,9 @@
-- Dashboard => On "Summary", show the total time spent downloading the DAG
 - Recheck how dag_download_time is calculated (its too much time)
-
-- Namespaces for Task Annotations per algorithm: ALGORITHM_NAME_PRELOAD
-    - how to make workers follow annotations in a scalable manner?
-        Annotations become classes that override parts of the worker code?
+    - Try to, locally, understand how much time cloudpickle serialization of the tree_reduction_512 DAG takes 
+        (redis download is ~23ms, acceptable: < 5ms)
+- [REFACTOR] 
+    - Clearer separation between a fulldag and a subdag
+    - Create more custom exceptions for DAG structure
 
 - [DONE] `MetadataAccess` grab the cached metrics on the ctor
 - [DONE] Store metrics by namespace (Redis key format) (change dag id format <time>_<sink_name>_<uuid>_<dag_signature>)
@@ -11,9 +11,6 @@
     - kept previous times (real times)
     - added normalized fields for "task execution times" and "data transfer times"
 
-- [REFACTOR] 
-    - Clearer separation between a fulldag and a subdag
-    - Create more custom exceptions for DAG structure
 
 - Implement first **Planning** algorithm
     See my report for the algorithm insight
@@ -22,6 +19,12 @@
         alleviate resources on tasks outside the critical path
             re-simulate to ensure the critical path is still the same
             do this N amount of times
+
+- Think about "namespaces for Task Annotations per algorithm": <ALGORITHM_NAME>_PRELOAD ??
+    - how to make workers follow annotations in a scalable manner?
+        Annotations become classes that override parts of the worker code?
+        Split the worker logic into sections that are implemented by the planner (planner becomes mandatory)
+            The planner I have now would be WukongPlanner?
 
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
