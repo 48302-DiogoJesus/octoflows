@@ -1,3 +1,4 @@
+from abc import ABC
 import asyncio
 import hashlib
 import time
@@ -33,27 +34,60 @@ class MultipleSinkNodesErrors(DAGError):
         message = f"[ClientError] Invalid DAG! There can only be one sink node. Found more than 1 node with 0 downstream tasks (function_name={func_name})!"
         super().__init__(message)
 
-class DAG:
+class GenericDAG(ABC):
+    _all_nodes: dict[str, dag_task_node.DAGTaskNode]
+    root_nodes: list[dag_task_node.DAGTaskNode]
+    sink_node: dag_task_node.DAGTaskNode
+    master_dag_structure_hash: str
+    master_dag_id: str
 
-    def __init__(self, sink_node: dag_task_node.DAGTaskNode | None = None, master_dag_id: str | None = None, root_node: dag_task_node.DAGTaskNode | None = None):
-        """Create a DAG from sink node (node with no downstream tasks)."""
-        # SUB-DAG (Stop searching for nodes at "fake" root nodes)
-        if root_node:
-            self.root_nodes = None
-            self.root_node = root_node
-            self._all_nodes, self.sink_node = DAG._find_all_nodes_from_root(self.root_node)
-        # FULL DAG (Find real root nodes)
-        else:
-            if not sink_node: raise Exception("Sink node can't be None if no root nodes are provided!")
-            self.sink_node = sink_node.clone() # clone all nodes behind the sink node
-            self._all_nodes, self.root_nodes = DAG._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
-            if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
-            self.root_node = self.root_nodes[0]
-            DAG._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
-            self._optimize_task_metadata()
+    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "SubDAG":
+        return SubDAG(master_dag_id=self.master_dag_id, master_dag_structure_hash=self.master_dag_structure_hash, root_node=root_node)
+
+    def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
+        return self._all_nodes[node_id.get_full_id()]
+
+class SubDAG(GenericDAG):
+    def __init__(self, master_dag_id: str, master_dag_structure_hash: str, root_node: dag_task_node.DAGTaskNode):
+        self.root_nodes = [root_node]
+        self.root_node = root_node
+        self._all_nodes, self.sink_node = self._find_all_nodes_from_root(self.root_node)
+        self.master_dag_structure_hash = master_dag_structure_hash
+        self.master_dag_id = master_dag_id
+
+    @staticmethod
+    def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:
+        """Build the complete graph by traversing from root nodes downward and find the sink node."""
+        all_nodes: dict[str, dag_task_node.DAGTaskNode] = {}
+        sink_node = None  # Will store the last visited node with no downstreams
         
-        self.structure_hash = self.get_structure_hash()
-        self.master_dag_id = master_dag_id or f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.structure_hash}" # type: ignore
+        def visit(node: dag_task_node.DAGTaskNode):
+            nonlocal sink_node
+            if node.id.get_full_id() in all_nodes:
+                return
+            all_nodes[node.id.get_full_id()] = node
+            
+            if not node.downstream_nodes:
+                sink_node = node
+            
+            for arg in node.downstream_nodes:
+                visit(arg)
+        
+        visit(root_node)
+
+        return all_nodes, sink_node # type: ignore
+
+
+class FullDAG(GenericDAG):
+    def __init__(self, sink_node: dag_task_node.DAGTaskNode):
+        self.sink_node = sink_node.clone() # clone all nodes behind the sink node
+        self._all_nodes, self.root_nodes = self._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
+        if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
+        self._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
+        self._optimize_task_metadata()
+        
+        self.master_dag_structure_hash = self.get_structure_hash()
+        self.master_dag_id = f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.master_dag_structure_hash}" # type: ignore
 
     async def compute(self, config, planner: type[DAGPlanner] | None = None, open_dashboard: bool = False):
         from src.worker import Worker, LocalWorker
@@ -72,7 +106,7 @@ class DAG:
             if len(_wk_config.available_resource_configurations) == 0:
                 raise Exception("Can't do DAG Planning without available resource configurations!")
             
-            _planner.plan(self, MetadataAccess(self.structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
+            _planner.plan(self, MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
@@ -102,9 +136,6 @@ class DAG:
         )
 
         return res
-    
-    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "DAG":
-        return DAG(self.sink_node, master_dag_id=self.master_dag_id, root_node=root_node)
 
     def get_structure_hash(self) -> str:
         """ Create a hash from the DAG structure (only including function_names and their relationships) """
@@ -145,23 +176,6 @@ class DAG:
             node.func_args = tuple(optimized_args)
             node.func_kwargs = optimized_kwargs
 
-    def _find_sink_node_from_roots(self, root_nodes: list[dag_task_node.DAGTaskNode]):
-        def dfs(node):
-            if len(node.downstream_nodes) == 0:  # Sink node found
-                return node
-            for child in node.downstream_nodes:
-                result = dfs(child)
-                if result:
-                    return result
-            return None
-
-        for root in root_nodes:
-            sink = dfs(root)
-            if sink:
-                return sink
-
-        raise Exception("Cloud not find sink node from root nodes")
-    
     @staticmethod
     def _find_all_nodes_and_root_nodes_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:
         """
@@ -213,38 +227,7 @@ class DAG:
     
         for node in all_nodes.values():
             recursive_find_invalid_sink_nodes(node)
-
-    @staticmethod
-    def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:
-        """Build the complete graph by traversing from root nodes downward and find the sink node."""
-        all_nodes: dict[str, dag_task_node.DAGTaskNode] = {}
-        sink_node = None  # Will store the last visited node with no downstreams
-        
-        def visit(node: dag_task_node.DAGTaskNode):
-            nonlocal sink_node
-            if node.id.get_full_id() in all_nodes:
-                return
-            all_nodes[node.id.get_full_id()] = node
-            
-            if not node.downstream_nodes:
-                sink_node = node
-            
-            for arg in node.downstream_nodes:
-                visit(arg)
-        
-        visit(root_node)
-
-        return all_nodes, sink_node # type: ignore
-
-    def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
-        return self._all_nodes[node_id.get_full_id()]
-    
-    def _get_node_by_task_id(self, task_id: str) -> Any:
-        for node in self._all_nodes.values():
-            if node.id.task_id == task_id:
-                return node
-        return None
-    
+   
     @classmethod
     def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", open_after=True):
         # Create a new directed graph

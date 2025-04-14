@@ -62,8 +62,8 @@ class DAGVisualizationDashboard:
 
     def render_graphviz(self):
         """Render the DAG using Graphviz with left-to-right layout"""
-        from src.dag import DAG  # avoid circular dependencies
-        self.dag: DAG = self.dag
+        from src.dag import FullDAG  # avoid circular dependencies
+        self.dag: FullDAG = self.dag
         
         # Create a new directed graph
         graph = graphviz.Digraph()
@@ -161,7 +161,7 @@ class DAGVisualizationDashboard:
 
 if __name__ == "__main__":
     from src.worker import Worker
-    from src.dag import DAG
+    from src.dag import FullDAG
     import sys
     import base64
     import cloudpickle
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         
         if not isinstance(config, Worker.Config):
             raise Exception("Error: config is not a Worker.Config instance")
-        if not isinstance(dag, DAG):
+        if not isinstance(dag, FullDAG):
             raise Exception("Error: dag is not a DAG instance")
         
         DAGVisualizationDashboard(dag, config).run_dashboard()

@@ -42,14 +42,14 @@ def test_dag_task_cloning():
     assert len(t1.downstream_nodes) == 2
 
 def test_dag_no_fan_ins_no_fan_outs():
-    from src.dag import DAG
+    from src.dag import FullDAG
     t1 = task_a("1")
     t2 = task_a(t1)
     t3 = task_a(t2)
     t4 = task_a(t3)
     t5 = task_a(t4)
 
-    dag = DAG(sink_node=t5)
+    dag = FullDAG(sink_node=t5)
 
     assert dag.root_nodes
     assert len(dag.root_nodes) == 1
@@ -66,7 +66,7 @@ def test_dag_no_fan_ins_no_fan_outs():
     assert len(t5.downstream_nodes) == 0
 
 def test_dag_root_node_ahead():
-    from src.dag import DAG
+    from src.dag import FullDAG
     t1 = task_a("1")
     t2 = task_a(t1)
     t3 = task_a(t1)
@@ -75,7 +75,7 @@ def test_dag_root_node_ahead():
     t5 = task_a(t3, t6)
     t7 = task_a(t4, t5)
 
-    dag = DAG(sink_node=t7)
+    dag = FullDAG(sink_node=t7)
     dag.visualize(sink_node=t7, open_after=True)
 
     assert dag.root_nodes

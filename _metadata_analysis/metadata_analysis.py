@@ -15,7 +15,7 @@ import plotly.express as px
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.dag import DAG
+from src.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
 
@@ -81,7 +81,7 @@ def main():
     # Deserialize DAG
     try:
         dag_data = dag_redis.get(selected_dag_key)
-        dag: DAG = cloudpickle.loads(dag_data)
+        dag: FullDAG = cloudpickle.loads(dag_data)
     except Exception as e:
         st.error(f"Failed to deserialize DAG: {e}")
         return

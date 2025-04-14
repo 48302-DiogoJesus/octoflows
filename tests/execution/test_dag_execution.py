@@ -32,13 +32,13 @@ def test_dag_2():
     DAG where the last task depends on a task that one of its upstream tasks also depends on.
     Cutting the subdag naively would make this not work
     """
-    from src.dag import DAG
+    from src.dag import FullDAG
     t1 = task_a("", "1")
     t2 = task_a("", "2")
     t3 = task_a(t1, t2)
     t4 = task_a(t1, t3)
 
-    dag = DAG(sink_node=t4)
+    dag = FullDAG(sink_node=t4)
     assert dag.root_nodes
     assert len(dag.root_nodes) == 2
     assert len(dag._all_nodes) == 4
@@ -51,13 +51,13 @@ def test_dag_fake_sink_node():
     DAG where the last task depends on a task that one of its upstream tasks also depends on.
     Cutting the subdag naively would make this not work
     """
-    from src.dag import DAG
+    from src.dag import FullDAG
     t1 = task_a("", "1")
     t2 = task_a(t1, "2")
     t3 = task_a(t1, "3")
 
     with pytest.raises(MultipleSinkNodesError):
-        DAG(sink_node=t3)
+        FullDAG(sink_node=t3)
 
 def test_dag_execution_root_node_ahead():
     t1 = task_a("", "1")

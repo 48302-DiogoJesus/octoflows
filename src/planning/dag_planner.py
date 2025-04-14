@@ -27,8 +27,8 @@ class DAGPlanner(ABC):
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod
     def plan(dag, metadata_access: MetadataAccess, available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
-        from src.dag import DAG
-        _dag: DAG = dag
+        from src.dag import FullDAG
+        _dag: FullDAG = dag
         for node_id, node in _dag._all_nodes.items():
             node.add_annotation(TaskWorkerResourceConfiguration(cpus=2, memory_mb=256))
         return
@@ -41,8 +41,8 @@ class SimpleDAGPlanner(DAGPlanner):
 
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
-        from src.dag import DAG
-        _dag: DAG = dag
+        from src.dag import FullDAG
+        _dag: FullDAG = dag
         logger.info("Starting DAG Planning Algorithm")
         algorithm_start_time = Timer()
         if sla == "avg":

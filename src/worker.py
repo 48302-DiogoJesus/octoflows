@@ -43,7 +43,7 @@ class Worker(ABC):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.available_resource_configurations = config.available_resource_configurations
 
-    async def start_executing(self, subdag: dag.DAG):
+    async def start_executing(self, subdag: dag.SubDAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         task = subdag.root_node
 
@@ -239,25 +239,25 @@ class Worker(ABC):
             self.metrics_storage.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
+    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
         pass
 
     @staticmethod
-    def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.DAG):
+    def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.FullDAG):
         metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
 
-    def get_full_dag(self, dag_id: str) -> tuple[int, dag.DAG]:
+    def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
         serialized_dag = self.metadata_storage.get(f"dag-{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized = cloudpickle.loads(serialized_dag)
-        if not isinstance(deserialized, dag.DAG): raise Exception("Error: fulldag is not a DAG instance")
+        if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
         return (len(serialized_dag), deserialized)
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.DAG, polling_interval_s: float = 1.0):
+    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 1.0):
         start_time = Timer()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)
@@ -306,7 +306,7 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
         await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
@@ -327,7 +327,7 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.DAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''

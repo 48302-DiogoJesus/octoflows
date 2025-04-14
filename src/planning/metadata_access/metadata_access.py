@@ -41,11 +41,11 @@ class MetadataAccess:
             output = metrics.output_metrics.size_bytes
             self.cached_io_ratios[function_name].append(output / input if input > 0 else 0)
             # UPLOAD SPEEDS
-            if metrics.output_metrics.time_ms > 0:
+            if metrics.output_metrics.normalized_time_ms > 0:
                 self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms)
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics:
-                if input_metric.time_ms > 0:
+                if input_metric.normalized_time_ms > 0:
                     self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> float | None:

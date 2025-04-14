@@ -8,7 +8,7 @@ import cloudpickle
 # import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.dag import DAG
+from src.dag import FullDAG
 from src.planning.dag_planner import DummyDAGPlanner
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
