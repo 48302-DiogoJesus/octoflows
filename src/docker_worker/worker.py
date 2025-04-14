@@ -16,7 +16,7 @@ from src.storage.metrics.metrics_storage import FullDAGPrepareTime
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNodeId
 import src.worker as worker
-import src.dag as dag
+import src.dag.dag as dag
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)

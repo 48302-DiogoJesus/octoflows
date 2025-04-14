@@ -15,7 +15,7 @@ import plotly.express as px
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.dag import FullDAG
+from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
 

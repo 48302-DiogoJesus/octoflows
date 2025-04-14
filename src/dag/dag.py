@@ -2,10 +2,10 @@ from abc import ABC
 import asyncio
 import hashlib
 import time
-from typing import Any
 import uuid
 import graphviz
 
+from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.planning.dag_planner import DAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
@@ -13,26 +13,6 @@ import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
 
 logger = create_logger(__name__)
-
-# class SubDAG:
-#     def __init__(self, root_node: dag_task_node.DAGTaskNode):
-#         self.dag = dag
-
-class DAGError(Exception):
-    """Base class for all DAG-related exceptions"""
-    pass
-
-class MultipleSinkNodesError(DAGError):
-    """Raised when more than one sink node is detected in the DAG"""
-    def __init__(self, func_name: str):
-        message = f"[ClientError] Invalid DAG! There can only be one sink node. Found more than 1 node with 0 downstream tasks (function_name={func_name})!"
-        super().__init__(message)
-        
-class MultipleSinkNodesErrors(DAGError):
-    """Raised when more than one sink node is detected in the DAG"""
-    def __init__(self, func_name: str):
-        message = f"[ClientError] Invalid DAG! There can only be one sink node. Found more than 1 node with 0 downstream tasks (function_name={func_name})!"
-        super().__init__(message)
 
 class GenericDAG(ABC):
     _all_nodes: dict[str, dag_task_node.DAGTaskNode]
@@ -54,6 +34,8 @@ class SubDAG(GenericDAG):
         self._all_nodes, self.sink_node = self._find_all_nodes_from_root(self.root_node)
         self.master_dag_structure_hash = master_dag_structure_hash
         self.master_dag_id = master_dag_id
+
+        # TODO: Kill unneded nodes so that future cloudpickle.dumps() doesn't grab them
 
     @staticmethod
     def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:
@@ -82,7 +64,7 @@ class FullDAG(GenericDAG):
     def __init__(self, sink_node: dag_task_node.DAGTaskNode):
         self.sink_node = sink_node.clone() # clone all nodes behind the sink node
         self._all_nodes, self.root_nodes = self._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
-        if len(self.root_nodes) == 0: raise Exception(f"[BUG] DAG with sink node: {self.sink_node.id.get_full_id()} has 0 root notes!")
+        if len(self.root_nodes) == 0: raise NoRootNodesError(self.sink_node.id.get_full_id())
         self._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
         self._optimize_task_metadata()
         
@@ -97,7 +79,6 @@ class FullDAG(GenericDAG):
         _wk_config: Worker.Config = config
         _planner: type[DAGPlanner] | None = planner
         wk: Worker = _wk_config.create_instance()
-        if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
         if not isinstance(_wk_config, LocalWorker.Config) and _planner is not None:
             if _wk_config.metrics_storage_config is None:
                 raise Exception("Can't do DAG Planning without metrics storage config!")

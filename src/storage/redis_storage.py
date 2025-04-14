@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import redis
 
-from src.storage.metrics import metrics_storage
 import src.storage.storage as storage
 
 class RedisStorage(storage.Storage):

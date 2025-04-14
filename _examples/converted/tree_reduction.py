@@ -8,7 +8,7 @@ import cloudpickle
 # import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.dag import FullDAG
+from src.dag.dag import FullDAG
 from src.planning.dag_planner import DummyDAGPlanner
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
@@ -59,6 +59,6 @@ sink: DAGTaskNode = L[0] # type: ignore
 
 for i in range(1):
     start_time = time.time()
-    # result = sink.compute(config=localWorkerConfig)
-    result = sink.compute(config=dockerWorkerConfig, planner=DummyDAGPlanner)
+    result = sink.compute(config=localWorkerConfig)
+    # result = sink.compute(config=dockerWorkerConfig, planner=DummyDAGPlanner)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

@@ -112,7 +112,7 @@ class DAGTaskNode(Generic[R]):
 
     """ config: worker.Worker.Config """
     def compute(self, config, planner = None, open_dashboard: bool = False) -> R:
-        import src.dag as dag
+        import src.dag.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
         timer = Timer()
@@ -121,7 +121,7 @@ class DAGTaskNode(Generic[R]):
         return asyncio.run(dag_representation.compute(_config, planner, open_dashboard))
 
     async def compute_async(self, config, planner = None, open_dashboard: bool = False) -> R:
-        import src.dag as dag
+        import src.dag.dag as dag
         from src.worker import Worker
         _config: Worker.Config = config
         timer = Timer()
@@ -131,7 +131,7 @@ class DAGTaskNode(Generic[R]):
         return res
 
     def visualize_dag(self, output_file="dag_graph.png", open_after: bool = True):
-        import src.dag as dag
+        import src.dag.dag as dag
         dag.FullDAG.visualize(sink_node=self, output_file=output_file, open_after=open_after)
 
     def clone(self, cloned_nodes: dict[str, "DAGTaskNode"] | None = None) -> "DAGTaskNode":

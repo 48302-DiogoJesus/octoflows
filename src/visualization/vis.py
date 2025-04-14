@@ -62,7 +62,7 @@ class DAGVisualizationDashboard:
 
     def render_graphviz(self):
         """Render the DAG using Graphviz with left-to-right layout"""
-        from src.dag import FullDAG  # avoid circular dependencies
+        from src.dag.dag import FullDAG  # avoid circular dependencies
         self.dag: FullDAG = self.dag
         
         # Create a new directed graph
@@ -161,7 +161,7 @@ class DAGVisualizationDashboard:
 
 if __name__ == "__main__":
     from src.worker import Worker
-    from src.dag import FullDAG
+    from src.dag.dag import FullDAG
     import sys
     import base64
     import cloudpickle

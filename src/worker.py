@@ -16,7 +16,7 @@ from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
 from src.utils.logger import create_logger
-import src.dag as dag
+import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
 import src.storage.storage as storage_module
 

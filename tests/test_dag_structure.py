@@ -42,7 +42,7 @@ def test_dag_task_cloning():
     assert len(t1.downstream_nodes) == 2
 
 def test_dag_no_fan_ins_no_fan_outs():
-    from src.dag import FullDAG
+    from src.dag.dag import FullDAG
     t1 = task_a("1")
     t2 = task_a(t1)
     t3 = task_a(t2)
@@ -66,7 +66,7 @@ def test_dag_no_fan_ins_no_fan_outs():
     assert len(t5.downstream_nodes) == 0
 
 def test_dag_root_node_ahead():
-    from src.dag import FullDAG
+    from src.dag.dag import FullDAG
     t1 = task_a("1")
     t2 = task_a(t1)
     t3 = task_a(t1)

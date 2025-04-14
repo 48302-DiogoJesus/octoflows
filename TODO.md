@@ -4,10 +4,6 @@
     - kept previous times (real times)
     - added normalized fields for "task execution times" and "data transfer times"
 
-- [REFACTOR]
-    - Clearer separation between a fulldag and a subdag
-    - Create more custom exceptions for DAG structure
-
 - Implement the first **Planning** algorithm
     See my report for the algorithm insight
         simulate best resources on all tasks
@@ -16,6 +12,12 @@
             re-simulate to ensure the critical path is still the same
             do this N amount of times
 
+- [REFACTOR]
+    - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
+        store_full_dag DOESN'T change
+        NEW => workers MAY not need to download dag from storage
+            serialized_dag: SubDAG | None
+
 - Think about "namespaces for Task Annotations per algorithm": <ALGORITHM_NAME>_PRELOAD ??
     - how to make workers follow annotations in a scalable manner?
         Annotations become classes that override parts of the worker code?
@@ -23,7 +25,9 @@
             The planner I have now would be WukongPlanner?
 
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
+    redis remove keys that contain <master_dag_id>
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
+- Further separate Worker configs (it's a mess to know which props are required for each worker)
 
 - [PERFORMANCE] Storing the full dag on redis is costly
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
