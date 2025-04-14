@@ -64,9 +64,7 @@ class DAG:
         _planner: type[DAGPlanner] | None = planner
         wk: Worker = _wk_config.create_instance()
         if self.root_nodes is None: raise Exception("Expected complete DAG, but 'root_nodes == None'")
-        if _planner is not None:
-            if isinstance(_wk_config, LocalWorker):
-                raise Exception("Can't do DAG Planning with local worker!")
+        if not isinstance(_wk_config, LocalWorker.Config) and _planner is not None:
             if _wk_config.metrics_storage_config is None:
                 raise Exception("Can't do DAG Planning without metrics storage config!")
             if wk.metrics_storage is None:

@@ -29,7 +29,7 @@ dockerWorkerConfig = DockerWorker.Config(
 )
 
 def get_worker_config():
-    return dockerWorkerConfig
+    return localWorkerConfig
 
 def get_planner():
     return DummyDAGPlanner
