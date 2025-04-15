@@ -1,36 +1,27 @@
-- [DONE] `MetadataAccess` grab the cached metrics on the ctor
-- [DONE] Store metrics by namespace (Redis key format) (change dag id format <time>_<sink_name>_<uuid>_<dag_signature>)
-- [DONE] Normalize TIME of metrics collection by memory using a baseline memory (512mb)
-    - kept previous times (real times)
-    - added normalized fields for "task execution times" and "data transfer times"
-
-- Implement the first **Planning** algorithm
-    - ISSUE: It takes too long to simulate for ALL nodes
-        Make predictions faster
-            Predictions take a lot longer with more data (e.g., T.R. 512 vs 256)
-            - Threadpool
-            - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
-        Use thread pool
-        Don't simulate for ALL nodes. establish a max tries and select specific paths
-    - Grabbing redis metrics takes too long (see what's possible)
-    - BUG: In tree reduction, all workers are being assigned the same worker configuration
+# PLANNING ALGORITHMS
+- BUG?: If prediction returns None I shouldn't default to 0! It will influence algorithm wrongly!
+    solution: discard? how?
     - BUG?: Critical path completion time is too low! Doesn't seem correct
-    - BUG?: If prediction returns None I shouldn't default to 0! It will influence algorithm wrongly!
-        solution: discard? how?
-    - Finish new algorithm and describe it as a comment
-        best resources to all
-        try downgrading resources on all tasks as much as possible without introducing a new critical path
-    - Convert json structure to a dataclass for typesafety and performance
-    - How to test the algorithm?
-        data ?
-        correctness ?
-    - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
-    - Pre-defined data structures/functions to facilitate creating algorithms?
-    - Report 1st algorithm (requires: pre-load optimization implemented)
-    - IMPROVEMENTS
-        - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
-        - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
-            doesn't account for Pointers to other `dagtasknodes` (negligible?)
+        - BUG: In tree reduction, all nodes are being assigned the same worker configuration
+- How to test the algorithm?
+    data ?
+    correctness ?
+- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
+- Report 1st algorithm (requires: pre-load optimization implemented)
+- IMPROVEMENTS
+    - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
+    - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
+        doesn't account for Pointers to other `dagtasknodes` (negligible?)
+    - Make predictions faster
+        - Threadpool
+        - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
+        - ? Don't simulate for ALL nodes. establish a max tries and select specific paths
+
+# WORKER
+Further abstract the worker
+- grab_dependencies (allow algorithm to use threads or coroutines to download input, only download some input and get other input locally or from another source)
+- execute (allow algorithm to do other things before, after and while task is executing or completely skip execution)
+- handle_output (allow algorithm to not upload output, upload lazilly, etc..)
 
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)

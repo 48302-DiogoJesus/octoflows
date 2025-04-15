@@ -57,7 +57,7 @@ class MetadataAccess:
             output = metrics.output_metrics.size_bytes
             self.cached_io_ratios[function_name].append(output / input if input > 0 else 0)
 
-        logger.info(f"Loaded {len(generic_metrics_values)} metadata entries for {dag_structure_hash} in {timer.stop()}ms")
+        logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int | None:
         """

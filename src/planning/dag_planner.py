@@ -105,7 +105,6 @@ class DAGPlanner(ABC):
         """
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
 
-        timer = Timer()
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             resource_config = node_to_resource_config[node_id]
@@ -116,8 +115,6 @@ class DAGPlanner(ABC):
             upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or 0.0
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
 
-        logger.info(f"Time to calculate {len(topo_sorted_nodes)} node timings: {timer.stop()} ms")
-        
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
 
         return nodes_info
@@ -169,26 +166,26 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    @staticmethod
-    def _simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla):
-        node_id = node.id.get_full_id()
+    # @staticmethod
+    # def _simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla):
+    #     node_id = node.id.get_full_id()
             
-        # Try each resource config from lowest to highest
-        for resource_config in sorted_available_worker_resource_configurations:
-            if resource_config == node_to_resource_config[node_id]:
-                continue # Skip if it's the currently assigned config (no need to recalculate)
+    #     # Try each resource config from lowest to highest
+    #     for resource_config in sorted_available_worker_resource_configurations:
+    #         if resource_config == node_to_resource_config[node_id]:
+    #             continue # Skip if it's the currently assigned config (no need to recalculate)
                 
-            # Temporarily assign this resource config
-            original_config = node_to_resource_config[node_id]
-            node_to_resource_config[node_id] = resource_config
+    #         # Temporarily assign this resource config
+    #         original_config = node_to_resource_config[node_id]
+    #         node_to_resource_config[node_id] = resource_config
             
-            # Recalculate timings with this resource configuration
-            temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-            new_critical_path_nodes, _ = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
+    #         # Recalculate timings with this resource configuration
+    #         temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
+    #         new_critical_path_nodes, _ = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
             
-            if new_critical_path_nodes != critical_path_nodes:
-                # This config changes the critical path, revert
-                node_to_resource_config[node_id] = original_config
+    #         if new_critical_path_nodes != critical_path_nodes:
+    #             # This config changes the critical path, revert
+    #             node_to_resource_config[node_id] = original_config
 
 class SimpleDAGPlanner(DAGPlanner):
     @staticmethod
@@ -196,7 +193,11 @@ class SimpleDAGPlanner(DAGPlanner):
         """
         dag: dag.DAG
 
-        Adds annotations to the given DAG tasks (mutates the tasks)
+        This planning algorithm:
+        - Assigns the best resource config to each node in the DAG
+        - Finds the critical path
+        - Simulates downgrading resource configs of tasks outside the critical path without affecting the critical path significantly
+
         """
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
@@ -225,34 +226,24 @@ class SimpleDAGPlanner(DAGPlanner):
         # Downgrade resources for nodes NOT on the critical path
         # Start with all nodes using best resources
         node_to_resource_config = { node.id.get_full_id(): best_resource_config for node in topo_sorted_nodes }
-        
-
-        # For each NON-critical path node, try to use lower resources
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         lower_resources_simulation_timer = Timer()
-        # with ThreadPoolExecutor(max_workers=254) as executor:
-        #     for node in nodes_outside_critical_path:
-        #         executor.submit(SimpleDAGPlanner._simulate_lower_resources, node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla)
-
+        # For each NON-critical path node, try to use lower resources
         for node in nodes_outside_critical_path:
-            # SimpleDAGPlanner._simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla)
             node_id = node.id.get_full_id()
             # Try each resource config from lowest to highest
             for resource_config in sorted_available_worker_resource_configurations:
-                if resource_config == node_to_resource_config[node_id]:
-                    continue # Skip if it's the currently assigned config (no need to recalculate)
-                    
                 # Temporarily assign this resource config
                 original_config = node_to_resource_config[node_id]
                 node_to_resource_config[node_id] = resource_config
                 
                 # Recalculate timings with this resource configuration
                 temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-                new_critical_path_nodes, _ = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
+                _, new_critical_path_time = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
                 
-                if new_critical_path_nodes != critical_path_nodes:
-                    # This config changes the critical path, revert
-                    node_to_resource_config[node_id] = original_config
+                DOWNGRADING_TOLERANCE_MS = 2 # NOTE: could be configurable by the user (downgrading tolerance)
+                if new_critical_path_time > critical_path_time + DOWNGRADING_TOLERANCE_MS:
+                    node_to_resource_config[node_id] = original_config # This config changes the critical path significantly, revert
         
         logger.info(f"Simulated downgrading for {len(topo_sorted_nodes) - len(critical_path_node_ids)} nodes in {lower_resources_simulation_timer.stop():.3f} ms")
 
