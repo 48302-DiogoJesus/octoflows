@@ -1,11 +1,9 @@
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import pickle
-from typing import Literal, TypeAlias
 
+from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
-from src.planning.sla import SLA, Percentile
+from src.planning.sla import SLA
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -13,6 +11,18 @@ from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 logger = create_logger(__name__)
 
 class DAGPlanner(ABC):
+    @dataclass
+    class PlanningTaskInfo:
+        node_ref: DAGTaskNode
+        input_size: int
+        output_size: int
+        download_time: float
+        exec_time: float
+        upload_time: float
+        total_time: float
+        earliest_start: float
+        path_completion_time: float 
+
     @staticmethod
     @abstractmethod
     def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA): 
@@ -23,6 +33,135 @@ class DAGPlanner(ABC):
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
         pass
+
+    
+    @staticmethod
+    def _topological_sort(dag) -> list[DAGTaskNode]:
+        """
+        Performs topological sort on DAG nodes
+        """
+        visited = set()
+        topo_order = []
+        
+        def dfs(node):
+            if node.id.get_full_id() in visited:
+                return
+            visited.add(node.id.get_full_id())
+            
+            for child in node.downstream_nodes:
+                dfs(child)
+            
+            topo_order.insert(0, node)
+        
+        # Start DFS from all root nodes
+        for root in dag.root_nodes:
+            dfs(root)
+        
+        return topo_order
+    
+    @staticmethod
+    def _calculate_input_size(node, nodes_info: dict[str, PlanningTaskInfo]):
+        """
+        Calculate the input size for a node based on its predecessors
+        """
+        if not node.upstream_nodes:
+            # For root nodes, use the size from function args (estimate)
+            return sum(len(str(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())
+        
+        # For non-root nodes, sum the output sizes of all predecessors
+        total_input_size = 0
+        for pred in node.upstream_nodes:
+            pred_id = pred.id.get_full_id()
+            if pred_id in nodes_info:
+                total_input_size += nodes_info[pred_id].output_size
+        
+        return total_input_size
+    
+    @staticmethod
+    def _calculate_node_timings_with_common_resources(topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
+        """
+        Calculate timing information for all nodes using the same resource configuration
+        """
+        nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
+        for node in topo_sorted_nodes:
+            node_id = node.id.get_full_id()
+            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla) or 0.0
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
+            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+        
+        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
+        
+        return nodes_info
+    
+    @staticmethod
+    def _calculate_node_timings_with_custom_resources(topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, node_to_resource_config: dict[str,TaskWorkerResourceConfiguration], sla: SLA):
+        """
+        Calculate timing information for all nodes using custom resource configurations
+        """
+        nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
+        for node in topo_sorted_nodes:
+            node_id = node.id.get_full_id()
+            resource_config = node_to_resource_config[node_id]
+            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
+            exec_time = metadata_access.predict_execution_time( node.func_name, input_size, resource_config, sla) or 0.0
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
+            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+        
+        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
+        
+        return nodes_info
+    
+    @staticmethod
+    def _calculate_path_times(topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo]):
+        """
+        Calculate earliest possible start time and path completion time for each node
+        """
+        for node in topo_sorted_nodes:
+            node_id = node.id.get_full_id()
+            max_predecessor_completion = 0
+            for pred_node in node.upstream_nodes:
+                pred_id = pred_node.id.get_full_id()
+                pred_completion_time = nodes_info[pred_id].path_completion_time
+                max_predecessor_completion = max(max_predecessor_completion, pred_completion_time)
+            
+            nodes_info[node_id].earliest_start = max_predecessor_completion
+            nodes_info[node_id].path_completion_time = max_predecessor_completion + nodes_info[node_id].total_time
+    
+    @staticmethod
+    def _find_critical_path(dag, nodes_info: dict[str, PlanningTaskInfo]):
+        """
+        Find the critical path (longest path from start to finish)
+        Returns the list of nodes on the critical path and the critical path time
+        """
+        critical_path = []
+        current_node = dag.sink_node
+        
+        while current_node:
+            # Add current node to critical path
+            critical_path.insert(0, current_node)
+            
+            # Find predecessor with the latest completion time
+            max_completion_time = -1
+            critical_predecessor = None
+            
+            for pred in current_node.upstream_nodes:
+                pred_id = pred.id.get_full_id()
+                pred_completion = nodes_info[pred_id].path_completion_time
+                
+                if pred_completion > max_completion_time:
+                    max_completion_time = pred_completion
+                    critical_predecessor = pred
+            
+            # Move to predecessor on critical path
+            current_node = critical_predecessor
+        
+        critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
+        return critical_path, critical_path_time
 
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod
@@ -76,7 +215,7 @@ class SimpleDAGPlanner(DAGPlanner):
         # First, calculate execution times for each node with best resources
         topo_sorted_nodes = SimpleDAGPlanner._topological_sort(dag)
         # Initial planning with Best Resources for all nodes
-        nodes_info = SimpleDAGPlanner._calculate_node_timings(topo_sorted_nodes, metadata_access, best_resource_config, sla)
+        nodes_info = SimpleDAGPlanner._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, sla)
         critical_path_nodes, critical_path_time = SimpleDAGPlanner._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
         
@@ -129,163 +268,3 @@ class SimpleDAGPlanner(DAGPlanner):
         logger.info(f"Final critical path completion time: {final_critical_path_time:.3f} ms")
         logger.info(f"Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
-
-    @staticmethod
-    def _topological_sort(dag):
-        """
-        Performs topological sort on DAG nodes
-        """
-        visited = set()
-        topo_order = []
-        
-        def dfs(node):
-            if node.id.get_full_id() in visited:
-                return
-            visited.add(node.id.get_full_id())
-            
-            for child in node.downstream_nodes:
-                dfs(child)
-            
-            topo_order.insert(0, node)
-        
-        # Start DFS from all root nodes
-        for root in dag.root_nodes:
-            dfs(root)
-        
-        return topo_order
-    
-    @staticmethod
-    def _calculate_input_size(node, nodes_info):
-        """
-        Calculate the input size for a node based on its predecessors
-        """
-        if not node.upstream_nodes:
-            # For root nodes, use the size from function args (estimate)
-            return sum(len(str(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())
-        
-        # For non-root nodes, sum the output sizes of all predecessors
-        total_input_size = 0
-        for pred in node.upstream_nodes:
-            pred_id = pred.id.get_full_id()
-            if pred_id in nodes_info:
-                total_input_size += nodes_info[pred_id]['output_size']
-        
-        return total_input_size
-    
-    @staticmethod
-    def _calculate_node_timings(topo_sorted_nodes, metadata_access, resource_config, sla):
-        """
-        Calculate timing information for all nodes using the same resource configuration
-        """
-        nodes_info = {}
-        for node in topo_sorted_nodes:
-            node_id = node.id.get_full_id()
-            
-            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0.0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
-            
-            nodes_info[node_id] = {
-                'node_ref': node,
-                'input_size': input_size,
-                'output_size': output_size,
-                'upload_time': upload_time,
-                'exec_time': exec_time,
-                'download_time': download_time,
-                'total_time': download_time + exec_time + upload_time,
-                'earliest_start': 0, # Will be updated below
-                'path_completion_time': 0 # Will be updated below
-            }
-        
-        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
-        
-        return nodes_info
-    
-    @staticmethod
-    def _calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla):
-        """
-        Calculate timing information for all nodes using custom resource configurations
-        """
-        nodes_info = {}
-        
-        # First pass: calculate basic timing information for each node
-        for node in topo_sorted_nodes:
-            node_id = node.id.get_full_id()
-            resource_config = node_to_resource_config[node_id]
-            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
-            exec_time = metadata_access.predict_execution_time( node.func_name, input_size, resource_config, sla) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0.0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
-            
-            nodes_info[node_id] = {
-                'node_ref': node,
-                'input_size': input_size,
-                'output_size': output_size,
-                'upload_time': upload_time,
-                'exec_time': exec_time,
-                'download_time': download_time,
-                'total_time': download_time + exec_time + upload_time,
-                'earliest_start': 0,  # Will be updated below
-                'path_completion_time': 0  # Will be updated below
-            }
-        
-        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
-        
-        return nodes_info
-    
-    @staticmethod
-    def _calculate_path_times(topo_sorted_nodes, nodes_info):
-        """
-        Calculate earliest start time and path completion time for each node
-        """
-        for node in topo_sorted_nodes:
-            node_id = node.id.get_full_id()
-            
-            # Get the earliest time this node can start (max completion time of all predecessors)
-            max_predecessor_completion = 0
-            for pred_node in node.upstream_nodes:
-                pred_id = pred_node.id.get_full_id()
-                pred_completion_time = nodes_info[pred_id]['path_completion_time']
-                max_predecessor_completion = max(max_predecessor_completion, pred_completion_time)
-            
-            # Set earliest start time
-            nodes_info[node_id]['earliest_start'] = max_predecessor_completion
-            
-            # Calculate path completion time (earliest start + total time for this node)
-            nodes_info[node_id]['path_completion_time'] = (
-                max_predecessor_completion + nodes_info[node_id]['total_time']
-            )
-    
-    @staticmethod
-    def _find_critical_path(dag, nodes_info):
-        """
-        Find the critical path (longest path from start to finish)
-        Returns the list of nodes on the critical path and the critical path time
-        """
-        critical_path = []
-        current_node = dag.sink_node
-        
-        while current_node:
-            # Add current node to critical path
-            critical_path.insert(0, current_node)
-            
-            # Find predecessor with the latest completion time
-            max_completion_time = -1
-            critical_predecessor = None
-            
-            for pred in current_node.upstream_nodes:
-                pred_id = pred.id.get_full_id()
-                pred_completion = nodes_info[pred_id]['path_completion_time']
-                
-                if pred_completion > max_completion_time:
-                    max_completion_time = pred_completion
-                    critical_predecessor = pred
-            
-            # Move to predecessor on critical path
-            current_node = critical_predecessor
-        
-        critical_path_time = nodes_info[dag.sink_node.id.get_full_id()]['path_completion_time']
-        return critical_path, critical_path_time
