@@ -21,11 +21,11 @@ class GenericDAG(ABC):
     master_dag_structure_hash: str
     master_dag_id: str
 
-    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "SubDAG":
-        return SubDAG(master_dag_id=self.master_dag_id, master_dag_structure_hash=self.master_dag_structure_hash, root_node=root_node)
-
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self._all_nodes[node_id.get_full_id()]
+    
+    def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "SubDAG":
+        return SubDAG(master_dag_id=self.master_dag_id, master_dag_structure_hash=self.master_dag_structure_hash, root_node=root_node)
 
 class SubDAG(GenericDAG):
     def __init__(self, master_dag_id: str, master_dag_structure_hash: str, root_node: dag_task_node.DAGTaskNode):
@@ -34,8 +34,6 @@ class SubDAG(GenericDAG):
         self._all_nodes, self.sink_node = self._find_all_nodes_from_root(self.root_node)
         self.master_dag_structure_hash = master_dag_structure_hash
         self.master_dag_id = master_dag_id
-
-        # TODO: Kill unneded nodes so that future cloudpickle.dumps() doesn't grab them
 
     @staticmethod
     def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:

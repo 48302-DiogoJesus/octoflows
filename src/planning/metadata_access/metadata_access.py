@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 import numpy as np
 from src.planning.sla import SLA
@@ -48,7 +49,9 @@ class MetadataAccess:
                 if input_metric.normalized_time_ms > 0:
                     self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
 
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> float | None:
+        logger.info(f"Loaded metadata for {dag_structure_hash} in {timer.stop()}ms")
+
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> int | None:
         """
         Returns:
             Predicted output size in bytes
@@ -64,7 +67,7 @@ class MetadataAccess:
             if sla.value < 0 or sla.value > 100: raise ValueError("SLA must be between 0 and 100")
             ratio = np.percentile(function_io_ratios, 100 - sla.value)
         
-        return input_size * ratio # type: ignore
+        return math.ceil(input_size * ratio)
 
     def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA) -> float | None:
         """
@@ -90,7 +93,7 @@ class MetadataAccess:
         function_name: str,
         input_size: int,
         resource_config: TaskWorkerResourceConfiguration,
-        sla: SLA,
+        sla: SLA
     ) -> float | None:
         """Predict execution time for a function given input size and resources.
         

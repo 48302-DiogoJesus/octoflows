@@ -30,6 +30,9 @@ class Worker(ABC):
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
         available_resource_configurations: list[TaskWorkerResourceConfiguration] = field(default_factory=list)
         
+        def __post_init__(self):
+            self.available_resource_configurations.sort(key=lambda x: x.memory_mb)
+
         @abstractmethod
         def create_instance(self) -> "Worker": pass
 

@@ -5,12 +5,19 @@
     - added normalized fields for "task execution times" and "data transfer times"
 
 - Implement the first **Planning** algorithm
-    See my report for the algorithm insight
-        simulate best resources on all tasks
-        find critical path
-        alleviate resources on tasks outside the critical path
-            re-simulate to ensure the critical path is still the same
-            do this N amount of times
+    - Finish new algorithm and describe it as a comment
+        best resources to all
+        try downgrading resources on all tasks as much as possible without introducing a new critical path
+    - Convert json structure to a dataclass for typesafety and performance
+    - How to test the algorithm?
+        data ?
+        correctness ?
+    - Pre-defined data structures/functions to facilitate creating algorithms?
+    - Report 1st algorithm (requires: pre-load optimization implemented)
+    - IMPROVEMENTS
+        - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
+        - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
+            doesn't account for Pointers to other `dagtasknodes` (negligible?)
 
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
