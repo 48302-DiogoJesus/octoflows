@@ -64,3 +64,8 @@ class InMemoryStorage(storage.Storage):
     def keys(self, pattern: str) -> list:
         raise NotImplementedError
 
+    def mget(self, keys: list[str]) -> list[Any]:
+        with self._lock:
+            return [self._data.get(key) for key in keys]
+
+

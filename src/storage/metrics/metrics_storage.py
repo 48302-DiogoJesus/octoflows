@@ -77,6 +77,9 @@ class MetricsStorage:
 
     def get(self, key: str) -> TaskMetrics | FullDAGPrepareTime | None:
         return cloudpickle.loads(self.storage.get(key))
+    
+    def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
+        return [cloudpickle.loads(m) for m in self.storage.mget(keys)]
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
         print(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")

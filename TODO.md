@@ -5,6 +5,14 @@
     - added normalized fields for "task execution times" and "data transfer times"
 
 - Implement the first **Planning** algorithm
+    - ISSUE: It takes too long to simulate for ALL nodes
+        Make predictions faster
+            Predictions take a lot longer with more data (e.g., T.R. 512 vs 256)
+        Use thread pool
+        Don't simulate for ALL nodes. establish a max tries and select specific paths
+    - Grabbing redis metrics takes too long (see what's possible)
+    - BUG: In tree reduction, all workers are being assigned the same worker configuration
+    - BUG?: Critical path completion time is too low! Doesn't seem correct
     - Finish new algorithm and describe it as a comment
         best resources to all
         try downgrading resources on all tasks as much as possible without introducing a new critical path
@@ -12,6 +20,7 @@
     - How to test the algorithm?
         data ?
         correctness ?
+    - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
     - Pre-defined data structures/functions to facilitate creating algorithms?
     - Report 1st algorithm (requires: pre-load optimization implemented)
     - IMPROVEMENTS

@@ -11,6 +11,8 @@ class Storage(ABC):
     @abstractmethod
     def get(self, key: str) -> Any: pass
     @abstractmethod
+    def mget(self, keys: list[str]) -> list[Any]: pass
+    @abstractmethod
     def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
     @abstractmethod
     def set(self, key: str, value, expire=None) -> Any: pass

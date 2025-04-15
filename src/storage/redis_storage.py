@@ -64,4 +64,8 @@ class RedisStorage(storage.Storage):
         conn = self._get_or_create_connection()
         return conn.keys(pattern) # type: ignore
 
+    def mget(self, keys: list[str]) -> list:
+        conn = self._get_or_create_connection()
+        return conn.mget(keys) # type: ignore
+
 

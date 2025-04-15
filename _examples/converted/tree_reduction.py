@@ -41,7 +41,8 @@ dockerWorkerConfig = DockerWorker.Config(
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
     available_resource_configurations=[
         TaskWorkerResourceConfiguration(cpus=1, memory_mb=128), # will be the default/fallback
-        TaskWorkerResourceConfiguration(cpus=2, memory_mb=256)
+        TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+        TaskWorkerResourceConfiguration(cpus=4, memory_mb=512)
     ]
 )
 

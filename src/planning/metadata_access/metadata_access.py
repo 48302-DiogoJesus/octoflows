@@ -22,11 +22,9 @@ class MetadataAccess:
         metrics_keys = self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*{dag_structure_hash}")
         if not metrics_keys: return # No metrics found
         timer = Timer()
-        for key in metrics_keys: # type: ignore
-            metrics = self.metrics_storage.get(key)
-            if not metrics: raise Exception(f"Key: {key.decode('utf-8')} has no value")
+        metrics_values = self.metrics_storage.mget(metrics_keys)
+        for key, metrics in zip(metrics_keys, metrics_values): # type: ignore
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
-            
             task_id = key.decode('utf-8')
             function_name = self._split_task_id(task_id)[0]
             if metrics.worker_resource_configuration:
@@ -49,7 +47,7 @@ class MetadataAccess:
                 if input_metric.normalized_time_ms > 0:
                     self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
 
-        logger.info(f"Loaded metadata for {dag_structure_hash} in {timer.stop()}ms")
+        logger.info(f"Loaded {len(metrics_keys)} metadata entries for {dag_structure_hash} in {timer.stop()}ms")
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA) -> int | None:
         """
