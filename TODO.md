@@ -8,11 +8,15 @@
     - ISSUE: It takes too long to simulate for ALL nodes
         Make predictions faster
             Predictions take a lot longer with more data (e.g., T.R. 512 vs 256)
+            - Threadpool
+            - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
         Use thread pool
         Don't simulate for ALL nodes. establish a max tries and select specific paths
     - Grabbing redis metrics takes too long (see what's possible)
     - BUG: In tree reduction, all workers are being assigned the same worker configuration
     - BUG?: Critical path completion time is too low! Doesn't seem correct
+    - BUG?: If prediction returns None I shouldn't default to 0! It will influence algorithm wrongly!
+        solution: discard? how?
     - Finish new algorithm and describe it as a comment
         best resources to all
         try downgrading resources on all tasks as much as possible without introducing a new critical path

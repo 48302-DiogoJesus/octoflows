@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import sys
+from typing import Literal
 
 from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
@@ -34,7 +37,6 @@ class DAGPlanner(ABC):
         """
         pass
 
-    
     @staticmethod
     def _topological_sort(dag) -> list[DAGTaskNode]:
         """
@@ -86,10 +88,10 @@ class DAGPlanner(ABC):
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or 0.0
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or 0.0
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or 0
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or 0.0
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
         
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
@@ -102,18 +104,22 @@ class DAGPlanner(ABC):
         Calculate timing information for all nodes using custom resource configurations
         """
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
+
+        timer = Timer()
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             resource_config = node_to_resource_config[node_id]
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla) or 0.0
-            exec_time = metadata_access.predict_execution_time( node.func_name, input_size, resource_config, sla) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla) or 0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla) or 0.0
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or 0.0
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or 0.0
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or 0
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or 0.0
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+
+        logger.info(f"Time to calculate {len(topo_sorted_nodes)} node timings: {timer.stop()} ms")
         
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
-        
+
         return nodes_info
     
     @staticmethod
@@ -162,6 +168,27 @@ class DAGPlanner(ABC):
         
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
+    
+    @staticmethod
+    def _simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla):
+        node_id = node.id.get_full_id()
+            
+        # Try each resource config from lowest to highest
+        for resource_config in sorted_available_worker_resource_configurations:
+            if resource_config == node_to_resource_config[node_id]:
+                continue # Skip if it's the currently assigned config (no need to recalculate)
+                
+            # Temporarily assign this resource config
+            original_config = node_to_resource_config[node_id]
+            node_to_resource_config[node_id] = resource_config
+            
+            # Recalculate timings with this resource configuration
+            temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
+            new_critical_path_nodes, _ = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
+            
+            if new_critical_path_nodes != critical_path_nodes:
+                # This config changes the critical path, revert
+                node_to_resource_config[node_id] = original_config
 
 class SimpleDAGPlanner(DAGPlanner):
     @staticmethod
@@ -193,19 +220,23 @@ class SimpleDAGPlanner(DAGPlanner):
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
         
         logger.info(f"Initial critical path identified with {len(critical_path_nodes)} nodes")
-        logger.info(f"Initial critical path completion time: {critical_path_time:.3f} ms")
+        logger.info(f"Initial critical path completion time: {critical_path_time} ms")
         
         # Downgrade resources for nodes NOT on the critical path
         # Start with all nodes using best resources
         node_to_resource_config = { node.id.get_full_id(): best_resource_config for node in topo_sorted_nodes }
         
-        lower_resources_simulation_timer = Timer()
 
         # For each NON-critical path node, try to use lower resources
-        for node in topo_sorted_nodes:
+        nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
+        lower_resources_simulation_timer = Timer()
+        # with ThreadPoolExecutor(max_workers=254) as executor:
+        #     for node in nodes_outside_critical_path:
+        #         executor.submit(SimpleDAGPlanner._simulate_lower_resources, node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla)
+
+        for node in nodes_outside_critical_path:
+            # SimpleDAGPlanner._simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla)
             node_id = node.id.get_full_id()
-            if node_id in critical_path_node_ids: continue
-                
             # Try each resource config from lowest to highest
             for resource_config in sorted_available_worker_resource_configurations:
                 if resource_config == node_to_resource_config[node_id]:
