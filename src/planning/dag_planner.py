@@ -279,7 +279,7 @@ class SimpleDAGPlanner(DAGPlanner):
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
         
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
+        exit()
 
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod

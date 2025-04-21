@@ -11,9 +11,7 @@
 
 - IMPROVEMENTS
     - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
-    - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
-        doesn't account for Pointers to other `dagtasknodes` (negligible?)
-    - Make predictions faster
+    - Make predictions faster (not too important for now)
         - Threadpool
         - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
         - ? Don't simulate for ALL nodes. establish a max tries and select specific paths
