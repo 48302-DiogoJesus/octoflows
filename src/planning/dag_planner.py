@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor
+import colorsys
 from dataclasses import dataclass
-import math
-import sys
-from typing import Literal
+from graphviz import Digraph
+import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
@@ -90,10 +91,14 @@ class DAGPlanner(ABC):
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or sys.maxsize
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or sys.maxsize
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or sys.maxsize
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
+            assert download_time
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
+            assert exec_time
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
+            assert output_size
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+            assert upload_time
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
         
@@ -110,10 +115,14 @@ class DAGPlanner(ABC):
             node_id = node.id.get_full_id()
             resource_config = node_to_resource_config[node_id]
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or sys.maxsize
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or sys.maxsize
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or sys.maxsize
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
+            assert download_time
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
+            assert exec_time
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
+            assert output_size
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+            assert upload_time
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
 
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
@@ -167,6 +176,114 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
+    @staticmethod
+    def _visualize_dag(dag, nodes_info, node_to_resource_config, critical_path_node_ids, output_file_name="dag_visualization"):
+        """
+        Visualize the DAG with task information using Graphviz.
+        
+        Args:
+            dag: The DAG object
+            nodes_info: Dictionary mapping node IDs to PlanningTaskInfo objects
+            node_to_resource_config: Dictionary mapping node IDs to resource configurations
+            critical_path_node_ids: Set of node IDs in the critical path
+            output_file: Base filename to save the visualization (without extension)
+        """
+        # Create a new directed graph
+        dot = Digraph(comment='DAG Visualization')
+        dot.attr(rankdir='LR')  # Left to right layout
+        dot.attr('node', shape='box', fontname='Arial', fontsize='11')
+        
+        # Collect unique resource configurations and sort them
+        resource_configs = {}
+        for node_id, config in node_to_resource_config.items():
+            config_key = f"CPU:{config.cpus},Mem:{config.memory_mb}MB"
+            resource_configs[config_key] = (config.cpus, config.memory_mb)
+        
+        # Sort resource configurations by CPU and memory (highest to lowest)
+        sorted_configs = sorted(resource_configs.items(), 
+                            key=lambda x: (x[1][0], x[1][1]))
+        
+        # Generate color map using shades of blue (from dark to light)
+        color_map = {}
+        base_color = (173, 216, 230)
+        num_configs = len(sorted_configs)
+        
+        for i, (config_key, _) in enumerate(sorted_configs):
+            # Calculate shade - more resources = darker shade but not too dark
+            # Increased minimum intensity from 0.3 to 0.5 to make the darkest tone lighter
+            intensity = 0.5 + 0.5 * (1 - i / max(1, num_configs - 1))  
+            
+            # Apply intensity to each RGB component
+            r = int(base_color[0] * intensity)
+            g = int(base_color[1] * intensity)
+            b = int(base_color[2] * intensity)
+            
+            hex_color = '#{:02x}{:02x}{:02x}'.format(r, g, b)
+            color_map[config_key] = hex_color
+        
+        # Add nodes
+        for node_id, info in nodes_info.items():
+            node = info.node_ref
+            resource_config = node_to_resource_config[node_id]
+            config_key = f"CPU:{resource_config.cpus},Mem:{resource_config.memory_mb}MB"
+            
+            # Create node label - with task name in bold and larger font
+            # Merged Start and Complete into a single line
+            label = f"{node.func_name}\\n" \
+                    f"I/O: {info.input_size}/{info.output_size} bytes\\n" \
+                    f"Time: {info.earliest_start:.2f}ms - {info.path_completion_time:.2f}ms\\n" \
+                    f"{config_key}"
+            
+            # Set node properties
+            fillcolor = color_map[config_key]
+            
+            # Set node style
+            if node_id in critical_path_node_ids:
+                # Critical path nodes get bold outline
+                dot.node(node_id, label=label, style='filled,bold', penwidth='3', fillcolor=fillcolor, fontname='Arial', fontsize='11', html='true')
+            else:
+                # Regular nodes
+                dot.node(node_id, label=label, style='filled', fillcolor=fillcolor, fontname='Arial', fontsize='11', html='true')
+        
+        # Add edges
+        for node_id, info in nodes_info.items():
+            node = info.node_ref
+            for upstream in node.upstream_nodes:
+                upstream_id = upstream.id.get_full_id()
+                dot.edge(upstream_id, node_id)
+        
+        # Add resource configuration legend
+        with dot.subgraph(name='cluster_legend_resources') as legend:
+            legend.attr(label='Resource Configurations', style='filled', fillcolor='white')
+            
+            # Add a node for each resource configuration in sorted order
+            for i, (config_key, _) in enumerate(sorted_configs):
+                hex_color = color_map[config_key]
+                legend.node(f'resource_{i}', label=config_key, style='filled', fillcolor=hex_color)
+            
+            # Arrange legend nodes horizontally
+            legend.attr(rank='sink')
+            legend.edges([])
+        
+        # Add critical path legend with white background
+        with dot.subgraph(name='cluster_legend_critical') as legend:
+            legend.attr(label='Path Type', style='filled', fillcolor='white')
+            
+            # Create legend for critical vs normal path (white background)
+            legend.node('critical', label='Critical Path', style='filled,bold', penwidth='3', fillcolor='white')
+            legend.node('normal', label='Normal Path', style='filled', fillcolor='white')
+            
+            # Arrange legend nodes horizontally
+            legend.attr(rank='sink')
+            legend.edges([])
+        
+        # Save to file
+        dot.render(output_file_name, format='png', cleanup=True)
+        # dot.render(output_file_name, format='png', cleanup=True, view=True)
+        print(f"DAG visualization saved to {output_file_name}.png")
+        
+        return dot
+
     # @staticmethod
     # def _simulate_lower_resources(node, sorted_available_worker_resource_configurations, node_to_resource_config, critical_path_nodes, topo_sorted_nodes, dag, metadata_access, sla):
     #     node_id = node.id.get_full_id()
@@ -277,7 +394,12 @@ class SimpleDAGPlanner(DAGPlanner):
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         logger.info(f"Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
-        
+
+        # !DEBUG: Plan Visualization
+        updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(
+            topo_sorted_nodes, metadata_access, node_to_resource_config, sla
+        )
+        DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
 
