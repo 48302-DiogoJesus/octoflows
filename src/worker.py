@@ -31,7 +31,11 @@ class Worker(ABC):
         available_resource_configurations: list[TaskWorkerResourceConfiguration] = field(default_factory=list)
         
         def __post_init__(self):
-            self.available_resource_configurations.sort(key=lambda x: x.memory_mb)
+            """
+            Sort the available_resource_configurations by memory_mb
+            Greatest {memory_mb} first
+            """
+            self.available_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass

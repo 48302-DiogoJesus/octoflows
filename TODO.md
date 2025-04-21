@@ -1,14 +1,17 @@
 # PLANNING ALGORITHMS
-- BUG?: If prediction returns None I shouldn't default to 0! It will influence algorithm wrongly!
-    solution: discard? how?
-    - BUG?: Critical path completion time is too low! Doesn't seem correct
-        - BUG: In tree reduction, all nodes are being assigned the same worker configuration
-- Use tasks with more complex, longer, computations
+- Try run predictions for tree reduction again
 - How to test the algorithm?
-    data ?
-    correctness ?
+    Make a run without the planning algorithm and make another with the planning algorithm, then compare
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
 - Report 1st algorithm (requires: pre-load optimization implemented)
+- Way to visualize the planning
+    DAG, where for each node:
+        input_size
+        output_size
+        memory_mb
+        earliest start time
+        completion time
+        critical path highlighted
 - IMPROVEMENTS
     - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
     - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
