@@ -6,6 +6,7 @@ from typing import Dict, Set, Tuple
 from collections import defaultdict
 import subprocess
 import time
+import uuid
 
 from src.utils.logger import create_logger
 logger = create_logger(__name__)
@@ -165,10 +166,14 @@ class ContainerPoolExecutor:
                     return container_id
     
     def _launch_container(self, cpus, memory):
-        # Run the Docker container with resource limits
+        # Generate a random 16-digit ID
+        container_name = f"CPUS_{cpus}--MEMORY_{memory}--ID_{uuid.uuid4()}"
+        
+        # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(
             [
                 "docker", "run", "-d",
+                "--name", container_name,
                 "--cpus", str(cpus),
                 "--memory", f"{memory}m",
                 "--network", "host",
@@ -178,7 +183,13 @@ class ContainerPoolExecutor:
         ).strip()
 
         with self.lock:
-            container = Container(id=container_id, cpus=cpus, memory=memory, is_busy=True, last_active_time=time.time())
+            container = Container(
+                id=container_id,
+                cpus=cpus,
+                memory=memory,
+                is_busy=True,
+                last_active_time=time.time()
+            )
             self.containers[container_id] = container
             self.container_by_resources[(cpus, memory)].add(container_id)
             self.condition.notify_all()

@@ -1,17 +1,14 @@
 # PLANNING ALGORITHMS
-- Try run predictions for tree reduction again
-- How to test the algorithm?
-    Make a run without the planning algorithm and make another with the planning algorithm, then compare
-- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
-- Report 1st algorithm (requires: pre-load optimization implemented)
-- Way to visualize the planning
+- Way to visualize the planning (save diagram to an image, controllable by flag to planning function)
     DAG, where for each node:
-        input_size
-        output_size
-        memory_mb
-        earliest start time
-        completion time
-        critical path highlighted
+        input_size + output_size
+        cpus + memory_mb
+        earliest start time + completion time
+        critical path nodes in red
+- Problem: Planning is not accurate! Does not account for scheduling/platform times? which times?
+- Test the SimplePlanner algorithm: make a run without the planning algorithm and make another with the planning algorithm, then compare
+- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
+
 - IMPROVEMENTS
     - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
     - not correct => `return sum(len(pickle.dumps(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())`
@@ -20,6 +17,8 @@
         - Threadpool
         - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
         - ? Don't simulate for ALL nodes. establish a max tries and select specific paths
+
+- Report 1st algorithm (requires: pre-load optimization implemented)
 
 # WORKER
 Further abstract the worker

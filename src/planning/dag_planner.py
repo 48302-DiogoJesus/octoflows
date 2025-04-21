@@ -256,7 +256,7 @@ class SimpleDAGPlanner(DAGPlanner):
                 if new_critical_path_time != critical_path_time:
                     node_to_resource_config[node_id] = original_config # This config changes the critical path, revert
                 else:
-                    print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
+                    # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
                     node_downgrade_successful = True
             if node_downgrade_successful:
                 successful_downgrades += 1
@@ -279,7 +279,7 @@ class SimpleDAGPlanner(DAGPlanner):
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
         
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        exit()
+        # exit()
 
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod
