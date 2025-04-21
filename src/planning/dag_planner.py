@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import math
 import sys
 from typing import Literal
 
@@ -31,7 +32,7 @@ class DAGPlanner(ABC):
     def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA): 
         """
         dag: dag.DAG
-        metadata_access: MetadataAccess
+        metadata_access: MetadataAccess that will only provide predictions for metrics related to the same DAG structure
 
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
@@ -88,12 +89,11 @@ class DAGPlanner(ABC):
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or 0.0
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or 0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or 0.0
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or sys.maxsize
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or sys.maxsize
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
-        
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
         
         return nodes_info
@@ -109,10 +109,10 @@ class DAGPlanner(ABC):
             node_id = node.id.get_full_id()
             resource_config = node_to_resource_config[node_id]
             input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or 0.0
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or 0.0
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or 0
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or 0.0
+            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True) or sys.maxsize
+            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True) or sys.maxsize
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True) or sys.maxsize
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
 
         SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
@@ -204,11 +204,19 @@ class SimpleDAGPlanner(DAGPlanner):
 
         if len(sorted_available_worker_resource_configurations) == 1:
             # If only one resource config is available, use it for all nodes
-            for _, node in _dag._all_nodes.items():
-                node.add_annotation(sorted_available_worker_resource_configurations[0])
+            worker_resources = sorted_available_worker_resource_configurations[0]
+            for _, node in _dag._all_nodes.items(): node.add_annotation(worker_resources)
+            return
 
-        best_resource_config = sorted_available_worker_resource_configurations[-1]
+        middle_config = sorted_available_worker_resource_configurations[len(sorted_available_worker_resource_configurations) // 2]
+        if not metadata_access.has_required_predictions():
+            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_config}) to all nodes")
+            # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
+            for _, node in _dag._all_nodes.items(): node.add_annotation(middle_config)
+            return
+        
         logger.info("Starting DAG Planning Algorithm")
+        best_resource_config = sorted_available_worker_resource_configurations[-1]
         
         algorithm_start_time = Timer()
 
@@ -244,7 +252,8 @@ class SimpleDAGPlanner(DAGPlanner):
                 DOWNGRADING_TOLERANCE_MS = 2 # NOTE: could be configurable by the user (downgrading tolerance)
                 if new_critical_path_time > critical_path_time + DOWNGRADING_TOLERANCE_MS:
                     node_to_resource_config[node_id] = original_config # This config changes the critical path significantly, revert
-        
+                    critical_path_time = new_critical_path_time
+
         logger.info(f"Simulated downgrading for {len(topo_sorted_nodes) - len(critical_path_node_ids)} nodes in {lower_resources_simulation_timer.stop():.3f} ms")
 
         # Recalculate final timings with optimized resource configurations
@@ -252,7 +261,9 @@ class SimpleDAGPlanner(DAGPlanner):
         final_critical_path_nodes, final_critical_path_time = SimpleDAGPlanner._find_critical_path(dag, final_nodes_info)
         
         # Annotate nodes with resource configs
-        for node in topo_sorted_nodes: node.add_annotation(node_to_resource_config[node.id.get_full_id()])
+        for node in topo_sorted_nodes: 
+            # print(node.id.get_full_id(), node_to_resource_config[node.id.get_full_id()])
+            node.add_annotation(node_to_resource_config[node.id.get_full_id()])
         
         # Log Results
         resource_distribution = {}

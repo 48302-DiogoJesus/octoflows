@@ -3,6 +3,7 @@
     solution: discard? how?
     - BUG?: Critical path completion time is too low! Doesn't seem correct
         - BUG: In tree reduction, all nodes are being assigned the same worker configuration
+- Use tasks with more complex, longer, computations
 - How to test the algorithm?
     data ?
     correctness ?

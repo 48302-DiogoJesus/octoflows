@@ -59,6 +59,9 @@ class MetadataAccess:
 
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
+    def has_required_predictions(self) -> bool:
+        return len(self.cached_upload_speeds) > 0 and len(self.cached_download_speeds) > 0 and len(self.cached_io_ratios) > 0 and len(self.cached_execution_time_per_byte) > 0
+
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int | None:
         """
         Returns:
