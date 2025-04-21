@@ -191,7 +191,8 @@ class DAGPlanner(ABC):
         # Create a new directed graph
         dot = Digraph(comment='DAG Visualization')
         dot.attr(rankdir='LR')  # Left to right layout
-        dot.attr('node', shape='box', fontname='Arial', fontsize='11')
+        # Set node attributes with increased height/width margins to prevent text cutoff
+        dot.attr('node', shape='box', fontname='Arial', fontsize='11', margin='0.3,0.2', height='0.8')
         
         # Collect unique resource configurations and sort them
         resource_configs = {}
@@ -227,12 +228,15 @@ class DAGPlanner(ABC):
             resource_config = node_to_resource_config[node_id]
             config_key = f"CPU:{resource_config.cpus},Mem:{resource_config.memory_mb}MB"
             
-            # Create node label - with task name in bold and larger font
-            # Merged Start and Complete into a single line
-            label = f"{node.func_name}\\n" \
-                    f"I/O: {info.input_size}/{info.output_size} bytes\\n" \
-                    f"Time: {info.earliest_start:.2f}ms - {info.path_completion_time:.2f}ms\\n" \
-                    f"{config_key}"
+            # Create node label with task name in bold and larger font
+            # Use HTML formatting to better control spacing and prevent text cutoff
+            # Added extra <BR/> spacing between lines and smaller font for details
+            label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
+                    f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>I/O: {info.input_size} - {info.output_size} bytes</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Time: {info.earliest_start:.2f} - {info.path_completion_time:.2f}ms</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
+                    f"</TABLE>>"
             
             # Set node properties
             fillcolor = color_map[config_key]
@@ -240,10 +244,10 @@ class DAGPlanner(ABC):
             # Set node style
             if node_id in critical_path_node_ids:
                 # Critical path nodes get bold outline
-                dot.node(node_id, label=label, style='filled,bold', penwidth='3', fillcolor=fillcolor, fontname='Arial', fontsize='11', html='true')
+                dot.node(node_id, label=label, style='filled,bold', penwidth='3', fillcolor=fillcolor)
             else:
                 # Regular nodes
-                dot.node(node_id, label=label, style='filled', fillcolor=fillcolor, fontname='Arial', fontsize='11', html='true')
+                dot.node(node_id, label=label, style='filled', fillcolor=fillcolor)
         
         # Add edges
         for node_id, info in nodes_info.items():
@@ -254,28 +258,30 @@ class DAGPlanner(ABC):
         
         # Add resource configuration legend
         with dot.subgraph(name='cluster_legend_resources') as legend:
-            legend.attr(label='Resource Configurations', style='filled', fillcolor='white')
-            
-            # Add a node for each resource configuration in sorted order
-            for i, (config_key, _) in enumerate(sorted_configs):
-                hex_color = color_map[config_key]
-                legend.node(f'resource_{i}', label=config_key, style='filled', fillcolor=hex_color)
-            
-            # Arrange legend nodes horizontally
-            legend.attr(rank='sink')
-            legend.edges([])
+            if legend is not None:  # Check if legend was created properly
+                legend.attr(label='Resource Configurations', style='filled', fillcolor='white')
+                
+                # Add a node for each resource configuration in sorted order
+                for i, (config_key, _) in enumerate(sorted_configs):
+                    hex_color = color_map[config_key]
+                    legend.node(f'resource_{i}', label=config_key, style='filled', fillcolor=hex_color)
+                
+                # Arrange legend nodes horizontally
+                legend.attr(rank='sink')
+                legend.edges([])
         
         # Add critical path legend with white background
         with dot.subgraph(name='cluster_legend_critical') as legend:
-            legend.attr(label='Path Type', style='filled', fillcolor='white')
-            
-            # Create legend for critical vs normal path (white background)
-            legend.node('critical', label='Critical Path', style='filled,bold', penwidth='3', fillcolor='white')
-            legend.node('normal', label='Normal Path', style='filled', fillcolor='white')
-            
-            # Arrange legend nodes horizontally
-            legend.attr(rank='sink')
-            legend.edges([])
+            if legend is not None:  # Check if legend was created properly
+                legend.attr(label='Path Type', style='filled', fillcolor='white')
+                
+                # Create legend for critical vs normal path (white background)
+                legend.node('critical', label='Critical Path', style='filled,bold', penwidth='3', fillcolor='white')
+                legend.node('normal', label='Normal Path', style='filled', fillcolor='white')
+                
+                # Arrange legend nodes horizontally
+                legend.attr(rank='sink')
+                legend.edges([])
         
         # Save to file
         dot.render(output_file_name, format='png', cleanup=True)
