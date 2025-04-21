@@ -395,10 +395,8 @@ class SimpleDAGPlanner(DAGPlanner):
         logger.info(f"Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
 
-        # !DEBUG: Plan Visualization
-        updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(
-            topo_sorted_nodes, metadata_access, node_to_resource_config, sla
-        )
+        # DEBUG: Plan Visualization
+        updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
         DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
@@ -408,5 +406,5 @@ class DummyDAGPlanner(DAGPlanner):
     def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
-        best_resource_config = sorted_available_worker_resource_configurations[-1]
+        best_resource_config = sorted_available_worker_resource_configurations[0]
         for _, node in _dag._all_nodes.items(): node.add_annotation(best_resource_config)

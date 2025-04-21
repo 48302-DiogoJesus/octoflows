@@ -1,10 +1,4 @@
 # PLANNING ALGORITHMS
-- Way to visualize the planning (save diagram to an image, controllable by flag to planning function)
-    DAG, where for each node:
-        input_size + output_size
-        cpus + memory_mb
-        earliest start time + completion time
-        critical path nodes in red
 - Problem: Planning is not accurate! Does not account for scheduling/platform times? which times?
 - Test the SimplePlanner algorithm: make a run without the planning algorithm and make another with the planning algorithm, then compare
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
