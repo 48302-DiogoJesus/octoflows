@@ -332,16 +332,16 @@ class SimpleDAGPlanner(DAGPlanner):
             for _, node in _dag._all_nodes.items(): node.add_annotation(worker_resources)
             return
 
-        middle_config = sorted_available_worker_resource_configurations[len(sorted_available_worker_resource_configurations) // 2]
+        middle_resource_config = sorted_available_worker_resource_configurations[len(sorted_available_worker_resource_configurations) // 2]
         if not metadata_access.has_required_predictions():
-            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_config}) to all nodes")
+            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
             # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
-            for _, node in _dag._all_nodes.items(): node.add_annotation(middle_config)
+            for _, node in _dag._all_nodes.items(): node.add_annotation(middle_resource_config)
             return
         
-        
         logger.info(f"Starting DAG Planning Algorithm")
-        best_resource_config = sorted_available_worker_resource_configurations[0]
+        # ! UNCOMMENT AFTER TESTING best_resource_config = sorted_available_worker_resource_configurations[0]
+        best_resource_config = middle_resource_config
         
         algorithm_start_time = Timer()
 
@@ -352,37 +352,41 @@ class SimpleDAGPlanner(DAGPlanner):
         nodes_info = SimpleDAGPlanner._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, sla)
         critical_path_nodes, critical_path_time = SimpleDAGPlanner._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
+        for cpnode in critical_path_nodes:
+            print(f"cpnode time: {nodes_info[cpnode.id.get_full_id()].path_completion_time}")
         
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         
         # Downgrade resources for nodes NOT on the critical path
         # Start with all nodes using best resources
-        node_to_resource_config = { node.id.get_full_id(): best_resource_config for node in topo_sorted_nodes }
+        # ! UNCOMMMENT AFTER TESTING node_to_resource_config = { node.id.get_full_id(): best_resource_config for node in topo_sorted_nodes }
+        node_to_resource_config = { node.id.get_full_id(): middle_resource_config for node in topo_sorted_nodes }
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         lower_resources_simulation_timer = Timer()
         successful_downgrades = 0
         # For each NON-critical path node, try to use lower resources
-        for node in nodes_outside_critical_path:
-            node_id = node.id.get_full_id()
-            node_downgrade_successful = False
-            # Try each resource config from highest to lowest
-            for resource_config in sorted_available_worker_resource_configurations:
-                if resource_config == node_to_resource_config[node_id]: continue
-                # Temporarily assign this resource config
-                original_config = node_to_resource_config[node_id]
-                node_to_resource_config[node_id] = resource_config
+        # ! COMMENTED FOR TESTING
+        # for node in nodes_outside_critical_path:
+        #     node_id = node.id.get_full_id()
+        #     node_downgrade_successful = False
+        #     # Try each resource config from highest to lowest
+        #     for resource_config in sorted_available_worker_resource_configurations:
+        #         if resource_config == node_to_resource_config[node_id]: continue
+        #         # Temporarily assign this resource config
+        #         original_config = node_to_resource_config[node_id]
+        #         node_to_resource_config[node_id] = resource_config
                 
-                # Recalculate timings with this resource configuration
-                temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-                _, new_critical_path_time = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
+        #         # Recalculate timings with this resource configuration
+        #         temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
+        #         _, new_critical_path_time = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
 
-                if new_critical_path_time != critical_path_time:
-                    node_to_resource_config[node_id] = original_config # This config changes the critical path, revert
-                else:
-                    # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
-                    node_downgrade_successful = True
-            if node_downgrade_successful:
-                successful_downgrades += 1
+        #         if new_critical_path_time != critical_path_time:
+        #             node_to_resource_config[node_id] = original_config # This config changes the critical path, revert
+        #         else:
+        #             # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
+        #             node_downgrade_successful = True
+        #     if node_downgrade_successful:
+        #         successful_downgrades += 1
 
         logger.info(f"Downgraded resources for {successful_downgrades} nodes out of {len(nodes_outside_critical_path)} nodes outside the critical path in {lower_resources_simulation_timer.stop():.3f} ms")
 
@@ -403,6 +407,8 @@ class SimpleDAGPlanner(DAGPlanner):
 
         # DEBUG: Plan Visualization
         updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
+        for cpnode in critical_path_nodes:
+            print(f"cpnode time: {updated_nodes_info[cpnode.id.get_full_id()].path_completion_time}")
         DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()

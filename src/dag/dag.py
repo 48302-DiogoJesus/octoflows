@@ -263,9 +263,6 @@ class FullDAG(GenericDAG):
             node_style = "filled"
             node_color = "lightblue"
 
-            if node.is_dynamic_fan_out_representative:
-                node_color = "lightyellow"
-            
             # Add the node to the graph
             dot.node(node_id, label=label, shape="box", style=node_style, fillcolor=node_color)
         

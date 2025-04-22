@@ -45,15 +45,11 @@ class DAGTaskNodeId:
 class TaskAnnotation(ABC): pass
 
 class DAGTaskNode(Generic[R]):
-    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict, dynamic_fan_out_representative_id: DAGTaskNodeId | None = None, fan_out_idx: int = -1, fan_out_size: int = -1):
+    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
-        self.is_dynamic_fan_out_representative = False
-        self.dynamic_fan_out_representative_id = dynamic_fan_out_representative_id
-        self.fan_out_idx = fan_out_idx # to know which item to use from the upstream_task result (iterable)
-        self.fan_out_size = fan_out_size # to check when a dynamic fan-out is complete more efficiently
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
@@ -61,15 +57,6 @@ class DAGTaskNode(Generic[R]):
         # self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
-
-        if self.fan_out_idx != -1:
-            print(f"Dynamic Fan-Out DAGTaskNode | fan_out_idx: {self.fan_out_idx} | dynamic_fan_out_representative_id: {self.dynamic_fan_out_representative_id} | upstream_len: {len(self.upstream_nodes)} | func_args: {self.func_args}")
-        
-    def map(self, decorated_node: Callable[..., "DAGTaskNode[S]"]) -> "DAGTaskNode[list[S]]":
-        # special/representative node. Will be replaced by a "real node" at runtime, right before the fan-out
-        _node: DAGTaskNode = decorated_node(self)
-        _node.is_dynamic_fan_out_representative = True
-        return _node
 
     def _register_dependencies(self):
         for arg in self.func_args:
@@ -247,7 +234,7 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = new_kwargs
 
     def __repr__(self):
-        return f"DAGTaskNode({self.func_name}, id={self.id}, dyn_fanout_idx={self.fan_out_idx})"
+        return f"DAGTaskNode({self.func_name}, id={self.id})"
 
     def _try_install_third_party_libs(self):
         missing_modules = []

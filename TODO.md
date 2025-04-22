@@ -1,5 +1,9 @@
 # PLANNING ALGORITHMS
-- Problem: Planning is not accurate! Does not account for scheduling/platform times? which times?
+- Problem: Test Planning accuracy (is the predicted time close to the real time?)
+    1. Create a DAG that actually does expensive computation that runs faster on better memory
+        Adjust `dagforpredictions_expensive_computations.py`
+    2. [DONE] Change planner to just use middle configuration so that predictions algorithm doesn't influence too much
+
 - Test the SimplePlanner algorithm: make a run without the planning algorithm and make another with the planning algorithm, then compare
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
 
