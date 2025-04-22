@@ -1,8 +1,7 @@
 import os
 import sys
 import time
-
-# import numpy as np
+import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag.dag import FullDAG
@@ -45,13 +44,25 @@ dockerWorkerConfig = DockerWorker.Config(
 
 @DAGTask
 def time_task_expensive(dummy_data: int) -> int:
-    time.sleep(.5)
-    return dummy_data + 1
+    # memory-sensitive computation
+    size = 2500
+    a = np.random.rand(size, size)
+    b = np.random.rand(size, size)
+    result = np.matmul(a, b)
+    return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
 
 @DAGTask
-def last_task_expensive(dummy_data_1: int, dummy_data_2: int, dummy_data_3: int, dummy_data_4: int, dummy_data_5: int) -> str:
-    time.sleep(.5)
-    return f"{dummy_data_1} {dummy_data_2} {dummy_data_3} {dummy_data_4} {dummy_data_5}"
+def last_task_expensive(dummy_data_1: int, dummy_data_2: int, dummy_data_3: int, 
+                       dummy_data_4: int, dummy_data_5: int) -> str:
+    # memory-sensitive computation
+    size = 2500
+    matrices = [np.random.rand(size, size) for _ in range(5)]
+    result = matrices[0]
+    for m in matrices[1:]:
+        result = np.matmul(result, m)  # Chained matrix multiplications
+    
+    modifier = int(result[0, 0] % 100)
+    return f"{dummy_data_1+modifier} {dummy_data_2} {dummy_data_3} {dummy_data_4} {dummy_data_5}"
 
 # Define the workflow
 """

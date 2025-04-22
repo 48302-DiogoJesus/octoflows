@@ -1,4 +1,25 @@
 # PLANNING ALGORITHMS
+- BUG in predictions (storing normalized time doesn't take input size into account)
+    2025-04-22 20:18:15,590 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 500.2587362663083
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 500.2587362663083
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 7754.010412127778
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 500.2587362663083
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 7754.010412127778
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 15007.76208798925
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 500.2587362663083
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 7754.010412127778
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 15007.76208798925
+    2025-04-22 20:18:15,591 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 22261.51376385072
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 500.2587362663083
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 7754.010412127778
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 15007.76208798925
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 22261.51376385072
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 29515.265439712188
+    2025-04-22 20:18:15,593 - src.planning.dag_planner - INFO - Predicted Exec. Time (expect:500): 22258.375255982173
+    POSSIBLE PROBLEM SOURCE: OUTPUT SIZE CALCULATION FUNCTION ON THE PLANNER SCRIPT
+- BUG in normalization ?
+    im only running using the same config (medium (NOT BASELINE))
+    test with FIXED TIME DAG
 - Problem: Test Planning accuracy (is the predicted time close to the real time?)
     1. Create a DAG that actually does expensive computation that runs faster on better memory
         Adjust `dagforpredictions_expensive_computations.py`
@@ -8,7 +29,6 @@
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
 
 - IMPROVEMENTS
-    - use `from pympler import asizeof` to calculate data structure sizes (pickle returns the size of them when serialized, not the real in-memory size)
     - Make predictions faster (not too important for now)
         - Threadpool
         - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths

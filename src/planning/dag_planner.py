@@ -1,11 +1,14 @@
+from pympler import asizeof
 from abc import ABC, abstractmethod
 import colorsys
 from dataclasses import dataclass
+import pickle
 from graphviz import Digraph
 import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
+from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.planning.sla import SLA
@@ -69,18 +72,21 @@ class DAGPlanner(ABC):
         """
         Calculate the input size for a node based on its predecessors
         """
-        if not node.upstream_nodes:
-            # For root nodes, use the size from function args (estimate)
-            return sum(len(str(arg)) for arg in node.func_args) + sum(len(str(k)) + len(str(v)) for k, v in node.func_kwargs.items())
-        
-        # For non-root nodes, sum the output sizes of all predecessors
-        total_input_size = 0
-        for pred in node.upstream_nodes:
-            pred_id = pred.id.get_full_id()
-            if pred_id in nodes_info:
-                total_input_size += nodes_info[pred_id].output_size
-        
-        return total_input_size
+
+        total_args_len = 0
+        # For root nodes, use the size from function args (estimate)
+        for func_arg in node.func_args:
+            if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
+                upstream_node_id = func_arg.get_full_id()
+                if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
+            total_args_len += asizeof.asizeof(func_arg)
+        for func_kwarg_val in node.func_kwargs.values():
+            if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
+                upstream_node_id = func_kwarg_val.get_full_id()
+                if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
+            total_args_len += asizeof.asizeof(func_kwarg_val)
+
+        return total_args_len
     
     @staticmethod
     def _calculate_node_timings_with_common_resources(topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
@@ -94,6 +100,7 @@ class DAGPlanner(ABC):
             download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
             assert download_time
             exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
+            logger.info(f"Predicted Exec. Time (expect:500): {exec_time}")
             assert exec_time
             output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
             assert output_size
@@ -352,8 +359,6 @@ class SimpleDAGPlanner(DAGPlanner):
         nodes_info = SimpleDAGPlanner._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, sla)
         critical_path_nodes, critical_path_time = SimpleDAGPlanner._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
-        for cpnode in critical_path_nodes:
-            print(f"cpnode time: {nodes_info[cpnode.id.get_full_id()].path_completion_time}")
         
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         
@@ -407,8 +412,6 @@ class SimpleDAGPlanner(DAGPlanner):
 
         # DEBUG: Plan Visualization
         updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-        for cpnode in critical_path_nodes:
-            print(f"cpnode time: {updated_nodes_info[cpnode.id.get_full_id()].path_completion_time}")
         DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()

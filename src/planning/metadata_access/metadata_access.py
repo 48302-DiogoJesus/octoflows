@@ -46,9 +46,9 @@ class MetadataAccess:
             function_name = self._split_task_id(task_id)[0]
             if metrics.worker_resource_configuration:
                 total_input_size = sum(i.size_bytes for i in metrics.input_metrics) + sum(h.size_bytes for h in metrics.hardcoded_input_metrics)
-                if metrics.normalized_execution_time_ms == 0: continue
+                if metrics.normalized_execution_time_per_input_byte_ms == 0: continue
                 if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
-                self.cached_execution_time_per_byte[function_name].append(metrics.normalized_execution_time_ms / total_input_size)
+                self.cached_execution_time_per_byte[function_name].append(metrics.normalized_execution_time_per_input_byte_ms)
 
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
@@ -140,15 +140,15 @@ class MetadataAccess:
             return self._cached_prediction_execution_times[prediction_key]
         
         if sla == "avg":
-            ms_per_byte = np.mean(normalized_ms_per_byte_for_function)
+            normalized_ms_per_byte = np.mean(normalized_ms_per_byte_for_function)
         else:
             if sla.value < 0 or sla.value > 100:
                 raise ValueError("SLA must be between 0 and 100")
-            ms_per_byte = np.percentile(normalized_ms_per_byte_for_function, 100 - sla.value)
+            normalized_ms_per_byte = np.percentile(normalized_ms_per_byte_for_function, 100 - sla.value)
         
-        if ms_per_byte <= 0: return None
+        if normalized_ms_per_byte <= 0: return None
         
-        res = (ms_per_byte * input_size) * (BASELINE_MEMORY_MB / resource_config.memory_mb) 
+        res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb)
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 

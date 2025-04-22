@@ -1,3 +1,4 @@
+from pympler import asizeof
 from collections.abc import Iterable
 import asyncio
 import base64
@@ -65,7 +66,7 @@ class Worker(ABC):
                     hardcoded_input_metrics = [],
                     total_input_download_time_ms = 0,
                     execution_time_ms = 0,
-                    normalized_execution_time_ms = 0,
+                    normalized_execution_time_per_input_byte_ms = 0,
                     update_dependency_counters_time_ms = 0,
                     output_metrics = None, # type: ignore
                     downstream_invocation_times = None,
@@ -81,19 +82,22 @@ class Worker(ABC):
                     fotimer = Timer()
                     task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
                     if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                     task_metrics.input_metrics.append(TaskInputMetrics(
                         task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                        size_bytes=len(task_output),
+                        size_bytes=asizeof.asizeof(task_dependencies[dependency_task.id.get_full_id()]),
                         time_ms=fotimer.stop(),
                         normalized_time_ms=fotimer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                     ))
-                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                 
                 # Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    # Use pickle because if func_arg is a list, len() will return the number of items, not bytes (for example)
-                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=len(pickle.dumps(func_arg))))
+                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=asizeof.asizeof(func_arg)))
+
+                for func_kwarg in task.func_kwargs.values():
+                    if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
+                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=asizeof.asizeof(func_kwarg)))
 
                 task_metrics.total_input_download_time_ms = dependency_download_timer.stop()
                 # 2. EXECUTE TASK
@@ -101,14 +105,20 @@ class Worker(ABC):
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
                 task_metrics.execution_time_ms = exec_timer.stop()
-                task_metrics.normalized_execution_time_ms = \
-                    task_metrics.execution_time_ms * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
+                total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
+                """
+                normalize based on the memory used
+                calculate "per input size byte", using a scaling factor of 60%
+                """
+                task_metrics.normalized_execution_time_per_input_byte_ms = task_metrics.execution_time_ms \
+                    * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB)  \
+                    / total_input_size if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
                 output_upload_timer = Timer()
                 task_result_serialized = cloudpickle.dumps(task_result)
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
-                    size_bytes=len(task_result_serialized),
+                    size_bytes=asizeof.asizeof(task_result),
                     time_ms=output_upload_timer.stop(),
                     normalized_time_ms=output_upload_timer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                 )
@@ -193,7 +203,7 @@ class Worker(ABC):
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
-        return (len(serialized_dag), deserialized)
+        return (asizeof.asizeof(deserialized), deserialized)
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 1.0):
@@ -207,7 +217,7 @@ class Worker(ABC):
             final_result = intermediate_storage.get(task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                logger.info(f"Final Result Ready: ({task_id}) => Size: {len(str(final_result))} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
+                logger.info(f"Final Result Ready: ({task_id}) => Size: {asizeof.asizeof(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
                 return final_result
 
     def log(self, task_id: str, message: str):
