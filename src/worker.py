@@ -13,6 +13,7 @@ import aiohttp
 from abc import ABC, abstractmethod
 
 from src.utils.timer import Timer
+from src.utils.utils import calculate_data_structure_size
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
@@ -85,7 +86,7 @@ class Worker(ABC):
                     task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
                     task_metrics.input_metrics.append(TaskInputMetrics(
                         task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                        size_bytes=asizeof.asizeof(task_dependencies[dependency_task.id.get_full_id()]),
+                        size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
                         time_ms=fotimer.stop(),
                         normalized_time_ms=fotimer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                     ))
@@ -93,11 +94,11 @@ class Worker(ABC):
                 # Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=asizeof.asizeof(func_arg)))
+                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_arg)))
 
                 for func_kwarg in task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
-                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=asizeof.asizeof(func_kwarg)))
+                    task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_kwarg)))
 
                 task_metrics.total_input_download_time_ms = dependency_download_timer.stop()
                 # 2. EXECUTE TASK
@@ -118,7 +119,7 @@ class Worker(ABC):
                 task_result_serialized = cloudpickle.dumps(task_result)
                 self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
                 task_metrics.output_metrics = TaskOutputMetrics(
-                    size_bytes=asizeof.asizeof(task_result),
+                    size_bytes=calculate_data_structure_size(task_result),
                     time_ms=output_upload_timer.stop(),
                     normalized_time_ms=output_upload_timer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                 )
@@ -203,7 +204,7 @@ class Worker(ABC):
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
-        return (asizeof.asizeof(deserialized), deserialized)
+        return (calculate_data_structure_size(deserialized), deserialized)
 
     @staticmethod
     async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 1.0):
@@ -217,7 +218,7 @@ class Worker(ABC):
             final_result = intermediate_storage.get(task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                logger.info(f"Final Result Ready: ({task_id}) => Size: {asizeof.asizeof(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
+                logger.info(f"Final Result Ready: ({task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
                 return final_result
 
     def log(self, task_id: str, message: str):

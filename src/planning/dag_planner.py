@@ -14,6 +14,7 @@ from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
+from src.utils.utils import calculate_data_structure_size
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
@@ -79,12 +80,14 @@ class DAGPlanner(ABC):
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
                 if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
-            total_args_len += asizeof.asizeof(func_arg)
+            else:
+                total_args_len += calculate_data_structure_size(func_arg)
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
                 if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
-            total_args_len += asizeof.asizeof(func_kwarg_val)
+            else:
+                total_args_len += calculate_data_structure_size(func_kwarg_val)
 
         return total_args_len
     
@@ -100,7 +103,6 @@ class DAGPlanner(ABC):
             download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
             assert download_time
             exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
-            logger.info(f"Predicted Exec. Time (expect:500): {exec_time}")
             assert exec_time
             output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
             assert output_size
