@@ -3,7 +3,7 @@
     1. Create a DAG that actually does expensive computation that runs faster on better memory
         Adjust `dagforpredictions_expensive_computations.py`
     2. [DONE] Change planner to just use middle configuration so that predictions algorithm doesn't influence too much
-- revert to use more than the middle config
+- Revert to use more than the middle config
 
 - Test the SimplePlanner algorithm: make a run without the planning algorithm and make another with the planning algorithm, then compare
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
