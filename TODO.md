@@ -1,8 +1,8 @@
-
-
 # WORKER
-- Add support for Planners in LocalWorker as well (all workers should be supported)
-- Implement remaining override methods on the Worker
+- Test local implementation with PLANNING to try and fix circular dependency errors
+- When using Local Worker, don't upload metrics
+- Don't depend on worker resource config on the generic WorkerExecutionLogic code
+- Run automatic tests again
 
 - Implement pre-load optimization
     - Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)

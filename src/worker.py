@@ -4,19 +4,19 @@ import base64
 from dataclasses import dataclass
 import json
 import time
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 import uuid
 import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
-from src.planning.dag_planner import DAGPlanner, SimpleDAGPlanner
+from src.planning.dag_planner import DAGPlanner
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.worker_execution_logic import WorkerExecutionLogic
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
 from src.utils.logger import create_logger
 import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
@@ -45,25 +45,6 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    @staticmethod
-    def get_method_overridden(
-        planner_class: type, 
-        base_method: Callable,
-    ) -> Optional[Callable]:
-        # Get the planner's method (without invoking descriptors)
-        planner_method = inspect.getattr_static(planner_class, base_method.__name__, None)
-        if planner_method is None:
-            return None
-        
-        # Unwrap staticmethod if needed
-        base_func = base_method.__func__ if isinstance(base_method, staticmethod) else base_method
-        planner_func = planner_method.__func__ if isinstance(planner_method, staticmethod) else planner_method
-        
-        # Return the callable method if it's actually overridden
-        if planner_func.__code__ != base_func.__code__:
-            return planner_method  # Returns the staticmethod wrapper if applicable
-        return None
-
     async def start_executing(self, subdag: dag.SubDAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         task = subdag.root_node
@@ -85,15 +66,15 @@ class Worker(ABC, WorkerExecutionLogic):
                     downstream_invocation_times = None,
                     total_invocation_time_ms=0
                 )
-                # 1) DOWNLOAD TASK DEPENDENCIES
+                #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
                 planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
                     logger.info("SIMPLEDAGPLANNER.HANDLE_INPUTS()")
-                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_INPUTS()")
-                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = self.override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig)
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await self.override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig)
 
                 # Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
@@ -103,77 +84,76 @@ class Worker(ABC, WorkerExecutionLogic):
                 for func_kwarg in task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_kwarg)))
+                
+                #* 2) EXECUTE TASK
+                self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing Task...")
+                planner_override_handle_execution = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution) if self.planner else None
+                if planner_override_handle_execution:
+                    logger.info("SIMPLEDAGPLANNER.HANDLE_EXECUTION()")
+                    task_result, task_execution_time_ms = await planner_override_handle_execution(task, task_dependencies) # type: ignore
+                else:
+                    logger.info("DEFAULTEXECLOGIC.HANDLE_EXECUTION()")
+                    task_result, task_execution_time_ms = await self.override_handle_execution(task, task_dependencies)
 
-                # 2) EXECUTE TASK
-                exec_timer = Timer()
-                self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
-                task_result = task.invoke(dependencies=task_dependencies)
-                task_metrics.execution_time_ms = exec_timer.stop()
-                total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
+                task_metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
+                total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
                 task_metrics.normalized_execution_time_per_input_byte_ms = task_metrics.execution_time_ms \
                     * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB)  \
                     / total_input_size if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
-                self.log(task.id.get_full_id_in_dag(subdag), f"3) Done! Writing output to storage...")
-                output_upload_timer = Timer()
-                task_result_serialized = cloudpickle.dumps(task_result)
-                self.intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
+                
+                #* 3) HANDLE TASK OUTPUT
+                self.log(task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
+                planner_override_handle_output = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
+                if planner_override_handle_output:
+                    logger.info("SIMPLEDAGPLANNER.HANDLE_OUTPUT()")
+                    output_upload_time_ms = await planner_override_handle_output(task_result, task, subdag, self.intermediate_storage) # type: ignore
+                else:
+                    logger.info("DEFAULTEXECLOGIC.HANDLE_OUTPUT()")
+                    output_upload_time_ms = await self.override_handle_output(task_result, task, subdag, self.intermediate_storage)
+
                 task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),
-                    time_ms=output_upload_timer.stop(),
-                    normalized_time_ms=output_upload_timer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
+                    time_ms=output_upload_time_ms,
+                    normalized_time_ms=output_upload_time_ms * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
                 )
 
-                if len(task.downstream_nodes) == 0: 
-                    self.log(task.id.get_full_id_in_dag(subdag), f"Last Task finished. Shutting down worker...")
+                if task.id.get_full_id() == subdag.sink_node.id.get_full_id():
+                    self.log(task.id.get_full_id_in_dag(subdag), f"Sink task finished. Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
-                # 3. HANDLE FAN-OUT (1-1 or 1-N)
-                self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}")
-                ready_downstream: list[dag_task_node.DAGTaskNode] = []
-                
+                # Update Dependency Counters of Downstream Tasks
                 updating_dependency_counters_timer = Timer()
-
+                downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
                     dependencies_met = self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
-                    if dependencies_met == downstream_task_total_dependencies: ready_downstream.append(downstream_task)
-
+                    if dependencies_met == downstream_task_total_dependencies: downstream_tasks_ready.append(downstream_task)
                 task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
-                # Delegate Downstream Tasks Execution
-                if len(ready_downstream) == 0:
+                self.log(task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in task.downstream_nodes]}")
+
+                if len(downstream_tasks_ready) == 0:
                     self.log(task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
-                    break  # Give up
+                    break # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
-                continuation_task = ready_downstream[0] # choose the first task
-                tasks_to_delegate = ready_downstream[1:]
-                coroutines = []
-                total_invocation_time_timer = Timer()
-
-                task_metrics.downstream_invocation_times = []
-                for t in tasks_to_delegate:
-                    workerResourcesConfig = t.get_annotation(TaskWorkerResourceConfiguration)
-                    casted_planner: SimpleDAGPlanner = self.planner # type: ignore
-                    if workerResourcesConfig is None and len(casted_planner.config.available_worker_resource_configurations) > 0:
-                        workerResourcesConfig = casted_planner.config.available_worker_resource_configurations[0]
-                        
-                    self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t} with resources: {workerResourcesConfig}")
-                    delegate_invoke_timer = Timer()
-                    coroutines.append(self.delegate(
-                        subdag.create_subdag(t),
-                        resource_configuration=workerResourcesConfig,
-                        called_by_worker=True
-                    ))
-                    task_metrics.downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=delegate_invoke_timer.stop()))
+                #* 4) HANDLE DOWNSTREAM TASKS
+                self.log(task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
+                planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
+                if planner_override_handle_downstream:
+                    logger.info("SIMPLEDAGPLANNER.HANDLE_DOWNSTREAM()")
+                    continuation_task, downstream_invocation_times, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, task, subdag) # type: ignore
+                else:
+                    logger.info("DEFAULTEXECLOGIC.HANDLE_DOWNSTREAM()")
+                    continuation_task, downstream_invocation_times, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, task, subdag)
                 
-                await asyncio.gather(*coroutines) # wait for the delegations to be accepted
-                task_metrics.total_invocation_time_ms = total_invocation_time_timer.stop()
+                task_metrics.downstream_invocation_times = downstream_invocation_times
+                task_metrics.total_invocation_time_ms = total_invocation_time_ms
 
                 if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
 
@@ -223,24 +203,21 @@ class Worker(ABC, WorkerExecutionLogic):
                 return final_result
 
     @staticmethod
-    def override_handle_inputs(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
-        task_dependencies: dict[str, Any] = {}
-        _input_metrics: list[TaskInputMetrics] = []
-        dependency_download_timer = Timer()
-        for dependency_task in task.upstream_nodes:
-            fotimer = Timer()
-            task_output = intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
-            _input_metrics.append(TaskInputMetrics(
-                task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
-                time_ms=fotimer.stop(),
-                normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
-            ))
+    def get_method_overridden(
+        planner_class: type, 
+        base_method: Callable,
+    ) -> Optional[Callable]:
+        # Get the planner's method (without invoking descriptors)
+        planner_method = inspect.getattr_static(planner_class, base_method.__name__, None)
+        if planner_method is None: return None
+
+        # Unwrap staticmethod if needed
+        base_func = base_method.__func__ if isinstance(base_method, staticmethod) else base_method
+        planner_func = planner_method.__func__ if isinstance(planner_method, staticmethod) else planner_method
         
-        _total_input_download_time_ms = dependency_download_timer.stop()
-        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
+        # Return the callable method if it's actually overridden
+        if planner_func.__code__ != base_func.__code__: return planner_method
+        return None
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""

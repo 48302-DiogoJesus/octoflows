@@ -28,14 +28,14 @@ localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    # planner_config=SimpleDAGPlanner.Config(
-    #     sla="avg",
-    #     available_worker_resource_configurations=[
-    #         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-    #         TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    #         TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-    #     ],
-    # )
+    planner_config=SimpleDAGPlanner.Config(
+        sla="avg",
+        available_worker_resource_configurations=[
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+        ],
+    )
 )
 
 dockerWorkerConfig = DockerWorker.Config(
