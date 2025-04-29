@@ -24,7 +24,7 @@ def test_execution_dag_no_fan_ins_no_fan_outs():
     t4 = task_a(t3, "4")
     t5 = task_a(t4, "5")
 
-    result = t5.compute(config=worker_config, planner=selected_planner)
+    result = t5.compute(config=worker_config)
     assert result == "-1-2-3-4-5"
 
 def test_dag_2():
@@ -43,7 +43,7 @@ def test_dag_2():
     assert len(dag.root_nodes) == 2
     assert len(dag._all_nodes) == 4
 
-    res = t4.compute(config=worker_config, planner=selected_planner)
+    res = t4.compute(config=worker_config)
     assert res == "-1--1--2"
 
 def test_dag_fake_sink_node():
@@ -68,6 +68,6 @@ def test_dag_execution_root_node_ahead():
     t5 = task_a(t3, t6)
     t7 = task_a(t4, t5)
 
-    result = t7.compute(config=worker_config, planner=selected_planner)
+    result = t7.compute(config=worker_config)
 
     assert result == "-1----1---6"

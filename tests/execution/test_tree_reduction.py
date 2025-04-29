@@ -24,7 +24,7 @@ def test_tree_reduction_1024():
     # use iterations to ensure consistency
     for i in range(5):
         start_time = time.time()
-        result = sink.compute(config=get_worker_config(), planner=selected_planner)
+        result = sink.compute(config=get_worker_config())
         assert result == 523776
         logger.info(f"[{i}] Result: ${result} | Makespan: {time.time() - start_time}s")
 
@@ -38,6 +38,6 @@ def test_tree_reduction_2048():
     # use iterations to ensure consistency
     for i in range(3):
         start_time = time.time()
-        result = sink.compute(config=get_worker_config(), planner=selected_planner)
+        result = sink.compute(config=get_worker_config())
         assert result == 2096128
         logger.info(f"[{i}] Result: ${result} | Makespan: {time.time() - start_time}s")

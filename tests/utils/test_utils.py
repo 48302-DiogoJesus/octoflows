@@ -10,10 +10,12 @@ from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
+selected_planner = DummyDAGPlanner
 
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=inmemory_intermediate_storage_config,
-    metrics_storage_config=None
+    metrics_storage_config=None,
+    planner=selected_planner,
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -25,11 +27,9 @@ dockerWorkerConfig = DockerWorker.Config(
     available_resource_configurations=[
         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
         TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
-    ]
+    ],
+    planner=selected_planner,
 )
 
 def get_worker_config():
     return localWorkerConfig
-
-def get_planner():
-    return DummyDAGPlanner

@@ -1,27 +1,19 @@
-# PLANNING ALGORITHMS
-- 1. Experiment planning with diverse resources for `dagforpredictions_expensive_computations.py`
-    Compare `planned time` VS `real time`
-- Problem ?: Dashboard makespan VS client console completion time big diff.
-- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
-- 1 second diff. between planned time and real time
+- Depending on the planner specified in WorkerConfig, diff. configs may be required
+    - Some planners may not need `available resource configurations` (change the worker code to not make it mandatory)
+- Allow each planner to have its own config
+    - Instead of a planner static ref. receive a Planner.Config() (should be able to backtrack to get the Planner ref.)
 
 # WORKER
-- 2. Plan the worker logic refactor
-Pieces: Worker, SchedulingLogic tied to a Planner (1 => N, there can be 1 Scheduling Logic for N Planner algorithms that use the same optimizations. The SchL determines the optimizations available)
-    class SchedulingLogic
-        - virtual methods: handle_inputs, handle_execution, handle_output, handle_downstream
-            their default implementations are the current implementation on worker.start_executing()
-    class Planner
-        - Internally points to a specialized SchedulingLogic.Annotations/Optimizations
-    class Worker
-        - 
-Further abstract the worker
-- grab_dependencies (allow algorithm to use threads or coroutines to download input, only download some input and get other input locally or from another source)
-- execute (allow algorithm to do other things before, after and while task is executing or completely skip execution)
-- handle_downstream (allow algorithm to not upload output, upload lazilly, etc..)
+- Add support for Planners in LocalWorker as well (all workers should be supported)
+- Implement remaining override methods on the Worker
 
 - Implement pre-load optimization
     - Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+
+# PLANNING ALGORITHMS
+- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
+- Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.
+- 1 second diff. between `planned time` and `real time`
 
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
@@ -34,10 +26,11 @@ Further abstract the worker
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
 - Further separate Worker configs (it's a mess to know which props are required for each worker)
 
-- [PERFORMANCE] Storing the full dag on redis is costly
+- [PERFORMANCE] Storing the full dag on redis is costly (DAG retrieval time adds up)
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
     - If below a certain bytes threshold, pass the subDAG in the invocation itself
     - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+        Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
 
 - [NNP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
     NOTE: I tried it, but redis server was crashing when i used asyncredis library

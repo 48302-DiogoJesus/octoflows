@@ -29,7 +29,8 @@ redis_metrics_storage_config = RedisStorage.Config(
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-    # metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config)
+    # metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
+    planner=DummyDAGPlanner
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -41,7 +42,8 @@ dockerWorkerConfig = DockerWorker.Config(
     available_resource_configurations=[
         TaskWorkerResourceConfiguration(cpus=1, memory_mb=128), # will be the default/fallback
         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256)
-    ]
+    ],
+    planner=DummyDAGPlanner
 )
 
 def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.Image]:
@@ -151,7 +153,7 @@ def main():
 
     final_image = merge_image_parts(processed_chunks)
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
-    final_image = final_image.compute(config=dockerWorkerConfig, planner=DummyDAGPlanner)
+    final_image = final_image.compute(config=dockerWorkerConfig)
 
     # image = Image.open(io.BytesIO(final_image))
     # image.show()

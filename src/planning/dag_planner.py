@@ -1,20 +1,20 @@
-from pympler import asizeof
+from typing import Any
+import cloudpickle
 from abc import ABC, abstractmethod
-import colorsys
 from dataclasses import dataclass
-import pickle
 from graphviz import Digraph
-import networkx as nx
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 from src import dag_task_node
+from src.dag.dag import SubDAG
 from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.planning.sla import SLA
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics
+from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
+from src.worker_execution_logic import WorkerExecutionLogic
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
@@ -299,7 +299,7 @@ class DAGPlanner(ABC):
         
         return dot
 
-class SimpleDAGPlanner(DAGPlanner):
+class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
     @staticmethod
     def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
         """
@@ -393,6 +393,27 @@ class SimpleDAGPlanner(DAGPlanner):
         DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()
+
+    @staticmethod
+    def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
+        task_dependencies: dict[str, Any] = {}
+        _input_metrics: list[TaskInputMetrics] = []
+        dependency_download_timer = Timer()
+        # Dynamic fan-outs
+        for dependency_task in task.upstream_nodes:
+            fotimer = Timer()
+            task_output = intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
+            _input_metrics.append(TaskInputMetrics(
+                task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
+                time_ms=fotimer.stop(),
+                normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
+            ))
+        
+        _total_input_download_time_ms = dependency_download_timer.stop()
+        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
 
 class DummyDAGPlanner(DAGPlanner):
     @staticmethod

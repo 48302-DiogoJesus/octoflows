@@ -62,5 +62,5 @@ def test_gemm_1000_1000_100():
 
     distributed_result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1]))
 
-    distributed_result = distributed_result.compute(config=worker_config, planner=selected_planner)
+    distributed_result = distributed_result.compute(config=worker_config)
     assert np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)

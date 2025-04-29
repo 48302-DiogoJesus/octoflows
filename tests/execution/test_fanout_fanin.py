@@ -32,5 +32,5 @@ def test_fanout_fanin():
     c4 = c(b2)
 
     for _ in range(10):
-        result = c4.compute(config=worker_config, planner=selected_planner)
+        result = c4.compute(config=worker_config)
         assert result == 18766224

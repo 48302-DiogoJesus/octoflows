@@ -1,3 +1,4 @@
+import inspect
 from pympler import asizeof
 from collections.abc import Iterable
 import asyncio
@@ -6,14 +7,16 @@ from dataclasses import dataclass, field
 import json
 import pickle
 import time
-from typing import Any
+from typing import Any, Callable, Optional
 import uuid
 import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
+from src.planning.dag_planner import DAGPlanner, DummyDAGPlanner
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
+from src.worker_execution_logic import WorkerExecutionLogic
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskInputMetrics, TaskOutputMetrics, TaskInvocationMetrics
@@ -24,13 +27,14 @@ import src.storage.storage as storage_module
 
 logger = create_logger(__name__)
 
-class Worker(ABC):
+class Worker(ABC, WorkerExecutionLogic):
     @dataclass
     class Config(ABC):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
         available_resource_configurations: list[TaskWorkerResourceConfiguration] = field(default_factory=list)
+        planner: type[DAGPlanner] = DummyDAGPlanner
         
         def __post_init__(self):
             """
@@ -51,6 +55,26 @@ class Worker(ABC):
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.available_resource_configurations = config.available_resource_configurations
+        self.planner = config.planner
+
+    @staticmethod
+    def get_method_overridden(
+        planner_class: type, 
+        base_method: Callable,
+    ) -> Optional[Callable]:
+        # Get the planner's method (without invoking descriptors)
+        planner_method = inspect.getattr_static(planner_class, base_method.__name__, None)
+        if planner_method is None:
+            return None
+        
+        # Unwrap staticmethod if needed
+        base_func = base_method.__func__ if isinstance(base_method, staticmethod) else base_method
+        planner_func = planner_method.__func__ if isinstance(planner_method, staticmethod) else planner_method
+        
+        # Return the callable method if it's actually overridden
+        if planner_func.__code__ != base_func.__code__:
+            return planner_method  # Returns the staticmethod wrapper if applicable
+        return None
 
     async def start_executing(self, subdag: dag.SubDAG):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
@@ -73,24 +97,16 @@ class Worker(ABC):
                     downstream_invocation_times = None,
                     total_invocation_time_ms=0
                 )
-                # 1. DOWNLOAD DEPENDENCIES
-                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing Dependencies")
-                task_dependencies: dict[str, Any] = {}
-                dependency_download_timer = Timer()
-                # Dynamic fan-outs
-                logger.info(f"STATIC FAN-OUT: Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
-                for dependency_task in task.upstream_nodes:
-                    fotimer = Timer()
-                    task_output = self.intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-                    if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-                    task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
-                    task_metrics.input_metrics.append(TaskInputMetrics(
-                        task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                        size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
-                        time_ms=fotimer.stop(),
-                        normalized_time_ms=fotimer.stop() * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if task_metrics.worker_resource_configuration else 0
-                    ))
-                
+                # 1) DOWNLOAD TASK DEPENDENCIES
+                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
+                planner_override_handle_inputs = self.get_method_overridden(self.planner, WorkerExecutionLogic.override_handle_inputs)
+                if planner_override_handle_inputs:
+                    logger.info("SIMPLEDAGPLANNER.HANDLE_INPUTS()")
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
+                else:
+                    logger.info("DEFAULTEXECLOGIC.HANDLE_INPUTS()")
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = self.override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig)
+
                 # Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
@@ -100,8 +116,7 @@ class Worker(ABC):
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_kwarg)))
 
-                task_metrics.total_input_download_time_ms = dependency_download_timer.stop()
-                # 2. EXECUTE TASK
+                # 2) EXECUTE TASK
                 exec_timer = Timer()
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing...")
                 task_result = task.invoke(dependencies=task_dependencies)
@@ -220,6 +235,26 @@ class Worker(ABC):
                 final_result = cloudpickle.loads(final_result) # type: ignore
                 logger.info(f"Final Result Ready: ({task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
                 return final_result
+
+    @staticmethod
+    def override_handle_inputs(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
+        task_dependencies: dict[str, Any] = {}
+        _input_metrics: list[TaskInputMetrics] = []
+        dependency_download_timer = Timer()
+        for dependency_task in task.upstream_nodes:
+            fotimer = Timer()
+            task_output = intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
+            _input_metrics.append(TaskInputMetrics(
+                task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
+                time_ms=fotimer.stop(),
+                normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
+            ))
+        
+        _total_input_download_time_ms = dependency_download_timer.stop()
+        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""

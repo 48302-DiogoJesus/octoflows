@@ -6,7 +6,6 @@ import uuid
 import graphviz
 
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
-from src.planning.dag_planner import DAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
@@ -69,23 +68,16 @@ class FullDAG(GenericDAG):
         self.master_dag_structure_hash = self.get_structure_hash()
         self.master_dag_id = f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.master_dag_structure_hash}" # type: ignore
 
-    async def compute(self, config, planner: type[DAGPlanner] | None = None, open_dashboard: bool = False):
+    async def compute(self, config, open_dashboard: bool = False):
         from src.worker import Worker, LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.worker_resource_configuration import TaskWorkerResourceConfiguration
-        from src.planning.dag_planner import DAGPlanner
         _wk_config: Worker.Config = config
-        _planner: type[DAGPlanner] | None = planner
         wk: Worker = _wk_config.create_instance()
-        if not isinstance(_wk_config, LocalWorker.Config) and _planner is not None:
-            if _wk_config.metrics_storage_config is None:
-                raise Exception("Can't do DAG Planning without metrics storage config!")
-            if wk.metrics_storage is None:
-                raise Exception("Can't do DAG Planning without worker metrics storage!")
-            if len(_wk_config.available_resource_configurations) == 0:
-                raise Exception("Can't do DAG Planning without available resource configurations!")
-            
-            _planner.plan(self, MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
+        if _wk_config.planner is not None:
+            if _wk_config.metrics_storage_config is None: raise Exception("Can't do DAG Planning without metrics storage config!")
+            if wk.metrics_storage is None: raise Exception("Can't do DAG Planning without worker metrics storage!")
+            _wk_config.planner.plan(self, MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
