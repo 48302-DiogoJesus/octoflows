@@ -1,38 +1,33 @@
 # PLANNING ALGORITHMS
-- Problem: Test Planning accuracy (is the predicted time close to the real time?) always using the MIDDLE config and `dagforpredictions_expensive_computations.py`
-    1. Create a DAG that actually does expensive computation that runs faster on better memory
-        Adjust `dagforpredictions_expensive_computations.py`
-    2. [DONE] Change planner to just use middle configuration so that predictions algorithm doesn't influence too much
-- Revert to use more than the middle config
-
-- Test the SimplePlanner algorithm: make a run without the planning algorithm and make another with the planning algorithm, then compare
+- 1. Experiment planning with diverse resources for `dagforpredictions_expensive_computations.py`
+    Compare `planned time` VS `real time`
+- Problem ?: Dashboard makespan VS client console completion time big diff.
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
-
-- IMPROVEMENTS
-    - Make predictions faster (not too important for now)
-        - Threadpool
-        - Incremental Critical Path Calculation => Instead of recalculating the entire DAG for each change, develop an algorithm that incrementally updates affected paths
-        - ? Don't simulate for ALL nodes. establish a max tries and select specific paths
-
-- Report 1st algorithm (requires: pre-load optimization implemented)
+- 1 second diff. between planned time and real time
 
 # WORKER
+- 2. Plan the worker logic refactor
+Pieces: Worker, SchedulingLogic tied to a Planner (1 => N, there can be 1 Scheduling Logic for N Planner algorithms that use the same optimizations. The SchL determines the optimizations available)
+    class SchedulingLogic
+        - virtual methods: handle_inputs, handle_execution, handle_output, handle_downstream
+            their default implementations are the current implementation on worker.start_executing()
+    class Planner
+        - Internally points to a specialized SchedulingLogic.Annotations/Optimizations
+    class Worker
+        - 
 Further abstract the worker
 - grab_dependencies (allow algorithm to use threads or coroutines to download input, only download some input and get other input locally or from another source)
 - execute (allow algorithm to do other things before, after and while task is executing or completely skip execution)
-- handle_output (allow algorithm to not upload output, upload lazilly, etc..)
+- handle_downstream (allow algorithm to not upload output, upload lazilly, etc..)
+
+- Implement pre-load optimization
+    - Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
         store_full_dag DOESN'T change
         NEW => workers MAY not need to download dag from storage
             serialized_dag: SubDAG | None
-
-- Think about "namespaces for Task Annotations per algorithm": <ALGORITHM_NAME>_PRELOAD ??
-    - how to make workers follow annotations in a scalable manner?
-        Annotations become classes that override parts of the worker code?
-        Split the worker logic into sections that are implemented by the planner (planner becomes mandatory)
-            The planner I have now would be WukongPlanner?
 
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
     redis remove keys that contain <master_dag_id>

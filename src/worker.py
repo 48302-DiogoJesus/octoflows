@@ -207,7 +207,7 @@ class Worker(ABC):
         return (calculate_data_structure_size(deserialized), deserialized)
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 1.0):
+    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 0.1):
         start_time = Timer()
         # Poll Storage for final result. Asynchronous wait
         task_id = task.id.get_full_id_in_dag(dag)

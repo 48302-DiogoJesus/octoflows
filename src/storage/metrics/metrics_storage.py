@@ -3,7 +3,10 @@ import time
 
 import cloudpickle
 from src.storage.storage import Storage
+from src.utils.logger import create_logger
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+
+logger = create_logger(__name__)
 
 @dataclass
 class FullDAGPrepareTime:
@@ -82,20 +85,19 @@ class MetricsStorage:
         return [cloudpickle.loads(m) for m in self.storage.mget(keys)]
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
-        print(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
+        # logger.info(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
         self.cached_metrics[f"{self.TASK_METRICS_KEY_PREFIX}{task_id}"] = metrics
 
     def store_dag_download_time(self, id: str, dag_download_metrics: FullDAGPrepareTime):
-        print(f"Caching download time for root node {id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
+        # logger.info(f"Caching download time for root node {id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
         self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
     
     def flush(self):
-        print("Flushing metrics to storage...")
         start = time.time()
 
         for key, metrics in self.cached_metrics.items():
             self.storage.set(key, cloudpickle.dumps(metrics))
         
         end = time.time()
-        print(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
+        logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
         self.cached_metrics = {}
