@@ -21,6 +21,14 @@ logger = create_logger(__name__)
 
 class DAGPlanner(ABC):
     @dataclass
+    class Config(ABC):
+        sla: SLA
+
+        @abstractmethod
+        def create_instance(self) -> "DAGPlanner": 
+            pass
+
+    @dataclass
     class PlanningTaskInfo:
         node_ref: DAGTaskNode
         input_size: int
@@ -32,20 +40,17 @@ class DAGPlanner(ABC):
         earliest_start: float
         path_completion_time: float 
 
-    @staticmethod
     @abstractmethod
-    def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA): 
+    def plan(self, dag, metadata_access: MetadataAccess):
         """
         dag: dag.DAG
-        metadata_access: MetadataAccess that will only provide predictions for metrics related to the same DAG structure
-        sorted_available_worker_resource_configurations (greatest {memory_mb} first):
+        metadata_access: MetadataAccess
         
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
         pass
 
-    @staticmethod
-    def _topological_sort(dag) -> list[DAGTaskNode]:
+    def _topological_sort(self, dag) -> list[DAGTaskNode]:
         """
         Performs topological sort on DAG nodes
         """
@@ -68,8 +73,7 @@ class DAGPlanner(ABC):
         
         return topo_order
     
-    @staticmethod
-    def _calculate_input_size(node, nodes_info: dict[str, PlanningTaskInfo]):
+    def _calculate_input_size(self, node, nodes_info: dict[str, PlanningTaskInfo]):
         """
         Calculate the input size for a node based on its predecessors
         """
@@ -91,15 +95,14 @@ class DAGPlanner(ABC):
 
         return total_args_len
     
-    @staticmethod
-    def _calculate_node_timings_with_common_resources(topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
+    def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """
         Calculate timing information for all nodes using the same resource configuration
         """
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
-            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
+            input_size = self._calculate_input_size(node, nodes_info)
             download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
             assert download_time
             exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
@@ -109,12 +112,11 @@ class DAGPlanner(ABC):
             upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
             assert upload_time
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
-        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
+        self._calculate_path_times(topo_sorted_nodes, nodes_info)
         
         return nodes_info
     
-    @staticmethod
-    def _calculate_node_timings_with_custom_resources(topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, node_to_resource_config: dict[str,TaskWorkerResourceConfiguration], sla: SLA):
+    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, node_to_resource_config: dict[str,TaskWorkerResourceConfiguration], sla: SLA):
         """
         Calculate timing information for all nodes using custom resource configurations
         """
@@ -123,7 +125,7 @@ class DAGPlanner(ABC):
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
             resource_config = node_to_resource_config[node_id]
-            input_size = SimpleDAGPlanner._calculate_input_size(node, nodes_info)
+            input_size = self._calculate_input_size(node, nodes_info)
             download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
             assert download_time
             exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
@@ -134,12 +136,11 @@ class DAGPlanner(ABC):
             assert upload_time
             nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
 
-        SimpleDAGPlanner._calculate_path_times(topo_sorted_nodes, nodes_info)
+        self._calculate_path_times(topo_sorted_nodes, nodes_info)
 
         return nodes_info
     
-    @staticmethod
-    def _calculate_path_times(topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo]):
+    def _calculate_path_times(self, topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo]):
         """
         Calculate earliest possible start time and path completion time for each node
         """
@@ -154,8 +155,7 @@ class DAGPlanner(ABC):
             nodes_info[node_id].earliest_start = max_predecessor_completion
             nodes_info[node_id].path_completion_time = max_predecessor_completion + nodes_info[node_id].total_time
     
-    @staticmethod
-    def _find_critical_path(dag, nodes_info: dict[str, PlanningTaskInfo]):
+    def _find_critical_path(self, dag, nodes_info: dict[str, PlanningTaskInfo]):
         """
         Find the critical path (longest path from start to finish)
         Returns the list of nodes on the critical path and the critical path time
@@ -185,8 +185,7 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    @staticmethod
-    def _visualize_dag(dag, nodes_info, node_to_resource_config, critical_path_node_ids, output_file_name="dag_visualization"):
+    def _visualize_dag(self, dag, nodes_info, node_to_resource_config, critical_path_node_ids, output_file_name="dag_visualization"):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -300,8 +299,25 @@ class DAGPlanner(ABC):
         return dot
 
 class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
-    @staticmethod
-    def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
+    @dataclass
+    class Config(DAGPlanner.Config):
+        available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
+
+        def create_instance(self) -> "SimpleDAGPlanner":
+            return SimpleDAGPlanner(self)
+
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+        self.config = config
+
+    def __post_init__(self):
+        """
+        Sort the available_resource_configurations by memory_mb
+        Greatest {memory_mb} first
+        """
+        self.config.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
+
+    def plan(self, dag, metadata_access: MetadataAccess):
         """
         dag: dag.DAG
 
@@ -314,6 +330,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
+        sorted_available_worker_resource_configurations = self.config.available_worker_resource_configurations
         if len(sorted_available_worker_resource_configurations) == 1:
             # If only one resource config is available, use it for all nodes
             worker_resources = sorted_available_worker_resource_configurations[0]
@@ -334,10 +351,10 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
 
         # Calculate critical path by analyzing execution times for each path
         # First, calculate execution times for each node with best resources
-        topo_sorted_nodes = SimpleDAGPlanner._topological_sort(dag)
+        topo_sorted_nodes = self._topological_sort(dag)
         # Initial planning with Best Resources for all nodes
-        nodes_info = SimpleDAGPlanner._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, sla)
-        critical_path_nodes, critical_path_time = SimpleDAGPlanner._find_critical_path(dag, nodes_info)
+        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
+        critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
         
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
@@ -360,8 +377,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 node_to_resource_config[node_id] = resource_config
                 
                 # Recalculate timings with this resource configuration
-                temp_nodes_info = SimpleDAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-                _, new_critical_path_time = SimpleDAGPlanner._find_critical_path(dag, temp_nodes_info)
+                temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
+                _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
 
                 if new_critical_path_time != critical_path_time:
                     node_to_resource_config[node_id] = original_config # This config changes the critical path, revert
@@ -389,8 +406,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
 
         # DEBUG: Plan Visualization
-        updated_nodes_info = DAGPlanner._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, sla)
-        DAGPlanner._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
+        updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
+        self._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()
 
@@ -414,11 +431,3 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         
         _total_input_download_time_ms = dependency_download_timer.stop()
         return (task_dependencies, _input_metrics, _total_input_download_time_ms)
-
-class DummyDAGPlanner(DAGPlanner):
-    @staticmethod
-    def plan(dag, metadata_access: MetadataAccess, sorted_available_worker_resource_configurations: list[TaskWorkerResourceConfiguration], sla: SLA):
-        from src.dag.dag import FullDAG
-        _dag: FullDAG = dag
-        best_resource_config = sorted_available_worker_resource_configurations[0]
-        for _, node in _dag._all_nodes.items(): node.add_annotation(best_resource_config)

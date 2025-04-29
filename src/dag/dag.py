@@ -74,10 +74,11 @@ class FullDAG(GenericDAG):
         from src.worker_resource_configuration import TaskWorkerResourceConfiguration
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
-        if _wk_config.planner is not None:
-            if _wk_config.metrics_storage_config is None: raise Exception("Can't do DAG Planning without metrics storage config!")
-            if wk.metrics_storage is None: raise Exception("Can't do DAG Planning without worker metrics storage!")
-            _wk_config.planner.plan(self, MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage), _wk_config.available_resource_configurations, "avg")
+
+        # Only do PLANNING if `metrics_storage` is specified
+        if wk.planner: 
+            if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
+            wk.planner.plan(self, MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage))
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!

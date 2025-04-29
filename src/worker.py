@@ -1,11 +1,8 @@
 import inspect
-from pympler import asizeof
-from collections.abc import Iterable
 import asyncio
 import base64
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
-import pickle
 import time
 from typing import Any, Callable, Optional
 import uuid
@@ -13,7 +10,7 @@ import cloudpickle
 import aiohttp
 from abc import ABC, abstractmethod
 
-from src.planning.dag_planner import DAGPlanner, DummyDAGPlanner
+from src.planning.dag_planner import DAGPlanner, SimpleDAGPlanner
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.worker_execution_logic import WorkerExecutionLogic
@@ -33,15 +30,7 @@ class Worker(ABC, WorkerExecutionLogic):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
-        available_resource_configurations: list[TaskWorkerResourceConfiguration] = field(default_factory=list)
-        planner: type[DAGPlanner] = DummyDAGPlanner
-        
-        def __post_init__(self):
-            """
-            Sort the available_resource_configurations by memory_mb
-            Greatest {memory_mb} first
-            """
-            self.available_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
+        planner_config: DAGPlanner.Config | None = None
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -54,8 +43,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
-        self.available_resource_configurations = config.available_resource_configurations
-        self.planner = config.planner
+        self.planner = config.planner_config.create_instance() if config.planner_config else None
 
     @staticmethod
     def get_method_overridden(
@@ -99,7 +87,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 )
                 # 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
-                planner_override_handle_inputs = self.get_method_overridden(self.planner, WorkerExecutionLogic.override_handle_inputs)
+                planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
                     logger.info("SIMPLEDAGPLANNER.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
@@ -122,10 +110,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 task_result = task.invoke(dependencies=task_dependencies)
                 task_metrics.execution_time_ms = exec_timer.stop()
                 total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
-                """
-                normalize based on the memory used
-                calculate "per input size byte", using a scaling factor of 60%
-                """
+                # normalize based on the memory used. Calculate "per input size byte"
                 task_metrics.normalized_execution_time_per_input_byte_ms = task_metrics.execution_time_ms \
                     * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB)  \
                     / total_input_size if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
@@ -174,8 +159,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 task_metrics.downstream_invocation_times = []
                 for t in tasks_to_delegate:
                     workerResourcesConfig = t.get_annotation(TaskWorkerResourceConfiguration)
-                    if workerResourcesConfig is None and len(self.available_resource_configurations) > 0:
-                        workerResourcesConfig = self.available_resource_configurations[0]
+                    casted_planner: SimpleDAGPlanner = self.planner # type: ignore
+                    if workerResourcesConfig is None and len(casted_planner.config.available_worker_resource_configurations) > 0:
+                        workerResourcesConfig = casted_planner.config.available_worker_resource_configurations[0]
                         
                     self.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t} with resources: {workerResourcesConfig}")
                     delegate_invoke_timer = Timer()

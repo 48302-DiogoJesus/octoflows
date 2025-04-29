@@ -6,7 +6,7 @@ from typing import List
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.planning.dag_planner import DummyDAGPlanner, SimpleDAGPlanner
+from src.planning.dag_planner import DefaultDAGPlanner, SimpleDAGPlanner
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
@@ -30,7 +30,7 @@ localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
     # metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner=DummyDAGPlanner
+    planner=DefaultDAGPlanner
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -43,7 +43,7 @@ dockerWorkerConfig = DockerWorker.Config(
         TaskWorkerResourceConfiguration(cpus=1, memory_mb=128), # will be the default/fallback
         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256)
     ],
-    planner=DummyDAGPlanner
+    planner=DefaultDAGPlanner
 )
 
 def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.Image]:

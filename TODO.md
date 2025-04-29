@@ -1,7 +1,4 @@
-- Depending on the planner specified in WorkerConfig, diff. configs may be required
-    - Some planners may not need `available resource configurations` (change the worker code to not make it mandatory)
-- Allow each planner to have its own config
-    - Instead of a planner static ref. receive a Planner.Config() (should be able to backtrack to get the Planner ref.)
+
 
 # WORKER
 - Add support for Planners in LocalWorker as well (all workers should be supported)
