@@ -1,6 +1,7 @@
+- Create a simple python script that performs the same ops as the `RedisStorage/IntermediateStorage` but uses async redis instead
+- Implement and test pubsub
+
 # WORKER
-- Test local implementation with PLANNING to try and fix circular dependency errors
-- When using Local Worker, don't upload metrics
 - Don't depend on worker resource config on the generic WorkerExecutionLogic code
 - Run automatic tests again
 

@@ -4,6 +4,8 @@ import sys
 import numpy as np
 from dask.array import from_array
 
+from src.planning.dag_planner import SimpleDAGPlanner
+from src.storage.metrics.metrics_storage import MetricsStorage
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -27,17 +29,26 @@ def c(values: float) -> float:
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
 
+# METRICS STORAGE
+redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
+
 localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config
+    intermediate_storage_config=redis_intermediate_storage_config,
+    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
 )
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
-    available_resource_configurations=[
-        TaskWorkerResourceConfiguration(cpus=1, memory_mb=128), # will be the default/fallback
-        TaskWorkerResourceConfiguration(cpus=2, memory_mb=256)
-    ]
+    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
+    planner_config=SimpleDAGPlanner.Config(
+        sla="avg",
+        available_worker_resource_configurations=[
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+        ],
+    )
 )
 
 # Define the workflow
