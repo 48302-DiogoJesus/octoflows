@@ -1,6 +1,3 @@
-- Remove redis_storage + Rename async_redis_storage to redis_storage
-- run automatic tests
-- Check if dagtasknode.visualize() works fine (after async changes)
 - Check #! comments to parallelize simple stuff, then re-test
 - Implement and test pubsub on async redis separate script (use Claude context)
 

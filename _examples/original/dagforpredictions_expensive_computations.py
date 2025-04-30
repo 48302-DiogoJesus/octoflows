@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.storage.async_redis_storage import RedisStorage
+from src.storage.redis_storage import RedisStorage
 from src.planning.dag_planner import SimpleDAGPlanner
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
@@ -84,6 +84,7 @@ b4_t2 = time_task_expensive(b4_t1)
 b5_t1 = time_task_expensive(50)
 
 sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
+# sink_task.visualize_dag(open_after=True)
 
 for i in range(1):
     start_time = time.time()

@@ -76,7 +76,6 @@ def test_dag_root_node_ahead():
     t7 = task_a(t4, t5)
 
     dag = FullDAG(sink_node=t7)
-    dag.visualize(sink_node=t7, open_after=True)
 
     assert dag.root_nodes
     assert len(dag.root_nodes) == 2

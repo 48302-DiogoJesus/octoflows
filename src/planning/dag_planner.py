@@ -185,7 +185,7 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def _visualize_dag(self, dag, nodes_info, node_to_resource_config, critical_path_node_ids, output_file_name="dag_visualization"):
+    def _visualize_plan(self, dag, nodes_info, node_to_resource_config, critical_path_node_ids):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -196,6 +196,7 @@ class DAGPlanner(ABC):
             critical_path_node_ids: Set of node IDs in the critical path
             output_file: Base filename to save the visualization (without extension)
         """
+        from src.dag.dag import GenericDAG
         # Create a new directed graph
         dot = Digraph(comment='DAG Visualization')
         dot.attr(rankdir='LR')  # Left to right layout
@@ -292,6 +293,8 @@ class DAGPlanner(ABC):
                 legend.edges([])
         
         # Save to file
+        _dag: GenericDAG = dag
+        output_file_name = f"planned_{_dag.sink_node.func_name}"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
         print(f"DAG visualization saved to {output_file_name}.png")
@@ -407,7 +410,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
 
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
-        self._visualize_dag(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
+        self._visualize_plan(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()
 

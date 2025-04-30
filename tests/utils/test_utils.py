@@ -1,5 +1,5 @@
 from src.planning.dag_planner import SimpleDAGPlanner
-from src.storage.async_redis_storage import RedisStorage
+from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.worker import DockerWorker, LocalWorker
