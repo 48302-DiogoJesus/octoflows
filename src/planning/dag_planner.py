@@ -412,7 +412,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # exit()
 
     @staticmethod
-    def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
+    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()

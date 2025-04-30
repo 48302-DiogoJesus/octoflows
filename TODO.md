@@ -5,7 +5,7 @@
 - Run automatic tests again
 
 - Implement pre-load optimization
-    - Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+    => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 
 # PLANNING ALGORITHMS
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
