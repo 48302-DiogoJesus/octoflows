@@ -1,12 +1,7 @@
 import os
-import statistics
 import sys
-from typing import List, Literal, Optional
-from matplotlib import pyplot as plt
-import numpy as np
 import redis
 import cloudpickle
-import seaborn as sns
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics

@@ -1,241 +1,111 @@
-from dataclasses import dataclass
+import time
 import asyncio
-from typing import Any, Callable, Dict, List, Optional, Union
-from redis.asyncio import Redis
-import logging
+import redis
+from redis.asyncio import Redis as AsyncRedis
 
-import src.storage.storage as storage
+# Configuration
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6380
+OPERATIONS_COUNT = 1000
+KEY_PREFIX = 'test_key'
+VALUE_SIZE = 100  # bytes
 
-logger = logging.getLogger(__name__)
+def generate_value(size):
+    return 'x' * size
 
-class RedisStorage(storage.Storage):
-    @dataclass
-    class Config(storage.Storage.Config):
-        host: str
-        port: int
-        password: str
-        # Optional parameters
-        db: int = 0
-        socket_connect_timeout: int = 5
-        socket_timeout: int = 5
-
-        def create_instance(self) -> "RedisStorage":
-            return RedisStorage(self)
-
-    def __init__(self, config: Config) -> None:
-        super().__init__()
-        self.redis_config = config
-        self._connection: Optional[Redis] = None
-        self._pubsub = None
-        self._subscription_tasks: Dict[str, asyncio.Task] = {}
-        
-        # Initialize connection in a non-blocking way
-        asyncio.create_task(self._get_or_create_connection(skip_verification=True))
-
-    async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
-        if not skip_verification and await self._verify_connection():
-            return self._connection
-        else:
-            self._connection = Redis(
-                host=self.redis_config.host,
-                port=self.redis_config.port,
-                db=self.redis_config.db,
-                password=self.redis_config.password,
-                decode_responses=False,  # Necessary to allow serialized bytes
-                socket_connect_timeout=self.redis_config.socket_connect_timeout,
-                socket_timeout=self.redis_config.socket_timeout
-            )
-            return self._connection
-
-    async def get(self, key: str) -> Any:
-        conn = await self._get_or_create_connection()
-        if not await conn.exists(key):
-            return None
-        return await conn.get(key)
-
-    async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
-        conn = await self._get_or_create_connection()
-        return await conn.set(key, value, ex=expire)
-
-    async def atomic_increment_and_get(self, key: str) -> int:
-        conn = await self._get_or_create_connection()
-        # Atomically increment and get the new value
-        return await conn.incr(key, amount=1)
-
-    async def exists(self, *keys: str) -> int:
-        conn = await self._get_or_create_connection()
-        return await conn.exists(*keys)
+def sync_redis_operations():
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password='redisdevpwd123')
+    value = generate_value(VALUE_SIZE)
     
-    async def close_connection(self) -> None:
-        """Close Redis connection and cancel any running subscription tasks."""
-        # Cancel all subscription tasks
-        for channel, task in self._subscription_tasks.items():
-            logger.info(f"Cancelling subscription to channel: {channel}")
-            task.cancel()
-        
-        # Close PubSub if it exists
-        if self._pubsub is not None:
-            await self._pubsub.aclose()
-        
-        # Close main connection
-        if self._connection is not None:
-            await self._connection.aclose()
+    # Test SET operations
+    start_time = time.time()
+    for i in range(OPERATIONS_COUNT):
+        r.set(f"{KEY_PREFIX}_{i}", value)
+    set_time = time.time() - start_time
+    
+    # Test GET operations
+    start_time = time.time()
+    for i in range(OPERATIONS_COUNT):
+        r.get(f"{KEY_PREFIX}_{i}")
+    get_time = time.time() - start_time
+    
+    # Cleanup
+    for i in range(OPERATIONS_COUNT):
+        r.delete(f"{KEY_PREFIX}_{i}")
+    
+    return set_time, get_time
 
-    async def _verify_connection(self) -> bool:
-        try:
-            if self._connection is None:
-                return False
-            return await self._connection.ping()
-        except Exception:
-            return False
+async def async_redis_operations():
+    r = AsyncRedis(host=REDIS_HOST, port=REDIS_PORT, password='redisdevpwd123')
+    value = generate_value(VALUE_SIZE)
+    
+    # Test SET operations
+    start_time = time.time()
+    for i in range(OPERATIONS_COUNT):
+        await r.set(f"{KEY_PREFIX}_{i}", value)
+    set_time = time.time() - start_time
+    
+    # Test GET operations
+    start_time = time.time()
+    for i in range(OPERATIONS_COUNT):
+        await r.get(f"{KEY_PREFIX}_{i}")
+    get_time = time.time() - start_time
+    
+    # Cleanup
+    for i in range(OPERATIONS_COUNT):
+        await r.delete(f"{KEY_PREFIX}_{i}")
+    
+    return set_time, get_time
 
-    async def keys(self, pattern: str) -> List[str]:
-        conn = await self._get_or_create_connection()
-        return await conn.keys(pattern)
+async def async_redis_operations_bulk():
+    r = AsyncRedis(host=REDIS_HOST, port=REDIS_PORT, password='redisdevpwd123')
+    value = generate_value(VALUE_SIZE)
+    
+    # Test SET operations with pipeline
+    start_time = time.time()
+    async with r.pipeline() as pipe:
+        for i in range(OPERATIONS_COUNT):
+            pipe.set(f"{KEY_PREFIX}_{i}", value)
+        await pipe.execute()
+    set_time = time.time() - start_time
+    
+    # Test GET operations with pipeline
+    start_time = time.time()
+    async with r.pipeline() as pipe:
+        for i in range(OPERATIONS_COUNT):
+            pipe.get(f"{KEY_PREFIX}_{i}")
+        await pipe.execute()
+    get_time = time.time() - start_time
+    
+    # Cleanup
+    async with r.pipeline() as pipe:
+        for i in range(OPERATIONS_COUNT):
+            pipe.delete(f"{KEY_PREFIX}_{i}")
+        await pipe.execute()
+    
+    return set_time, get_time
 
-    async def mget(self, keys: List[str]) -> List[Any]:
-        conn = await self._get_or_create_connection()
-        return await conn.mget(keys)
+def print_results(title, set_time, get_time):
+    print(f"\n{title} Results:")
+    print(f"Total SET operations: {OPERATIONS_COUNT} in {set_time:.4f} seconds")
+    print(f"SET ops/sec: {OPERATIONS_COUNT/set_time:.2f}")
+    print(f"Total GET operations: {OPERATIONS_COUNT} in {get_time:.4f} seconds")
+    print(f"GET ops/sec: {OPERATIONS_COUNT/get_time:.2f}")
 
-    # PubSub Methods
-    async def publish(self, channel: str, message: Union[str, bytes]) -> int:
-        """
-        Publish a message to a channel.
-        
-        Args:
-            channel: The channel to publish to
-            message: The message to publish (string or bytes)
-            
-        Returns:
-            Number of clients that received the message
-        """
-        conn = await self._get_or_create_connection()
-        return await conn.publish(channel, message)
-
-    async def _get_pubsub(self):
-        """Get or create the PubSub object."""
-        if self._pubsub is None:
-            conn = await self._get_or_create_connection()
-            self._pubsub = conn.pubsub()
-        return self._pubsub
-
-    async def subscribe(self, 
-                        channel: str, 
-                        callback: Callable[[dict], Any],
-                        decode_responses: bool = False) -> None:
-        """
-        Subscribe to a channel and process messages with a callback.
-        
-        Args:
-            channel: The channel to subscribe to
-            callback: A function that will be called with each message
-            decode_responses: Whether to decode the message payload as UTF-8
-        """
-        # Cancel existing subscription if any
-        if channel in self._subscription_tasks:
-            self._subscription_tasks[channel].cancel()
-            
-        # Create a new subscription
-        pubsub = await self._get_pubsub()
-        await pubsub.subscribe(channel)
-        
-        # Start a background task to process messages
-        task = asyncio.create_task(self._message_handler(channel, callback, decode_responses))
-        self._subscription_tasks[channel] = task
-        
-        logger.info(f"Subscribed to channel: {channel}")
-
-    async def unsubscribe(self, channel: str) -> None:
-        """
-        Unsubscribe from a channel.
-        
-        Args:
-            channel: The channel to unsubscribe from
-        """
-        if channel in self._subscription_tasks:
-            self._subscription_tasks[channel].cancel()
-            del self._subscription_tasks[channel]
-            
-            pubsub = await self._get_pubsub()
-            await pubsub.unsubscribe(channel)
-            logger.info(f"Unsubscribed from channel: {channel}")
-
-    async def _message_handler(self,  channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:
-        """
-        Background task to handle incoming messages.
-        
-        Args:
-            channel: The channel or pattern being handled
-            callback: The callback function to process messages
-            decode_responses: Whether to decode message data as UTF-8
-        """
-        pubsub = await self._get_pubsub()
-        try:
-            async for message in pubsub.listen():
-                # Filter messages by type and channel
-                if message["type"] == "message" and message["channel"].decode() == channel:
-                    if decode_responses and isinstance(message["data"], bytes):
-                        message["data"] = message["data"].decode("utf-8")
-                    await asyncio.create_task(callback(message))
-        except asyncio.CancelledError:
-            logger.debug(f"Message handler for {channel} was cancelled")
-        except Exception as e:
-            logger.error(f"Error in message handler for {channel}: {e}")
-
-
-async def main():
-    # Configure logging
-    logging.basicConfig(level=logging.INFO)
+def main():
+    print(f"Comparing Redis sync vs async performance with {OPERATIONS_COUNT} operations")
     
-    # Create configuration
-    config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
+    # Synchronous test
+    set_time, get_time = sync_redis_operations()
+    print_results("Synchronous", set_time, get_time)
     
-    # Initialize storage
-    redis_storage = RedisStorage(config)
+    # Asynchronous test (sequential)
+    set_time, get_time = asyncio.run(async_redis_operations())
+    print_results("Asynchronous (sequential)", set_time, get_time)
     
-    # Example message handler
-    async def message_handler(message):
-        print(f"Received message: {message}")
-        # Convert bytes to str if needed
-        if isinstance(message["data"], bytes):
-            data = message["data"].decode("utf-8")
-        else:
-            data = message["data"]
-        print(f"Message data: {data}")
-    
-    # Subscribe to a channel
-    print("Subscribing to channel 'test_channel'...")
-    await redis_storage.subscribe("test_channel", message_handler, decode_responses=True)
-    
-    # Publish some messages
-    print("Publishing messages...")
-    await asyncio.sleep(1)  # Short delay to ensure subscription is ready
-    
-    await redis_storage.publish("test_channel", "Hello from test channel!")
-    
-    # Wait for messages to be processed
-    print("Waiting for messages to be processed...")
-    await asyncio.sleep(3)
-    
-    # Unsubscribe
-    print("Unsubscribing...")
-    await redis_storage.unsubscribe("test_channel")
-    
-    # Test other regular Redis operations
-    print("\nTesting regular Redis operations:")
-    
-    print("Setting key 'test_key' with value 'test_value'")
-    await redis_storage.set("test_key", "test_value")
-    
-    print("Getting value for 'test_key'")
-    value = await redis_storage.get("test_key")
-    print(f"Retrieved value: {value}")
-    
-    # Clean up
-    print("\nClosing connection...")
-    await redis_storage.close_connection()
-    print("Done!")
-
+    # Asynchronous test (bulk/pipelined)
+    set_time, get_time = asyncio.run(async_redis_operations_bulk())
+    print_results("Asynchronous (bulk/pipelined)", set_time, get_time)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
