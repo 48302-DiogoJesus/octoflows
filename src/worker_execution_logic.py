@@ -58,9 +58,12 @@ class WorkerExecutionLogic():
         for t in tasks_to_delegate:
             workerResourcesConfig = t.get_annotation(TaskWorkerResourceConfiguration)
             # ! TODO: don't have a ref. to planner here
-            casted_planner: SimpleDAGPlanner = self.planner # type: ignore
-            if workerResourcesConfig is None and len(casted_planner.config.available_worker_resource_configurations) > 0:
-                workerResourcesConfig = casted_planner.config.available_worker_resource_configurations[0]
+            if not workerResourcesConfig and _worker.planner:
+                casted_planner: SimpleDAGPlanner = _worker.planner # type: ignore
+                if len(casted_planner.config.available_worker_resource_configurations) > 0:
+                    workerResourcesConfig = casted_planner.config.available_worker_resource_configurations[0]
+            else:
+                workerResourcesConfig = None
                 
             _worker.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t} with resources: {workerResourcesConfig}")
             delegate_invoke_timer = Timer()

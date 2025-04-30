@@ -6,11 +6,10 @@ import re
 from collections import Counter
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from tests.utils.test_utils import get_planner, get_worker_config
+from tests.utils.test_utils import get_worker_config
 from src.dag_task_node import DAGTask
 
 worker_config = get_worker_config()
-selected_planner = get_planner()
 
 def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:
     with open(file_path, 'r', encoding='utf-8') as file:

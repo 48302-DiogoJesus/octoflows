@@ -5,10 +5,9 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
 from src.utils.logger import create_logger
-from tests.utils.test_utils import get_planner, get_worker_config
+from tests.utils.test_utils import get_worker_config
 
 logger = create_logger(__name__)
-selected_planner = get_planner()
 
 def create_matrix_chunks(matrix, row_chunk_size=1, col_chunk_size=1):
     """Split matrix into smaller chunks based on specified sizes"""

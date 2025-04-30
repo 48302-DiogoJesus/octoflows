@@ -3,10 +3,9 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
-from tests.utils.test_utils import get_planner, get_worker_config
+from tests.utils.test_utils import get_worker_config
 
 worker_config = get_worker_config()
-selected_planner = get_planner()
 
 @DAGTask
 def a(x: float, y: float) -> float:

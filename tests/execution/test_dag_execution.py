@@ -5,13 +5,12 @@ import pytest
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag.dag import MultipleSinkNodesError
-from tests.utils.test_utils import get_planner, get_worker_config
+from tests.utils.test_utils import get_worker_config
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 
 logger = create_logger(__name__)
 worker_config = get_worker_config()
-selected_planner = get_planner()
 
 @dag_task_node.DAGTask
 def task_a(prev: str, append: str) -> str:
