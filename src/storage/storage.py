@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from asyncio import Future
 from dataclasses import dataclass
+from types import CoroutineType
 from typing import Any
 
 class Storage(ABC):
@@ -9,14 +11,14 @@ class Storage(ABC):
         def create_instance(self) -> "Storage": pass
 
     @abstractmethod
-    def get(self, key: str) -> Any: pass
+    async def get(self, key: str) -> Any: pass
     @abstractmethod
-    def mget(self, keys: list[str]) -> list[Any]: pass
+    async def mget(self, keys: list[str]) -> list[Any]: pass
     @abstractmethod
-    def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
+    async def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
     @abstractmethod
-    def set(self, key: str, value, expire=None) -> Any: pass
+    async def set(self, key: str, value, expire=None) -> Any: pass
     @abstractmethod
-    def atomic_increment_and_get(self, key: str) -> Any: pass
+    async def atomic_increment_and_get(self, key: str) -> Any: pass
     @abstractmethod
-    def keys(self, pattern: str) -> list: pass
+    async def keys(self, pattern: str) -> list: pass

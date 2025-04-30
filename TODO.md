@@ -1,5 +1,9 @@
-- Create a simple python script that performs the same ops as the `RedisStorage/IntermediateStorage` but uses async redis instead
-- Implement and test pubsub
+- Replace redis_storage by async_redis_storage, run manual tests and then automatic tests
+- Check if dagtasknode.visualize() works fine (after async changes)
+- Check #! comments to parallelize simple stuff, then re-test
+- Implement and test pubsub on async redis separate script (use Claude context)
+
+- Abstract `delegate` function outside of `WorkerExecutionLogic`
 
 # WORKER
 - Don't depend on worker resource config on the generic WorkerExecutionLogic code

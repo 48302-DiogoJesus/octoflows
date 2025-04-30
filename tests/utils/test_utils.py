@@ -1,21 +1,18 @@
-import os
-import sys
-
-from src.planning.dag_planner import DefaultDAGPlanner
+from src.planning.dag_planner import SimpleDAGPlanner
+from src.storage.async_redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.metrics.metrics_storage import MetricsStorage
-from src.storage.redis_storage import RedisStorage
 from src.worker import DockerWorker, LocalWorker
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
-selected_planner = DefaultDAGPlanner
+selected_planner = SimpleDAGPlanner
 
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=inmemory_intermediate_storage_config,
+    metadata_storage_config=inmemory_intermediate_storage_config,
     metrics_storage_config=None,
-    planner=selected_planner,
 )
 
 dockerWorkerConfig = DockerWorker.Config(
@@ -24,11 +21,14 @@ dockerWorkerConfig = DockerWorker.Config(
     metrics_storage_config=MetricsStorage.Config(
         storage_config=RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
     ),
-    available_resource_configurations=[
-        TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-        TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
-    ],
-    planner=selected_planner,
+    planner_config=SimpleDAGPlanner.Config(
+        sla="avg",
+        available_worker_resource_configurations=[
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+        ],
+    )
 )
 
 def get_worker_config():

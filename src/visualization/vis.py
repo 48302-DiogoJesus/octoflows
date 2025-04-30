@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 import base64
 from collections import deque
@@ -75,7 +76,7 @@ class DAGVisualizationDashboard:
         
         # Add nodes to the graph
         for name, node in self.dag._all_nodes.items():
-            is_completed = self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag)) is not None
+            is_completed = asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None
             
             # Set node attributes based on completion status
             if is_completed:
@@ -119,7 +120,7 @@ class DAGVisualizationDashboard:
             completed = 0
             total = len(self.dag._all_nodes)
             for name, node in self.dag._all_nodes.items():
-                if self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag)) is not None:
+                if asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None:
                     completed += 1
             
             # Display progress bar
@@ -153,7 +154,7 @@ class DAGVisualizationDashboard:
             if node.id.get_full_id() in visited:
                 continue
 
-            if self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag)) is not None:
+            if asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None:
                 visited.add(node.id.get_full_id())
 
                 for downstream in node.downstream_nodes:

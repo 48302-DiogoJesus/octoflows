@@ -9,7 +9,6 @@ from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMet
 from src.storage.storage import Storage
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-# from src.worker import Worker
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 
 class WorkerExecutionLogic():
@@ -20,7 +19,7 @@ class WorkerExecutionLogic():
         dependency_download_timer = Timer()
         for dependency_task in task.upstream_nodes:
             fotimer = Timer()
-            task_output = intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
             _input_metrics.append(TaskInputMetrics(
@@ -43,7 +42,7 @@ class WorkerExecutionLogic():
     async def override_handle_output(task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage) -> float: 
         output_upload_timer = Timer()
         task_result_serialized = cloudpickle.dumps(task_result)
-        intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
+        await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
         return output_upload_timer.stop()
 
     @staticmethod

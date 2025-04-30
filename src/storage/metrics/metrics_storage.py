@@ -53,7 +53,7 @@ class TaskMetrics:
 
 BASELINE_MEMORY_MB = 512 # for normalization
 
-class MetricsStorage:
+class MetricsStorage():
     TASK_METRICS_KEY_PREFIX = "metrics-storage-tasks-"
     DAG_METRICS_KEY_PREFIX = "metrics-storage-dag-"
 
@@ -75,14 +75,15 @@ class MetricsStorage:
         self.storage = storage_config.create_instance()
         self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime] = {}
 
-    def keys(self, pattern: str) -> list:
-        return self.storage.keys(pattern)
+    async def keys(self, pattern: str) -> list:
+        return await self.storage.keys(pattern)
 
-    def get(self, key: str) -> TaskMetrics | FullDAGPrepareTime | None:
-        return cloudpickle.loads(self.storage.get(key))
+    async def get(self, key: str) -> TaskMetrics | FullDAGPrepareTime | None:
+        return cloudpickle.loads(await self.storage.get(key))
     
-    def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
-        return [cloudpickle.loads(m) for m in self.storage.mget(keys)]
+    async def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
+        #! TODO: parallelize
+        return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
         # logger.info(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
@@ -92,11 +93,12 @@ class MetricsStorage:
         # logger.info(f"Caching download time for root node {id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
         self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
     
-    def flush(self):
+    async def flush(self):
         start = time.time()
 
+        #! TODO: parallelize upload
         for key, metrics in self.cached_metrics.items():
-            self.storage.set(key, cloudpickle.dumps(metrics))
+            await self.storage.set(key, cloudpickle.dumps(metrics))
         
         end = time.time()
         logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")

@@ -4,11 +4,11 @@ import time
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.storage.async_redis_storage import RedisStorage
 from src.planning.dag_planner import SimpleDAGPlanner
 from src.worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
-from src.storage.redis_storage import RedisStorage
 from src.worker import DockerWorker, LocalWorker
 from src.dag_task_node import DAGTask
 

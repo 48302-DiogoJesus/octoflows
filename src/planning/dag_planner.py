@@ -419,7 +419,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # Dynamic fan-outs
         for dependency_task in task.upstream_nodes:
             fotimer = Timer()
-            task_output = intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
+            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
             task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
             _input_metrics.append(TaskInputMetrics(

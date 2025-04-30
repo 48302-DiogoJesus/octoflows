@@ -56,7 +56,7 @@ async def main():
         wk = worker.DockerWorker(config)
 
         dag_download_time_ms = Timer()
-        dag_size_bytes, fulldag = wk.get_full_dag(dag_id)
+        dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
         dag_download_time_ms = dag_download_time_ms.stop()
 
         create_subdag_time_ms = Timer()

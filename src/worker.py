@@ -128,7 +128,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in task.downstream_nodes:
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
-                    dependencies_met = self.metadata_storage.atomic_increment_and_get(dc_key)
+                    dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies: downstream_tasks_ready.append(downstream_task)
@@ -167,7 +167,7 @@ class Worker(ABC, WorkerExecutionLogic):
         # Cleanup
         self.log(task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
         if self.metrics_storage:
-            self.metrics_storage.flush()
+            await self.metrics_storage.flush()
 
     @abstractmethod
     async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
@@ -177,11 +177,11 @@ class Worker(ABC, WorkerExecutionLogic):
         pass
 
     @staticmethod
-    def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.FullDAG):
-        metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
+    async def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.FullDAG):
+        await metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
 
-    def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
-        serialized_dag = self.metadata_storage.get(f"dag-{dag_id}")
+    async def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
+        serialized_dag = await self.metadata_storage.get(f"dag-{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
@@ -196,7 +196,7 @@ class Worker(ABC, WorkerExecutionLogic):
         while True:
             if not first_iter: await asyncio.sleep(polling_interval_s)
             first_iter = False
-            final_result = intermediate_storage.get(task_id)
+            final_result = await intermediate_storage.get(task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
                 logger.info(f"Final Result Ready: ({task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")

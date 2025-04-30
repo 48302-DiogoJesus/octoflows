@@ -20,7 +20,7 @@ class InMemoryStorage(storage.Storage):
         self._expiry: dict[str, float] = {}
         self._lock = threading.RLock()
 
-    def get(self, key: str):
+    async def get(self, key: str):
         with self._lock:
             if key in self._data:
                 # Check if the key has expired
@@ -31,7 +31,7 @@ class InMemoryStorage(storage.Storage):
                 return self._data[key]
             return None
 
-    def set(self, key: str, value, expire=None):
+    async def set(self, key: str, value, expire=None):
         with self._lock:
             self._data[key] = value
             
@@ -40,7 +40,7 @@ class InMemoryStorage(storage.Storage):
             elif key in self._expiry:
                 del self._expiry[key]
 
-    def exists(self, *keys: str) -> Any:
+    async def exists(self, *keys: str) -> Any:
         with self._lock:
             keys_found = 0
             for key in keys:
@@ -48,7 +48,7 @@ class InMemoryStorage(storage.Storage):
                     keys_found += 1
             return keys_found
 
-    def atomic_increment_and_get(self, key: str):
+    async def atomic_increment_and_get(self, key: str):
         with self._lock:
             # Get current value or initialize to 0
             current_value = self._data.get(key, 0)
@@ -61,10 +61,10 @@ class InMemoryStorage(storage.Storage):
             
             return new_value
 
-    def keys(self, pattern: str) -> list:
+    async def keys(self, pattern: str) -> list:
         raise NotImplementedError
 
-    def mget(self, keys: list[str]) -> list[Any]:
+    async def mget(self, keys: list[str]) -> list[Any]:
         with self._lock:
             return [self._data.get(key) for key in keys]
 

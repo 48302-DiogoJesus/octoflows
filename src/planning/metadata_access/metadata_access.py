@@ -21,18 +21,21 @@ class MetadataAccess:
     _cached_prediction_output_sizes: dict[str, int] = {}
 
     def __init__(self, dag_structure_hash: str, metrics_storage: MetricsStorage):
+        self.dag_structure_hash = dag_structure_hash
         self.metrics_storage = metrics_storage
-        generic_metrics_keys = self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
+
+    async def load_metrics_from_storage(self):
+        generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
         timer = Timer()
         task_specific_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
-        generic_metrics_values = self.metrics_storage.mget(generic_metrics_keys)
+        generic_metrics_values = await self.metrics_storage.mget(generic_metrics_keys)
         for key, metrics in zip(generic_metrics_keys, generic_metrics_values): # type: ignore
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
-            if dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
+            if self.dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
             # UPLOAD SPEEDS
             if metrics.output_metrics.normalized_time_ms > 0:
                 self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms)
