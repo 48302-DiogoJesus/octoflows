@@ -1,9 +1,6 @@
-=> re-test
 - Implement and test pubsub on async redis separate script (use Claude context)
-
+- Async Redis is making the workflows take longer? (remove metadata upload parallelization?)
 - Abstract `delegate` function outside of `WorkerExecutionLogic`
-
-# WORKER
 - Don't depend on worker resource config on the generic WorkerExecutionLogic code
 - Run automatic tests again
 
