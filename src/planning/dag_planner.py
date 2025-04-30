@@ -15,7 +15,7 @@ from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.worker_execution_logic import WorkerExecutionLogic
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
 

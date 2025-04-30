@@ -5,7 +5,7 @@ import time
 import cloudpickle
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
 
@@ -49,7 +49,7 @@ class TaskMetrics:
     normalized_execution_time_per_input_byte_ms: float
     update_dependency_counters_time_ms: float
     output_metrics: TaskOutputMetrics
-    downstream_invocation_times: list[TaskInvocationMetrics] | None # Can be None if no downstream task was ready
+    total_invocations_count: int
     total_invocation_time_ms: float # time to do all invocations
 
 BASELINE_MEMORY_MB = 512 # for normalization

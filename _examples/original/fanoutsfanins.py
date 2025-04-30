@@ -6,7 +6,7 @@ from dask.array import from_array
 
 from src.planning.dag_planner import SimpleDAGPlanner
 from src.storage.metrics.metrics_storage import MetricsStorage
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.storage.in_memory_storage import InMemoryStorage

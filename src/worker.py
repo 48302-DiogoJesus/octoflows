@@ -14,7 +14,7 @@ from src.planning.dag_planner import DAGPlanner
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.worker_execution_logic import WorkerExecutionLogic
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
 from src.utils.logger import create_logger
@@ -63,20 +63,20 @@ class Worker(ABC, WorkerExecutionLogic):
                     normalized_execution_time_per_input_byte_ms = 0,
                     update_dependency_counters_time_ms = 0,
                     output_metrics = None, # type: ignore
-                    downstream_invocation_times = None,
+                    total_invocations_count=0,
                     total_invocation_time_ms=0
                 )
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
                 planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
-                    logger.info("SIMPLEDAGPLANNER.HANDLE_INPUTS()")
+                    logger.info("CUSTOMPLANNER.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await self.override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig)
 
-                # Register the size of hardcoded arguments as well
+                # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
                     task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_arg)))
@@ -89,7 +89,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(task.id.get_full_id_in_dag(subdag), f"2) Executing Task...")
                 planner_override_handle_execution = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution) if self.planner else None
                 if planner_override_handle_execution:
-                    logger.info("SIMPLEDAGPLANNER.HANDLE_EXECUTION()")
+                    logger.info("CUSTOMPLANNER.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await planner_override_handle_execution(task, task_dependencies) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_EXECUTION()")
@@ -106,7 +106,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
                 planner_override_handle_output = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
                 if planner_override_handle_output:
-                    logger.info("SIMPLEDAGPLANNER.HANDLE_OUTPUT()")
+                    logger.info("CUSTOMPLANNER.HANDLE_OUTPUT()")
                     output_upload_time_ms = await planner_override_handle_output(task_result, task, subdag, self.intermediate_storage) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_OUTPUT()")
@@ -146,13 +146,13 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
                 planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
                 if planner_override_handle_downstream:
-                    logger.info("SIMPLEDAGPLANNER.HANDLE_DOWNSTREAM()")
-                    continuation_task, downstream_invocation_times, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, task, subdag) # type: ignore
+                    logger.info("CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
+                    continuation_task, total_invocations_count, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, task, subdag) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_DOWNSTREAM()")
-                    continuation_task, downstream_invocation_times, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, task, subdag)
+                    continuation_task, total_invocations_count, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, task, subdag)
                 
-                task_metrics.downstream_invocation_times = downstream_invocation_times
+                task_metrics.total_invocations_count = total_invocations_count
                 task_metrics.total_invocation_time_ms = total_invocation_time_ms
 
                 if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
@@ -170,7 +170,7 @@ class Worker(ABC, WorkerExecutionLogic):
             await self.metrics_storage.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = False): 
+    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -226,8 +226,7 @@ class Worker(ABC, WorkerExecutionLogic):
 class LocalWorker(Worker):
     @dataclass
     class Config(Worker.Config):
-        def create_instance(self) -> "LocalWorker":
-            return LocalWorker(self)
+        def create_instance(self) -> "LocalWorker": return LocalWorker(self)
 
     local_config: Config
 
@@ -239,16 +238,14 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = True):
         await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
     @dataclass
     class Config(Worker.Config):
         docker_gateway_address: str = "http://localhost:5000"
-        
-        def create_instance(self) -> "DockerWorker":
-            return DockerWorker(self)
+        def create_instance(self) -> "DockerWorker": return DockerWorker(self)
 
     docker_config: Config
 
@@ -260,20 +257,20 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.SubDAG, resource_configuration: TaskWorkerResourceConfiguration | None, called_by_worker: bool = True):
+    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        if not resource_configuration: 
-            raise Exception("Resource configuration is required for DockerWorker to delegation!")
+        workerResourcesConfig = subdag.root_node.get_annotation(TaskWorkerResourceConfiguration)
+        if not workerResourcesConfig: raise Exception("Resource configuration is required for DockerWorker to delegation!")
 
         gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {resource_configuration}")
+        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {workerResourcesConfig}")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
-                gateway_address + "/job", 
+                gateway_address + "/job",
                 data=json.dumps({
-                    "resource_configuration": base64.b64encode(cloudpickle.dumps(resource_configuration)).decode('utf-8'),
+                    "resource_configuration": base64.b64encode(cloudpickle.dumps(workerResourcesConfig)).decode('utf-8'),
                     "dag_id": subdag.master_dag_id,
                     "task_id": base64.b64encode(cloudpickle.dumps(subdag.root_node.id)).decode('utf-8'),
                     "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),

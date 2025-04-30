@@ -1,7 +1,6 @@
-- Async Redis is making the workflows take longer? (remove metadata upload parallelization?)
-- Abstract `delegate` function outside of `WorkerExecutionLogic`
-- Don't depend on worker resource config on the generic WorkerExecutionLogic code
-- Run automatic tests again
+- BUG: Each worker must know it's own resource configuration and if a downstream task needs diff. resource config, it should delegate new worker
+
+- Use pubsub for transmitting the final result (tuple: final result and timestamp of finish to allow calculating more accurate makespan from client POV?)
 
 - Think how to implement the `pre-load` optimisation
 - Implement `pre-load` optimization

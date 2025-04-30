@@ -34,7 +34,7 @@ def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"\tExecution Time: {m.execution_time_ms} ms")
     print(f"\tUpdate Dependency Counters Time: {m.update_dependency_counters_time_ms} ms")
     print(f"\tOutput Metrics: {m.output_metrics}")
-    print(f"\tDownstream Invocation Times: {m.downstream_invocation_times}")
+    print(f"\tNr of tDownstream Invocations: {m.total_invocations_count}")
     print(f"\tTotal Invocation Time: {m.total_invocation_time_ms} ms")
 
 def get_all_task_metrics() -> list[tuple[str, TaskMetrics]]:

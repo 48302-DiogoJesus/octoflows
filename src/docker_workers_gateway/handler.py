@@ -10,7 +10,7 @@ import cloudpickle
 from flask import Flask, request, jsonify
 from concurrent.futures import ThreadPoolExecutor
 
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 import src.docker_workers_gateway.container_pool_executor as container_pool_executor
 

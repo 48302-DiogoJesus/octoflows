@@ -9,7 +9,7 @@ from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMet
 from src.storage.storage import Storage
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 class WorkerExecutionLogic():
     @staticmethod
@@ -46,35 +46,19 @@ class WorkerExecutionLogic():
         return output_upload_timer.stop()
 
     @staticmethod
-    async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG) -> tuple[DAGTaskNode, list[TaskInvocationMetrics], float]:
-        from src.planning.dag_planner import SimpleDAGPlanner
+    async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG) -> tuple[DAGTaskNode, int, float]:
         from src.worker import Worker
         _worker: Worker = worker
         continuation_task = downstream_tasks_ready[0] # choose the first task
         tasks_to_delegate = downstream_tasks_ready[1:]
         coroutines = []
         total_invocation_time_timer = Timer()
-        downstream_invocation_times = []
-        for t in tasks_to_delegate:
-            workerResourcesConfig = t.get_annotation(TaskWorkerResourceConfiguration)
-            # ! TODO: don't have a ref. to planner here
-            if not workerResourcesConfig and _worker.planner:
-                casted_planner: SimpleDAGPlanner = _worker.planner # type: ignore
-                if len(casted_planner.config.available_worker_resource_configurations) > 0:
-                    workerResourcesConfig = casted_planner.config.available_worker_resource_configurations[0]
-            else:
-                workerResourcesConfig = None
-                
-            _worker.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t} with resources: {workerResourcesConfig}")
-            delegate_invoke_timer = Timer()
-            coroutines.append(_worker.delegate(
-                subdag.create_subdag(t),
-                resource_configuration=workerResourcesConfig,
-                called_by_worker=True
-            ))
-            downstream_invocation_times.append(TaskInvocationMetrics(task_id=t.id.get_full_id_in_dag(subdag), time_ms=delegate_invoke_timer.stop()))
+        total_invocations_count = len(tasks_to_delegate)
+        for t in tasks_to_delegate:                
+            _worker.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
+            coroutines.append(_worker.delegate(subdag.create_subdag(t), called_by_worker=True))
         
         await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
         total_invocation_time_ms = total_invocation_time_timer.stop()
-        return (continuation_task, downstream_invocation_times, total_invocation_time_ms)
+        return (continuation_task, total_invocations_count, total_invocation_time_ms)

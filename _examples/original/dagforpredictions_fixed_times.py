@@ -7,7 +7,7 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag.dag import FullDAG
 from src.planning.dag_planner import DefaultDAGPlanner, SimpleDAGPlanner
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage

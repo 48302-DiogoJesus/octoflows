@@ -141,7 +141,7 @@ def main():
             'input_count': len(metrics.input_metrics),
             'input_size': sum([m.size_bytes for m in metrics.input_metrics]),
             'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
-            'downstream_calls': len(metrics.downstream_invocation_times) if metrics.downstream_invocation_times else 0
+            'downstream_calls': metrics.total_invocations_count
         })
 
     last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
@@ -368,7 +368,7 @@ def main():
         with col3:
             st.metric("Unique Workers", metrics_df['worker_id'].nunique())
             st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-            st.metric("Total Worker Invocations (excludes initial) ", f"{sum(len(m.downstream_invocation_times) for m in dag_metrics if m.downstream_invocation_times)}") # type: ignore
+            st.metric("Total Worker Invocations (excludes initial) ", f"{sum(metrics_df["downstream_calls"])}") # type: ignore
             st.metric("Total Time Downloading DAG", f"{total_time_downloading_dag_ms:.2f} ms")
         with col4:
             st.metric("Unique Tasks", len(function_groups))

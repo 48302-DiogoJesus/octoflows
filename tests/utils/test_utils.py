@@ -3,7 +3,7 @@ from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.worker import DockerWorker, LocalWorker
-from src.worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
