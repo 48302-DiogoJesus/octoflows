@@ -306,19 +306,19 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
     class Config(DAGPlanner.Config):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
+        def __post_init__(self):
+            """
+            Sort the available_resource_configurations by memory_mb
+            Greatest {memory_mb} first
+            """
+            self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
+
         def create_instance(self) -> "SimpleDAGPlanner":
             return SimpleDAGPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
         self.config = config
-
-    def __post_init__(self):
-        """
-        Sort the available_resource_configurations by memory_mb
-        Greatest {memory_mb} first
-        """
-        self.config.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
     def plan(self, dag, metadata_access: MetadataAccess):
         """

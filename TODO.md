@@ -1,4 +1,4 @@
-- Check #! comments to parallelize simple stuff, then re-test
+=> re-test
 - Implement and test pubsub on async redis separate script (use Claude context)
 
 - Abstract `delegate` function outside of `WorkerExecutionLogic`

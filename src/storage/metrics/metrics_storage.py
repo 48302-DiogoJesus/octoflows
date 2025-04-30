@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import time
 
@@ -82,7 +83,6 @@ class MetricsStorage():
         return cloudpickle.loads(await self.storage.get(key))
     
     async def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
-        #! TODO: parallelize
         return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
@@ -96,9 +96,11 @@ class MetricsStorage():
     async def flush(self):
         start = time.time()
 
-        #! TODO: parallelize upload
-        for key, metrics in self.cached_metrics.items():
-            await self.storage.set(key, cloudpickle.dumps(metrics))
+        set_tasks = [
+            self.storage.set(key, cloudpickle.dumps(metrics))
+            for key, metrics in self.cached_metrics.items()
+        ]
+        if set_tasks: await asyncio.gather(*set_tasks)
         
         end = time.time()
         logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
