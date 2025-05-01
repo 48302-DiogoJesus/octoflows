@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
-from asyncio import Future
 from dataclasses import dataclass
-from types import CoroutineType
-from typing import Any
+from typing import Any, Callable, Union
 
 class Storage(ABC):
     @dataclass
@@ -22,3 +20,11 @@ class Storage(ABC):
     async def atomic_increment_and_get(self, key: str) -> Any: pass
     @abstractmethod
     async def keys(self, pattern: str) -> list: pass
+
+    # PUB/SUB
+    @abstractmethod
+    async def publish(self, channel: str, message: Union[str, bytes]) -> int: pass
+    @abstractmethod
+    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None: pass
+    @abstractmethod
+    async def unsubscribe(self, channel: str) -> None: pass

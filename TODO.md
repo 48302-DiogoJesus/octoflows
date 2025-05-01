@@ -1,4 +1,19 @@
-- Use pubsub for transmitting the final result (tuple: final result and timestamp of finish to allow calculating more accurate makespan from client POV?)
+- Make Storage require the pubsub operations + implement them on the inmemory implementation
+    or separate into: Storage, StorageWithPubSub
+
+- Use pubsub for notifying that the final result is ready
+    Change code on the override_handle_output()
+        ```python
+            # Worker
+            upload to a normal redis key
+            if final_result: upload to pubsub (key: `master_dag_id`)
+        ```
+        ```python
+            # Client
+            sub to pubsub `master_dag_id`
+            when callback is called => get the sinknode key
+        ```
+    (tuple: final result and timestamp of finish to allow calculating more accurate makespan from client POV?)
 
 - Think how to implement the `pre-load` optimisation
 - Implement `pre-load` optimization
