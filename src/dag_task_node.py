@@ -11,6 +11,8 @@ import time
 from typing import Any, Callable, Generic, Type, TypeAlias, TypeVar, Union, get_args, get_origin
 import uuid
 
+from src.dag_task_annotation import TaskAnnotation
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.timer import Timer
 
 R = TypeVar('R')
@@ -41,9 +43,6 @@ class DAGTaskNodeId:
 # class _CachedResultWrapper(Generic[R]):
 #     result: R
 
-@dataclass
-class TaskAnnotation(ABC): pass
-
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
@@ -53,7 +52,8 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
-        self.annotations: list[TaskAnnotation] = []
+        # Initialized with a dummy worker config annotation for local worker
+        self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
         # self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
@@ -195,16 +195,24 @@ class DAGTaskNode(Generic[R]):
 
     def add_annotation(self, annotation: TaskAnnotation):
         for existing in self.annotations:
-            if type(existing) is type(annotation): raise ValueError(f"Annotation of type {type(annotation)} already exists on task {self.id}")
+            if type(existing) is type(annotation): 
+                self.annotations.remove(existing) # replace annotation
+                break
         
         self.annotations.append(annotation)
         return True
 
-    def get_annotation(self, annotation_type: Type[T]) -> T | None:
+    def try_get_annotation(self, annotation_type: Type[T]) -> T | None:
         for annotation in self.annotations:
             if isinstance(annotation, annotation_type):
                 return annotation
         return None
+    
+    def get_annotation(self, annotation_type: Type[T]) -> T:
+        for annotation in self.annotations:
+            if isinstance(annotation, annotation_type):
+                return annotation
+        raise ValueError(f"Mandatory annotation of type {annotation_type} not found on task {self.id}")
 
     def _try_convert_node_func_args_to_ids(self):
         """

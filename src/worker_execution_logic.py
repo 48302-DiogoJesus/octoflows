@@ -46,15 +46,18 @@ class WorkerExecutionLogic():
         return output_upload_timer.stop()
 
     @staticmethod
-    async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG) -> tuple[DAGTaskNode, int, float]:
+    async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG, my_worker_resources: TaskWorkerResourceConfiguration) -> tuple[DAGTaskNode | None, int, float]:
         from src.worker import Worker
         _worker: Worker = worker
-        continuation_task = downstream_tasks_ready[0] # choose the first task
-        tasks_to_delegate = downstream_tasks_ready[1:]
+        tasks_w_matching_resource_tasks = [t for t in downstream_tasks_ready if t.try_get_annotation(TaskWorkerResourceConfiguration) == my_worker_resources]
+        # Pick a task that requires the same resources as this worker
+        continuation_task = tasks_w_matching_resource_tasks[0] if len(tasks_w_matching_resource_tasks) > 0 else None
+        # Delegate all other tasks
+        tasks_to_delegate = downstream_tasks_ready if not continuation_task else [t for t in downstream_tasks_ready if t != continuation_task]
         coroutines = []
         total_invocation_time_timer = Timer()
         total_invocations_count = len(tasks_to_delegate)
-        for t in tasks_to_delegate:                
+        for t in tasks_to_delegate:
             _worker.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
             coroutines.append(_worker.delegate(subdag.create_subdag(t), called_by_worker=True))
         

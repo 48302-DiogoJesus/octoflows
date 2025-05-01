@@ -1,5 +1,3 @@
-- BUG: Each worker must know it's own resource configuration and if a downstream task needs diff. resource config, it should delegate new worker
-
 - Use pubsub for transmitting the final result (tuple: final result and timestamp of finish to allow calculating more accurate makespan from client POV?)
 
 - Think how to implement the `pre-load` optimisation
@@ -22,20 +20,20 @@
 - Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
 - Further separate Worker configs (it's a mess to know which props are required for each worker)
 
-- [PERFORMANCE] Storing the full dag on redis is costly (DAG retrieval time adds up)
-    - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
-    - If below a certain bytes threshold, pass the subDAG in the invocation itself
-    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
-        Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
+- [PERFORMANCE] 
+    - Storing the full dag on redis is costly (DAG retrieval time adds up)
+        - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
+        - If below a certain bytes threshold, pass the subDAG in the invocation itself
+        - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+        - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
+    - Parallelize **dependency grabbing** and **dependency counter updates** (easy, since storage is async now)
+    - Task output doesn't always need to go to intermediate storage
 
-- [NNP] [PERFORMANCE] Make the parallelized **dependency grabbing** and **dependency counter updates** use coroutines + async redis instead of Threads
-    NOTE: I tried it, but redis server was crashing when i used asyncredis library
 - Metrics upload strategy configurable in the `MetricsStorage` class:
     before worker shutdown (all do these)
     after each task
     periodic (X seconds)
     after queue fills up (X queue size)
-
 
 # Evaluation
 - [NNP] Implement WUKONG-specific optimizations

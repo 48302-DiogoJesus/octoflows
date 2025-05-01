@@ -51,10 +51,10 @@ class Worker(ABC, WorkerExecutionLogic):
 
         try:
             while True:
-                workerResourceConfig: TaskWorkerResourceConfiguration | None = task.get_annotation(TaskWorkerResourceConfiguration)
+                self.my_resource_configuration: TaskWorkerResourceConfiguration = task.get_annotation(TaskWorkerResourceConfiguration)
                 task_metrics = TaskMetrics(
                     worker_id = self.worker_id,
-                    worker_resource_configuration=workerResourceConfig,
+                    worker_resource_configuration=self.my_resource_configuration,
                     started_at_timestamp = time.time(),
                     input_metrics = [],
                     hardcoded_input_metrics = [],
@@ -71,10 +71,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
                     logger.info("CUSTOMPLANNER.HANDLE_INPUTS()")
-                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig) # type: ignore
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, task, subdag, self.my_resource_configuration) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_INPUTS()")
-                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await self.override_handle_inputs(self.intermediate_storage, task, subdag, workerResourceConfig)
+                    task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await self.override_handle_inputs(self.intermediate_storage, task, subdag, self.my_resource_configuration)
 
                 # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in task.func_args:
@@ -147,10 +147,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
                 if planner_override_handle_downstream:
                     logger.info("CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
-                    continuation_task, total_invocations_count, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, task, subdag) # type: ignore
+                    continuation_task, total_invocations_count, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, task, subdag, self.my_resource_configuration) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_DOWNSTREAM()")
-                    continuation_task, total_invocations_count, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, task, subdag)
+                    continuation_task, total_invocations_count, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, task, subdag, self.my_resource_configuration)
                 
                 task_metrics.total_invocations_count = total_invocations_count
                 task_metrics.total_invocation_time_ms = total_invocation_time_ms
@@ -159,6 +159,10 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 # Continue with one task in this worker
                 self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
+                if not continuation_task: 
+                    self.log(task.id.get_full_id_in_dag(subdag), f"No continuation task found with the same resource configuration... Shutting down worker...")
+                    if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
+                    break
                 task = continuation_task # type: ignore downstream_task_id)
         except Exception as e:
             self.log(task.id.get_full_id_in_dag(subdag), f"Error: {str(e)}") # type: ignore
@@ -261,16 +265,16 @@ class DockerWorker(Worker):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        workerResourcesConfig = subdag.root_node.get_annotation(TaskWorkerResourceConfiguration)
-        if not workerResourcesConfig: raise Exception("Resource configuration is required for DockerWorker to delegation!")
+        targetWorkerResourcesConfig = subdag.root_node.try_get_annotation(TaskWorkerResourceConfiguration)
+        if not targetWorkerResourcesConfig: raise Exception("Resource configuration is required for DockerWorker to delegation!")
 
         gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {workerResourcesConfig}")
+        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {targetWorkerResourcesConfig}")
         async with aiohttp.ClientSession() as session:
             async with await session.post(
                 gateway_address + "/job",
                 data=json.dumps({
-                    "resource_configuration": base64.b64encode(cloudpickle.dumps(workerResourcesConfig)).decode('utf-8'),
+                    "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
                     "dag_id": subdag.master_dag_id,
                     "task_id": base64.b64encode(cloudpickle.dumps(subdag.root_node.id)).decode('utf-8'),
                     "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),

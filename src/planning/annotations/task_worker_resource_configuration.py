@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
-from src.dag_task_node import TaskAnnotation
-
+from src.dag_task_annotation import TaskAnnotation
 
 @dataclass
 class TaskWorkerResourceConfiguration(TaskAnnotation):
