@@ -24,6 +24,8 @@ import src.storage.storage as storage_module
 
 logger = create_logger(__name__)
 
+TASK_COMPLETION_EVENT_PREFIX = "dag-completion-notification-"
+
 class Worker(ABC, WorkerExecutionLogic):
     @dataclass
     class Config(ABC):
@@ -67,7 +69,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     total_invocation_time_ms=0
                 )
                 #* 1) DOWNLOAD TASK DEPENDENCIES
-                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks: {[tt.id for tt in task.upstream_nodes]}")
+                self.log(task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(task.upstream_nodes)} upstream tasks...")
                 planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
                     logger.info("CUSTOMPLANNER.HANDLE_INPUTS()")
@@ -120,6 +122,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 if task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(task.id.get_full_id_in_dag(subdag), f"Sink task finished. Shutting down worker...")
+                    await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{subdag.master_dag_id}", b"1")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
@@ -143,7 +146,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
-                self.log(task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
+                self.log(task.id.get_full_id_in_dag(subdag), f"5) Handling Task Output...")
                 planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
                 if planner_override_handle_downstream:
                     logger.info("CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
@@ -158,11 +161,12 @@ class Worker(ABC, WorkerExecutionLogic):
                 if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
 
                 # Continue with one task in this worker
-                self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                 if not continuation_task: 
                     self.log(task.id.get_full_id_in_dag(subdag), f"No continuation task found with the same resource configuration... Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
+
+                self.log(task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {continuation_task}")
                 task = continuation_task # type: ignore downstream_task_id)
         except Exception as e:
             self.log(task.id.get_full_id_in_dag(subdag), f"Error: {str(e)}") # type: ignore
@@ -192,19 +196,33 @@ class Worker(ABC, WorkerExecutionLogic):
         return (calculate_data_structure_size(deserialized), deserialized)
 
     @staticmethod
-    async def wait_for_result_of_task(intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, polling_interval_s: float = 0.1):
-        start_time = Timer()
+    async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):
         # Poll Storage for final result. Asynchronous wait
-        task_id = task.id.get_full_id_in_dag(dag)
-        first_iter = True
-        while True:
-            if not first_iter: await asyncio.sleep(polling_interval_s)
-            first_iter = False
-            final_result = await intermediate_storage.get(task_id)
+        channel = f"{TASK_COMPLETION_EVENT_PREFIX}{dag.master_dag_id}"
+        # Use an event to signal when we've received our message
+        message_received = asyncio.Event()
+        result = None
+        start_time = Timer()
+        total_wait_time_ms = 0
+        
+        def callback(msg: dict):
+            nonlocal result, total_wait_time_ms
+            result = msg['data']
+            message_received.set()
+            total_wait_time_ms = start_time.stop()
+        
+        await metadata_storage.subscribe(channel, callback)
+        
+        try:
+            await message_received.wait()
+            final_task_id = task.id.get_full_id_in_dag(dag)
+            final_result = await intermediate_storage.get(final_task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                logger.info(f"Final Result Ready: ({task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {start_time.stop()} ms")
+                logger.info(f"Final Result Ready: ({final_task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {total_wait_time_ms} ms")
                 return final_result
+        finally:
+            await metadata_storage.unsubscribe(channel)
 
     @staticmethod
     def get_method_overridden(

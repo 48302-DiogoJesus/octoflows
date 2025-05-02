@@ -97,10 +97,10 @@ class FullDAG(GenericDAG):
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(
+            wk.metadata_storage,
             wk.intermediate_storage,
             self.sink_node,
-            self,
-            polling_interval_s=0.1
+            self
         )
 
         return res

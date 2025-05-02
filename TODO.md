@@ -1,19 +1,4 @@
-- Make Storage require the pubsub operations + implement them on the inmemory implementation
-    or separate into: Storage, StorageWithPubSub
-
-- Use pubsub for notifying that the final result is ready
-    Change code on the override_handle_output()
-        ```python
-            # Worker
-            upload to a normal redis key
-            if final_result: upload to pubsub (key: `master_dag_id`)
-        ```
-        ```python
-            # Client
-            sub to pubsub `master_dag_id`
-            when callback is called => get the sinknode key
-        ```
-    (tuple: final result and timestamp of finish to allow calculating more accurate makespan from client POV?)
+- Parallelize **dependency grabbing** and **dependency counter updates**
 
 - Think how to implement the `pre-load` optimisation
 - Implement `pre-load` optimization
@@ -23,6 +8,7 @@
 - Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
 - Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.
 - 1 second diff. between `planned time` and `real time`
+- Planning times don't consider cold starts meaning that changing workers is not penalized
 
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
@@ -41,7 +27,6 @@
         - If below a certain bytes threshold, pass the subDAG in the invocation itself
         - Also, DAG size is too big for small code and tasks (35kb for image_transform)
         - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
-    - Parallelize **dependency grabbing** and **dependency counter updates** (easy, since storage is async now)
     - Task output doesn't always need to go to intermediate storage
 
 - Metrics upload strategy configurable in the `MetricsStorage` class:

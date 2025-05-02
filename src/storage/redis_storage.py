@@ -16,8 +16,8 @@ class RedisStorage(storage.Storage):
         password: str
         # Optional parameters
         db: int = 0
-        socket_connect_timeout: int = 5
-        socket_timeout: int = 5
+        socket_connect_timeout = 5
+        socket_timeout = None # required to allow using subscribe (pub/sub)
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -97,6 +97,13 @@ class RedisStorage(storage.Storage):
         conn = await self._get_or_create_connection()
         return await conn.mget(keys)
 
+    async def _get_pubsub(self):
+        """Get or create the PubSub object."""
+        if self._pubsub is None:
+            conn = await self._get_or_create_connection()
+            self._pubsub = conn.pubsub()
+        return self._pubsub
+    
     async def publish(self, channel: str, message: Union[str, bytes]) -> int:
         """
         Publish a message to a channel.
@@ -111,12 +118,6 @@ class RedisStorage(storage.Storage):
         conn = await self._get_or_create_connection()
         return await conn.publish(channel, message)
 
-    async def _get_pubsub(self):
-        """Get or create the PubSub object."""
-        if self._pubsub is None:
-            conn = await self._get_or_create_connection()
-            self._pubsub = conn.pubsub()
-        return self._pubsub
 
     async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:
         """
