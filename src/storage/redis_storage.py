@@ -173,7 +173,7 @@ class RedisStorage(storage.Storage):
                 if message["type"] == "message" and message["channel"].decode() == channel:
                     if decode_responses and isinstance(message["data"], bytes):
                         message["data"] = message["data"].decode("utf-8")
-                    await asyncio.create_task(callback(message))
+                    callback(message)
         except asyncio.CancelledError:
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:

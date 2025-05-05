@@ -1,11 +1,46 @@
-- Parallelize **dependency grabbing** and **dependency counter updates**
+- [REQUIRED_FOR_PRELOAD] Planner should also define the worker_id, not just worker resources? without it we don't guarantee locality + we don't know locality
+    Add `worker_id` field to `TaskWorkerResourceConfiguration` annotation
+    Fix the simulation
+        How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
+            baseline: give best resources to all tasks, then downgrade
+            new/required: give best resources to all tasks
+        Change `_calculate_node_timings_with_custom_resources` to ignore times:
+            upload time if   => all downstream tasks have the same `worker_id` as `this task`
+            download time if => all upstream tasks have the same `worker_id` as `this task`
+                not correct, because can have N inputs, some from the same worker, some from other workers
+                    FIX: change return of `_calculate_input_size` to not merge the input size, but instead group `input_size` per `worker_id`
+        Worker Config Upgrade Changes
+            Simulate for NEW workers of ALL configs
+            Simulate for SAME workers of the upstream tasks
 
-- Think how to implement the `pre-load` optimisation
+    How to USE annotation `worker_id` (worker pov)
+        Delegating
+            Before executing its first task, it finds its own `worker_id`
+            When delegating
+                group the tasks by `worker_id`
+                foreach task in `my_worker_id_group` asyncio.create_task(task)
+                Delegate the rest accordingly
+                    Add support for delegating a **list of subdags**
+                    Add support for workers to **receive and execute a list of subdags** (separate coroutines)
+                    Test it (artificially influence planning)
+    Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
+
+- Think how to implement the `pre-load` optimization
+    - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
+    - When ?: Annotation `pre-load` (means that worker should TRY (listen for pubsub IF NOT ALREADY) to `pre-load` dependencies for ITS future tasks)
+        If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
+    - How ?:
+        Before starting a task, check if the `pre-load` annotation exists. If so, look at the `upstream_tasks` of the `downstream_tasks` and listen for pubsub events
+    - [Optimization] to avoid sending pubsub msgs for every task completion
+        When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
+    
 - Implement `pre-load` optimization
     => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
-
+- Experiment with Output Streaming
+    - BENEFITS
+        - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
+        
 # PLANNING ALGORITHMS
-- Make the SLA configurable by the user (currently it's hardcoded on `dag.py` as "avg")
 - Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.
 - 1 second diff. between `planned time` and `real time`
 - Planning times don't consider cold starts meaning that changing workers is not penalized
@@ -18,7 +53,6 @@
 
 - Remove intermediate results of a dag after complete (sink task is responsible for this)
     redis remove keys that contain <master_dag_id>
-- Parallelize **dependency grabbing** and **dependency counter updates** with Threads, for now
 - Further separate Worker configs (it's a mess to know which props are required for each worker)
 
 - [PERFORMANCE] 

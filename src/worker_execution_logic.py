@@ -4,7 +4,7 @@ from typing import Any
 import cloudpickle
 
 from src.dag import dag
-from src.dag_task_node import DAGTaskNode
+from src.dag_task_node import TASK_COMPLETION_EVENT_PREFIX, DAGTaskNode
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics, TaskInvocationMetrics
 from src.storage.storage import Storage
 from src.utils.timer import Timer
@@ -17,17 +17,33 @@ class WorkerExecutionLogic():
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()
-        for dependency_task in task.upstream_nodes:
+
+        async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
             fotimer = Timer()
             task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
-            _input_metrics.append(TaskInputMetrics(
-                task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
-                time_ms=fotimer.stop(),
-                normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
-            ))
+            loaded_data = cloudpickle.loads(task_output)
+            return (
+                dependency_task.id.get_full_id(),
+                loaded_data,
+                TaskInputMetrics(
+                    task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                    size_bytes=calculate_data_structure_size(loaded_data),
+                    time_ms=fotimer.stop(),
+                    normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
+                )
+            )
+
+        # Concurrently fetch dependencies
+        fetch_coroutines = [_fetch_dependency_data(dependency_task, subdag, intermediate_storage) for dependency_task in task.upstream_nodes]
+        results = await asyncio.gather(*fetch_coroutines)
+
+        # Process results
+        task_dependencies = {}
+        _input_metrics = []
+        for task_id, data, metrics in results:
+            task_dependencies[task_id] = data
+            _input_metrics.append(metrics)
         
         _total_input_download_time_ms = dependency_download_timer.stop()
         return (task_dependencies, _input_metrics, _total_input_download_time_ms)
@@ -39,11 +55,14 @@ class WorkerExecutionLogic():
         return (task_result, exec_timer.stop())
 
     @staticmethod
-    async def override_handle_output(task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage) -> float: 
+    async def override_handle_output(task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
         output_upload_timer = Timer()
         task_result_serialized = cloudpickle.dumps(task_result)
         await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
-        return output_upload_timer.stop()
+        task_result_output_time_ms = output_upload_timer.stop()
+        #! Can be optimized, don't need to always be sending this
+        await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(subdag)}", b"1")
+        return task_result_output_time_ms
 
     @staticmethod
     async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG, my_worker_resources: TaskWorkerResourceConfiguration) -> tuple[DAGTaskNode | None, int, float]:

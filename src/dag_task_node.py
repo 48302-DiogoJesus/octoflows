@@ -21,6 +21,7 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
+TASK_COMPLETION_EVENT_PREFIX = "dag-completion-notification-"
 
 @dataclass
 class DAGTaskNodeId:

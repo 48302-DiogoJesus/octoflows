@@ -24,8 +24,6 @@ import src.storage.storage as storage_module
 
 logger = create_logger(__name__)
 
-TASK_COMPLETION_EVENT_PREFIX = "dag-completion-notification-"
-
 class Worker(ABC, WorkerExecutionLogic):
     @dataclass
     class Config(ABC):
@@ -109,10 +107,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 planner_override_handle_output = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
                 if planner_override_handle_output:
                     logger.info("CUSTOMPLANNER.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await planner_override_handle_output(task_result, task, subdag, self.intermediate_storage) # type: ignore
+                    output_upload_time_ms = await planner_override_handle_output(task_result, task, subdag, self.intermediate_storage, self.metadata_storage) # type: ignore
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await self.override_handle_output(task_result, task, subdag, self.intermediate_storage)
+                    output_upload_time_ms = await self.override_handle_output(task_result, task, subdag, self.intermediate_storage, self.metadata_storage)
 
                 task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),
@@ -122,7 +120,6 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 if task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(task.id.get_full_id_in_dag(subdag), f"Sink task finished. Shutting down worker...")
-                    await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{subdag.master_dag_id}", b"1")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
@@ -198,7 +195,7 @@ class Worker(ABC, WorkerExecutionLogic):
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):
         # Poll Storage for final result. Asynchronous wait
-        channel = f"{TASK_COMPLETION_EVENT_PREFIX}{dag.master_dag_id}"
+        channel = f"{dag_task_node.TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
         # Use an event to signal when we've received our message
         message_received = asyncio.Event()
         result = None
