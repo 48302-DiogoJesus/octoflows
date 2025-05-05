@@ -89,7 +89,9 @@ class DAGPlanner(ABC):
                 unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
-                    grouped_input_sizes[unode_worker_id] += nodes_info[upstream_node_id].output_size
+                    output_size = nodes_info[upstream_node_id].output_size
+                    grouped_input_sizes[unode_worker_id] += output_size
+                    total_input_size += output_size
             else:
                 total_input_size += calculate_data_structure_size(func_arg)
         for func_kwarg_val in node.func_kwargs.values():
@@ -98,7 +100,9 @@ class DAGPlanner(ABC):
                 unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
-                    grouped_input_sizes[unode_worker_id] += nodes_info[upstream_node_id].output_size
+                    output_size = nodes_info[upstream_node_id].output_size
+                    grouped_input_sizes[unode_worker_id] += output_size
+                    total_input_size += output_size
             else:
                 total_input_size += calculate_data_structure_size(func_kwarg_val)
 
