@@ -1,17 +1,18 @@
 - [REQUIRED_FOR_PRELOAD] Planner should also define the worker_id, not just worker resources? without it we don't guarantee locality + we don't know locality
-    Add `worker_id` field to `TaskWorkerResourceConfiguration` annotation
+    [DONE] New optional parameter on worker config. annotation `worker_id`
+    BUG: I/O of some tasks is showing 0-0 on the planning image
     Fix the simulation
-        How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
-            baseline: give best resources to all tasks, then downgrade
-            new/required: give best resources to all tasks
         Change `_calculate_node_timings_with_custom_resources` to ignore times:
-            upload time if   => all downstream tasks have the same `worker_id` as `this task`
-            download time if => all upstream tasks have the same `worker_id` as `this task`
+            [DONE] upload time if   => all downstream tasks have the same `worker_id` as `this task`
+            [DONE] download time if => all upstream tasks have the same `worker_id` as `this task`
                 not correct, because can have N inputs, some from the same worker, some from other workers
                     FIX: change return of `_calculate_input_size` to not merge the input size, but instead group `input_size` per `worker_id`
         Worker Config Upgrade Changes
-            Simulate for NEW workers of ALL configs
-            Simulate for SAME workers of the upstream tasks
+            [DONE] Simulate for NEW workers of ALL configs
+            [DONE] Simulate for SAME workers of the upstream tasks
+        How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
+            baseline: give best resources to all tasks, then downgrade
+            new/required: give best resources to all tasks
 
     How to USE annotation `worker_id` (worker pov)
         Delegating

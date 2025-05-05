@@ -97,6 +97,7 @@ class MetadataAccess:
         """
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
         if len(cached_data) == 0: return None
+        if data_size_bytes == 0: return 0
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
             return self._cached_prediction_data_transfer_times[prediction_key]

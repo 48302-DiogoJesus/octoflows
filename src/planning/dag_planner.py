@@ -1,4 +1,5 @@
 from typing import Any
+import uuid
 import cloudpickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -73,27 +74,35 @@ class DAGPlanner(ABC):
         
         return topo_order
     
-    def _calculate_input_size(self, node, nodes_info: dict[str, PlanningTaskInfo]):
+    def _calculate_input_sizes_per_worker_id(self, node, nodes_info: dict[str, PlanningTaskInfo]) -> tuple[dict[str, int], int]:
         """
-        Calculate the input size for a node based on its predecessors
+        Returns input sizes of upstream_nodes grouped by worker_id
+        Returns total input size
         """
 
-        total_args_len = 0
+        grouped_input_sizes: dict[str, int] = {} # <worker_id, input_size>
+        total_input_size = 0
         # For root nodes, use the size from function args (estimate)
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
-                if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
+                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                if upstream_node_id in nodes_info: 
+                    if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
+                    grouped_input_sizes[unode_worker_id] += nodes_info[upstream_node_id].output_size
             else:
-                total_args_len += calculate_data_structure_size(func_arg)
+                total_input_size += calculate_data_structure_size(func_arg)
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
-                if upstream_node_id in nodes_info: total_args_len += nodes_info[upstream_node_id].output_size
+                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                if upstream_node_id in nodes_info: 
+                    if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
+                    grouped_input_sizes[unode_worker_id] += nodes_info[upstream_node_id].output_size
             else:
-                total_args_len += calculate_data_structure_size(func_kwarg_val)
+                total_input_size += calculate_data_structure_size(func_kwarg_val)
 
-        return total_args_len
+        return (grouped_input_sizes, total_input_size)
     
     def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """
@@ -102,21 +111,29 @@ class DAGPlanner(ABC):
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
-            input_size = self._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
-            assert download_time
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
-            assert exec_time
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
-            assert output_size
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-            assert upload_time
-            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+            worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            (input_size_per_worker, total_input_size) = self._calculate_input_sizes_per_worker_id(node, nodes_info)
+            downloadable_input_size = 0
+            for upstream_worker_id, upstream_node_input_size in input_size_per_worker.items():
+                if upstream_worker_id != worker_id: downloadable_input_size += upstream_node_input_size
+            download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla, allow_cached=True)
+            assert download_time is not None
+            exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
+            assert exec_time is not None
+            output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
+            assert output_size is not None
+            # Won't need to upload since it will be executed on the same worker
+            if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+                upload_time = 0
+            else:
+                upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+            assert upload_time is not None
+            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, total_input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
         self._calculate_path_times(topo_sorted_nodes, nodes_info)
         
         return nodes_info
     
-    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, node_to_resource_config: dict[str,TaskWorkerResourceConfiguration], sla: SLA):
+    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, node_to_resource_config: dict[str, TaskWorkerResourceConfiguration], sla: SLA):
         """
         Calculate timing information for all nodes using custom resource configurations
         """
@@ -124,17 +141,24 @@ class DAGPlanner(ABC):
 
         for node in topo_sorted_nodes:
             node_id = node.id.get_full_id()
+            worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            (input_size_per_worker, total_input_size) = self._calculate_input_sizes_per_worker_id(node, nodes_info)
+            downloadable_input_size = 0
+            for upstream_worker_id, upstream_node_input_size in input_size_per_worker.items():
+                if upstream_worker_id != worker_id: downloadable_input_size += upstream_node_input_size
             resource_config = node_to_resource_config[node_id]
-            input_size = self._calculate_input_size(node, nodes_info)
-            download_time = metadata_access.predict_data_transfer_time('download', input_size, resource_config, sla, allow_cached=True)
-            assert download_time
-            exec_time = metadata_access.predict_execution_time(node.func_name, input_size, resource_config, sla, allow_cached=True)
-            assert exec_time
-            output_size = metadata_access.predict_output_size(node.func_name, input_size, sla, allow_cached=True)
-            assert output_size
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-            assert upload_time
-            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+            download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla, allow_cached=True)
+            assert download_time is not None
+            exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
+            assert exec_time is not None
+            output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
+            assert output_size is not None
+            if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+                upload_time = 0
+            else:
+                upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+            assert upload_time is not None
+            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, total_input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
 
         self._calculate_path_times(topo_sorted_nodes, nodes_info)
 
@@ -185,7 +209,7 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def _visualize_plan(self, dag, nodes_info, node_to_resource_config, critical_path_node_ids):
+    def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], node_to_resource_config, critical_path_node_ids):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -245,6 +269,7 @@ class DAGPlanner(ABC):
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {info.input_size} - {info.output_size} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {info.earliest_start:.2f} - {info.path_completion_time:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: {node.get_annotation(TaskWorkerResourceConfiguration).worker_id[:6]}...</FONT></TD></TR>" \
                     f"</TABLE>>"
             
             # Set node properties
@@ -364,7 +389,16 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         
         # Downgrade resources for nodes NOT on the critical path
         # Start with all nodes using best resources
-        node_to_resource_config = { node.id.get_full_id(): best_resource_config for node in topo_sorted_nodes }
+        node_to_resource_config: dict[str, TaskWorkerResourceConfiguration] = {}
+        for node in topo_sorted_nodes:
+            node_to_resource_config[node.id.get_full_id()] = best_resource_config.clone()
+            if len(node.upstream_nodes) == 0:
+                # Give each root node a unique worker id
+                node_to_resource_config[node.id.get_full_id()].worker_id = uuid.uuid4().hex
+            else:
+                # Use same worker id as its first upstream node
+                node_to_resource_config[node.id.get_full_id()].worker_id = node_to_resource_config[node.upstream_nodes[0].id.get_full_id()].worker_id
+
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         lower_resources_simulation_timer = Timer()
         successful_downgrades = 0
@@ -372,22 +406,27 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         for node in nodes_outside_critical_path:
             node_id = node.id.get_full_id()
             node_downgrade_successful = False
-            # Try each resource config from highest to lowest
+            # Try each resource config from highest to lowest on the same worker or new workers
             for resource_config in sorted_available_worker_resource_configurations:
-                if resource_config == node_to_resource_config[node_id]: continue
-                # Temporarily assign this resource config
                 original_config = node_to_resource_config[node_id]
-                node_to_resource_config[node_id] = resource_config
-                
-                # Recalculate timings with this resource configuration
-                temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
-                _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
+                # Temporarily assign this resource config
+                simulation_resource_config = resource_config.clone()
+                simulation_resource_config.worker_id = original_config.worker_id
+                node_to_resource_config[node_id] = simulation_resource_config
 
-                if new_critical_path_time != critical_path_time:
-                    node_to_resource_config[node_id] = original_config # This config changes the critical path, revert
-                else:
-                    # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
-                    node_downgrade_successful = True
+                for unode in node.upstream_nodes:
+                    simulation_resource_config.worker_id = node_to_resource_config[unode.id.get_full_id()].worker_id
+                        
+                    # Recalculate timings with this resource configuration
+                    temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
+                    _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
+
+                    if new_critical_path_time != critical_path_time:
+                        node_to_resource_config[node_id] = original_config # REVERT: This config changes the critical path
+                    else:
+                        # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
+                        node_downgrade_successful = True
+
             if node_downgrade_successful:
                 successful_downgrades += 1
 
@@ -412,25 +451,4 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
-
-    @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None):
-        task_dependencies: dict[str, Any] = {}
-        _input_metrics: list[TaskInputMetrics] = []
-        dependency_download_timer = Timer()
-        # Dynamic fan-outs
-        for dependency_task in task.upstream_nodes:
-            fotimer = Timer()
-            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            task_dependencies[dependency_task.id.get_full_id()] = cloudpickle.loads(task_output)
-            _input_metrics.append(TaskInputMetrics(
-                task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                size_bytes=calculate_data_structure_size(task_dependencies[dependency_task.id.get_full_id()]),
-                time_ms=fotimer.stop(),
-                normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
-            ))
-        
-        _total_input_download_time_ms = dependency_download_timer.stop()
-        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
+        exit()
