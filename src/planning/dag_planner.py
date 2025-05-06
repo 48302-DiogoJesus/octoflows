@@ -213,13 +213,20 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def validate_plan(self):
+    def validate_plan(self, nodes_info: dict[str, PlanningTaskInfo]):
         """ 
-        TODO
         - Ensure that all tasks have TaskWorkerResourceConfiguration annotation with non-empty worker_id
         - Ensure that equal worker_ids are assigned to tasks with the same resource config
         """
-        pass
+        worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
+        for node_id, info in nodes_info.items():
+            resource_config = info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
+            worker_id = resource_config.worker_id
+            if worker_id == "":
+                raise Exception(f"Task {node_id} has no 'worker_id' assigned")
+            if worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
+                raise Exception(f"Worker {worker_id} has different resource configurations on different tasks")
+            worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
 
     def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], node_to_resource_config, critical_path_node_ids):
         """
@@ -481,4 +488,5 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
+        self.validate_plan(updated_nodes_info)
+        exit()
