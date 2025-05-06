@@ -213,6 +213,14 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
+    def validate_plan(self):
+        """ 
+        TODO
+        - Ensure that all tasks have TaskWorkerResourceConfiguration annotation with non-empty worker_id
+        - Ensure that equal worker_ids are assigned to tasks with the same resource config
+        """
+        pass
+
     def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], node_to_resource_config, critical_path_node_ids):
         """
         Visualize the DAG with task information using Graphviz.
@@ -274,7 +282,6 @@ class DAGPlanner(ABC):
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {info.earliest_start:.2f} - {info.path_completion_time:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: {node.get_annotation(TaskWorkerResourceConfiguration).worker_id[:6]}...</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>ID: {node.id.get_full_id()}...</FONT></TD></TR>" \
                     f"</TABLE>>"
             
             # Set node properties
@@ -363,28 +370,46 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
-        sorted_available_worker_resource_configurations = self.config.available_worker_resource_configurations
-        if len(sorted_available_worker_resource_configurations) == 1:
+        topo_sorted_nodes = self._topological_sort(dag)
+        middle_resource_config = self.config.available_worker_resource_configurations[len(self.config.available_worker_resource_configurations) // 2]
+
+        if len(self.config.available_worker_resource_configurations) == 1:
             # If only one resource config is available, use it for all nodes
-            worker_resources = sorted_available_worker_resource_configurations[0]
-            for _, node in _dag._all_nodes.items(): node.add_annotation(worker_resources)
+            # Assign worker resources and ids
+            for node in topo_sorted_nodes:
+                unique_resources = self.config.available_worker_resource_configurations[0].clone()
+                node.add_annotation(unique_resources)
+                if len(node.upstream_nodes) == 0:
+                    # Give each root node a unique worker id
+                    unique_resources.worker_id = uuid.uuid4().hex
+                else:
+                    # Use same worker id as its first upstream node
+                    unique_resources.worker_id = _dag._all_nodes[node.upstream_nodes[0].id.get_full_id()].get_annotation(TaskWorkerResourceConfiguration).worker_id
             return
 
-        middle_resource_config = sorted_available_worker_resource_configurations[len(sorted_available_worker_resource_configurations) // 2]
         if not metadata_access.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
             # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
-            for _, node in _dag._all_nodes.items(): node.add_annotation(middle_resource_config)
+            # Assign worker resources and ids
+            for node in topo_sorted_nodes: 
+                unique_resources = middle_resource_config.clone()
+                node.add_annotation(unique_resources)
+                if len(node.upstream_nodes) == 0:
+                    # Give each root node a unique worker id
+                    unique_resources.worker_id = uuid.uuid4().hex
+                else:
+                    # Use same worker id as its first upstream node
+                    unique_resources.worker_id = _dag._all_nodes[node.upstream_nodes[0].id.get_full_id()].get_annotation(TaskWorkerResourceConfiguration).worker_id
             return
         
         logger.info(f"Starting DAG Planning Algorithm")
-        best_resource_config = sorted_available_worker_resource_configurations[0]
+        best_resource_config = self.config.available_worker_resource_configurations[0]
         
         algorithm_start_time = Timer()
 
         # Calculate critical path by analyzing execution times for each path
         # First, calculate execution times for each node with best resources
-        topo_sorted_nodes = self._topological_sort(dag)
+        
         # Initial planning with Best Resources for all nodes
         nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
@@ -412,7 +437,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             node_id = node.id.get_full_id()
             node_downgrade_successful = False
             # Try each resource config from highest to lowest on the same worker or new workers
-            for resource_config in sorted_available_worker_resource_configurations:
+            for resource_config in self.config.available_worker_resource_configurations:
                 original_config = node_to_resource_config[node_id]
                 # Temporarily assign this resource config
                 simulation_resource_config = resource_config.clone()

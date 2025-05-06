@@ -9,7 +9,7 @@
         Worker Config Upgrade Changes
             [DONE] Simulate for NEW workers of ALL configs
             [DONE] Simulate for SAME workers of the upstream tasks
-        How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
+        [DONE] How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
             baseline: give best resources to all tasks, then downgrade
             new/required: give best resources to all tasks
 
@@ -19,13 +19,10 @@
             When delegating
                 [DONE] Group the tasks by `worker_id`
                 [DONE] Foreach task in `my_worker_id_group` asyncio.create_task(task)
-                Delegate the rest accordingly
-                    [DONE] Add support for delegating a **list of subdags**
-                    [DONE] Add support for workers to **receive and execute a list of subdags** (separate coroutines)
-    [BUG]: First run (without metadata)
-        Doesn't have a worker id, making it ALL run on the same worker
-    Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
-    Add a separate suite of tests for running on docker workers and asserting that the correct workers execute the tasks
+                [DONE] Add support for delegating a **list of subdags**
+                [DONE] Add support for workers to **receive and execute a list of subdags** (separate coroutines)
+    [TODO] Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
+    [TODO] Add a separate suite of tests for running on docker workers and asserting that the correct workers execute the tasks
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
