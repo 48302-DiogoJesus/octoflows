@@ -39,8 +39,7 @@ class TaskInvocationMetrics:
 
 @dataclass
 class TaskMetrics:
-    worker_id: str
-    worker_resource_configuration: TaskWorkerResourceConfiguration | None
+    worker_resource_configuration: TaskWorkerResourceConfiguration
     started_at_timestamp: float # time at which the task started being processed by a worker
     input_metrics: list[TaskInputMetrics]
     hardcoded_input_metrics: list[TaskHardcodedInputMetrics] # known ahead of time (not "lazy", not DAGTasks)

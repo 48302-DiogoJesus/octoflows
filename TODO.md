@@ -1,6 +1,5 @@
 - [REQUIRED_FOR_PRELOAD] Planner should also define the worker_id, not just worker resources? without it we don't guarantee locality + we don't know locality
     [DONE] New optional parameter on worker config. annotation `worker_id`
-    BUG: I/O of some tasks is showing 0-0 on the planning image
     Fix the simulation
         Change `_calculate_node_timings_with_custom_resources` to ignore times:
             [DONE] upload time if   => all downstream tasks have the same `worker_id` as `this task`
@@ -16,10 +15,10 @@
 
     How to USE annotation `worker_id` (worker pov)
         Delegating
-            Before executing its first task, it finds its own `worker_id`
+            [DONE] Before executing its first task, it finds its own `worker_id`
             When delegating
-                group the tasks by `worker_id`
-                foreach task in `my_worker_id_group` asyncio.create_task(task)
+                Group the tasks by `worker_id`
+                Foreach task in `my_worker_id_group` asyncio.create_task(task)
                 Delegate the rest accordingly
                     Add support for delegating a **list of subdags**
                     Add support for workers to **receive and execute a list of subdags** (separate coroutines)

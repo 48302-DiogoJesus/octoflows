@@ -36,10 +36,8 @@ class Worker(ABC, WorkerExecutionLogic):
         def create_instance(self) -> "Worker": pass
 
     intermediate_storage: storage_module.Storage
-    worker_id: str
 
     def __init__(self, config: Config):
-        self.worker_id = str(uuid.uuid4())
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
@@ -53,7 +51,6 @@ class Worker(ABC, WorkerExecutionLogic):
             while True:
                 self.my_resource_configuration: TaskWorkerResourceConfiguration = task.get_annotation(TaskWorkerResourceConfiguration)
                 task_metrics = TaskMetrics(
-                    worker_id = self.worker_id,
                     worker_resource_configuration=self.my_resource_configuration,
                     started_at_timestamp = time.time(),
                     input_metrics = [],
@@ -175,7 +172,7 @@ class Worker(ABC, WorkerExecutionLogic):
             await self.metrics_storage.flush()
 
     @abstractmethod
-    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = False): 
+    async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """
@@ -240,7 +237,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        logger.info(f"Worker({self.worker_id}) Task({task_id}) | {message}")
+        logger.info(f"Worker({self.my_resource_configuration.worker_id}) Task({task_id}) | {message}")
 
 class LocalWorker(Worker):
     @dataclass
@@ -257,8 +254,9 @@ class LocalWorker(Worker):
        super().__init__(config)
        self.local_config = config
     
-    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = True):
-        await asyncio.create_task(self.start_executing(subdag))
+    async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
+        for subdag in subdags:
+            await asyncio.create_task(self.start_executing(subdag))
 
 class DockerWorker(Worker):
     @dataclass
@@ -276,26 +274,27 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
 
-    async def delegate(self, subdag: dag.SubDAG, called_by_worker: bool = True):
+    async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         '''
-        targetWorkerResourcesConfig = subdag.root_node.try_get_annotation(TaskWorkerResourceConfiguration)
-        if not targetWorkerResourcesConfig: raise Exception("Resource configuration is required for DockerWorker to delegation!")
+        for subdag in subdags:
+            targetWorkerResourcesConfig = subdag.root_node.try_get_annotation(TaskWorkerResourceConfiguration)
+            if not targetWorkerResourcesConfig: raise Exception("Resource configuration is required for DockerWorker to delegation!")
 
-        gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-        self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {targetWorkerResourcesConfig}")
-        async with aiohttp.ClientSession() as session:
-            async with await session.post(
-                gateway_address + "/job",
-                data=json.dumps({
-                    "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
-                    "dag_id": subdag.master_dag_id,
-                    "task_id": base64.b64encode(cloudpickle.dumps(subdag.root_node.id)).decode('utf-8'),
-                    "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
-                }),
-                headers={'Content-Type': 'application/json'}
-            ) as response:
-                if response.status != 202:
-                    text = await response.text()
-                    raise Exception(f"Failed to invoke worker: {text}")
+            gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
+            self.log(subdag.root_node.id.get_full_id_in_dag(subdag), f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {targetWorkerResourcesConfig}")
+            async with aiohttp.ClientSession() as session:
+                async with await session.post(
+                    gateway_address + "/job",
+                    data=json.dumps({
+                        "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
+                        "dag_id": subdag.master_dag_id,
+                        "task_id": base64.b64encode(cloudpickle.dumps(subdag.root_node.id)).decode('utf-8'),
+                        "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
+                    }),
+                    headers={'Content-Type': 'application/json'}
+                ) as response:
+                    if response.status != 202:
+                        text = await response.text()
+                        raise Exception(f"Failed to invoke worker: {text}")
