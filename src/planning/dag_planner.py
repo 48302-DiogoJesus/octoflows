@@ -274,6 +274,7 @@ class DAGPlanner(ABC):
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {info.earliest_start:.2f} - {info.path_completion_time:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: {node.get_annotation(TaskWorkerResourceConfiguration).worker_id[:6]}...</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>ID: {node.id.get_full_id()}...</FONT></TD></TR>" \
                     f"</TABLE>>"
             
             # Set node properties
@@ -455,4 +456,4 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, node_to_resource_config, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, node_to_resource_config, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        exit()
+        # exit()

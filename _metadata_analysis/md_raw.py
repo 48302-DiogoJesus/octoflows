@@ -75,7 +75,7 @@ def get_all_dag_prepare_metrics() -> list[FullDAGPrepareTime]:
 def print_dag_prepare_metrics(dag_prep_metric: FullDAGPrepareTime):
     print(f"> DAG Fetch Time")
     print(f"\t> Download Time: {dag_prep_metric.download_time_ms} ms")
-    print(f"\tDownload Time: {dag_prep_metric.create_subdag_time_ms} ms")
+    print(f"\tDownload Time: {dag_prep_metric.create_subdags_time_ms} ms")
     print(f"\tSize: {dag_prep_metric.size_bytes} bytes")
 
 if __name__ == "__main__":

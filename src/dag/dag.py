@@ -71,7 +71,6 @@ class FullDAG(GenericDAG):
     async def compute(self, config, open_dashboard: bool = False):
         from src.worker import Worker, LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
-        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
 
@@ -92,8 +91,7 @@ class FullDAG(GenericDAG):
             vis.DAGVisualizationDashboard.start(self, _wk_config)
         
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
-        for root_node in self.root_nodes:
-            asyncio.create_task(wk.delegate(self.create_subdag(root_node), called_by_worker=False))
+        asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], called_by_worker=False))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(

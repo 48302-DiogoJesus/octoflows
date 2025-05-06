@@ -17,13 +17,15 @@
         Delegating
             [DONE] Before executing its first task, it finds its own `worker_id`
             When delegating
-                Group the tasks by `worker_id`
-                Foreach task in `my_worker_id_group` asyncio.create_task(task)
+                [DONE] Group the tasks by `worker_id`
+                [DONE] Foreach task in `my_worker_id_group` asyncio.create_task(task)
                 Delegate the rest accordingly
-                    Add support for delegating a **list of subdags**
-                    Add support for workers to **receive and execute a list of subdags** (separate coroutines)
-                    Test it (artificially influence planning)
+                    [DONE] Add support for delegating a **list of subdags**
+                    [DONE] Add support for workers to **receive and execute a list of subdags** (separate coroutines)
+    [BUG]: First run (without metadata)
+        Doesn't have a worker id, making it ALL run on the same worker
     Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
+    Add a separate suite of tests for running on docker workers and asserting that the correct workers execute the tasks
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future

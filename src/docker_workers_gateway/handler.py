@@ -31,7 +31,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, task_id: str):
+def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str]):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -41,7 +41,7 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {task_id}"
+    command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids}"
 
     with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb) as container_id:
         try:
@@ -74,12 +74,12 @@ def handle_job():
         if resource_configuration is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
         dag_id = data.get('dag_id', None)
         if dag_id is None: return jsonify({"error": "'dag_id' field is required"}), 400
-        b64_task_id = data.get('task_id', None)
-        if b64_task_id is None: return jsonify({"error": "'task_id' field is required"}), 400
+        b64_task_ids = data.get('task_ids', None)
+        if b64_task_ids is None: return jsonify({"error": "'task_id' field is required"}), 400
         b64config = data.get('config', None)
         if b64config is None: return jsonify({"error": "'config' field is required"}), 400
 
-        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_id)
+        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids)
         
         return "", 202 # Immediately return 202 Accepted
 

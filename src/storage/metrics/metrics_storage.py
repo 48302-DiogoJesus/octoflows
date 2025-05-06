@@ -12,7 +12,7 @@ logger = create_logger(__name__)
 @dataclass
 class FullDAGPrepareTime:
     download_time_ms: float
-    create_subdag_time_ms: float # time to create a subdag
+    create_subdags_time_ms: float # time to create a subdag
     size_bytes: int
 
 @dataclass
@@ -95,12 +95,15 @@ class MetricsStorage():
     async def flush(self):
         start = time.time()
 
-        set_tasks = [
-            self.storage.set(key, cloudpickle.dumps(metrics))
-            for key, metrics in self.cached_metrics.items()
-        ]
-        if set_tasks: await asyncio.gather(*set_tasks)
+        coroutines = []
+        keys_to_remove = []
+        for key, metrics in self.cached_metrics.items():
+            coroutines.append(self.storage.set(key, cloudpickle.dumps(metrics)))
+            # remove from self.cached_metrics
+            keys_to_remove.append(key)
+
+        if len(coroutines) > 0: await asyncio.gather(*coroutines)
+        for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
         end = time.time()
         logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
-        self.cached_metrics = {}

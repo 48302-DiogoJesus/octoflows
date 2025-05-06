@@ -13,8 +13,10 @@ import cloudpickle
 import pandas as pd
 import plotly.express as px
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
@@ -102,6 +104,7 @@ def main():
     for task_id in dag._all_nodes.keys():
         metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
+        if not metrics_data: raise Exception(f"Could not find metrics for key: {metrics_key}")
         metrics = cloudpickle.loads(metrics_data) # type: ignore
         dag_metrics.append(metrics)
         
@@ -157,7 +160,7 @@ def main():
         total_time_downloading_dag_ms += deserialized.download_time_ms
         dag_prepare_metrics.append({
             "dag_download_time": deserialized.download_time_ms,
-            "create_subdag_time": deserialized.create_subdag_time_ms,
+            "create_subdag_time": deserialized.create_subdags_time_ms,
             "dag_size": deserialized.size_bytes
         })
 
@@ -275,7 +278,7 @@ def main():
                 
                 # Basic task info
                 st.metric("Function", task_node.func_name)
-                st.metric("Worker", metrics.worker_id)
+                st.metric("Worker", task_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:

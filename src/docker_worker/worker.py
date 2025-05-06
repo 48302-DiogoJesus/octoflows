@@ -48,7 +48,7 @@ async def main():
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
         dag_id = str(sys.argv[2])
-        b64_task_id = str(sys.argv[3])
+        b64_task_ids = str(sys.argv[3])
         
         if not isinstance(config, worker.DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
@@ -59,21 +59,26 @@ async def main():
         dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
         dag_download_time_ms = dag_download_time_ms.stop()
 
-        create_subdag_time_ms = Timer()
-        task_id: DAGTaskNodeId = cloudpickle.loads(base64.b64decode(b64_task_id))
-        subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-        create_subdag_time_ms = create_subdag_time_ms.stop()
+        create_subdags_time_ms = Timer()
+        task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
+        execution_coroutines = []
+        for task_id in task_ids:
+            subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
+            # Create executor and start execution
+            execution_coroutines.append(wk.start_executing(subdag))
+        create_subdags_time_ms = create_subdags_time_ms.stop()
+
+        logger.info("[DOCKER_WORKER] Started executing subdags...")
+        await asyncio.gather(*execution_coroutines)
 
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
-                task_id.get_full_id_in_dag(fulldag),
-                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdag_time_ms=create_subdag_time_ms)
+                task_ids[0].get_full_id_in_dag(fulldag),
+                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
             )
+            await wk.metrics_storage.flush()
 
-        # Create executor and start execution
-        logger.info("Start executing subdag")
-        await wk.start_executing(subdag)
-        logger.info("Execution completed successfully")
+        logger.info("[DOCKER_WORKER] Execution completed successfully!")
     finally:
         # Release the lock and clean up
         if platform.system() == "Windows":

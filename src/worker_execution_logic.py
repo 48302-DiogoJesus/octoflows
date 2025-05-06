@@ -1,4 +1,5 @@
 import asyncio
+from itertools import groupby
 from typing import Any
 
 import cloudpickle
@@ -65,22 +66,23 @@ class WorkerExecutionLogic():
         return task_result_output_time_ms
 
     @staticmethod
-    async def override_handle_downstream(worker, downstream_tasks_ready: list[DAGTaskNode], task: DAGTaskNode, subdag: dag.SubDAG, my_worker_resources: TaskWorkerResourceConfiguration) -> tuple[DAGTaskNode | None, int, float]:
+    async def override_handle_downstream(this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: dag.SubDAG) -> tuple[list[DAGTaskNode], int, float]:
         from src.worker import Worker
-        _worker: Worker = worker
-        tasks_w_matching_resource_tasks = [t for t in downstream_tasks_ready if t.try_get_annotation(TaskWorkerResourceConfiguration) == my_worker_resources]
-        # Pick a task that requires the same resources as this worker
-        continuation_task = tasks_w_matching_resource_tasks[0] if len(tasks_w_matching_resource_tasks) > 0 else None
-        # Delegate all other tasks
-        tasks_to_delegate = downstream_tasks_ready if not continuation_task else [t for t in downstream_tasks_ready if t != continuation_task]
+        _this_worker: Worker = this_worker
+        my_continuation_tasks = []
+        other_continuation_tasks: list[DAGTaskNode] = []
         coroutines = []
         total_invocation_time_timer = Timer()
-        total_invocations_count = len(tasks_to_delegate)
-        for t in tasks_to_delegate:
-            _worker.log(task.id.get_full_id_in_dag(subdag), f"Delegating downstream task: {t}")
-            coroutines.append(_worker.delegate(subdag.create_subdag(t), called_by_worker=True))
-        
-        await asyncio.gather(*coroutines) # wait for the delegations to be accepted
+        for task in downstream_tasks_ready:
+            if task.get_annotation(TaskWorkerResourceConfiguration).worker_id == _this_worker.my_resource_configuration.worker_id:
+                my_continuation_tasks.append(task)
+            else:
+                other_continuation_tasks.append(task)
+        total_invocations_count = len(other_continuation_tasks)
+
+        if len(other_continuation_tasks) > 0:
+            coroutines.append(_this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], called_by_worker=True))
+            await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
         total_invocation_time_ms = total_invocation_time_timer.stop()
-        return (continuation_task, total_invocations_count, total_invocation_time_ms)
+        return (my_continuation_tasks, total_invocations_count, total_invocation_time_ms)
