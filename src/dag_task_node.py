@@ -138,6 +138,7 @@ class DAGTaskNode(Generic[R]):
         cloned_node.annotations = copy.copy(self.annotations)
         cloned_node.upstream_nodes = [node.clone(cloned_nodes) for node in self.upstream_nodes]
         cloned_node.downstream_nodes = [node.clone(cloned_nodes) for node in self.downstream_nodes]
+        # cloned_node.cached_result = self.cached_result
 
         # Clone the arguments and keyword arguments
         cloned_node.func_args = []

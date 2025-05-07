@@ -494,4 +494,4 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         self.validate_plan(updated_nodes_info)
-        exit()
+        # exit()

@@ -1,28 +1,9 @@
-- [REQUIRED_FOR_PRELOAD] Planner should also define the worker_id, not just worker resources? without it we don't guarantee locality + we don't know locality
-    [DONE] New optional parameter on worker config. annotation `worker_id`
-    Fix the simulation
-        Change `_calculate_node_timings_with_custom_resources` to ignore times:
-            [DONE] upload time if   => all downstream tasks have the same `worker_id` as `this task`
-            [DONE] download time if => all upstream tasks have the same `worker_id` as `this task`
-                not correct, because can have N inputs, some from the same worker, some from other workers
-                    FIX: change return of `_calculate_input_size` to not merge the input size, but instead group `input_size` per `worker_id`
-        Worker Config Upgrade Changes
-            [DONE] Simulate for NEW workers of ALL configs
-            [DONE] Simulate for SAME workers of the upstream tasks
-        [DONE] How to do the initial/reference simulation (`_calculate_node_timings_with_common_resources`)??
+[TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
+- As soon as worker wakes up, it will subscribe to the completion of all the tasks annotated with its `worker_id`
+- Only exits once all the subscription callbacks are called
 
-    How to USE annotation `worker_id` (worker pov)
-        Delegating
-            [DONE] Before executing its first task, it finds its own `worker_id`
-            When delegating
-                [DONE] Group the tasks by `worker_id`
-                [DONE] Foreach task in `my_worker_id_group` asyncio.create_task(task)
-                [DONE] Add support for delegating a **list of subdags**
-                [DONE] Add support for workers to **receive and execute a list of subdags** (separate coroutines)
-    [TODO] Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
-        BUG: PLan is not giving the same worker ids to sequential tasks that have the same resources
-        [TODO] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-    [TODO] Add a separate suite of tests for running on docker workers and asserting that the correct workers execute the tasks
+[TODO] Use the `worker_id` to determine whether we need to upload/download dependencies to/from storage
+    - use the commented `cached_result: _CachedResultWrapper[R] | None = None` field on DAGTaskNode
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
@@ -58,6 +39,7 @@
     - Storing the full dag on redis is costly (DAG retrieval time adds up)
         - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
         - If below a certain bytes threshold, pass the subDAG in the invocation itself
+            DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
         - Also, DAG size is too big for small code and tasks (35kb for image_transform)
         - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
     - Task output doesn't always need to go to intermediate storage
