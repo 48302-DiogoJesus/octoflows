@@ -20,7 +20,8 @@
                 [DONE] Add support for delegating a **list of subdags**
                 [DONE] Add support for workers to **receive and execute a list of subdags** (separate coroutines)
     [TODO] Add a validation step after planning to ensure that equal `worker_ids` have the same resource configuration
-        BUG: Currently planning is not valid
+        BUG: PLan is not giving the same worker ids to sequential tasks that have the same resources
+        [TODO] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
     [TODO] Add a separate suite of tests for running on docker workers and asserting that the correct workers execute the tasks
 
 - Think how to implement the `pre-load` optimization
