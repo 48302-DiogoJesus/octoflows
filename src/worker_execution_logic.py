@@ -8,9 +8,12 @@ from src.dag import dag
 from src.dag_task_node import TASK_COMPLETION_EVENT_PREFIX, DAGTaskNode
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics, TaskInvocationMetrics
 from src.storage.storage import Storage
+from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+
+logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
@@ -18,6 +21,21 @@ class WorkerExecutionLogic():
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()
+        upstream_tasks_without_cached_results = []
+
+        for task in task.upstream_nodes:
+            if task.cached_result is None:
+                upstream_tasks_without_cached_results.append(task)
+            else:
+                task_dependencies[task.id.get_full_id()] = task.cached_result.result
+                _input_metrics.append(
+                    TaskInputMetrics(
+                        task_id=task.id.get_full_id(),
+                        size_bytes=calculate_data_structure_size(task.cached_result),
+                        time_ms=0,
+                        normalized_time_ms=0
+                    )
+                )
 
         async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
             fotimer = Timer()
@@ -36,12 +54,9 @@ class WorkerExecutionLogic():
             )
 
         # Concurrently fetch dependencies
-        fetch_coroutines = [_fetch_dependency_data(dependency_task, subdag, intermediate_storage) for dependency_task in task.upstream_nodes]
+        fetch_coroutines = [_fetch_dependency_data(dependency_task, subdag, intermediate_storage) for dependency_task in upstream_tasks_without_cached_results]
         results = await asyncio.gather(*fetch_coroutines)
 
-        # Process results
-        task_dependencies = {}
-        _input_metrics = []
         for task_id, data, metrics in results:
             task_dependencies[task_id] = data
             _input_metrics.append(metrics)

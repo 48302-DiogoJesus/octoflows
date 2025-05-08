@@ -94,6 +94,7 @@ class MetricsStorage():
     
     async def flush(self):
         start = time.time()
+        if len(self.cached_metrics) == 0: return
 
         coroutines = []
         keys_to_remove = []

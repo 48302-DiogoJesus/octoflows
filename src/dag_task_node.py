@@ -7,8 +7,7 @@ from functools import wraps
 import inspect
 import subprocess
 import sys
-import time
-from typing import Any, Callable, Generic, Type, TypeAlias, TypeVar, Union, get_args, get_origin
+from typing import Any, Callable, Generic, Type, TypeVar
 import uuid
 
 from src.dag_task_annotation import TaskAnnotation
@@ -21,7 +20,8 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
-TASK_COMPLETION_EVENT_PREFIX = "dag-completion-notification-"
+TASK_COMPLETION_EVENT_PREFIX = "notification-task-completion-"
+TASK_READY_EVENT_PREFIX = "notification-task-ready-"
 
 @dataclass
 class DAGTaskNodeId:
@@ -40,9 +40,9 @@ class DAGTaskNodeId:
         return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
 
 # Needed to distinguish a result=None (if R allows it) from "NO result yet"
-# @dataclass
-# class _CachedResultWrapper(Generic[R]):
-#     result: R
+@dataclass
+class _CachedResultWrapper(Generic[R]):
+    result: R
 
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
@@ -55,7 +55,8 @@ class DAGTaskNode(Generic[R]):
         self.upstream_nodes: list[DAGTaskNode] = []
         # Initialized with a dummy worker config annotation for local worker
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
-        # self.cached_result: _CachedResultWrapper[R] | None = None
+        #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
+        self.cached_result: _CachedResultWrapper[R] | None = None
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
 
@@ -190,7 +191,7 @@ class DAGTaskNode(Generic[R]):
         # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
         res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
-        # self.cached_result = _CachedResultWrapper(res)
+        self.cached_result = _CachedResultWrapper(res)
         return res
 
     T = TypeVar('T', bound='TaskAnnotation')

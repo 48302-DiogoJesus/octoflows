@@ -1,9 +1,21 @@
+[TODO] Use the `worker_id` to determine whether we need to upload/download dependencies to/from storage
+    - possible problem: Collecting input_metrics time doesn't make sense (store .time == 0)
+        Ensure that prediction functions (metadata_acess) won't be influenced
+        Ensure that the `metadata_visualization` script is ready for it
+    - TEST
+- BUG: Normalized execution time is negative (e.g., `Total input size: 32, normalized time: -0.014334564208962064`)
+
 [TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-- As soon as worker wakes up, it will subscribe to the completion of all the tasks annotated with its `worker_id`
+- As soon as worker wakes up, it will subscribe to the completion of a NEW EVENT (`task-ready`, after handle_downstream emit these for the ready_tasks) of all the upstream tasks annotated with its `worker_id`
+    conflicts with pre-load?
+        pre-load subs to individual tasks completion
+        this subs to tasks readiness
 - Only exits once all the subscription callbacks are called
 
-[TODO] Use the `worker_id` to determine whether we need to upload/download dependencies to/from storage
-    - use the commented `cached_result: _CachedResultWrapper[R] | None = None` field on DAGTaskNode
+[OPTIMIZATION]
+TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
+- Publishing TASK_READY events
+- Downloading input from storage
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future

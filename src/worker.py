@@ -100,7 +100,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
                 task_metrics.normalized_execution_time_per_input_byte_ms = task_metrics.execution_time_ms \
                     * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB)  \
-                    / total_input_size if task_metrics.worker_resource_configuration else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
+                    / total_input_size if task_metrics.worker_resource_configuration and total_input_size > 0 else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
@@ -131,7 +131,9 @@ class Worker(ABC, WorkerExecutionLogic):
                     dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
-                    if dependencies_met == downstream_task_total_dependencies: downstream_tasks_ready.append(downstream_task)
+                    if dependencies_met == downstream_task_total_dependencies:
+                        await self.metadata_storage.publish(f"{dag_task_node.TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                        downstream_tasks_ready.append(downstream_task)
                 task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 self.log(current_task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {current_task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in current_task.downstream_nodes]}")
