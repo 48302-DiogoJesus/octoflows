@@ -31,7 +31,7 @@ class WorkerExecutionLogic():
                 _input_metrics.append(
                     TaskInputMetrics(
                         task_id=task.id.get_full_id(),
-                        size_bytes=calculate_data_structure_size(task.cached_result),
+                        size_bytes=calculate_data_structure_size(task.cached_result.result),
                         time_ms=0,
                         normalized_time_ms=0
                     )
@@ -41,6 +41,7 @@ class WorkerExecutionLogic():
             fotimer = Timer()
             task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
             if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+            input_fetch_time = fotimer.stop()
             loaded_data = cloudpickle.loads(task_output)
             return (
                 dependency_task.id.get_full_id(),
@@ -48,8 +49,8 @@ class WorkerExecutionLogic():
                 TaskInputMetrics(
                     task_id=dependency_task.id.get_full_id_in_dag(subdag),
                     size_bytes=calculate_data_structure_size(loaded_data),
-                    time_ms=fotimer.stop(),
-                    normalized_time_ms=fotimer.stop() * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
+                    time_ms=input_fetch_time,
+                    normalized_time_ms=input_fetch_time * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
                 )
             )
 

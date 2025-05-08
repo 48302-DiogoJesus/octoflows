@@ -37,18 +37,17 @@ class MetadataAccess:
             task_id = key.decode('utf-8')
             if self.dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
             # UPLOAD SPEEDS
-            if metrics.output_metrics.normalized_time_ms > 0:
+            if metrics.output_metrics.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
                 self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms)
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics:
-                if input_metric.normalized_time_ms > 0:
+                if input_metric.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
                     self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
 
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
             function_name = self._split_task_id(task_id)[0]
             if metrics.worker_resource_configuration:
-                total_input_size = sum(i.size_bytes for i in metrics.input_metrics) + sum(h.size_bytes for h in metrics.hardcoded_input_metrics)
                 if metrics.normalized_execution_time_per_input_byte_ms == 0: continue
                 if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
                 self.cached_execution_time_per_byte[function_name].append(metrics.normalized_execution_time_per_input_byte_ms)

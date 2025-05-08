@@ -278,7 +278,9 @@ def main():
                 
                 # Basic task info
                 st.metric("Function", task_node.func_name)
-                st.metric("Worker", task_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
+                resource_config = task_node.get_annotation(TaskWorkerResourceConfiguration)
+                st.metric("Worker", resource_config.worker_id)
+                st.metric("Worker Resources", f"{resource_config.cpus} CPUs + {resource_config.memory_mb} MB")
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:
