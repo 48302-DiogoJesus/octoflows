@@ -1,22 +1,19 @@
 import asyncio
 import sys
 import base64
-import time
 import cloudpickle
 import os
 import platform
-
 
 # Define a lock file path
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
 
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.workers.docker_worker import DockerWorker
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNodeId
-import src.worker as worker
-import src.dag.dag as dag
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
@@ -50,10 +47,10 @@ async def main():
         dag_id = str(sys.argv[2])
         b64_task_ids = str(sys.argv[3])
         
-        if not isinstance(config, worker.DockerWorker.Config):
+        if not isinstance(config, DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
         
-        wk = worker.DockerWorker(config)
+        wk = DockerWorker(config)
 
         dag_download_time_ms = Timer()
         dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)

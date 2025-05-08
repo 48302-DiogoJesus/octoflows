@@ -1,11 +1,8 @@
-- BUG: Normalized execution time is negative. Is that correct? (e.g., `Total input size: 32, normalized time: -0.014334564208962064`)
-
 [TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-- As soon as worker wakes up, it will subscribe to the completion of a NEW EVENT (`task-ready`, after handle_downstream emit these for the ready_tasks) of all the upstream tasks annotated with its `worker_id`
-    conflicts with pre-load?
-        pre-load subs to individual tasks completion
-        this subs to tasks readiness
-- Only exits once all the subscription callbacks are called
+- Currently, worker receives a DAG, executes multiple stuff in coroutines and when all coroutines are done, it exits
+- Before thinking about exiting, worker needs to look ahead for tasks that are assigned to it and are not completed yet
+    (DFS at the root nodes of the complete dag)
+- Requires reformulation of the `docker_worker_handler.py`? the same process needs to somehow be able to receive subdags on DIFF. invocations
 
 [OPTIMIZATION]
 TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE

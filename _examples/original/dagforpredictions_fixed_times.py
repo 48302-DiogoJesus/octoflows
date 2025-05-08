@@ -3,16 +3,15 @@ import sys
 import time
 
 # import numpy as np
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.dag.dag import FullDAG
-from src.planning.dag_planner import DefaultDAGPlanner, SimpleDAGPlanner
+from src.workers.docker_worker import DockerWorker
+from src.workers.local_worker import LocalWorker
+from src.planning.dag_planner import SimpleDAGPlanner
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
-from src.worker import DockerWorker, LocalWorker
-from src.dag_task_node import DAGTask, DAGTaskNode
+from src.dag_task_node import DAGTask
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()

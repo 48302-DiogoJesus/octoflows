@@ -69,7 +69,8 @@ class FullDAG(GenericDAG):
         self.master_dag_id = f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.master_dag_structure_hash}" # type: ignore
 
     async def compute(self, config, open_dashboard: bool = False):
-        from src.worker import Worker, LocalWorker
+        from src.workers.worker import Worker
+        from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()

@@ -21,7 +21,6 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 TASK_COMPLETION_EVENT_PREFIX = "notification-task-completion-"
-TASK_READY_EVENT_PREFIX = "notification-task-ready-"
 
 @dataclass
 class DAGTaskNodeId:
@@ -102,7 +101,7 @@ class DAGTaskNode(Generic[R]):
     """ config: worker.Worker.Config """
     def compute(self, config, open_dashboard: bool = False) -> R:
         import src.dag.dag as dag
-        from src.worker import Worker
+        from src.workers.worker import Worker
         _config: Worker.Config = config
         timer = Timer()
         dag_representation = dag.FullDAG(sink_node=self)
@@ -111,7 +110,7 @@ class DAGTaskNode(Generic[R]):
 
     async def compute_async(self, config, open_dashboard: bool = False) -> R:
         import src.dag.dag as dag
-        from src.worker import Worker
+        from src.workers.worker import Worker
         _config: Worker.Config = config
         timer = Timer()
         dag_representation = dag.FullDAG(sink_node=self)
@@ -241,7 +240,7 @@ class DAGTaskNode(Generic[R]):
             else:
                 new_kwargs[key] = value
 
-        self.func_args = tuple(new_args)
+        self.func_args = new_args
         self.func_kwargs = new_kwargs
 
     def __repr__(self):

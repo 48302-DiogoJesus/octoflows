@@ -19,7 +19,7 @@ logger = create_logger(__name__)
 
 class DAGVisualizationDashboard:
     def __init__(self, dag, worker_config):
-        from src import worker
+        from src.workers import worker
         _worker_config: worker.Worker.Config = worker_config
         self.dag = dag
         self.intermediate_storage: storage.Storage = _worker_config.intermediate_storage_config.create_instance()
@@ -63,8 +63,7 @@ class DAGVisualizationDashboard:
 
     def render_graphviz(self):
         """Render the DAG using Graphviz with left-to-right layout"""
-        from src.dag.dag import FullDAG  # avoid circular dependencies
-        self.dag: FullDAG = self.dag
+        self.dag: FullDAG = self.dag # type it without introducing a circular dependency
         
         # Create a new directed graph
         graph = graphviz.Digraph()
@@ -161,7 +160,7 @@ class DAGVisualizationDashboard:
                     queue.append(downstream)
 
 if __name__ == "__main__":
-    from src.worker import Worker
+    from src.workers.worker import Worker
     from src.dag.dag import FullDAG
     import sys
     import base64

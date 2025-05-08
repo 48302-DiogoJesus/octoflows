@@ -83,7 +83,7 @@ class WorkerExecutionLogic():
 
     @staticmethod
     async def override_handle_downstream(this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: dag.SubDAG) -> tuple[list[DAGTaskNode], int, float]:
-        from src.worker import Worker
+        from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         my_continuation_tasks = []
         other_continuation_tasks: list[DAGTaskNode] = []

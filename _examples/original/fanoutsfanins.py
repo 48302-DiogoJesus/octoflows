@@ -1,17 +1,14 @@
 import os
 import sys
 
-import numpy as np
-from dask.array import from_array
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.planning.dag_planner import SimpleDAGPlanner
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.workers.docker_worker import DockerWorker
+from src.workers.local_worker import LocalWorker
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
-from src.worker import DockerWorker, LocalWorker
 from src.dag_task_node import DAGTask
 
 @DAGTask

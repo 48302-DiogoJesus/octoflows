@@ -205,7 +205,7 @@ class ContainerPoolExecutor:
 
         with self.lock:
             # Group containers by resource configuration
-            configurations = {}
+            configurations: dict[str, list[str]] = {}
             for container_id in containers:
                 inspect_output = subprocess.check_output(
                     ["docker", "inspect", "--format", "{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}", container_id],

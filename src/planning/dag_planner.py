@@ -1,22 +1,17 @@
-from typing import Any
 import uuid
-import cloudpickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from graphviz import Digraph
 
 from src import dag_task_node
-from src.dag.dag import SubDAG
 from src.dag_task_node import DAGTaskNode
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.planning.sla import SLA
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics
-from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-from src.worker_execution_logic import WorkerExecutionLogic
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__)
 
@@ -340,7 +335,6 @@ class DAGPlanner(ABC):
                 legend.edges([])
         
         # Save to file
-        _dag: GenericDAG = dag
         output_file_name = f"planned_{_dag.sink_node.func_name}"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
