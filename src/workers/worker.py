@@ -7,6 +7,7 @@ import cloudpickle
 from abc import ABC, abstractmethod
 
 from src.planning.dag_planner import DAGPlanner
+from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -39,9 +40,10 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def start_executing(self, subdag: dag.SubDAG):
+    async def start_executing(self, subdag: dag.SubDAG) -> list[str]:
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
+        tasks_executed_by_this_coroutine = []
 
         try:
             while True:
@@ -89,6 +91,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     logger.info("DEFAULTEXECLOGIC.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await self.override_handle_execution(current_task, task_dependencies)
+                
+                tasks_executed_by_this_coroutine.append(current_task.id.get_full_id())
 
                 task_metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
@@ -128,6 +132,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     self.log(current_task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
                         downstream_tasks_ready.append(downstream_task)
+                        await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                 task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 self.log(current_task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {current_task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in current_task.downstream_nodes]}")
@@ -178,6 +183,8 @@ class Worker(ABC, WorkerExecutionLogic):
         # Wait for my other coroutines executing other tasks
         if len(other_coroutines_i_launched) > 0: await asyncio.gather(*other_coroutines_i_launched)
 
+        return tasks_executed_by_this_coroutine
+
     @abstractmethod
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
         """
@@ -199,7 +206,7 @@ class Worker(ABC, WorkerExecutionLogic):
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):
         # Poll Storage for final result. Asynchronous wait
-        channel = f"{dag_task_node.TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
+        channel = f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
         # Use an event to signal when we've received our message
         message_received = asyncio.Event()
         result = None
@@ -208,7 +215,6 @@ class Worker(ABC, WorkerExecutionLogic):
         
         def callback(msg: dict):
             nonlocal result, total_wait_time_ms
-            result = msg['data']
             message_received.set()
             total_wait_time_ms = start_time.stop()
         

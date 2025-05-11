@@ -20,8 +20,6 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
-TASK_COMPLETION_EVENT_PREFIX = "notification-task-completion-"
-
 @dataclass
 class DAGTaskNodeId:
     function_name: str
@@ -56,6 +54,7 @@ class DAGTaskNode(Generic[R]):
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None
+        self.completed_event: asyncio.Event = asyncio.Event()
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
 
@@ -191,6 +190,7 @@ class DAGTaskNode(Generic[R]):
 
         res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
         self.cached_result = _CachedResultWrapper(res)
+        self.completed_event.set()
         return res
 
     T = TypeVar('T', bound='TaskAnnotation')

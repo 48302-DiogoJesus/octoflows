@@ -1,13 +1,14 @@
 [TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-- Currently, worker receives a DAG, executes multiple stuff in coroutines and when all coroutines are done, it exits
-- Before thinking about exiting, worker needs to look ahead for tasks that are assigned to it and are not completed yet
-    (DFS at the root nodes of the complete dag)
-- Requires reformulation of the `docker_worker_handler.py`? the same process needs to somehow be able to receive subdags on DIFF. invocations
+- [DONE] Initially, worker can look ahead for tasks assigned to it and only exit only all of those are marked as DONE (create empty asyncio events. the completion of a subdag outputs a list of tasks completed. Mark the events DONE for the tasks that are contained in the tasks completed list)
+- Before delegating, if the unode.upstream.any(u => u.worker_id == unode.worker_id) assume that the worker already exists and just emit the READY event, don't call FaaS gateway
+- [SUMUP] Worker Lifecycle
+    first invocation contains N task ids
+    downloads full DAG from storage + start executing tasks
+    when one of the OTHER tasks ahead of the initial tasks assigned to this worker becomes READY, start handling them
+    wait for all the tasks assigned to this worker to complete locally (using asyncio events)
+    metadata flush
 
-[OPTIMIZATION]
-TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
-- Publishing TASK_READY events
-- Downloading input from storage
+- Make locality optional
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
@@ -17,12 +18,18 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
         Before starting a task, check if the `pre-load` annotation exists. If so, look at the `upstream_tasks` of the `downstream_tasks` and listen for pubsub events
     - [Optimization] to avoid sending pubsub msgs for every task completion
         When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
-    
+
+
 - Implement `pre-load` optimization
     => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
-- Experiment with Output Streaming
+- Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
+
+[OPTIMIZATION]
+TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
+- Publishing TASK_READY events
+- Downloading input from storage
         
 # PLANNING ALGORITHMS
 - Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.

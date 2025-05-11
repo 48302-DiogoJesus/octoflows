@@ -10,6 +10,8 @@ LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windo
 
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime
 from src.utils.timer import Timer
@@ -33,7 +35,7 @@ async def main():
             # Linux/Unix-specific file locking
             import fcntl
             lock_file = open(LOCK_FILE, "w")
-            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB) # type: ignore
     except (IOError, BlockingIOError) as e:
         logger.error("Error: Another instance of the script is already running. Exiting.")
         raise e
@@ -58,15 +60,34 @@ async def main():
 
         create_subdags_time_ms = Timer()
         task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
-        execution_coroutines = []
+        
+        # Launch all subdag executions concurrently
+        tasks_assigned_to_this_worker: set[DAGTaskNodeId] = set()
         for task_id in task_ids:
-            subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-            # Create executor and start execution
-            execution_coroutines.append(wk.start_executing(subdag))
+            node = fulldag.get_node_by_id(task_id)
+            subdag = fulldag.create_subdag(node)
+            worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            asyncio.create_task(wk.start_executing(subdag))
+            for otasks in subdag._find_all_tasks_assigned_to_worker_id(worker_id): 
+                tasks_assigned_to_this_worker.add(otasks.id)
+
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
-        logger.info("[DOCKER_WORKER] Started executing subdags...")
-        await asyncio.gather(*execution_coroutines)
+        def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
+            def callback(_: dict):
+                logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
+                subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
+                asyncio.create_task(wk.start_executing(subdag))
+            return callback
+
+        # Wait for the remaining tasks to become ready
+        for tid in tasks_assigned_to_this_worker:
+            if tid in task_ids: continue # don't need to sub to these because we know they are READY
+            asyncio.create_task(wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{tid}", _on_task_ready_callback_builder(tid)))
+
+        # Wait for ALL tasks assigned to this worker to complete
+        completion_events = [fulldag.get_node_by_id(task_id).completed_event for task_id in tasks_assigned_to_this_worker]
+        await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
 
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
@@ -82,7 +103,7 @@ async def main():
             if os.path.exists(LOCK_FILE):
                 os.remove(LOCK_FILE)
         else:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
+            fcntl.flock(lock_file, fcntl.LOCK_UN) # type: ignore
             lock_file.close()
             os.remove(LOCK_FILE)
 
