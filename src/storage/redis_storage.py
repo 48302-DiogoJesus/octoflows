@@ -28,7 +28,7 @@ class RedisStorage(storage.Storage):
         self.redis_config = config
         self._connection: Optional[Redis] = None
         self._pubsub = None
-        self._subscription_tasks: Dict[str, asyncio.Task] = {}
+        self._subscription_tasks: Dict[str, tuple[asyncio.Task, Any]] = {}
         
         # Initialize connection in a non-blocking way
         asyncio.create_task(self._get_or_create_connection(skip_verification=True))
@@ -131,15 +131,18 @@ class RedisStorage(storage.Storage):
         """
         # Cancel existing subscription if any
         if channel in self._subscription_tasks:
-            self._subscription_tasks[channel].cancel()
+            self._subscription_tasks[channel][0].cancel()
             
-        # Create a new subscription
-        pubsub = await self._get_pubsub()
+        # Create a new connection and PubSub instance for this subscription
+        conn = await self._get_or_create_connection()
+        pubsub = conn.pubsub()
         await pubsub.subscribe(channel)
         
         # Start a background task to process messages
-        task = asyncio.create_task(self._message_handler(channel, callback, decode_responses))
-        self._subscription_tasks[channel] = task
+        task = asyncio.create_task(
+            self._message_handler(pubsub, channel, callback, decode_responses)
+        )
+        self._subscription_tasks[channel] = (task, pubsub)
         
         logger.info(f"Subscribed to channel: {channel}")
 
@@ -151,33 +154,49 @@ class RedisStorage(storage.Storage):
             channel: The channel to unsubscribe from
         """
         if channel in self._subscription_tasks:
-            self._subscription_tasks[channel].cancel()
-            del self._subscription_tasks[channel]
-            
-            pubsub = await self._get_pubsub()
+            task, pubsub = self._subscription_tasks[channel]
+            task.cancel()
+            try:
+                await task  # Wait for task to be cancelled
+            except asyncio.CancelledError:
+                pass
             await pubsub.unsubscribe(channel)
+            await pubsub.aclose()
+            del self._subscription_tasks[channel]
             logger.info(f"Unsubscribed from channel: {channel}")
 
-    async def _message_handler(self,  channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:
+    async def _message_handler(
+        self, 
+        pubsub: Any,
+        channel: str, 
+        callback: Callable[[dict], Any], 
+        decode_responses: bool = False
+    ) -> None:
         """
         Background task to handle incoming messages.
         
         Args:
-            channel: The channel or pattern being handled
+            pubsub: The PubSub instance for this subscription
+            channel: The channel being handled
             callback: The callback function to process messages
             decode_responses: Whether to decode message data as UTF-8
         """
-        pubsub = await self._get_pubsub()
         try:
             async for message in pubsub.listen():
                 # Filter messages by type and channel
-                if message["type"] == "message" and message["channel"].decode() == channel:
-                    if decode_responses and isinstance(message["data"], bytes):
-                        message["data"] = message["data"].decode("utf-8")
-                    callback(message)
+                if message["type"] == "message":
+                    channel_name = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
+                    if channel_name == channel:
+                        if decode_responses and isinstance(message["data"], bytes):
+                            message["data"] = message["data"].decode("utf-8")
+                        try:
+                            callback(message)
+                        except Exception as e:
+                            logger.error(f"Error in callback for channel {channel}: {e}")
         except asyncio.CancelledError:
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:
             logger.error(f"Error in message handler for {channel}: {e}")
-            # show stack trace
             traceback.print_exc()
+        finally:
+            await pubsub.aclose()
