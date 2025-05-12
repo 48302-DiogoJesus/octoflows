@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import asyncio
+import traceback
 from typing import Any, Callable, Dict, List, Optional, Union
 from redis.asyncio import Redis
 
@@ -178,3 +179,5 @@ class RedisStorage(storage.Storage):
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:
             logger.error(f"Error in message handler for {channel}: {e}")
+            # show stack trace
+            traceback.print_exc()

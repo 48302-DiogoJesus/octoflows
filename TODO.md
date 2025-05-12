@@ -1,6 +1,7 @@
 - Run on docker multiple times
     docker execution is failing
-        worker doesn't finish, doesn't upload metadata (CONTEXT: for empty worker ids)
+        1 worker doesn't finish, doesn't upload metadata (CONTEXT: for empty worker ids)
+            `ERROR - Error in message handler for notification-task-ready-DAGTaskNodeId(function_name='time_task_expensive', task_id='2c887546-2a2f-46df-8b1d-11d66fa5543f'): readuntil() called while another coroutine is already waiting for incoming data` multiple times
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future

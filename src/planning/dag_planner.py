@@ -545,4 +545,4 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
         self.validate_plan(topo_sorted_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        exit()
+        # exit()

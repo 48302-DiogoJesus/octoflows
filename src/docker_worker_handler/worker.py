@@ -84,7 +84,7 @@ async def main():
         # Wait for the remaining tasks to become ready
         for tid in tasks_assigned_to_this_worker:
             if tid in task_ids: continue # don't need to sub to these because we know they are READY
-            asyncio.create_task(wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{tid}", _on_task_ready_callback_builder(tid)))
+            await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{tid}", _on_task_ready_callback_builder(tid))
 
         # Wait for ALL tasks assigned to this worker to complete
         completion_events = [fulldag.get_node_by_id(task_id).completed_event for task_id in tasks_assigned_to_this_worker]
