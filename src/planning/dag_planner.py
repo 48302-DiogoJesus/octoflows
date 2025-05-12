@@ -1,4 +1,3 @@
-from collections import deque
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -14,7 +13,7 @@ from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
-logger = create_logger(__name__)
+logger = create_logger(__name__, prefix="PLANNING")
 
 class DAGPlanner(ABC):
     @dataclass
@@ -209,21 +208,14 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def validate_plan(self, root_nodes: list[DAGTaskNode]):
+    def validate_plan(self, topo_sorted_nodes: list[DAGTaskNode]):
         """ 
         - Ensure that all tasks have TaskWorkerResourceConfiguration annotation with non-empty worker_id
         - Ensure that equal worker_ids are assigned to tasks with the same resource config
         """
         worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
         worker_id_chain_map: dict[str, int] = {}
-        queue: list[DAGTaskNode] = []
-        visited: set[str] = set()
-        for root_node in root_nodes: queue.append(root_node)
-        while len(queue) > 0:
-            node = queue.pop(0)
-            if node.id.get_full_id() in visited: continue
-            visited.add(node.id.get_full_id())
-            
+        for node in topo_sorted_nodes:
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             worker_id = resource_config.worker_id
 
@@ -236,6 +228,8 @@ class DAGPlanner(ABC):
 
             # Validation 2 => Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id. INSIGHT: Workers can't be idle
             if worker_id not in worker_id_chain_map: worker_id_chain_map[worker_id] = 0
+            if worker_id_chain_map[worker_id] == -1: 
+                raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
 
             usnodes_with_same_worker_id = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
             if len(usnodes_with_same_worker_id) == 0: worker_id_chain_map[worker_id] += 1 # new branch
@@ -246,11 +240,12 @@ class DAGPlanner(ABC):
                 worker_id_chain_map[worker_id] -= 1 # kill 1 branch. it doesnt' continue
             else: # more than 1 downstream node with same worker_id
                 worker_id_chain_map[worker_id] += len(dsnodes_with_same_worker_id) - 1 # create N - 1 new branches
-                
-            queue.extend(node.downstream_nodes)
-        print(worker_id_chain_map)
+            
+            if worker_id_chain_map[worker_id] == 0: worker_id_chain_map[worker_id] = -1 # worker existed and all its branches ended. it should not be seen again!
+        
+        logger.info("Validation Succeeded!")
 
-    def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], critical_path_node_ids: set[str]):
+    def _visualize_plan(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo], critical_path_node_ids: set[str]):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -299,9 +294,10 @@ class DAGPlanner(ABC):
             color_map[config_key] = hex_color
         
         # Add nodes
-        for node_id, info in nodes_info.items():
-            node = info.node_ref
-            resource_config = info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
+        for node in _dag._all_nodes.values():
+            node_id = node.id.get_full_id()
+            node_info = nodes_planning_info[node_id] if node_id in nodes_planning_info else None
+            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             config_key = f"CPU:{resource_config.cpus},Mem:{resource_config.memory_mb}MB"
             
             # Create node label with task name in bold and larger font
@@ -309,8 +305,8 @@ class DAGPlanner(ABC):
             # Added extra <BR/> spacing between lines and smaller font for details
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>I/O: {info.input_size} - {info.output_size} bytes</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>Time: {info.earliest_start:.2f} - {info.path_completion_time:.2f}ms</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.input_size if node_info else 0} - {node_info.output_size if node_info else 0} bytes</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start if node_info else 0:.2f} - {node_info.path_completion_time if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: {node.get_annotation(TaskWorkerResourceConfiguration).worker_id[:6]}...</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: {node.id.get_full_id()[-6:]}...</FONT></TD></TR>" \
@@ -328,8 +324,7 @@ class DAGPlanner(ABC):
                 dot.node(node_id, label=label, style='filled', fillcolor=fillcolor)
         
         # Add edges
-        for node_id, info in nodes_info.items():
-            node = info.node_ref
+        for node_id, node in _dag._all_nodes.items():
             for upstream in node.upstream_nodes:
                 upstream_id = upstream.id.get_full_id()
                 dot.edge(upstream_id, node_id)
@@ -391,9 +386,9 @@ class DummyDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         """
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
-        topo_sorted_nodes = self._topological_sort(dag)
-        # self._visualize_plan(dag, topo_sorted_nodes, set())
-        self.validate_plan(_dag.root_nodes)
+        topo_sorted_nodes = self._topological_sort(_dag)
+        self._visualize_plan(_dag, dict(), set())
+        self.validate_plan(topo_sorted_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
 
@@ -536,11 +531,11 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         logger.info(f"Resource distribution after optimization: {resource_distribution}")
-        logger.info(f"Planning completed in {algorithm_start_time.stop():.3f} ms")
+        logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
-        self.validate_plan(_dag.root_nodes)
+        self.validate_plan(topo_sorted_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
