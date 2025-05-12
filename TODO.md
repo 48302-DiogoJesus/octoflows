@@ -1,14 +1,17 @@
 [TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-- [DONE] Initially, worker can look ahead for tasks assigned to it and only exit only all of those are marked as DONE (create empty asyncio events. the completion of a subdag outputs a list of tasks completed. Mark the events DONE for the tasks that are contained in the tasks completed list)
-- Before delegating, if the unode.upstream.any(u => u.worker_id == unode.worker_id) assume that the worker already exists and just emit the READY event, don't call FaaS gateway
 - [SUMUP] Worker Lifecycle
     first invocation contains N task ids
     downloads full DAG from storage + start executing tasks
     when one of the OTHER tasks ahead of the initial tasks assigned to this worker becomes READY, start handling them
     wait for all the tasks assigned to this worker to complete locally (using asyncio events)
     metadata flush
+- [DONE] Initially, worker can look ahead for tasks assigned to it and only exit only all of those are marked as DONE (create empty asyncio events. the completion of a subdag outputs a list of tasks completed. Mark the events DONE for the tasks that are contained in the tasks completed list)
 
-- Make locality optional
+- [DONE] Before delegating, if the unode.upstream.any(u => u.worker_id == unode.worker_id) assume that the worker already exists and just emit the READY event, don't call FaaS gateway
+requiement ([TODO]: Update dag validation function: there needs to be at least 1 uninterrupted chain of tasks with the same `worker_id`. BASICALLY: A worker can never be idle. Makes the verification above simpler)
+    improvement: use topo_sorted_nodes = self._topological_sort(dag) instead of BFS
+
+- Run them tests
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
@@ -19,12 +22,13 @@
     - [Optimization] to avoid sending pubsub msgs for every task completion
         When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
 
-
 - Implement `pre-load` optimization
     => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 - Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
+
+- Make `worker_id` optional
 
 [OPTIMIZATION]
 TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE

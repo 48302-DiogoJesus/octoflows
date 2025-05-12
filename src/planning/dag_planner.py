@@ -1,3 +1,4 @@
+from collections import deque
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -208,22 +209,48 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def validate_plan(self, nodes_info: dict[str, PlanningTaskInfo]):
+    def validate_plan(self, root_nodes: list[DAGTaskNode]):
         """ 
         - Ensure that all tasks have TaskWorkerResourceConfiguration annotation with non-empty worker_id
         - Ensure that equal worker_ids are assigned to tasks with the same resource config
         """
         worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
-        for node_id, info in nodes_info.items():
-            resource_config = info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
+        worker_id_chain_map: dict[str, int] = {}
+        queue: list[DAGTaskNode] = []
+        visited: set[str] = set()
+        for root_node in root_nodes: queue.append(root_node)
+        while len(queue) > 0:
+            node = queue.pop(0)
+            if node.id.get_full_id() in visited: continue
+            visited.add(node.id.get_full_id())
+            
+            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             worker_id = resource_config.worker_id
+
+            # Validation 1 => Similar Worker IDs have same resources
             if worker_id == "":
-                raise Exception(f"Task {node_id} has no 'worker_id' assigned")
+                raise Exception(f"Task {node.id.get_full_id()} has no 'worker_id' assigned")
             if worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
                 raise Exception(f"Worker {worker_id} has different resource configurations on different tasks")
             worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
 
-    def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], critical_path_node_ids):
+            # Validation 2 => Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id. INSIGHT: Workers can't be idle
+            if worker_id not in worker_id_chain_map: worker_id_chain_map[worker_id] = 0
+
+            usnodes_with_same_worker_id = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
+            if len(usnodes_with_same_worker_id) == 0: worker_id_chain_map[worker_id] += 1 # new branch
+            else: worker_id_chain_map[worker_id] -= len(usnodes_with_same_worker_id) - 1 # fan-in, kill N - 1 branches
+        
+            dsnodes_with_same_worker_id = [n for n in node.downstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
+            if len(dsnodes_with_same_worker_id) == 0:
+                worker_id_chain_map[worker_id] -= 1 # kill 1 branch. it doesnt' continue
+            else: # more than 1 downstream node with same worker_id
+                worker_id_chain_map[worker_id] += len(dsnodes_with_same_worker_id) - 1 # create N - 1 new branches
+                
+            queue.extend(node.downstream_nodes)
+        print(worker_id_chain_map)
+
+    def _visualize_plan(self, dag, nodes_info: dict[str, PlanningTaskInfo], critical_path_node_ids: set[str]):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -341,6 +368,34 @@ class DAGPlanner(ABC):
         print(f"DAG visualization saved to {output_file_name}.png")
         
         return dot
+
+class DummyDAGPlanner(DAGPlanner, WorkerExecutionLogic):
+    @dataclass
+    class Config(DAGPlanner.Config):
+        def create_instance(self) -> "DummyDAGPlanner":
+            return DummyDAGPlanner(self)
+        
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+        self.config = config
+
+    def plan(self, dag, metadata_access: MetadataAccess):
+        """
+        dag: dag.DAG
+
+        This planning algorithm:
+        - Assigns the best resource config to each node in the DAG
+        - Finds the critical path
+        - Simulates downgrading resource configs of tasks outside the critical path without affecting the critical path significantly
+
+        """
+        from src.dag.dag import FullDAG
+        _dag: FullDAG = dag
+        topo_sorted_nodes = self._topological_sort(dag)
+        # self._visualize_plan(dag, topo_sorted_nodes, set())
+        self.validate_plan(_dag.root_nodes)
+        # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
+        exit()
 
 class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
     @dataclass
@@ -486,6 +541,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
+        self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        self.validate_plan(updated_nodes_info)
-        # exit()
+        exit()

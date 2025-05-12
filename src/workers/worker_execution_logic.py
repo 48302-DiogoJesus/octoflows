@@ -93,7 +93,16 @@ class WorkerExecutionLogic():
             if task.get_annotation(TaskWorkerResourceConfiguration).worker_id == _this_worker.my_resource_configuration.worker_id:
                 my_continuation_tasks.append(task)
             else:
-                other_continuation_tasks.append(task)
+                requires_launching_worker = True
+                for dunode in task.upstream_nodes:
+                    if dunode.get_annotation(TaskWorkerResourceConfiguration).worker_id == task.get_annotation(TaskWorkerResourceConfiguration).worker_id:
+                        # => We know that the worker for the downstream task was already launched meaning
+                        #   we don't need to launch a new worker, only send the READY event and the appropriate 
+                        #   worker will handle it
+                        requires_launching_worker = False
+                
+                if requires_launching_worker: other_continuation_tasks.append(task)
+        
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
