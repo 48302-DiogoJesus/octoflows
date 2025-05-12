@@ -1,13 +1,12 @@
 import os
 import sys
 import time
-import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
 from src.storage.redis_storage import RedisStorage
-from src.planning.dag_planner import DummyDAGPlanner, SimpleDAGPlanner
+from src.planning.dag_planner import DummyDAGPlanner
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage

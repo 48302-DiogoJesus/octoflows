@@ -308,8 +308,8 @@ class DAGPlanner(ABC):
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.input_size if node_info else 0} - {node_info.output_size if node_info else 0} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start if node_info else 0:.2f} - {node_info.path_completion_time if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: {node.get_annotation(TaskWorkerResourceConfiguration).worker_id[:6]}...</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>TID: {node.id.get_full_id()[-6:]}...</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{node.get_annotation(TaskWorkerResourceConfiguration).worker_id[-6:]}</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"
             
             # Set node properties
@@ -529,8 +529,15 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             if config_key not in resource_distribution: resource_distribution[config_key] = 0
             resource_distribution[config_key] += 1
             
+        unique_worker_ids = {}
+        for node_id, node in _dag._all_nodes.items():
+            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            if resource_config.worker_id not in unique_worker_ids: unique_worker_ids[resource_config.worker_id] = 0
+            unique_worker_ids[resource_config.worker_id] += 1
+
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         logger.info(f"Resource distribution after optimization: {resource_distribution}")
+        logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
         # DEBUG: Plan Visualization

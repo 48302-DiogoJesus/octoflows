@@ -62,14 +62,15 @@ async def main():
         task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
         
         # Launch all subdag executions concurrently
-        tasks_assigned_to_this_worker: set[DAGTaskNodeId] = set()
+        tasks_assigned_to_this_worker: list[DAGTaskNodeId] = []
         for task_id in task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
             worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
             asyncio.create_task(wk.start_executing(subdag))
             for otasks in subdag._find_all_tasks_assigned_to_worker_id(worker_id): 
-                tasks_assigned_to_this_worker.add(otasks.id)
+                if otasks.id in tasks_assigned_to_this_worker: continue
+                tasks_assigned_to_this_worker.append(otasks.id)
 
         create_subdags_time_ms = create_subdags_time_ms.stop()
 

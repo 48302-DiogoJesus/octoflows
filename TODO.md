@@ -1,17 +1,6 @@
-[TODO_ASK] Before exiting, a worker must look ahead and wait for its assigned tasks to become ready
-- [SUMUP] Worker Lifecycle
-    first invocation contains N task ids
-    downloads full DAG from storage + start executing tasks
-    when one of the OTHER tasks ahead of the initial tasks assigned to this worker becomes READY, start handling them
-    wait for all the tasks assigned to this worker to complete locally (using asyncio events)
-    metadata flush
-- [DONE] Initially, worker can look ahead for tasks assigned to it and only exit only all of those are marked as DONE (create empty asyncio events. the completion of a subdag outputs a list of tasks completed. Mark the events DONE for the tasks that are contained in the tasks completed list)
-
-- [DONE] Before delegating, if the unode.upstream.any(u => u.worker_id == unode.worker_id) assume that the worker already exists and just emit the READY event, don't call FaaS gateway
-requiement ([TODO]: Update dag validation function: there needs to be at least 1 uninterrupted chain of tasks with the same `worker_id`. BASICALLY: A worker can never be idle. Makes the verification above simpler)
-    improvement: use topo_sorted_nodes = self._topological_sort(dag) instead of BFS
-
-- Run them tests
+- Run on docker multiple times
+    docker execution is failing
+        worker doesn't finish, doesn't upload metadata (CONTEXT: for empty worker ids)
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
