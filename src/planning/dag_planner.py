@@ -245,7 +245,7 @@ class DAGPlanner(ABC):
         
         logger.info("Validation Succeeded!")
 
-    def _visualize_plan(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo], critical_path_node_ids: set[str]):
+    def _visualize_plan(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo] = dict(), critical_path_node_ids: set[str] = set()):
         """
         Visualize the DAG with task information using Graphviz.
         
@@ -387,7 +387,7 @@ class DummyDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
         topo_sorted_nodes = self._topological_sort(_dag)
-        self._visualize_plan(_dag, dict(), set())
+        self._visualize_plan(_dag)
         self.validate_plan(topo_sorted_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
@@ -439,6 +439,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 else:
                     # Use same worker id as its first upstream node
                     unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
+            self._visualize_plan(dag)
             return
 
         if not metadata_access.has_required_predictions():
@@ -454,6 +455,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 else:
                     # Use same worker id as its first upstream node
                     unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
+            self._visualize_plan(dag)
             return
         
         logger.info(f"Starting DAG Planning Algorithm")

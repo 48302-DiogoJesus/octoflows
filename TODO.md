@@ -1,6 +1,10 @@
 - Run on docker multiple times
     docker execution is failing
-        N? workers don't finish, doesn't upload metadata
+        what ID is in the container name? worker_id?? can't find it
+        N? workers don't finish, doesn't upload metadata (only happens sometimes)
+        produce planning image for all SIMPLE PLANS
+        understand if they are subbing to the right task readyness
+        understand where it's stuck
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
