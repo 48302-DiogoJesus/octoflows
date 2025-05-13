@@ -1,3 +1,6 @@
+- Validator is calling test workflow invalid when it shouldn't be
+    fix: BFS
+
 - Run on docker multiple times
     docker execution is failing
         what ID is in the container name? worker_id?? can't find it
@@ -5,13 +8,15 @@
         produce planning image for all SIMPLE PLANS
         understand if they are subbing to the right task readyness
         understand where it's stuck
+- Issue:
+    `worker_id` => when we are delegating, how to know if the `worker_id` is already active?
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
     - When ?: Annotation `pre-load` (means that worker should TRY (listen for pubsub IF NOT ALREADY) to `pre-load` dependencies for ITS future tasks)
         If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
     - How ?:
-        Before starting a task, check if the `pre-load` annotation exists. If so, look at the `upstream_tasks` of the `downstream_tasks` and listen for pubsub events
+        Before starting a task, check if the `pre-load` annotation exists. If so, look at the `downstream_tasks.upstream_tasks` and listen for pubsub events
     - [Optimization] to avoid sending pubsub msgs for every task completion
         When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
 

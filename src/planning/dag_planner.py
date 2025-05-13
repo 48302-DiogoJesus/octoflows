@@ -208,40 +208,72 @@ class DAGPlanner(ABC):
         critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
         return critical_path, critical_path_time
     
-    def validate_plan(self, topo_sorted_nodes: list[DAGTaskNode]):
-        """ 
+    def validate_plan(self, root_nodes: list[DAGTaskNode]):
+        """
         - Ensure that all tasks have TaskWorkerResourceConfiguration annotation with non-empty worker_id
         - Ensure that equal worker_ids are assigned to tasks with the same resource config
+        - Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id
         """
         worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
         worker_id_chain_map: dict[str, int] = {}
-        for node in topo_sorted_nodes:
+        visited_nodes = set()
+        
+        # Initialize queue with root nodes
+        queue = []
+        for node in root_nodes:
+            queue.append(node)
+        
+        # BFS traversal
+        while queue:
+            node = queue.pop(0)  # Dequeue the first node
+            
+            # Skip if already visited
+            if node in visited_nodes:
+                continue
+            
+            visited_nodes.add(node)
+            
+            # Add all downstream nodes to the queue
+            for ds_node in node.downstream_nodes:
+                if ds_node not in visited_nodes:
+                    queue.append(ds_node)
+            
+            # Get resource configuration
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             worker_id = resource_config.worker_id
-
+            
             # Validation 1 => Similar Worker IDs have same resources
             if worker_id == "":
                 raise Exception(f"Task {node.id.get_full_id()} has no 'worker_id' assigned")
+            
             if worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
                 raise Exception(f"Worker {worker_id} has different resource configurations on different tasks")
+            
             worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
-
-            # Validation 2 => Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id. INSIGHT: Workers can't be idle
-            if worker_id not in worker_id_chain_map: worker_id_chain_map[worker_id] = 0
-            if worker_id_chain_map[worker_id] == -1: 
+            
+            # Validation 2 => Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id
+            if worker_id not in worker_id_chain_map:
+                worker_id_chain_map[worker_id] = 0
+                
+            if worker_id_chain_map[worker_id] == -1:
                 raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
-
+            
+            # Check upstream nodes with same worker_id
             usnodes_with_same_worker_id = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
-            if len(usnodes_with_same_worker_id) == 0: worker_id_chain_map[worker_id] += 1 # new branch
-            else: worker_id_chain_map[worker_id] -= len(usnodes_with_same_worker_id) - 1 # fan-in, kill N - 1 branches
-        
+            if len(usnodes_with_same_worker_id) == 0:
+                worker_id_chain_map[worker_id] += 1  # new branch
+            else:
+                worker_id_chain_map[worker_id] -= len(usnodes_with_same_worker_id) - 1  # fan-in, kill N - 1 branches
+            
+            # Check downstream nodes with same worker_id
             dsnodes_with_same_worker_id = [n for n in node.downstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
             if len(dsnodes_with_same_worker_id) == 0:
-                worker_id_chain_map[worker_id] -= 1 # kill 1 branch. it doesnt' continue
-            else: # more than 1 downstream node with same worker_id
-                worker_id_chain_map[worker_id] += len(dsnodes_with_same_worker_id) - 1 # create N - 1 new branches
+                worker_id_chain_map[worker_id] -= 1  # kill 1 branch. it doesn't continue
+            else:  # more than 1 downstream node with same worker_id
+                worker_id_chain_map[worker_id] += len(dsnodes_with_same_worker_id) - 1  # create N - 1 new branches
             
-            if worker_id_chain_map[worker_id] == 0: worker_id_chain_map[worker_id] = -1 # worker existed and all its branches ended. it should not be seen again!
+            if worker_id_chain_map[worker_id] == 0:
+                worker_id_chain_map[worker_id] = -1  # worker existed and all its branches ended. it should not be seen again!
         
         logger.info("Validation Succeeded!")
 
@@ -388,7 +420,7 @@ class DummyDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         _dag: FullDAG = dag
         topo_sorted_nodes = self._topological_sort(_dag)
         self._visualize_plan(_dag)
-        self.validate_plan(topo_sorted_nodes)
+        self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()
 
@@ -545,6 +577,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
-        self.validate_plan(topo_sorted_nodes)
+        self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()
