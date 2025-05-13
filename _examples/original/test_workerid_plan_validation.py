@@ -56,7 +56,7 @@ t7.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory_mb=1, worker_id
 wf1 = dummy_task(t6, t7)
 wf1.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory_mb=1, worker_id="C"))
 
-## Workflow 2 (INVALID)
+## Workflow 2 (VALID)
 # t1 = dummy_task(1)
 # t1.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory_mb=1, worker_id="A"))
 
@@ -77,5 +77,4 @@ for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
     result = wf1.compute(config=dockerWorkerConfig)
-    # result = wf2.compute(config=dockerWorkerConfig)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

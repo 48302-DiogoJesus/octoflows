@@ -1,5 +1,13 @@
-- Validator is calling test workflow invalid when it shouldn't be
-    fix: BFS
+- What is the problem?
+    Allowing arbitrary worker_ids to tasks can lead to workers having to wait for the completion of tasks instead of being invoked
+
+- Stricter requirement for now: worker_ids must be in UNBROKEN chains + have a single origin point (node that fans-out to them)
+
+- I think the validator allows branching later on while the other branches haven't been killed 
+    (Issue for knowing if a worker is already active or not?)
+- The validator ensures that the worker_id branches start at the same time. Use algorithm to know if the worker with id = `worker_id` is already active
+
+- When worker spawns, it should check storage (`storage.exists`) because it may spawn late and NOT receive the READY events
 
 - Run on docker multiple times
     docker execution is failing
@@ -20,8 +28,7 @@
     - [Optimization] to avoid sending pubsub msgs for every task completion
         When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
 
-- Implement `pre-load` optimization
-    => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+`pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 - Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently

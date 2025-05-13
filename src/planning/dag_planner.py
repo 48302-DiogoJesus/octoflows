@@ -1,3 +1,4 @@
+
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -215,22 +216,20 @@ class DAGPlanner(ABC):
         - Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id
         """
         worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
-        worker_id_chain_map: dict[str, int] = {}
+        used_worker_ids: set[str] = set()
         visited_nodes = set()
-        
+        # tasks that were already verified
+        worker_id_branches_verification_set: set[str] = set()
+
         # Initialize queue with root nodes
-        queue = []
+        queue: list[DAGTaskNode] = []
         for node in root_nodes:
             queue.append(node)
-        
+
         # BFS traversal
         while queue:
-            node = queue.pop(0)  # Dequeue the first node
-            
-            # Skip if already visited
-            if node in visited_nodes:
-                continue
-            
+            node = queue.pop(0)
+            if node in visited_nodes: continue
             visited_nodes.add(node)
             
             # Add all downstream nodes to the queue
@@ -242,7 +241,7 @@ class DAGPlanner(ABC):
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             worker_id = resource_config.worker_id
             
-            # Validation 1 => Similar Worker IDs have same resources
+            # Validation #1 => Similar Worker IDs have same resources
             if worker_id == "":
                 raise Exception(f"Task {node.id.get_full_id()} has no 'worker_id' assigned")
             
@@ -251,30 +250,25 @@ class DAGPlanner(ABC):
             
             worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
             
-            # Validation 2 => Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id
-            if worker_id not in worker_id_chain_map:
-                worker_id_chain_map[worker_id] = 0
-                
-            if worker_id_chain_map[worker_id] == -1:
-                raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
-            
-            # Check upstream nodes with same worker_id
-            usnodes_with_same_worker_id = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
-            if len(usnodes_with_same_worker_id) == 0:
-                worker_id_chain_map[worker_id] += 1  # new branch
+            # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
+            if node in root_nodes:
+                used_worker_ids.add(node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
             else:
-                worker_id_chain_map[worker_id] -= len(usnodes_with_same_worker_id) - 1  # fan-in, kill N - 1 branches
-            
-            # Check downstream nodes with same worker_id
-            dsnodes_with_same_worker_id = [n for n in node.downstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
-            if len(dsnodes_with_same_worker_id) == 0:
-                worker_id_chain_map[worker_id] -= 1  # kill 1 branch. it doesn't continue
-            else:  # more than 1 downstream node with same worker_id
-                worker_id_chain_map[worker_id] += len(dsnodes_with_same_worker_id) - 1  # create N - 1 new branches
-            
-            if worker_id_chain_map[worker_id] == 0:
-                worker_id_chain_map[worker_id] = -1  # worker existed and all its branches ended. it should not be seen again!
-        
+                dnodes_grouped_by_worker_id: dict[str, list[DAGTaskNode]] = {}
+                for n in node.downstream_nodes:
+                    wid = n.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    if wid not in dnodes_grouped_by_worker_id: dnodes_grouped_by_worker_id[wid] = []
+                    dnodes_grouped_by_worker_id[wid].append(n)
+
+                for dwid, tasks in dnodes_grouped_by_worker_id.items():
+                    for task in tasks:
+                        if task.id.get_full_id() in worker_id_branches_verification_set: continue
+                        upstream_nodes_w_same_wid = [n for n in task.upstream_nodes if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == dwid]
+                        if dwid in used_worker_ids and len(upstream_nodes_w_same_wid) == 0:
+                            raise Exception(f"Worker {dwid} has no uninterrupted branch of tasks. Detected at task: {task.id.get_full_id()}")
+                        worker_id_branches_verification_set.add(task.id.get_full_id())
+                    used_worker_ids.add(dwid)
+                
         logger.info("Validation Succeeded!")
 
     def _visualize_plan(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo] = dict(), critical_path_node_ids: set[str] = set()):
