@@ -78,7 +78,8 @@ class WorkerExecutionLogic():
         await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
         task_result_output_time_ms = output_upload_timer.stop()
         #! Can be optimized, don't need to always be sending this
-        await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(subdag)}", b"1")
+        receivers = await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(subdag)}", b"1")
+        logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
     @staticmethod

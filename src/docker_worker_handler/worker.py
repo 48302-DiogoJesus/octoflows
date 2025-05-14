@@ -108,6 +108,11 @@ async def main():
             logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
             await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
 
+        # Wait for remaining coroutines to finish. Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        if pending:
+            await asyncio.wait(pending, timeout=None)  # Wait indefinitely
+
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
                 immediate_task_ids[0].get_full_id_in_dag(fulldag),
@@ -115,7 +120,7 @@ async def main():
             )
             await wk.metrics_storage.flush()
 
-        logger.info("[DOCKER_WORKER] Execution completed successfully!")
+        logger.info(f"Worker({this_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:
         # Release the lock and clean up
         if platform.system() == "Windows":

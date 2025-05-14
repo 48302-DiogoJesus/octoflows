@@ -1,11 +1,3 @@
-- Test executing simple planning for other workflows (images, etc.)
-    [TODO] TEST DOCKER (2x each)
-        BUG on wordcount:
-            All workers exit without finishing
-                Docker worker events logic bug?
-                Check if the SINK TASK READY event is being emited and received
-    [TODO] TEST LOCAL (2x each)
-
 - Write weekly logs
 
 - Think how to implement the `pre-load` optimization
