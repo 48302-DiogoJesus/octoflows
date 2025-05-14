@@ -107,7 +107,7 @@ if __name__ == "__main__":
     final_word_count = merge_word_counts(word_counts)
 
     start_time = time.time()
-    result = final_word_count.compute(config=localWorkerConfig, open_dashboard=False)
+    result = final_word_count.compute(config=dockerWorkerConfig, open_dashboard=False)
     
     # with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
     #     outfile.write(str(result))

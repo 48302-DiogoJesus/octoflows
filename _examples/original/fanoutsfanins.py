@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.planning.dag_planner import SimpleDAGPlanner
@@ -62,7 +63,7 @@ c4 = c(b2)
 # c4.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "fanoutsfanins"), open_after=True)
 
 print(f"TPLIBS: {c4.third_party_libs}")
-# for i in range(1):
-#     start_time = time.time()
-#     result = c4.compute(config=localWorkerConfig)
-#     print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
+for i in range(1):
+    start_time = time.time()
+    result = c4.compute(config=dockerWorkerConfig)
+    print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
