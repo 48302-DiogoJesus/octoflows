@@ -100,6 +100,7 @@ class WorkerExecutionLogic():
                         #   we don't need to launch a new worker, only send the READY event and the appropriate 
                         #   worker will handle it
                         requires_launching_worker = False
+                        break
                 
                 if requires_launching_worker: other_continuation_tasks.append(task)
         

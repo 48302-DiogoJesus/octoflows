@@ -15,7 +15,7 @@ from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
 from src.storage.metrics.metrics_storage import FullDAGPrepareTime
 from src.utils.timer import Timer
-from src.dag_task_node import DAGTaskNodeId
+from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
@@ -41,6 +41,8 @@ async def main():
         raise e
 
     try:
+        logger.info("[DOCKER_WORKER] Started")
+
         if len(sys.argv) != 4:
             raise Exception("Usage: python script.py <b64_config> <dag_id> <task_id>")
         
@@ -58,41 +60,60 @@ async def main():
         dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
         dag_download_time_ms = dag_download_time_ms.stop()
 
-        create_subdags_time_ms = Timer()
-        task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
+        immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
+        logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         
-        # Launch all subdag executions concurrently
-        tasks_assigned_to_this_worker: list[DAGTaskNodeId] = []
-        for task_id in task_ids:
-            node = fulldag.get_node_by_id(task_id)
-            subdag = fulldag.create_subdag(node)
-            worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
-            asyncio.create_task(wk.start_executing(subdag))
-            for otasks in subdag._find_all_tasks_assigned_to_worker_id(worker_id): 
-                if otasks.id in tasks_assigned_to_this_worker: continue
-                tasks_assigned_to_this_worker.append(otasks.id)
-
-        create_subdags_time_ms = create_subdags_time_ms.stop()
-
+        all_tasks_for_this_worker: list[DAGTaskNode] = []
+        all_dependent_tasks_for_this_worker: list[DAGTaskNode] = []
+        this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
+        _nodes_to_visit = fulldag.root_nodes
+        visited_nodes = set()
+        while _nodes_to_visit:
+            current_node = _nodes_to_visit.pop(0)
+            if current_node.id.get_full_id() in visited_nodes: continue
+            visited_nodes.add(current_node.id.get_full_id())
+            if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
+            for downstream_node in current_node.downstream_nodes:
+                if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
+        
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             def callback(_: dict):
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
                 asyncio.create_task(wk.start_executing(subdag))
             return callback
+        
+        for task in all_tasks_for_this_worker:
+            if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
+            logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()}")
+            if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
+                logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()} | DECLINED")
+                continue
+            logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()} | ACCEPTED (subbed)")
+            await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
+            all_dependent_tasks_for_this_worker.append(task)
 
-        # Wait for the remaining tasks to become ready
-        for tid in tasks_assigned_to_this_worker:
-            if tid in task_ids: continue # don't need to sub to these because we know they are READY
-            await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{tid}", _on_task_ready_callback_builder(tid))
+        create_subdags_time_ms = Timer()
+        direct_task_branches_coroutines = []
+        # Launch direct invocation tasks concurrently
+        for task_id in immediate_task_ids:
+            node = fulldag.get_node_by_id(task_id)
+            subdag = fulldag.create_subdag(node)
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.start_executing(subdag)))
+        create_subdags_time_ms = create_subdags_time_ms.stop()
 
         # Wait for ALL tasks assigned to this worker to complete
-        completion_events = [fulldag.get_node_by_id(task_id).completed_event for task_id in tasks_assigned_to_this_worker]
-        await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
+        if len(all_dependent_tasks_for_this_worker) > 0:
+            completion_events = [task.completed_event for task in all_dependent_tasks_for_this_worker]
+            logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in all_dependent_tasks_for_this_worker]} to complete...")
+            await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
+
+        logger.info(f"All good now waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
+        await asyncio.gather(*direct_task_branches_coroutines)
 
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
-                task_ids[0].get_full_id_in_dag(fulldag),
+                immediate_task_ids[0].get_full_id_in_dag(fulldag),
                 FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
             )
             await wk.metrics_storage.flush()

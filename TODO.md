@@ -1,23 +1,4 @@
-- What is the problem?
-    Allowing arbitrary worker_ids to tasks can lead to workers having to wait for the completion of tasks instead of being invoked
-
-- Stricter requirement for now: worker_ids must be in UNBROKEN chains + have a single origin point (node that fans-out to them)
-
-- I think the validator allows branching later on while the other branches haven't been killed 
-    (Issue for knowing if a worker is already active or not?)
-- The validator ensures that the worker_id branches start at the same time. Use algorithm to know if the worker with id = `worker_id` is already active
-
-- When worker spawns, it should check storage (`storage.exists`) because it may spawn late and NOT receive the READY events
-
-- Run on docker multiple times
-    docker execution is failing
-        what ID is in the container name? worker_id?? can't find it
-        N? workers don't finish, doesn't upload metadata (only happens sometimes)
-        produce planning image for all SIMPLE PLANS
-        understand if they are subbing to the right task readyness
-        understand where it's stuck
-- Issue:
-    `worker_id` => when we are delegating, how to know if the `worker_id` is already active?
+- Plan validation error: Planned dag expensive computations is failing on the last node
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future

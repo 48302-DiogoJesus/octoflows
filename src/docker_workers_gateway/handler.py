@@ -44,7 +44,7 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
     with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb) as container_id:
         try:
-            logger.info(f"[{get_time_formatted()}] {job_id}) EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+            logger.info(f"[{get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
             exit_code = container_pool.execute_command_in_container(container_id, command)
             if exit_code == 0:
                 # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")

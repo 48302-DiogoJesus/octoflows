@@ -8,6 +8,7 @@ import graphviz
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.metadata_access.metadata_access import MetadataAccess
+from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
@@ -34,22 +35,6 @@ class SubDAG(GenericDAG):
         self._all_nodes, self.sink_node = self._find_all_nodes_from_root(self.root_node)
         self.master_dag_structure_hash = master_dag_structure_hash
         self.master_dag_id = master_dag_id
-
-    def _find_all_tasks_assigned_to_worker_id(self, worker_id: str) -> list[dag_task_node.DAGTaskNode]:
-        """ 
-        Finds all tasks that are assigned to the worker that should start executing this subdag (root_node)
-        Note: only goes forward. Doesn't capture upstream tasks for the same worker
-        """
-        matching_nodes: list[dag_task_node.DAGTaskNode] = []
-        nodes_to_visit = [self.root_node]
-        
-        while nodes_to_visit:
-            current_node = nodes_to_visit.pop()
-            current_worker_id = current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
-            if current_worker_id == worker_id: matching_nodes.append(current_node)
-            nodes_to_visit.extend(current_node.downstream_nodes)
-        
-        return matching_nodes
 
     @staticmethod
     def _find_all_nodes_from_root(root_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], dag_task_node.DAGTaskNode]:

@@ -1,6 +1,8 @@
 aiohttp==3.11.13
 cloudpickle==3.1.1
-Flask==3.1.0
+Flask==3.1.1
 graphviz==0.20.3
+numpy==2.2.5
+Pympler==1.1
 redis==5.2.1
-setuptools==76.0.0
+streamlit==1.43.2

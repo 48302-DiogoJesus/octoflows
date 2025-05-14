@@ -51,7 +51,7 @@ class ContainerPoolExecutor:
         """
         with self.lock:
             self.containers[container_id].last_active_time = time.time()
-            
+        
         result = subprocess.run(
             ["docker", "exec", "-i", container_id, "sh"],
             input=command.encode(),

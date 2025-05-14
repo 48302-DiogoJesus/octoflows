@@ -117,6 +117,7 @@ class RedisStorage(storage.Storage):
             Number of clients that received the message
         """
         conn = await self._get_or_create_connection()
+        logger.info(f"Publishing message to channel: {channel}")
         return await conn.publish(channel, message)
 
 

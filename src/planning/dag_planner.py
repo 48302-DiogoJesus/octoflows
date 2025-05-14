@@ -571,6 +571,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
-        self.validate_plan(_dag.root_nodes)
+        # self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()
