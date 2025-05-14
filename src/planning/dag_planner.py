@@ -263,7 +263,7 @@ class DAGPlanner(ABC):
                 for dwid, tasks in dnodes_grouped_by_worker_id.items():
                     for task in tasks:
                         if task.id.get_full_id() in worker_id_branches_verification_set: continue
-                        upstream_nodes_w_same_wid = [n for n in task.upstream_nodes if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == dwid]
+                        upstream_nodes_w_same_wid = [n for n in task.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == dwid]
                         if dwid in used_worker_ids and len(upstream_nodes_w_same_wid) == 0:
                             raise Exception(f"Worker {dwid} has no uninterrupted branch of tasks. Detected at task: {task.id.get_full_id()}")
                         worker_id_branches_verification_set.add(task.id.get_full_id())
@@ -571,6 +571,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # DEBUG: Plan Visualization
         updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
-        # self.validate_plan(_dag.root_nodes)
+        self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()

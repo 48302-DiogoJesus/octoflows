@@ -1,4 +1,5 @@
-- Plan validation error: Planned dag expensive computations is failing on the last node
+- Run automatic tests
+- Test executing simple planning for other workflows (images, etc.)
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
