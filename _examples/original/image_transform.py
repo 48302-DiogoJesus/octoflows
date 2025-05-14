@@ -148,8 +148,8 @@ def main():
     # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
     final_image = final_image.compute(config=dockerWorkerConfig)
 
-    image = Image.open(io.BytesIO(final_image))
-    image.show()
+    # image = Image.open(io.BytesIO(final_image))
+    # image.show()
 
 if __name__ == "__main__":
     # asyncio.run(main())

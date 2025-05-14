@@ -64,13 +64,13 @@ class Worker(ABC, WorkerExecutionLogic):
                 other_coroutines_i_launched = []
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
+                self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
-                    logger.info("CUSTOMPLANNER.HANDLE_INPUTS()")
+                    self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, current_task, subdag, self.my_resource_configuration) # type: ignore
                 else:
-                    logger.info("DEFAULTEXECLOGIC.HANDLE_INPUTS()")
+                    self.log(self.my_resource_configuration.worker_id, "DEFAULTEXECLOGIC.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await self.override_handle_inputs(self.intermediate_storage, current_task, subdag, self.my_resource_configuration)
 
                 # METADATA: Register the size of hardcoded arguments as well
@@ -83,13 +83,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_kwarg)))
                 
                 #* 2) EXECUTE TASK
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"2) Executing Task...")
+                self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 planner_override_handle_execution = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution) if self.planner else None
                 if planner_override_handle_execution:
-                    logger.info("CUSTOMPLANNER.HANDLE_EXECUTION()")
+                    self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await planner_override_handle_execution(current_task, task_dependencies) # type: ignore
                 else:
-                    logger.info("DEFAULTEXECLOGIC.HANDLE_EXECUTION()")
+                    self.log(self.my_resource_configuration.worker_id, "DEFAULTEXECLOGIC.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await self.override_handle_execution(current_task, task_dependencies)
                 
                 tasks_executed_by_this_coroutine.append(current_task.id.get_full_id())
@@ -102,13 +102,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     / total_input_size if task_metrics.worker_resource_configuration and total_input_size > 0 else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"3) Handling Task Output...")
+                self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 planner_override_handle_output = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
                 if planner_override_handle_output:
-                    logger.info("CUSTOMPLANNER.HANDLE_OUTPUT()")
+                    self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_OUTPUT()")
                     output_upload_time_ms = await planner_override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage) # type: ignore
                 else:
-                    logger.info("DEFAULTEXECLOGIC.HANDLE_OUTPUT()")
+                    self.log(self.my_resource_configuration.worker_id, "DEFAULTEXECLOGIC.HANDLE_OUTPUT()")
                     output_upload_time_ms = await self.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage)
 
                 task_metrics.output_metrics = TaskOutputMetrics(
@@ -118,7 +118,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 )
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
-                    self.log(current_task.id.get_full_id_in_dag(subdag), f"Sink task finished. Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(current_task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
@@ -129,28 +129,28 @@ class Worker(ABC, WorkerExecutionLogic):
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
                     dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                    self.log(current_task.id.get_full_id_in_dag(subdag), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
+                    self.log(current_task.id.get_full_id(), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         downstream_tasks_ready.append(downstream_task)
                 task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"4) Handle Fan-Out {current_task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in current_task.downstream_nodes]}")
+                self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out {current_task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in current_task.downstream_nodes]}")
 
                 if len(downstream_tasks_ready) == 0:
-                    self.log(current_task.id.get_full_id_in_dag(subdag), f"No ready downstream tasks found. Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(current_task.id.get_full_id_in_dag(subdag), task_metrics)
                     break # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"5) Handling Task Output...")
+                self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
                 if planner_override_handle_downstream:
-                    logger.info("CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
+                    self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, subdag) # type: ignore
                 else:
-                    logger.info("DEFAULTEXECLOGIC.HANDLE_DOWNSTREAM()")
+                    self.log(self.my_resource_configuration.worker_id, "DEFAULTEXECLOGIC.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await self.override_handle_downstream(self, downstream_tasks_ready, subdag)
                 
                 task_metrics.total_invocations_count = total_invocations_count
@@ -160,11 +160,11 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
-                    self.log(current_task.id.get_full_id_in_dag(subdag), f"No continuation task found with the same resource configuration... Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"No continuation task found with the same resource configuration... Shutting down worker...")
                     if self.metrics_storage: self.metrics_storage.store_task_metrics(current_task.id.get_full_id_in_dag(subdag), task_metrics)
                     break
 
-                self.log(current_task.id.get_full_id_in_dag(subdag), f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
+                self.log(current_task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
                 current_task = my_continuation_tasks[0]
                 if len(my_continuation_tasks) > 1:
                     my_other_tasks = my_continuation_tasks[1:]
@@ -172,11 +172,11 @@ class Worker(ABC, WorkerExecutionLogic):
                     for t in my_other_tasks: 
                         other_coroutines_i_launched.append(asyncio.create_task(self.start_executing(subdag.create_subdag(t))))
         except Exception as e:
-            self.log(current_task.id.get_full_id_in_dag(subdag), f"Error: {str(e)}") # type: ignore
+            self.log(current_task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
             raise e
 
         # Cleanup
-        self.log(current_task.id.get_full_id_in_dag(subdag), f"Worker shut down!")
+        self.log(current_task.id.get_full_id(), f"Worker shut down!")
         if self.metrics_storage:
             await self.metrics_storage.flush()
 

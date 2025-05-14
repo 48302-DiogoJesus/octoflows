@@ -64,7 +64,6 @@ async def main():
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         
         all_tasks_for_this_worker: list[DAGTaskNode] = []
-        all_dependent_tasks_for_this_worker: list[DAGTaskNode] = []
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
         _nodes_to_visit = fulldag.root_nodes
         visited_nodes = set()
@@ -85,13 +84,10 @@ async def main():
         
         for task in all_tasks_for_this_worker:
             if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
-            logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()}")
             if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
-                logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()} | DECLINED")
                 continue
-            logger.info(f"Worker: {this_worker_id} | Assigned Task ?: {task.id.get_full_id()} | ACCEPTED (subbed)")
             await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
-            all_dependent_tasks_for_this_worker.append(task)
+            # all_dependent_tasks_for_this_worker.append(task)
 
         create_subdags_time_ms = Timer()
         direct_task_branches_coroutines = []
@@ -102,14 +98,15 @@ async def main():
             direct_task_branches_coroutines.append(asyncio.create_task(wk.start_executing(subdag)))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
-        # Wait for ALL tasks assigned to this worker to complete
-        if len(all_dependent_tasks_for_this_worker) > 0:
-            completion_events = [task.completed_event for task in all_dependent_tasks_for_this_worker]
-            logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in all_dependent_tasks_for_this_worker]} to complete...")
-            await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
-
-        logger.info(f"All good now waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
+        logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
         await asyncio.gather(*direct_task_branches_coroutines)
+
+        # Wait for ALL tasks assigned to this worker to complete
+        remaining_tasks_for_this_worker = [task for task in all_tasks_for_this_worker if not task.completed_event.is_set()]
+        if len(remaining_tasks_for_this_worker) > 0:
+            completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
+            logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
+            await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
 
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
