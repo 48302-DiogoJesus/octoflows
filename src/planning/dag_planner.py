@@ -542,7 +542,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                     node.add_annotation(original_config) # REVERT: This config changes the critical path
                 else:
                     # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
-                    node_downgrade_successful = True
+                    if original_config.memory_mb != simulation_resource_config.memory_mb and original_config.cpus != simulation_resource_config.cpus:
+                        node_downgrade_successful = True
 
             if node_downgrade_successful:
                 successful_downgrades += 1

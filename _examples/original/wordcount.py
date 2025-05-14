@@ -96,7 +96,8 @@ def hash_dict(d):
 if __name__ == "__main__":
     INPUT_FILE = os.path.join("..", "_inputs", "shakespeare.txt")
     OUTPUT_FILE = os.path.join("..", "_outputs", "word_frequencies.txt")
-    CHUNK_SIZE = 10_000
+    # CHUNK_SIZE = 10_000
+    CHUNK_SIZE = 100_000
 
     # ! Not part of the workflow (not a DAGTask, as the number of chunks is dynamic)
     text_chunks = read_and_chunk_text(INPUT_FILE, CHUNK_SIZE)

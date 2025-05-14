@@ -1,5 +1,12 @@
-- Run automatic tests
 - Test executing simple planning for other workflows (images, etc.)
+    [TODO] TEST DOCKER (2x each)
+        BUG on image_transform.py: 
+            prints "Downgraded resources for 5 nodes out of 10 nodes outside the critical path in 14.806 ms"
+            but final distribution is the same resources
+            CAUSE ?: 
+            re-try
+        BUG on fanoutsfanins.py: all workers exit but no final result
+    [TODO] TEST LOCAL (2x each)
 
 - Think how to implement the `pre-load` optimization
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
@@ -14,6 +21,9 @@
 - Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
+
+- Simplify logs (too confusing)
+    dont show dag_id on tasks
 
 - Make `worker_id` optional
 

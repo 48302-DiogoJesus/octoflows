@@ -34,16 +34,6 @@ class ContainerPoolExecutor:
         self.cleanup_thread.start()
         self._remove_all_containers()
 
-    @contextmanager
-    def wait_for_container(self, cpus: float, memory: int):
-        container_id = self._wait_for_container(cpus=cpus, memory=memory)
-        try:
-            yield container_id
-        finally:
-            with self.lock:
-                self.containers[container_id].is_busy = False
-                self.condition.notify_all()
-
     def execute_command_in_container(self, container_id, command):
         """
         Executes a command in the specified container and returns the exit code.
@@ -51,6 +41,7 @@ class ContainerPoolExecutor:
         """
         with self.lock:
             self.containers[container_id].last_active_time = time.time()
+            self.containers[container_id].is_busy = True
         
         result = subprocess.run(
             ["docker", "exec", "-i", container_id, "sh"],
@@ -58,6 +49,8 @@ class ContainerPoolExecutor:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        with self.lock:
+            self.containers[container_id].is_busy = False
         print(f"Exit Code: {result.returncode}")
         print("STDOUT:")
         print(result.stdout.decode().strip() if result.stdout else "(No output)")
@@ -136,7 +129,7 @@ class ContainerPoolExecutor:
         except subprocess.CalledProcessError as e:
             logger.error(f"Error removing container {container_id}: {e}")
             
-    def _wait_for_container(self, cpus: float, memory: int) -> str:
+    def wait_for_container(self, cpus: float, memory: int) -> str:
         """
         Wait for a container with the specified resources to become available,
         mark it as busy, and return its ID.

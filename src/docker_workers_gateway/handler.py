@@ -42,17 +42,17 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids}"
 
-    with container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb) as container_id:
-        try:
-            logger.info(f"[{get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
-            exit_code = container_pool.execute_command_in_container(container_id, command)
-            if exit_code == 0:
-                # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
-                return
-            else:
-                logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
-        except Exception as e:
-            logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
+    container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+    try:
+        logger.info(f"[{get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+        exit_code = container_pool.execute_command_in_container(container_id, command)
+        if exit_code == 0:
+            # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
+            return
+        else:
+            logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
+    except Exception as e:
+        logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
 
 
 @app.route('/job', methods=['POST', 'GET'])

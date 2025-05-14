@@ -71,12 +71,12 @@ class MetadataAccess:
             None if no data is available
         """
         if input_size < 0: raise ValueError("Input size cannot be negative")
-        if function_name not in self.cached_io_ratios: return None
+        if function_name not in self.cached_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
         prediction_key = f"{function_name}-{input_size}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
         function_io_ratios = self.cached_io_ratios[function_name]
-        if len(function_io_ratios) == 0: return None
+        if len(function_io_ratios) == 0: raise ValueError(f"No data available for function {function_name}")
 
         if sla == "avg":
             ratio = np.mean(function_io_ratios)
@@ -95,7 +95,7 @@ class MetadataAccess:
             None if no data is available
         """
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
-        if len(cached_data) == 0: return None
+        if len(cached_data) == 0: raise ValueError(f"No data available for {type}")
         if data_size_bytes == 0: return 0
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
@@ -107,7 +107,7 @@ class MetadataAccess:
                 raise ValueError("SLA must be between 0 and 100")
             normalized_speed_bytes_per_ms = np.percentile(cached_data, 100 - sla.value)
         
-        if normalized_speed_bytes_per_ms <= 0: return None
+        if normalized_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
         
         res = (data_size_bytes / normalized_speed_bytes_per_ms) * (BASELINE_MEMORY_MB / resource_config.memory_mb) 
         self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
@@ -134,9 +134,9 @@ class MetadataAccess:
             None if no data is available
         """
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
-        if function_name not in self.cached_execution_time_per_byte: return None
+        if function_name not in self.cached_execution_time_per_byte: raise ValueError(f"Function {function_name} not found in metadata")
         normalized_ms_per_byte_for_function = self.cached_execution_time_per_byte[function_name]
-        if len(normalized_ms_per_byte_for_function) == 0: return None
+        if len(normalized_ms_per_byte_for_function) == 0: raise ValueError(f"No data available for function {function_name}")
 
         prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_execution_times: 
@@ -149,7 +149,7 @@ class MetadataAccess:
                 raise ValueError("SLA must be between 0 and 100")
             normalized_ms_per_byte = np.percentile(normalized_ms_per_byte_for_function, 100 - sla.value)
         
-        if normalized_ms_per_byte <= 0: return None
+        if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
         
         res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb)
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
