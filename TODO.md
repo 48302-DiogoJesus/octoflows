@@ -1,17 +1,20 @@
 - PreLoad Annotation
-    overrides `WEL.on_worker_ready(...)` (called at the end of worker.__init__())
-        - Look for tasks **assigned to it** + that have `PreLoad` annotation
-        for each task:
-            - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
-            - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
+    [DONE] overrides `WEL.on_worker_ready(...)` (called for all fulldag annotations at the end of worker.__init__())
+        - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
+        - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
         **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
     overrides `WEL.override_handle_inputs(...)`:
         - if `pre-loading` is already happening for an input task (asyncioevent on the annotation itself):
             Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
     
+    [DONE] How will the `worker` call the `on_worker_ready()` overrides of the annotations?
+        go through all the tasks annotations and execute their `on_worker_ready()`
+        check if overriden as before
+
     How will the `worker` call the overriden stuff of the annotations?
         task can have N annotations, each implementing `overrides`
         find the first task that `OVERRIDES` the given stage
+        check if overriden as before
 
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level

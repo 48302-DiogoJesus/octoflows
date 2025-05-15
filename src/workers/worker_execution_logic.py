@@ -1,6 +1,5 @@
 import asyncio
 from typing import Any
-
 import cloudpickle
 
 from src.dag import dag
@@ -16,6 +15,10 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
+    @staticmethod
+    async def override_on_worker_ready(intermediate_storage: Storage, task: DAGTaskNode, dag: dag.FullDAG, this_worker_id: str):
+        pass
+
     @staticmethod
     async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
         task_dependencies: dict[str, Any] = {}

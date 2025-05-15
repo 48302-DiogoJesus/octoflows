@@ -120,14 +120,13 @@ class RedisStorage(storage.Storage):
         logger.info(f"Publishing message to channel: {channel}")
         return await conn.publish(channel, message)
 
-
     async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:
         """
         Subscribe to a channel and process messages with a callback.
         
         Args:
             channel: The channel to subscribe to
-            callback: A function that will be called with each message
+            callback: A function that will be called with each message (can be sync or async)
             decode_responses: Whether to decode the message payload as UTF-8
         """
         # Cancel existing subscription if any
@@ -179,7 +178,7 @@ class RedisStorage(storage.Storage):
         Args:
             pubsub: The PubSub instance for this subscription
             channel: The channel being handled
-            callback: The callback function to process messages
+            callback: The callback function to process messages (can be sync or async)
             decode_responses: Whether to decode message data as UTF-8
         """
         try:
@@ -191,7 +190,10 @@ class RedisStorage(storage.Storage):
                         if decode_responses and isinstance(message["data"], bytes):
                             message["data"] = message["data"].decode("utf-8")
                         try:
-                            callback(message)
+                            if asyncio.iscoroutinefunction(callback):
+                                await callback(message)
+                            else:
+                                callback(message)
                         except Exception as e:
                             logger.error(f"Error in callback for channel {channel}: {e}")
         except asyncio.CancelledError:

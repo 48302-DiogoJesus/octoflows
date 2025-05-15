@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from src.planning.dag_planner import DAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.utils.timer import Timer
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size, get_method_overridden
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
@@ -65,7 +65,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
-                planner_override_handle_inputs = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
+                planner_override_handle_inputs = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs) if self.planner else None
                 if planner_override_handle_inputs:
                     self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await planner_override_handle_inputs(self.intermediate_storage, current_task, subdag, self.my_resource_configuration) # type: ignore
@@ -84,7 +84,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
-                planner_override_handle_execution = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution) if self.planner else None
+                planner_override_handle_execution = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution) if self.planner else None
                 if planner_override_handle_execution:
                     self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await planner_override_handle_execution(current_task, task_dependencies) # type: ignore
@@ -103,7 +103,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
-                planner_override_handle_output = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
+                planner_override_handle_output = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output) if self.planner else None
                 if planner_override_handle_output:
                     self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_OUTPUT()")
                     output_upload_time_ms = await planner_override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage) # type: ignore
@@ -145,7 +145,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
-                planner_override_handle_downstream = self.get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
+                planner_override_handle_downstream = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream) if self.planner else None
                 if planner_override_handle_downstream:
                     self.log(self.my_resource_configuration.worker_id, "CUSTOMPLANNER.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await planner_override_handle_downstream(self, downstream_tasks_ready, subdag) # type: ignore
@@ -231,22 +231,6 @@ class Worker(ABC, WorkerExecutionLogic):
         finally:
             await metadata_storage.unsubscribe(channel)
 
-    @staticmethod
-    def get_method_overridden(
-        planner_class: type, 
-        base_method: Callable,
-    ) -> Optional[Callable]:
-        # Get the planner's method (without invoking descriptors)
-        planner_method = inspect.getattr_static(planner_class, base_method.__name__, None)
-        if planner_method is None: return None
-
-        # Unwrap staticmethod if needed
-        base_func = base_method.__func__ if isinstance(base_method, staticmethod) else base_method
-        planner_func = planner_method.__func__ if isinstance(planner_method, staticmethod) else planner_method
-        
-        # Return the callable method if it's actually overridden
-        if planner_func.__code__ != base_func.__code__: return planner_method
-        return None
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""

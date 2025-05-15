@@ -5,6 +5,10 @@ import cloudpickle
 import os
 import platform
 
+from src.dag_task_annotation import TaskAnnotation
+from src.utils.utils import get_method_overridden
+from src.workers.worker_execution_logic import WorkerExecutionLogic
+
 # Define a lock file path
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
 
@@ -71,7 +75,17 @@ async def main():
             current_node = _nodes_to_visit.pop(0)
             if current_node.id.get_full_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_full_id())
+
+            # Execute on_worker_ready for each annotation
+            for annotation in current_node.annotations:
+                on_worker_ready_overriden = get_method_overridden(annotation.__class__, WorkerExecutionLogic.override_on_worker_ready)
+                if on_worker_ready_overriden: 
+                    await on_worker_ready_overriden(wk.intermediate_storage, current_node, fulldag, this_worker_id)
+                else: 
+                    await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, current_node, fulldag, this_worker_id)
+
             if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
+            
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
