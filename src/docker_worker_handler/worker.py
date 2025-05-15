@@ -64,14 +64,14 @@ async def main():
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         
         all_tasks_for_this_worker: list[DAGTaskNode] = []
-        this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+        this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
         _nodes_to_visit = fulldag.root_nodes
         visited_nodes = set()
         while _nodes_to_visit:
             current_node = _nodes_to_visit.pop(0)
             if current_node.id.get_full_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_full_id())
-            if current_node.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
+            if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
@@ -84,7 +84,7 @@ async def main():
         
         for task in all_tasks_for_this_worker:
             if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
-            if all(n.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
+            if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
                 continue
             await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
             # all_dependent_tasks_for_this_worker.append(task)

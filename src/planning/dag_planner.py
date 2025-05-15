@@ -34,17 +34,6 @@ class DAGPlanner(ABC):
         earliest_start: float
         path_completion_time: float
 
-    ### ANNOTATIONS ###
-    @dataclass
-    class TaskWorkerResourceConfiguration(TaskAnnotation):
-        """ MANDATORY annotation that doesn't conflict with other annotations """
-        cpus: float
-        memory_mb: int
-        worker_id: str = ""
-
-        def clone(self):
-            return DAGPlanner.TaskWorkerResourceConfiguration(self.cpus, self.memory_mb, self.worker_id)
-
     @abstractmethod
     def plan(self, dag, metadata_access: MetadataAccess):
         """
@@ -90,7 +79,7 @@ class DAGPlanner(ABC):
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
-                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
                     output_size = nodes_info[upstream_node_id].output_size
@@ -101,7 +90,7 @@ class DAGPlanner(ABC):
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
-                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     if unode_worker_id not in grouped_input_sizes: grouped_input_sizes[unode_worker_id] = 0
                     output_size = nodes_info[upstream_node_id].output_size

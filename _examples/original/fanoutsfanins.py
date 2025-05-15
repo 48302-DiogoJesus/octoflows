@@ -42,9 +42,9 @@ dockerWorkerConfig = DockerWorker.Config(
     planner_config=SimpleDAGPlanner.Config(
         sla="avg",
         available_worker_resource_configurations=[
-            DAGPlanner.TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-            DAGPlanner.TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-            DAGPlanner.TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
         ],
     )
 )

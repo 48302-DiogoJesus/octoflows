@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import uuid
 
-from src.planning.dag_planner import DAGPlanner
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.dag_planner import DAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
@@ -13,7 +13,7 @@ logger = create_logger(__name__, prefix="PLANNING")
 class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
     @dataclass
     class Config(DAGPlanner.Config):
-        available_worker_resource_configurations: list[DAGPlanner.TaskWorkerResourceConfiguration]
+        available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
         def __post_init__(self):
             """
@@ -56,7 +56,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
                     # Use same worker id as its first upstream node
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
             self._visualize_plan(dag)
             return
 
@@ -72,7 +72,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
                     # Use same worker id as its first upstream node
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
             self._visualize_plan(dag)
             return
         
@@ -93,7 +93,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 resource_config.worker_id = uuid.uuid4().hex
             else:
                 # Use same worker id as its first upstream node
-                resource_config.worker_id = node.upstream_nodes[0].get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
         # Initial planning with Best Resources for all nodes
         nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
@@ -111,16 +111,16 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             node_downgrade_successful = False
             # Try each resource config from highest to lowest on the same worker or new workers
             for resource_config in self.config.available_worker_resource_configurations:
-                original_config = node.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration)
+                original_config = node.get_annotation(TaskWorkerResourceConfiguration)
                 # if resource_config.cpus == original_config.cpus and resource_config.memory_mb == original_config.memory_mb: continue
                 # Temporarily assign this resource config
                 simulation_resource_config = resource_config.clone()
                 simulation_resource_config.worker_id = ""
 
                 for unode in node.upstream_nodes:
-                    unode_resources = unode.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration)
+                    unode_resources = unode.get_annotation(TaskWorkerResourceConfiguration)
                     if unode_resources.cpus == simulation_resource_config.cpus and unode_resources.memory_mb == simulation_resource_config.memory_mb: 
-                        simulation_resource_config.worker_id = unode.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id
+                        simulation_resource_config.worker_id = unode.get_annotation(TaskWorkerResourceConfiguration).worker_id
 
                 # couldn't find an upstream node with the same resources to reuse the worker, simulate a new worker with these resources
                 if simulation_resource_config.worker_id == "": simulation_resource_config.worker_id = uuid.uuid4().hex
@@ -145,14 +145,14 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # Log Results
         resource_distribution = {}
         for node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration)
+            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             config_key = f"CPU:{resource_config.cpus},Memory:{resource_config.memory_mb}MB"
             if config_key not in resource_distribution: resource_distribution[config_key] = 0
             resource_distribution[config_key] += 1
             
         unique_worker_ids = {}
         for node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration)
+            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             if resource_config.worker_id not in unique_worker_ids: unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1
 

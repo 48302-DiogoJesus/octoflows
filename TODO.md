@@ -7,11 +7,15 @@
         Before starting a task, check if the `pre-load` annotation exists. If so, look at the `downstream_tasks.upstream_tasks` and listen for pubsub events
 
 `pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+
+- Make `worker_id` optional
+
+- Think how to isolate annotations
+    planners just use whatever annotatations they want?
+
 - Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
-
-- Make `worker_id` optional
 
 [OPTIMIZATION]
 TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE

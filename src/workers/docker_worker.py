@@ -36,7 +36,7 @@ class DockerWorker(Worker):
         subdags.sort(key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id, reverse=True)
         tasks_grouped_by_id = {
             worker_id: list(tasks)
-            for worker_id, tasks in groupby(subdags, key=lambda sd: sd.root_node.get_annotation(DAGPlanner.TaskWorkerResourceConfiguration).worker_id)
+            for worker_id, tasks in groupby(subdags, key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
         }
         for worker_id in tasks_grouped_by_id.keys():
             worker_subdags = tasks_grouped_by_id[worker_id]

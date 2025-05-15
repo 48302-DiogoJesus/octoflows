@@ -30,7 +30,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(resource_configuration: DAGPlanner.TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str]):
+def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str]):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -69,7 +69,7 @@ def handle_job():
 
         resource_config_key = data.get('resource_configuration', None)
         if resource_config_key is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
-        resource_configuration: DAGPlanner.TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
+        resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
         if resource_configuration is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
         dag_id = data.get('dag_id', None)
         if dag_id is None: return jsonify({"error": "'dag_id' field is required"}), 400

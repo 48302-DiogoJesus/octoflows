@@ -9,5 +9,4 @@ class TaskWorkerResourceConfiguration(TaskAnnotation):
     memory_mb: int
     worker_id: str = ""
 
-    def clone(self):
-        return TaskWorkerResourceConfiguration(self.cpus, self.memory_mb, self.worker_id)
+    def clone(self): return TaskWorkerResourceConfiguration(self.cpus, self.memory_mb, self.worker_id)
