@@ -1,14 +1,23 @@
 - Think how to implement the `pre-load` optimization
-    - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
-    - When ?: Annotation `pre-load` (means that worker should TRY (listen for pubsub IF NOT ALREADY) to `pre-load` dependencies for ITS future tasks)
-        If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
-        Annotation is added on a task of the worker_id that has upstream tasks to be executed on other workers
-    - How ?:
-        Before starting a task, check if the `pre-load` annotation exists. If so, look at the `downstream_tasks.upstream_tasks` and listen for pubsub events
+    IMPLEMENTATION: When worker spawns:
+        - Look for tasks **assigned to it** + that have `PreLoad` annotation
+        for each task:
+            - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
+            - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
+            **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
+    NOTES: If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
+    EDGE CASES:
+        - [POSSIBLE] Preload is happening, but `wel.override_handle_inputs` starts executing
+            WHEN IT HAPPENS => 
+                - Last fan-in task COMPLETES and emits the READY event/invokes worker with `task_id`
+                    pre-load and start_executing will be called at almost the same time
+            SOLUTION => Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
+    Annotation is added on a task of the worker_id that has upstream tasks to be executed on other workers
 
 `pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 
 - Make `worker_id` optional
+    Not at the planner level, just on the "generic code" level
 
 - Think how to isolate annotations
     planners just use whatever annotatations they want?
