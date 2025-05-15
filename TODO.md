@@ -2,10 +2,9 @@
     - What is `pre-load` ?: worker which is already active can start downloading ready dependencies it will need in the future
     - When ?: Annotation `pre-load` (means that worker should TRY (listen for pubsub IF NOT ALREADY) to `pre-load` dependencies for ITS future tasks)
         If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
+        Annotation is added on a task of the worker_id that has upstream tasks to be executed on other workers
     - How ?:
         Before starting a task, check if the `pre-load` annotation exists. If so, look at the `downstream_tasks.upstream_tasks` and listen for pubsub events
-    - [Optimization] to avoid sending pubsub msgs for every task completion
-        When a task completes, go to the `upstream_tasks` of the `downstream_tasks` and only if at least one of those has the `pre-load` annotation, send pubsub event
 
 `pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 - Explore Output Streaming

@@ -4,10 +4,10 @@ import time
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.planning.simple_planner import SimpleDAGPlanner
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
 from src.storage.redis_storage import RedisStorage
-from src.planning.dag_planner import SimpleDAGPlanner
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
@@ -31,9 +31,9 @@ dockerWorkerConfig = DockerWorker.Config(
     planner_config=SimpleDAGPlanner.Config(
         sla="avg",
         available_worker_resource_configurations=[
-            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+            DAGPlanner.TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            DAGPlanner.TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            DAGPlanner.TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
         ],
     )
 )
@@ -90,5 +90,5 @@ sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink_task.compute(config=dockerWorkerConfig)
+    result = sink_task.compute(config=localWorkerConfig)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

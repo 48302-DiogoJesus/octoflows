@@ -17,7 +17,7 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
+    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: DAGPlanner.TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()

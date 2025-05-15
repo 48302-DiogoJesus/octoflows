@@ -6,9 +6,7 @@ import uuid
 import graphviz
 
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.metadata_access.metadata_access import MetadataAccess
-from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
