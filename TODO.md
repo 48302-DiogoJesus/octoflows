@@ -1,26 +1,25 @@
-- Think how to implement the `pre-load` optimization
-    IMPLEMENTATION: When worker spawns:
+- PreLoad Annotation
+    overrides `WEL.on_worker_ready(...)` (called at the end of worker.__init__())
         - Look for tasks **assigned to it** + that have `PreLoad` annotation
         for each task:
             - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
             - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
-            **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
-    NOTES: If pre-loading is already happening, start_executing() function should wait for the download to complete (use coroutine events)
-    EDGE CASES:
-        - [POSSIBLE] Preload is happening, but `wel.override_handle_inputs` starts executing
-            WHEN IT HAPPENS => 
-                - Last fan-in task COMPLETES and emits the READY event/invokes worker with `task_id`
-                    pre-load and start_executing will be called at almost the same time
-            SOLUTION => Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
-    Annotation is added on a task of the worker_id that has upstream tasks to be executed on other workers
-
-`pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+        **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
+    overrides `WEL.override_handle_inputs(...)`:
+        - if `pre-loading` is already happening for an input task (asyncioevent on the annotation itself):
+            Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
+    
+    How will the `worker` call the overriden stuff of the annotations?
+        task can have N annotations, each implementing `overrides`
+        find the first task that `OVERRIDES` the given stage
 
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level
 
 - Think how to isolate annotations
     planners just use whatever annotatations they want?
+
+`pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 
 - Explore Output Streaming
     - BENEFITS
