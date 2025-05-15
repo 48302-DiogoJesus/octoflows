@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import uuid
 
+from src.planning.annotations.preload import PreLoad
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.dag_planner import DAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
@@ -81,10 +82,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         
         algorithm_start_time = Timer()
 
-        # Calculate critical path by analyzing execution times for each path
-        # First, calculate execution times for each node with best resources
-        
-        # Give best resources to all nodes and reuse worker ids randomly
+        #* Give best resources to all nodes and reuse worker ids randomly
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
             node.add_annotation(resource_config)
@@ -95,7 +93,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 # Use same worker id as its first upstream node
                 resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
-        # Initial planning with Best Resources for all nodes
+        #* Initial planning with Best Resources for all nodes
         nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
@@ -105,7 +103,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         lower_resources_simulation_timer = Timer()
         successful_downgrades = 0
-        # Simulate downgrading resources for nodes NOT on the critical path without creating a new critical path
+        #* Simulate downgrading resources for nodes NOT on the critical path without creating a new critical path
         for node in nodes_outside_critical_path:
             node_id = node.id.get_full_id()
             node_downgrade_successful = False
@@ -139,6 +137,11 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
 
             if node_downgrade_successful:
                 successful_downgrades += 1
+
+        #* Add preload annotation to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
+        for node in topo_sorted_nodes:
+            if len(node.upstream_nodes) > 1 and len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) > 0:
+                node.add_annotation(PreLoad())
 
         logger.info(f"Downgraded resources for {successful_downgrades} nodes out of {len(nodes_outside_critical_path)} nodes outside the critical path in {lower_resources_simulation_timer.stop():.3f} ms")
         
