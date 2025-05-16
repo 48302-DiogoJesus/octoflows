@@ -1,9 +1,10 @@
+- CONVERT ALL LOGIC TO NON-STATIC
 - PreLoad Annotation
     [DONE] overrides `WEL.on_worker_ready(...)` (called for all fulldag annotations at the end of worker.__init__())
         - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
         - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
         **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
-    overrides `WEL.override_handle_inputs(...)`:
+    [DONE] overrides `WEL.override_handle_inputs(...)`:
         - if `pre-loading` is already happening for an input task (asyncioevent on the annotation itself):
             Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
     

@@ -19,22 +19,21 @@ class WorkerExecutionLogic():
     async def override_on_worker_ready(intermediate_storage: Storage, task: DAGTaskNode, dag: dag.FullDAG, this_worker_id: str):
         pass
 
-    @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
+    async def override_handle_inputs(self, intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()
         upstream_tasks_without_cached_results = []
 
-        for task in task.upstream_nodes:
-            if task.cached_result is None:
-                upstream_tasks_without_cached_results.append(task)
+        for t in task.upstream_nodes:
+            if t.cached_result is None:
+                upstream_tasks_without_cached_results.append(t)
             else:
-                task_dependencies[task.id.get_full_id()] = task.cached_result.result
+                task_dependencies[t.id.get_full_id()] = t.cached_result.result
                 _input_metrics.append(
                     TaskInputMetrics(
-                        task_id=task.id.get_full_id(),
-                        size_bytes=calculate_data_structure_size(task.cached_result.result),
+                        task_id=t.id.get_full_id_in_dag(subdag),
+                        size_bytes=calculate_data_structure_size(t.cached_result.result),
                         time_ms=0,
                         normalized_time_ms=0
                     )
