@@ -67,14 +67,12 @@ class WorkerExecutionLogic():
         _total_input_download_time_ms = dependency_download_timer.stop()
         return (task_dependencies, _input_metrics, _total_input_download_time_ms)
     
-    @staticmethod
-    async def override_handle_execution(task: DAGTaskNode, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
+    async def override_handle_execution(self, task: DAGTaskNode, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
         exec_timer = Timer()
         task_result = task.invoke(dependencies=task_dependencies)
         return (task_result, exec_timer.stop())
 
-    @staticmethod
-    async def override_handle_output(task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
+    async def override_handle_output(self, task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
         output_upload_timer = Timer()
         task_result_serialized = cloudpickle.dumps(task_result)
         await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
@@ -84,8 +82,7 @@ class WorkerExecutionLogic():
         logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
-    @staticmethod
-    async def override_handle_downstream(this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: dag.SubDAG) -> tuple[list[DAGTaskNode], int, float]:
+    async def override_handle_downstream(self, this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: dag.SubDAG) -> tuple[list[DAGTaskNode], int, float]:
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         my_continuation_tasks: list[DAGTaskNode] = []
@@ -119,3 +116,5 @@ class WorkerExecutionLogic():
 
         total_invocation_time_ms = total_invocation_time_timer.stop()
         return (my_continuation_tasks, total_invocations_count, total_invocation_time_ms)
+    
+WorkerExecutionLogicSingleton = WorkerExecutionLogic()

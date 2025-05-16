@@ -12,7 +12,7 @@
         go through all the tasks annotations and execute their `on_worker_ready()`
         check if overriden as before
 
-    How will the `worker` call the overriden stuff of the annotations?
+    [DONE] How will the `worker` call the overriden stuff of the annotations?
         task can have N annotations, each implementing `overrides`
         find the first task that `OVERRIDES` the given stage
         check if overriden as before
@@ -20,7 +20,7 @@
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level
 
-- Think how to isolate annotations
+- Refactor/Rethink annotations? Ugly now
     planners just use whatever annotatations they want?
 
 `pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
