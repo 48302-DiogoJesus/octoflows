@@ -2,7 +2,8 @@ import math
 from typing import Literal
 import numpy as np
 from src.planning.sla import SLA
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskMetrics, MetricsStorage
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStorage
+from src.storage.metrics.metrics_types import TaskMetrics
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration

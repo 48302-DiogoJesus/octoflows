@@ -6,11 +6,12 @@ from abc import ABC, abstractmethod
 
 from src.planning.dag_planner import DAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
+from src.storage.metrics.metrics_types import TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size, get_method_overridden
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
 from src.utils.logger import create_logger
 import src.dag.dag as dag
 import src.dag_task_node as dag_task_node

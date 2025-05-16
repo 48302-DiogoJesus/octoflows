@@ -3,12 +3,13 @@ from dataclasses import dataclass
 from typing import Any, ClassVar
 import cloudpickle
 
-from src.dag import dag
+from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_annotation import TaskAnnotation
-from src.dag_task_node import _CachedResultWrapper, DAGTaskNode, DAGTaskNodeId
+from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics
+from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
+from src.storage.metrics.metrics_types import TaskInputMetrics
 from src.storage.storage import Storage
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
@@ -29,7 +30,7 @@ class PreLoad(TaskAnnotation):
     def __init__(self, task: DAGTaskNode) -> None:
         self.task = task
 
-    def on_preload_task_completed_builder(self, intermediate_storage: Storage, dag: dag.FullDAG):
+    def on_preload_task_completed_builder(self, intermediate_storage: Storage, dag: FullDAG):
         async def _callback(_: dict):
             async with self._instancelock:
                 if not self.allow_new_preloads: return
@@ -44,7 +45,7 @@ class PreLoad(TaskAnnotation):
         return _callback
 
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, task: DAGTaskNode, dag: dag.FullDAG, this_worker_id: str):
+    async def override_on_worker_ready(intermediate_storage: Storage, task: DAGTaskNode, dag: FullDAG, this_worker_id: str):
         # Only executes once, even if there are multiple tasks with this annotation
         async with PreLoad._classlock:
             if PreLoad._onworker_ready_executed: return
@@ -66,10 +67,10 @@ class PreLoad(TaskAnnotation):
                 if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: continue
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                    preload_annotation.on_preload_task_completed_builder(intermediate_storage, dag, unode.id)
+                    preload_annotation.on_preload_task_completed_builder(intermediate_storage, dag)
                 )
 
-    async def override_handle_inputs(self, intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
+    async def override_handle_inputs(self, intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()

@@ -2,24 +2,25 @@ import asyncio
 from typing import Any
 import cloudpickle
 
-from src.dag import dag
-from src.dag_task_node import DAGTaskNode
+from src.dag.dag import FullDAG, SubDAG
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, TaskInputMetrics
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, task: DAGTaskNode, dag: dag.FullDAG, this_worker_id: str):
+    async def override_on_worker_ready(intermediate_storage: Storage, task, dag: FullDAG, this_worker_id: str):
         pass
 
-    async def override_handle_inputs(self, intermediate_storage: Storage, task: DAGTaskNode, subdag: dag.SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
+    async def override_handle_inputs(self, intermediate_storage: Storage, task, subdag: SubDAG, worker_resource_config) -> tuple[dict[str, Any], list, float]:
+        from src.storage.metrics.metrics_types import TaskInputMetrics
+        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+        from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
+        _worker_resource_config: TaskWorkerResourceConfiguration = worker_resource_config
         task_dependencies: dict[str, Any] = {}
         _input_metrics: list[TaskInputMetrics] = []
         dependency_download_timer = Timer()
@@ -52,7 +53,7 @@ class WorkerExecutionLogic():
                     task_id=dependency_task.id.get_full_id_in_dag(subdag),
                     size_bytes=calculate_data_structure_size(loaded_data),
                     time_ms=input_fetch_time,
-                    normalized_time_ms=input_fetch_time * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
+                    normalized_time_ms=input_fetch_time * (_worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if _worker_resource_config else 0
                 )
             )
 
@@ -67,12 +68,12 @@ class WorkerExecutionLogic():
         _total_input_download_time_ms = dependency_download_timer.stop()
         return (task_dependencies, _input_metrics, _total_input_download_time_ms)
     
-    async def override_handle_execution(self, task: DAGTaskNode, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
+    async def override_handle_execution(self, task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
         exec_timer = Timer()
         task_result = task.invoke(dependencies=task_dependencies)
         return (task_result, exec_timer.stop())
 
-    async def override_handle_output(self, task_result: Any, task: DAGTaskNode, subdag: dag.SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
+    async def override_handle_output(self, task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
         output_upload_timer = Timer()
         task_result_serialized = cloudpickle.dumps(task_result)
         await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
@@ -82,14 +83,19 @@ class WorkerExecutionLogic():
         logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
-    async def override_handle_downstream(self, this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: dag.SubDAG) -> tuple[list[DAGTaskNode], int, float]:
+    async def override_handle_downstream(self, this_worker, downstream_tasks_ready, subdag: SubDAG) -> tuple[list, int, float]:
         from src.workers.worker import Worker
+        from src.dag_task_node import DAGTaskNode
+        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+
+        _downstream_tasks_ready: list[DAGTaskNode] = downstream_tasks_ready
+
         _this_worker: Worker = this_worker
         my_continuation_tasks: list[DAGTaskNode] = []
         other_continuation_tasks: list[DAGTaskNode] = []
         coroutines = []
         total_invocation_time_timer = Timer()
-        for task in downstream_tasks_ready:
+        for task in _downstream_tasks_ready:
             if task.get_annotation(TaskWorkerResourceConfiguration).worker_id == _this_worker.my_resource_configuration.worker_id:
                 my_continuation_tasks.append(task)
             else:

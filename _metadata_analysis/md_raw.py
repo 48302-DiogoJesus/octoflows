@@ -3,8 +3,10 @@ import sys
 import redis
 import cloudpickle
 
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
+from src.storage.metrics.metrics_storage import MetricsStorage
 
 client = redis.Redis(
     host='localhost',

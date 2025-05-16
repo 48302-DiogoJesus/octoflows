@@ -1,4 +1,3 @@
-- CONVERT ALL LOGIC TO NON-STATIC
 - PreLoad Annotation
     [DONE] overrides `WEL.on_worker_ready(...)` (called for all fulldag annotations at the end of worker.__init__())
         - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
@@ -16,6 +15,9 @@
         task can have N annotations, each implementing `overrides`
         find the first task that `OVERRIDES` the given stage
         check if overriden as before
+
+- RUN auto tests
+- RUN manual tests
 
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level

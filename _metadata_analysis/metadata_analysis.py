@@ -13,13 +13,15 @@ import cloudpickle
 import pandas as pd
 import plotly.express as px
 
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
-from src.storage.metrics.metrics_storage import FullDAGPrepareTime, MetricsStorage, TaskMetrics
+from src.storage.metrics.metrics_storage import MetricsStorage
 
 # Redis connection setup
 def get_redis_connection(port: int = 6379):

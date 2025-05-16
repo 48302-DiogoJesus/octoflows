@@ -17,7 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
-from src.storage.metrics.metrics_storage import FullDAGPrepareTime
+from src.storage.metrics.metrics_types import FullDAGPrepareTime
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger

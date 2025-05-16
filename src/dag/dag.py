@@ -6,7 +6,6 @@ import uuid
 import graphviz
 
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
-from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
@@ -72,6 +71,8 @@ class FullDAG(GenericDAG):
         from src.workers.worker import Worker
         from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
+        from src.planning.metadata_access.metadata_access import MetadataAccess
+
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
 
