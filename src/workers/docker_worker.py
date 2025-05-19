@@ -43,7 +43,7 @@ class DockerWorker(Worker):
             # this function only delegates N tasks to 1 worker, so the config should be the same for all tasks
             targetWorkerResourcesConfig = worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
             gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-            logger.info(f"Invoking docker gateway ({gateway_address}) | Resource Configuration: {targetWorkerResourcesConfig}")
+            logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in worker_subdags]}")
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",

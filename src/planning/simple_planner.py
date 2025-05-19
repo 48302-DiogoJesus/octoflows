@@ -191,12 +191,15 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
                 
+                logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
+
                 task_output = cloudpickle.loads(await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag)))
                 # Store the result so that its visible to other coroutines
                 dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(task_output)
                 
                 async with annotation._lock:
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()].set()
+                    logger.info(f"[PRELOADING - DONE] Task: {upstream_task.id.get_full_id()}")
             return _callback
 
         _nodes_to_visit = dag.root_nodes
@@ -213,6 +216,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             if not preload_annotation: continue
             for unode in current_node.upstream_nodes:
                 if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: continue
+                logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
                     _on_preload_task_completed_builder(unode, preload_annotation, intermediate_storage, dag)
@@ -231,16 +235,18 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             async with preload_annotation._lock:
                 preload_annotation.allow_new_preloads = False
                 for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
+                    logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
                     __tasks_preloading_coroutines[utask_id] = asyncio.create_task(preloading_event.wait())
 
         for t in task.upstream_nodes:
             if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
+                logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
                 upstream_tasks_to_fetch.append(t)
                 
         async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
             fotimer = Timer()
             task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+            if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
             input_fetch_time = fotimer.stop()
             loaded_data = cloudpickle.loads(task_output)
             return (

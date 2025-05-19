@@ -1,26 +1,12 @@
-- PreLoad Annotation
-    [DONE] overrides `WEL.on_worker_ready(...)` (called for all fulldag annotations at the end of worker.__init__())
-        - `pubsub.subscribe` to the `READY` events for all the `upstream_tasks` from **DIFFERENT** workers
-        - on `READY` => download the data from `intermediate_storage` => store it on `.cached_result` + `.completed_event.set()`
-        **EXPECTED EFFECT**: worker logic will see the data is cached and won't go to external storage
-    [DONE] overrides `WEL.override_handle_inputs(...)`:
-        - if `pre-loading` is already happening for an input task (asyncioevent on the annotation itself):
-            Download the inputs that are not being `preloaded` + wait for the `preloading` to finish
-    
-    [DONE] How will the `worker` call the `on_worker_ready()` overrides of the annotations?
-        go through all the tasks annotations and execute their `on_worker_ready()`
-        check if overriden as before
-
-    [DONE] How will the `worker` call the overriden stuff of the annotations?
-        task can have N annotations, each implementing `overrides`
-        find the first task that `OVERRIDES` the given stage
-        check if overriden as before
-
 - [TEST]
-    - Make a planning and check if it is adding preload to any tasks
-        (print it on the image)
     - Add logs to see preloading in action
         seeing if preloading was already ongoing, etc... (`simpleplanner.override_handle_inputs()`)
+        test pre-load for wordcount as well
+            see image
+            see logs
+
+- [BUG] Some workers remain active after executing
+    On `expensive` workflow, 6 workers are launched but only see 5 logs of Worker Started + it remains active
 
 - RUN auto tests
 - RUN manual tests

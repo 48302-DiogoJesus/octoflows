@@ -170,7 +170,7 @@ class DAGTaskNode(Generic[R]):
 
         for arg in self.func_args:
             if isinstance(arg, DAGTaskNodeId):
-                if arg.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {arg.get_full_id()} not in dependencies")
+                if arg.get_full_id() not in dependencies: raise Exception(f"[ERROR] Output of {arg.get_full_id()} not in dependencies")
                 final_func_args.append(dependencies[arg.get_full_id()])
             elif isinstance(arg, list) and all(isinstance(item, DAGTaskNodeId) for item in arg):
                 final_func_args.append([dependencies[item.get_full_id()] for item in arg])
@@ -179,7 +179,7 @@ class DAGTaskNode(Generic[R]):
 
         for key, value in self.func_kwargs.items():
             if isinstance(value, DAGTaskNodeId):
-                if value.get_full_id() not in dependencies: raise Exception(f"[BUG] Output of {value.get_full_id()} not in dependencies")
+                if value.get_full_id() not in dependencies: raise Exception(f"[ERROR] Output of {value.get_full_id()} not in dependencies")
                 final_func_kwargs[key] = dependencies[value.get_full_id()]
             elif isinstance(value, list) and all(isinstance(item, DAGTaskNodeId) for item in value):
                 final_func_kwargs[key] = [dependencies[item.get_full_id()] for item in value]

@@ -34,6 +34,9 @@ class ContainerPoolExecutor:
         self.cleanup_thread.start()
         self._remove_all_containers()
 
+    def _get_time_formatted(self):
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    
     def execute_command_in_container(self, container_id, command):
         """
         Executes a command in the specified container and returns the exit code.
@@ -43,6 +46,8 @@ class ContainerPoolExecutor:
             self.containers[container_id].last_active_time = time.time()
             self.containers[container_id].is_busy = True
         
+        logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+
         result = subprocess.run(
             ["docker", "exec", "-i", container_id, "sh"],
             input=command.encode(),
@@ -128,7 +133,13 @@ class ContainerPoolExecutor:
                     del self.containers[container_id]
         except subprocess.CalledProcessError as e:
             logger.error(f"Error removing container {container_id}: {e}")
-            
+        
+
+    def release_container(self, container_id: str):
+        with self.lock:
+            if container_id in self.containers:
+                self.containers[container_id].is_busy = False
+
     def wait_for_container(self, cpus: float, memory: int) -> str:
         """
         Wait for a container with the specified resources to become available,

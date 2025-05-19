@@ -44,15 +44,16 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
     container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
     try:
-        logger.info(f"[{get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
         exit_code = container_pool.execute_command_in_container(container_id, command)
         if exit_code == 0:
             # print(f"[{get_time_formatted()}] {job_id}) COMPLETED in container: {container_id}")
             return
         else:
-            logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Container {container_id} should be available but exit_code={exit_code}")
+            logger.error(f"[{get_time_formatted()}] {job_id}) [ERROR] Container {container_id} should be available but exit_code={exit_code}")
     except Exception as e:
-        logger.error(f"[{get_time_formatted()}] {job_id}) [BUG] Exception: {e}")
+        logger.error(f"[{get_time_formatted()}] {job_id}) [ERROR] Exception: {e}")
+    finally:
+        container_pool.release_container(container_id)
 
 
 @app.route('/job', methods=['POST', 'GET'])
@@ -68,15 +69,25 @@ def handle_job():
         data = request.get_json()
 
         resource_config_key = data.get('resource_configuration', None)
-        if resource_config_key is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
+        if resource_config_key is None: 
+            logger.error("'resource_configuration' field is required")
+            return jsonify({"error": "'resource_configuration' field is required"}), 400
         resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
-        if resource_configuration is None: return jsonify({"error": "'resource_configuration' field is required"}), 400
+        if resource_configuration is None: 
+            logger.error("'resource_configuration' field is required")
+            return jsonify({"error": "'resource_configuration' field is required"}), 400
         dag_id = data.get('dag_id', None)
-        if dag_id is None: return jsonify({"error": "'dag_id' field is required"}), 400
+        if dag_id is None: 
+            logger.error("'dag_id' field is required")
+            return jsonify({"error": "'dag_id' field is required"}), 400
         b64_task_ids = data.get('task_ids', None)
-        if b64_task_ids is None: return jsonify({"error": "'task_id' field is required"}), 400
+        if b64_task_ids is None: 
+            logger.error("'task_id' field is required")
+            return jsonify({"error": "'task_id' field is required"}), 400
         b64config = data.get('config', None)
-        if b64config is None: return jsonify({"error": "'config' field is required"}), 400
+        if b64config is None: 
+            logger.error("'config' field is required")
+            return jsonify({"error": "'config' field is required"}), 400
 
         thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids)
         

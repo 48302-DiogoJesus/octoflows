@@ -44,7 +44,7 @@ class WorkerExecutionLogic():
         async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
             fotimer = Timer()
             task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[BUG] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+            if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
             input_fetch_time = fotimer.stop()
             loaded_data = cloudpickle.loads(task_output)
             return (
@@ -83,7 +83,7 @@ class WorkerExecutionLogic():
         task_result_output_time_ms = output_upload_timer.stop()
         #! Can be optimized, don't need to always be sending this
         receivers = await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(subdag)}", b"1")
-        logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
+        # logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
     @staticmethod
@@ -117,7 +117,7 @@ class WorkerExecutionLogic():
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(_this_worker.my_resource_configuration.worker_id, f"Delegating {len(other_continuation_tasks)} tasks to other workers...")
+            logger.info(f"Worker({_this_worker.my_resource_configuration.worker_id}) Delegating {len(other_continuation_tasks)} tasks to other workers...")
             coroutines.append(_this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], called_by_worker=True))
             await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
