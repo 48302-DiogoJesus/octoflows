@@ -13,10 +13,11 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, task, dag: FullDAG, this_worker_id: str):
+    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):
         pass
 
-    async def override_handle_inputs(self, intermediate_storage: Storage, task, subdag: SubDAG, worker_resource_config) -> tuple[dict[str, Any], list, float]:
+    @staticmethod
+    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, worker_resource_config) -> tuple[dict[str, Any], list, float]:
         from src.storage.metrics.metrics_types import TaskInputMetrics
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
@@ -68,12 +69,14 @@ class WorkerExecutionLogic():
         _total_input_download_time_ms = dependency_download_timer.stop()
         return (task_dependencies, _input_metrics, _total_input_download_time_ms)
     
-    async def override_handle_execution(self, task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
+    @staticmethod
+    async def override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
         exec_timer = Timer()
         task_result = task.invoke(dependencies=task_dependencies)
         return (task_result, exec_timer.stop())
 
-    async def override_handle_output(self, task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
+    @staticmethod
+    async def override_handle_output(task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
         output_upload_timer = Timer()
         task_result_serialized = cloudpickle.dumps(task_result)
         await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
@@ -83,7 +86,8 @@ class WorkerExecutionLogic():
         logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
-    async def override_handle_downstream(self, this_worker, downstream_tasks_ready, subdag: SubDAG) -> tuple[list, int, float]:
+    @staticmethod
+    async def override_handle_downstream(this_worker, downstream_tasks_ready, subdag: SubDAG) -> tuple[list, int, float]:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -122,5 +126,3 @@ class WorkerExecutionLogic():
 
         total_invocation_time_ms = total_invocation_time_timer.stop()
         return (my_continuation_tasks, total_invocations_count, total_invocation_time_ms)
-    
-WorkerExecutionLogicSingleton = WorkerExecutionLogic()

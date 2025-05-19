@@ -66,7 +66,7 @@ async def main():
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
-        
+
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
         _nodes_to_visit = fulldag.root_nodes
@@ -76,19 +76,19 @@ async def main():
             if current_node.id.get_full_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_full_id())
 
-            # Execute on_worker_ready for each annotation
-            for annotation in current_node.annotations:
-                on_worker_ready_overriden = get_method_overridden(annotation.__class__, WorkerExecutionLogic.override_on_worker_ready)
-                if on_worker_ready_overriden: 
-                    await on_worker_ready_overriden(wk.intermediate_storage, current_node, fulldag, this_worker_id)
-                else: 
-                    await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, current_node, fulldag, this_worker_id)
-
             if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
             
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
+        #* 1) Execute override_on_worker_ready
+        on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
+        if on_worker_ready_overriden: 
+            await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
+        else: 
+            await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+
+        #* 2) Subscribe to task ready events for MY tasks
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             def callback(_: dict):
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
@@ -101,8 +101,8 @@ async def main():
             if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
                 continue
             await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
-            # all_dependent_tasks_for_this_worker.append(task)
 
+        #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
         direct_task_branches_coroutines = []
         # Launch direct invocation tasks concurrently
@@ -113,20 +113,22 @@ async def main():
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
         logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
+        #* 4) Wait for direct executions to finish
         await asyncio.gather(*direct_task_branches_coroutines)
 
-        # Wait for ALL tasks assigned to this worker to complete
+        #* 5) Wait for ALL MY executions, after the direct ones finish
         remaining_tasks_for_this_worker = [task for task in all_tasks_for_this_worker if not task.completed_event.is_set()]
         if len(remaining_tasks_for_this_worker) > 0:
             completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
             logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
             await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
 
-        # Wait for remaining coroutines to finish. Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
+        #* 5) Wait for remaining coroutines to finish. 
+        # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        if pending:
-            await asyncio.wait(pending, timeout=None)  # Wait indefinitely
+        if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
 
+        #* 6) Upload metrics collected during task execution
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
                 immediate_task_ids[0].get_full_id_in_dag(fulldag),

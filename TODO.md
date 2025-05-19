@@ -16,6 +16,14 @@
         find the first task that `OVERRIDES` the given stage
         check if overriden as before
 
+- [TEST]
+    - Make a planning and check if it is adding preload to any tasks
+    - Add logs to see preloading in action
+
+- [TEST] On docker worker logic, don't need to:
+    - Sub to READY events (because of the constraints that the fan-out must start the same time + be unbroken)
+    - 
+
 - RUN auto tests
 - RUN manual tests
 
