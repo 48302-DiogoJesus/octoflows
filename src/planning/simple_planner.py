@@ -233,9 +233,9 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
                     __tasks_preloading_coroutines[utask_id] = asyncio.create_task(preloading_event.wait())
 
-            for t in task.upstream_nodes:
-                if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
-                    upstream_tasks_to_fetch.append(t)
+        for t in task.upstream_nodes:
+            if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
+                upstream_tasks_to_fetch.append(t)
                 
         async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
             fotimer = Timer()

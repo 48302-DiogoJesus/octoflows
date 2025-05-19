@@ -16,9 +16,12 @@
         find the first task that `OVERRIDES` the given stage
         check if overriden as before
 
+- [TODO] RUN auto tests + manual tests on DOCKER WORKERS
 - [TEST]
     - Make a planning and check if it is adding preload to any tasks
+        (print it on the image)
     - Add logs to see preloading in action
+        seeing if preloading was already ongoing, etc... (`simpleplanner.override_handle_inputs()`)
 
 - [TEST] On docker worker logic, don't need to:
     - Sub to READY events (because of the constraints that the fan-out must start the same time + be unbroken)
