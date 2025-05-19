@@ -87,7 +87,8 @@ async def main():
         else: 
             await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
-        #* 2) Subscribe to task ready events for MY tasks
+        #* 2) Subscribe to {TASK_READY} events for MY tasks*
+        #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             def callback(_: dict):
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
@@ -95,10 +96,12 @@ async def main():
                 asyncio.create_task(wk.start_executing(subdag))
             return callback
         
+        tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
         for task in all_tasks_for_this_worker:
             if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
             if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
                 continue
+            tasks_that_depend_on_other_workers.append(task)
             await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
 
         #* 3) Start executing my direct task IDs branches
@@ -115,8 +118,8 @@ async def main():
         #* 4) Wait for direct executions to finish
         await asyncio.gather(*direct_task_branches_coroutines)
 
-        #* 5) Wait for ALL MY executions, after the direct ones finish
-        remaining_tasks_for_this_worker = [task for task in all_tasks_for_this_worker if not task.completed_event.is_set()]
+        #* 5) Wait for MY executions that depend on OTHER tasks (because we have pending pubsub subscriptions for those)
+        remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
         if len(remaining_tasks_for_this_worker) > 0:
             completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
             logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
