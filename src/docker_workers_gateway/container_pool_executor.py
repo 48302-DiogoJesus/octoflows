@@ -21,7 +21,7 @@ class Container:
     last_active_time: float = 0
 
 class ContainerPoolExecutor:
-    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval: int = 5, container_idle_timeout: int = 10):
+    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval: int = 10, container_idle_timeout: int = 10):
         self.docker_image = docker_image
         self.lock = threading.RLock()
         self.max_containers = max_containers
@@ -150,8 +150,7 @@ class ContainerPoolExecutor:
             with self.lock:
                 for container_id, container in list(self.containers.items()):
                     # Skip busy containers
-                    if container.is_busy:
-                        continue
+                    if container.is_busy: continue
                     
                     # Check if the container has been idle for too long
                     if current_time - container.last_active_time > self.container_idle_timeout:

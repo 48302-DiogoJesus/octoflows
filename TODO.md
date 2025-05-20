@@ -1,8 +1,6 @@
-- RUN auto tests
-- RUN manual tests
-
-- [BUG] WORDCOUNT
-    All workers exit, but the DC of the last task remains at 51/55 meaning
+- Test `pre-load` with logs
+    On wordcount
+    ISSUE: PRELOAD prints are not showing
 
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level
