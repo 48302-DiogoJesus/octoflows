@@ -1,5 +1,6 @@
 import asyncio
 from dataclasses import dataclass
+from types import CoroutineType
 from typing import Any
 import uuid
 
@@ -232,13 +233,13 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         upstream_tasks_to_fetch = []
         
         preload_annotation = task.try_get_annotation(PreLoad)
-        __tasks_preloading_coroutines: dict[str, asyncio.Task] = {}
+        __tasks_preloading_coroutines: dict[str, CoroutineType] = {}
         if preload_annotation:
             async with preload_annotation._lock:
                 preload_annotation.allow_new_preloads = False
                 for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
                     logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
-                    __tasks_preloading_coroutines[utask_id] = asyncio.create_task(preloading_event.wait(), name=f"wait_for_task_preloading(task={utask_id})")
+                    __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
 
         for t in task.upstream_nodes:
             if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
@@ -275,7 +276,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         # Grab cached + preloaded data
         for t in task.upstream_nodes:
             if t.cached_result:
-                if t.id.get_full_id() in __tasks_preloading_coroutines: continue
                 task_dependencies[t.id.get_full_id()] = t.cached_result.result
                 _input_metrics.append(
                     TaskInputMetrics(
