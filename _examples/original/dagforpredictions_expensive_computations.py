@@ -50,7 +50,7 @@ def time_task_expensive(dummy_data: int) -> int:
 @DAGTask
 def time_task_more_expensive_task(dummy_data: int) -> int:
     # memory-sensitive computation
-    size = 3500
+    size = 4000
     a = np.random.rand(size, size)
     b = np.random.rand(size, size)
     result = np.matmul(a, b)
@@ -99,5 +99,5 @@ sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink_task.compute(config=dockerWorkerConfig)
+    result = sink_task.compute(config=dockerWorkerConfig, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

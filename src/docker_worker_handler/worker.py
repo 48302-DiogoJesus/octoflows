@@ -68,7 +68,7 @@ async def main():
 
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
-        _nodes_to_visit = fulldag.root_nodes
+        _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
         while _nodes_to_visit:
             current_node = _nodes_to_visit.pop(0)

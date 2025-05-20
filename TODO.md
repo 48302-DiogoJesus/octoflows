@@ -24,6 +24,8 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
 - 1 second diff. between `planned time` and `real time`
 - Planning times don't consider cold starts meaning that changing workers is not penalized
 
+- [NP_FIX] realtime dashboard
+
 - [REFACTOR]
     - If serialized DAG size is below a threshold (passed on WorkerConfig, pass it on the invocation)
         store_full_dag DOESN'T change
