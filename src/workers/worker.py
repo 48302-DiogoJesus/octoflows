@@ -176,8 +176,6 @@ class Worker(ABC, WorkerExecutionLogic):
 
         # Cleanup
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
-        if self.metrics_storage:
-            await self.metrics_storage.flush()
 
         # Wait for my other coroutines executing other tasks
         if len(other_coroutines_i_launched) > 0: await asyncio.gather(*other_coroutines_i_launched)

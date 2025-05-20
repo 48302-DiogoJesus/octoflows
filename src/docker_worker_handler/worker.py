@@ -82,9 +82,11 @@ async def main():
         
         #* 1) Execute override_on_worker_ready
         on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
-        if on_worker_ready_overriden: 
+        if on_worker_ready_overriden:
+            logger.info(f"PLANNER.ON_WORKER_READY()")
             await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
-        else: 
+        else:
+            logger.info(f"WEL.ON_WORKER_READY()")
             await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
@@ -122,13 +124,16 @@ async def main():
         remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
         if len(remaining_tasks_for_this_worker) > 0:
             completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
-            logger.info(f"Worker: {this_worker_id} | Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
+            logger.info(f"Worker({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
             await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
+            logger.info(f"Worker({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
 
         #* 5) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
+        logger.info(f"Worker({this_worker_id}) Waiting for all coroutines...")
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
+        logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")
 
         #* 6) Upload metrics collected during task execution
         if wk.metrics_storage:

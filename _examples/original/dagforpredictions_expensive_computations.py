@@ -48,6 +48,15 @@ def time_task_expensive(dummy_data: int) -> int:
     return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
 
 @DAGTask
+def time_task_more_expensive_task(dummy_data: int) -> int:
+    # memory-sensitive computation
+    size = 3500
+    a = np.random.rand(size, size)
+    b = np.random.rand(size, size)
+    result = np.matmul(a, b)
+    return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
+
+@DAGTask
 def last_task_expensive(dummy_data_1: int, dummy_data_2: int, dummy_data_3: int, 
                        dummy_data_4: int, dummy_data_5: int) -> str:
     # memory-sensitive computation
@@ -82,7 +91,7 @@ b3_t3 = time_task_expensive(b3_t2)
 b4_t1 = time_task_expensive(40)
 b4_t2 = time_task_expensive(b4_t1)
 
-b5_t1 = time_task_expensive(50)
+b5_t1 = time_task_more_expensive_task(50)
 
 sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 # sink_task.visualize_dag(open_after=True)

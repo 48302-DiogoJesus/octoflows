@@ -171,7 +171,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             unique_worker_ids[resource_config.worker_id] += 1
 
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
-        logger.info(f"Resource distribution after optimization: {resource_distribution}")
+        logger.info(f"Task Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
@@ -210,7 +210,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             visited_nodes.add(current_node.id.get_full_id())
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
-            # My Logic
+            # MY Logic
             if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id: continue
             preload_annotation = current_node.try_get_annotation(PreLoad)
             if not preload_annotation: continue

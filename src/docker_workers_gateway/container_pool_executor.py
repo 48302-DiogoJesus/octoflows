@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import os
 import sys
 import threading
 from dataclasses import dataclass
@@ -40,30 +41,85 @@ class ContainerPoolExecutor:
     def execute_command_in_container(self, container_id, command):
         """
         Executes a command in the specified container and returns the exit code.
-        Prints the exit code, stdout, and stderr of the command execution.
+        Streams stdout and stderr in real-time during execution, then prints the final exit code.
         """
         with self.lock:
             self.containers[container_id].last_active_time = time.time()
             self.containers[container_id].is_busy = True
         
-        logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}") 
+        logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
 
-        result = subprocess.run(
+        # Use Popen instead of run to get real-time output
+        process = subprocess.Popen(
             ["docker", "exec", "-i", container_id, "sh"],
-            input=command.encode(),
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            bufsize=1,  # Line buffered
+            universal_newlines=False  # Keep as binary for consistent handling
         )
+        
+        # Send the command to stdin
+        if process.stdin:
+            process.stdin.write(command.encode())
+            process.stdin.close()
+        
+        # Set up non-blocking reading for stdout and stderr
+        if process.stdout: process.stdout.fileno()
+        if process.stderr: process.stderr.fileno()
+        
+        # Make stdout and stderr non-blocking
+        if process.stdout: os.set_blocking(process.stdout.fileno(), False)
+        if process.stderr: os.set_blocking(process.stderr.fileno(), False)
+        
+        # Read and print output streams while process is running
+        print("STDOUT (streaming):")
+        
+        exit_code = None
+        while exit_code is None:
+            # Read from stdout
+            if process.stdout:
+                stdout_data = process.stdout.read(4096)
+                if stdout_data:
+                    stdout_text = stdout_data.decode(errors='replace')
+                    print(stdout_text, end='', flush=True)
+            
+            # Read from stderr
+            if process.stderr:
+                stderr_data = process.stderr.read(4096)
+                if stderr_data:
+                    stderr_text = stderr_data.decode(errors='replace')
+                    logger.error(f"STDERR: {stderr_text}")
+            
+            # Check if process has finished
+            exit_code = process.poll()
+            if exit_code is None:
+                # Process still running, small sleep to avoid CPU spinning
+                time.sleep(0.1)
+        
+        # After process completion, read any remaining output
+        if process.stdout:
+            remaining_stdout = process.stdout.read()
+            if remaining_stdout:
+                print(remaining_stdout.decode(errors='replace'), end='', flush=True)
+        
+        if process.stderr:
+            remaining_stderr = process.stderr.read()
+            if remaining_stderr:
+                logger.error(f"STDERR: {remaining_stderr.decode(errors='replace')}")
+        
+        print(f"\nExit Code: {exit_code}")
+        
+        # Update container state
         with self.lock:
-            self.containers[container_id].is_busy = False
-        print(f"Exit Code: {result.returncode}")
-        print("STDOUT:")
-        print(result.stdout.decode().strip() if result.stdout else "(No output)")
-        if result.stderr:
-            logger.error("STDERR:")
-            logger.error(result.stderr.decode().strip())
-            sys.exit(0)
-        return result.returncode
+            if container_id in self.containers:
+                self.containers[container_id].is_busy = False
+        
+        # Keep the original behavior of exiting on stderr
+        if process.stderr and process.stderr.read():
+            sys.exit(0) # ! for easier debugging
+            
+        return exit_code
 
     def shutdown(self):
         logger.info("Shutting down container pool manager...")
