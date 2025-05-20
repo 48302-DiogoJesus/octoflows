@@ -1,14 +1,7 @@
-- Test `pre-load` with logs
-    On wordcount
-    ISSUE: PRELOAD prints are not showing
-
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level
 
-- Refactor/Rethink annotations? Ugly now
-    planners just use whatever annotatations they want?
-
-`pre-load` => Implement report 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+`pre-load` => Upgrade the simpledagplanner to implement report's 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
 
 - Explore Output Streaming
     - BENEFITS

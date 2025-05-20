@@ -244,6 +244,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         for t in task.upstream_nodes:
             if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
+                # unsubscribe because we are going to fetch it, in the future it won't matter
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
                 upstream_tasks_to_fetch.append(t)
                 
         async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
