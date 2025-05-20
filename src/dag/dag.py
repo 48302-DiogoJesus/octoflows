@@ -93,7 +93,7 @@ class FullDAG(GenericDAG):
             vis.DAGVisualizationDashboard.start(self, _wk_config)
         
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
-        asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], called_by_worker=False))
+        asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], called_by_worker=False), name="delegate_initial_workers")
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(

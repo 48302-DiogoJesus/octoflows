@@ -200,6 +200,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 async with annotation._lock:
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()].set()
                     logger.info(f"[PRELOADING - DONE] Task: {upstream_task.id.get_full_id()}")
+
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}")
             return _callback
 
         _nodes_to_visit = dag.root_nodes
@@ -236,7 +238,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 preload_annotation.allow_new_preloads = False
                 for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
                     logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
-                    __tasks_preloading_coroutines[utask_id] = asyncio.create_task(preloading_event.wait())
+                    __tasks_preloading_coroutines[utask_id] = asyncio.create_task(preloading_event.wait(), name=f"wait_for_task_preloading(task={utask_id})")
 
         for t in task.upstream_nodes:
             if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:

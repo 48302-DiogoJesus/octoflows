@@ -169,16 +169,17 @@ class Worker(ABC, WorkerExecutionLogic):
                     my_other_tasks = my_continuation_tasks[1:]
                     # Execute other tasks on coroutines in this worker
                     for t in my_other_tasks:
-                        other_coroutines_i_launched.append(asyncio.create_task(self.start_executing(subdag.create_subdag(t))))
+                        other_coroutines_i_launched.append(asyncio.create_task(self.start_executing(subdag.create_subdag(t)), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
         except Exception as e:
             self.log(current_task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
             raise e
 
-        # Cleanup
-        self.log(current_task.id.get_full_id(), f"Worker shut down!")
-
         # Wait for my other coroutines executing other tasks
-        if len(other_coroutines_i_launched) > 0: await asyncio.gather(*other_coroutines_i_launched)
+        if len(other_coroutines_i_launched) > 0: 
+            self.log(current_task.id.get_full_id(), f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
+            await asyncio.gather(*other_coroutines_i_launched)
+
+        self.log(current_task.id.get_full_id(), f"Worker shut down!")
 
         return tasks_executed_by_this_coroutine
 

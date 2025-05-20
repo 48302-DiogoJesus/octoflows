@@ -17,7 +17,7 @@ class Container:
     id: str
     cpus: float
     memory: int
-    is_busy: bool = False
+    is_busy: bool = True
     last_active_time: float = 0
 
 class ContainerPoolExecutor:
@@ -43,9 +43,6 @@ class ContainerPoolExecutor:
         Executes a command in the specified container and returns the exit code.
         Streams stdout and stderr in real-time during execution, then prints the final exit code.
         """
-        with self.lock:
-            self.containers[container_id].last_active_time = time.time()
-            self.containers[container_id].is_busy = True
         
         logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
 
@@ -109,11 +106,6 @@ class ContainerPoolExecutor:
                 logger.error(f"STDERR: {remaining_stderr.decode(errors='replace')}")
         
         print(f"\nExit Code: {exit_code}")
-        
-        # Update container state
-        with self.lock:
-            if container_id in self.containers:
-                self.containers[container_id].is_busy = False
         
         # Keep the original behavior of exiting on stderr
         if process.stderr and process.stderr.read():
@@ -193,8 +185,7 @@ class ContainerPoolExecutor:
 
     def release_container(self, container_id: str):
         with self.lock:
-            if container_id in self.containers:
-                self.containers[container_id].is_busy = False
+            self.containers[container_id].is_busy = False # ready to be used again
 
     def wait_for_container(self, cpus: float, memory: int) -> str:
         """

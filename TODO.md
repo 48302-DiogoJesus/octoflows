@@ -1,24 +1,8 @@
-- Find a way to flush logs from workers that block to stdout of the gateway as well
-
-- [2_BUGS]
-    - First worker doesn't flush logs
-    because => it finishes tasks but still waits for something in `main()`
-        Cause: waiting for ALL coroutines makes it wait forever
-
-- [BUG] Docker worker is calling execute command on same container while busy (test with wordcount)
-
-- [BUG] Some workers remain active after executing
-    On `expensive` workflow, 6 workers are launched but only see 5 logs of Worker Started + it remains active
-
-    - [REQUIRES BUG FIX BECAUSE I CAN'T SEE THE LOGS TEST]
-        - Add logs to see preloading in action
-            seeing if preloading was already ongoing, etc... (`simpleplanner.override_handle_inputs()`)
-            test pre-load for wordcount as well
-                see plan image
-                see logs
-
 - RUN auto tests
 - RUN manual tests
+
+- [BUG] WORDCOUNT
+    All workers exit, but the DC of the last task remains at 51/55 meaning
 
 - Make `worker_id` optional
     Not at the planner level, just on the "generic code" level

@@ -31,7 +31,7 @@ class RedisStorage(storage.Storage):
         self._subscription_tasks: Dict[str, tuple[asyncio.Task, Any]] = {}
         
         # Initialize connection in a non-blocking way
-        asyncio.create_task(self._get_or_create_connection(skip_verification=True))
+        asyncio.create_task(self._get_or_create_connection(skip_verification=True), name="initialize_redis_connection_async")
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
         if not skip_verification and await self._verify_connection():
@@ -140,7 +140,8 @@ class RedisStorage(storage.Storage):
         
         # Start a background task to process messages
         task = asyncio.create_task(
-            self._message_handler(pubsub, channel, callback, decode_responses)
+            self._message_handler(pubsub, channel, callback, decode_responses),
+            name=f"redis_subscribe_message_handler(channel={channel})"
         )
         self._subscription_tasks[channel] = (task, pubsub)
         

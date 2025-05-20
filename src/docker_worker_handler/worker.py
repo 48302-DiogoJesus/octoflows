@@ -92,10 +92,11 @@ async def main():
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
-            def callback(_: dict):
+            async def callback(_: dict):
+                await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}")
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.start_executing(subdag))
+                asyncio.create_task(wk.start_executing(subdag), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
             return callback
         
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
@@ -113,7 +114,7 @@ async def main():
         for task_id in immediate_task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
-            direct_task_branches_coroutines.append(asyncio.create_task(wk.start_executing(subdag)))
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.start_executing(subdag), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
         logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
@@ -130,8 +131,8 @@ async def main():
 
         #* 5) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
-        logger.info(f"Worker({this_worker_id}) Waiting for all coroutines...")
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        logger.info(f"Worker({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
         logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")
 

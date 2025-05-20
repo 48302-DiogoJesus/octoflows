@@ -32,6 +32,7 @@ class DockerWorker(Worker):
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
+        All HTTP requests are executed in parallel, and the function only returns once all requests are completed
         '''
         if len(subdags) == 0: raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
         subdags.sort(key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id, reverse=True)
@@ -39,12 +40,16 @@ class DockerWorker(Worker):
             worker_id: list(tasks)
             for worker_id, tasks in groupby(subdags, key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
         }
-        for worker_id in tasks_grouped_by_id.keys():
-            worker_subdags = tasks_grouped_by_id[worker_id]
-            # this function only delegates N tasks to 1 worker, so the config should be the same for all tasks
+        
+        # Create a list to store all the async tasks
+        http_tasks = []
+        
+        # Define the async function for making individual HTTP requests
+        async def make_worker_request(worker_id, worker_subdags):
             targetWorkerResourcesConfig = worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
             gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in worker_subdags]}")
+            
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",
@@ -59,3 +64,11 @@ class DockerWorker(Worker):
                     if response.status != 202:
                         text = await response.text()
                         raise Exception(f"Failed to invoke worker: {text}")
+                    return response.status
+        
+        # Create a task for each worker_id
+        for worker_id, worker_subdags in tasks_grouped_by_id.items():
+            http_tasks.append(make_worker_request(worker_id, worker_subdags))
+        
+        # Wait for all HTTP requests to complete
+        await asyncio.gather(*http_tasks)
