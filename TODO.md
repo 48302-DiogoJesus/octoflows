@@ -1,7 +1,3 @@
-- Make the realtime dashboard work again 
-    test for `expensive workflow first`
-    use it to debug `wordcount` after
-
 - `pre-load` affects the planning results
     `earliest_start` (and `path_completion_time` needs update after)
     TEST by looking at the plan image
