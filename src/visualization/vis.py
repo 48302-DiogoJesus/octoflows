@@ -10,6 +10,9 @@ import time
 import subprocess
 import atexit
 import os
+import nest_asyncio
+
+nest_asyncio.apply()
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.utils.logger import create_logger
@@ -38,19 +41,11 @@ class DAGVisualizationDashboard:
         current_script = os.path.abspath(__file__)
         dashboard_process = subprocess.Popen(
             ["streamlit", "run", current_script, config_path, dag_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stdout=None,
+            stderr=None
         )
 
         def cleanup():
-            # try:
-            #     if os.path.exists(dag_path):
-            #         os.unlink(dag_path)
-            #     if os.path.exists(config_path):
-            #         os.unlink(config_path)
-            # except Exception as e:
-            #     print(f"Error deleting temp files: {e}")
-            
             if dashboard_process.poll() is None: 
                 time.sleep(3) # Give the dashboard time to show it's completed
                 try:

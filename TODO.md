@@ -1,3 +1,7 @@
+- Make the realtime dashboard work again 
+    test for `expensive workflow first`
+    use it to debug `wordcount` after
+
 - `pre-load` affects the planning results
     `earliest_start` (and `path_completion_time` needs update after)
     TEST by looking at the plan image
@@ -6,8 +10,9 @@
     Q: "As runs que usam otimizações produzem metadados diferentes das runs que não as usam"
     R: acho que não, porque ...
 
+
 Implement report algorithms
-    1st (new and simpler) => uniform workers + find CP
+    [DONE] [UNTESTED] 1st (new and simpler) => uniform workers + find CP
         re-simulate w/ **preload** on eligible tasks to find the best time wo/ introducing new CP
     2nd (update the SimpleDAGPlanner) => non-uniform workers + find CP for best resources
         re-simulate w/ **downgrading resources**
@@ -31,7 +36,7 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
 - Downloading input from storage
 
 # PLANNING ALGORITHMS
-- Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.
+- Dashboard makespan (9 sec) VS client console (5 sec) time big diff.
 - 1 second diff. between `planned time` and `real time`
 - Planning times don't consider cold starts meaning that changing workers is not penalized
 

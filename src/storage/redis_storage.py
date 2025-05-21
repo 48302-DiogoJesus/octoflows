@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import nest_asyncio
 import asyncio
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Union
@@ -8,6 +9,8 @@ import src.storage.storage as storage
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
+
+nest_asyncio.apply()
 
 class RedisStorage(storage.Storage):
     @dataclass
@@ -31,7 +34,7 @@ class RedisStorage(storage.Storage):
         self._subscription_tasks: Dict[str, tuple[asyncio.Task, Any]] = {}
         
         # Initialize connection in a non-blocking way
-        asyncio.create_task(self._get_or_create_connection(skip_verification=True), name="initialize_redis_connection_async")
+        asyncio.run(self._get_or_create_connection(skip_verification=True))
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
         if not skip_verification and await self._verify_connection():
