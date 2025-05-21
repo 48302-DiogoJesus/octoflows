@@ -79,7 +79,6 @@ class DAGPlanner(ABC):
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
-                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     output_size = nodes_info[upstream_node_id].output_size
                     total_input_size += output_size
@@ -88,7 +87,6 @@ class DAGPlanner(ABC):
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
-                unode_worker_id = nodes_info[upstream_node_id].node_ref.get_annotation(TaskWorkerResourceConfiguration).worker_id
                 if upstream_node_id in nodes_info: 
                     output_size = nodes_info[upstream_node_id].output_size
                     total_input_size += output_size
@@ -97,49 +95,54 @@ class DAGPlanner(ABC):
 
         return total_input_size
     
+    def __calculate_node_timings_for_node(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, metadata_access: MetadataAccess, sla: SLA):
+        node_id = node.id.get_full_id()
+        worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+        total_input_size = self._calculate_total_input_size(node, nodes_info)
+        # required for preload calculations
+        latest_upstream_node_completion_time = 0
+        for unode in node.upstream_nodes:
+            if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
+            if nodes_info[unode.id.get_full_id()].path_completion_time > latest_upstream_node_completion_time:
+                latest_upstream_node_completion_time = nodes_info[unode.id.get_full_id()].path_completion_time
+
+        download_time = 0
+        for unode in node.upstream_nodes:
+            if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
+            unode_info = nodes_info[unode.id.get_full_id()]
+            if node.try_get_annotation(PreLoad) is None:
+                # if parent node ha preload, these upstream tasks will be preloaded
+                predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
+                assert predicted_download_time
+                download_time += predicted_download_time
+                continue
+            
+            earliest_possible_download_start = latest_upstream_node_completion_time - unode_info.path_completion_time
+            predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
+            assert predicted_download_time
+            download_time += max(predicted_download_time - earliest_possible_download_start, 0)
+            
+        exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
+        assert exec_time is not None
+        output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
+        assert output_size is not None
+        # Won't need to upload since it will be executed on the same worker
+        if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+            upload_time = 0
+        else:
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+        assert upload_time is not None
+        nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, total_input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+
     def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """
         Calculate timing information for all nodes using the same resource configuration
         """
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
-            node_id = node.id.get_full_id()
-            worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
-            total_input_size = self._calculate_total_input_size(node, nodes_info)
-           # required for preload calculations
-            latest_upstream_node_completion_time = 0
-            for unode in node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
-                if nodes_info[unode.id.get_full_id()].path_completion_time > latest_upstream_node_completion_time:
-                    latest_upstream_node_completion_time = nodes_info[unode.id.get_full_id()].path_completion_time
-
-            download_time = 0
-            for unode in node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
-                unode_info = nodes_info[unode.id.get_full_id()]
-                if node.try_get_annotation(PreLoad) is None:
-                    # if parent node ha preload, these upstream tasks will be preloaded
-                    predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-                    assert predicted_download_time
-                    download_time += predicted_download_time
-                    continue
-                
-                earliest_possible_download_start = latest_upstream_node_completion_time - unode_info.path_completion_time
-                predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-                assert predicted_download_time
-                download_time += max(predicted_download_time - earliest_possible_download_start, 0)
-                
-            exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
-            assert exec_time is not None
-            output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
-            assert output_size is not None
-            # Won't need to upload since it will be executed on the same worker
-            if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
-                upload_time = 0
-            else:
-                upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-            assert upload_time is not None
-            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, total_input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+            # note: modifies `nodes_info`
+            self.__calculate_node_timings_for_node(nodes_info, node, resource_config, metadata_access, sla)
+            
         self._calculate_path_times(topo_sorted_nodes, nodes_info)
         
         return nodes_info
@@ -151,44 +154,9 @@ class DAGPlanner(ABC):
         nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
 
         for node in topo_sorted_nodes:
-            node_id = node.id.get_full_id()
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
-            worker_id = resource_config.worker_id
-            total_input_size = self._calculate_total_input_size(node, nodes_info)
-
-            # required for preload calculations
-            latest_upstream_node_completion_time = 0
-            for unode in node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
-                if nodes_info[unode.id.get_full_id()].path_completion_time > latest_upstream_node_completion_time:
-                    latest_upstream_node_completion_time = nodes_info[unode.id.get_full_id()].path_completion_time
-
-            download_time = 0
-            for unode in node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: continue
-                unode_info = nodes_info[unode.id.get_full_id()]
-                if node.try_get_annotation(PreLoad) is None:
-                    # if parent node ha preload, these upstream tasks will be preloaded
-                    predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-                    assert predicted_download_time
-                    download_time += predicted_download_time
-                    continue
-                
-                earliest_possible_download_start = latest_upstream_node_completion_time - unode_info.path_completion_time
-                predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-                assert predicted_download_time
-                download_time += max(predicted_download_time - earliest_possible_download_start, 0)
-
-            exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
-            assert exec_time is not None
-            output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
-            assert output_size is not None
-            if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
-                upload_time = 0
-            else:
-                upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-            assert upload_time is not None
-            nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(node, total_input_size, output_size, download_time, exec_time, upload_time, download_time + exec_time + upload_time, 0, 0)
+            # note: modifies `nodes_info`
+            self.__calculate_node_timings_for_node(nodes_info, node, resource_config, metadata_access, sla)
 
         self._calculate_path_times(topo_sorted_nodes, nodes_info)
 
