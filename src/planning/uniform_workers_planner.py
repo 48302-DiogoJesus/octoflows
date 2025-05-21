@@ -81,7 +81,7 @@ class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
                 # Use same worker id as its first upstream node
                 resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
-        #* Initial planning with Best Resources for all nodes
+        #* Find critical path
         nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
@@ -91,7 +91,7 @@ class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         nodes_with_preload = 0
         preload_simulation_timer = Timer()
-        #* Simulate downgrading resources for nodes NOT on the critical path without creating a new critical path
+        #* Simulate "PreLoad" optimization for nodes OUTSIDE the critical path without creating a new critical path
         for node in nodes_outside_critical_path:
             node_id = node.id.get_full_id()
             # Only TRY preload annotation to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
@@ -101,8 +101,8 @@ class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
             node.add_annotation(PreLoad())
 
             # Recalculate timings with this optimization
-            temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
-            _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
+            nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+            _, new_critical_path_time = self._find_critical_path(dag, nodes_info)
 
             if new_critical_path_time != critical_path_time:
                 node.remove_annotation(PreLoad) # REVERT: because this changes the critical path
@@ -123,8 +123,7 @@ class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
         logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
         # DEBUG: Plan Visualization
-        updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
-        self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
+        self._visualize_plan(dag, nodes_info, critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         exit()

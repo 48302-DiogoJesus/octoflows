@@ -137,8 +137,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 node.add_annotation(simulation_resource_config) # replace the original one and simulate
                         
                 # Recalculate timings with this resource configuration
-                temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
-                _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
+                nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+                _, new_critical_path_time = self._find_critical_path(dag, nodes_info)
 
                 if new_critical_path_time != critical_path_time:
                     node.add_annotation(original_config) # REVERT: This config changes the critical path
@@ -179,9 +179,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
-        # DEBUG: Plan Visualization
-        updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
-        self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
+        self._visualize_plan(dag, nodes_info, critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
         # exit()

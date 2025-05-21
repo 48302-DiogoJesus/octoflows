@@ -1,7 +1,6 @@
 - `pre-load` affects the planning results
     `earliest_start` (and `path_completion_time` needs update after)
-    
-- create a DFS abstraction? strange lambdas?
+    TEST by looking at the plan image
 
 - resposta à pergunta do prof:
     Q: "As runs que usam otimizações produzem metadados diferentes das runs que não as usam"
