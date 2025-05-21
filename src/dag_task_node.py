@@ -204,6 +204,11 @@ class DAGTaskNode(Generic[R]):
         self.annotations.append(annotation)
         return True
 
+    def remove_annotation(self, annotation_type: Type[T]):
+        for annotation in self.annotations:
+            if isinstance(annotation, annotation_type):
+                self.annotations.remove(annotation)
+    
     def try_get_annotation(self, annotation_type: Type[T]) -> T | None:
         for annotation in self.annotations:
             if isinstance(annotation, annotation_type):

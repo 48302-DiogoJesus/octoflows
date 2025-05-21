@@ -23,20 +23,13 @@ from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
+class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
     @dataclass
     class Config(DAGPlanner.Config):
-        available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
+        worker_resource_configuration: TaskWorkerResourceConfiguration
 
-        def __post_init__(self):
-            """
-            Sort the available_resource_configurations by memory_mb
-            Greatest {memory_mb} first
-            """
-            self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
-
-        def create_instance(self) -> "SimpleDAGPlanner":
-            return SimpleDAGPlanner(self)
+        def create_instance(self) -> "UniformWorkersPlanner":
+            return UniformWorkersPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -56,29 +49,13 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         _dag: FullDAG = dag
 
         topo_sorted_nodes = self._topological_sort(dag)
-        middle_resource_config = self.config.available_worker_resource_configurations[len(self.config.available_worker_resource_configurations) // 2]
-
-        if len(self.config.available_worker_resource_configurations) == 1:
-            # If only one resource config is available, use it for all nodes
-            # Assign worker resources and ids
-            for node in topo_sorted_nodes:
-                unique_resources = self.config.available_worker_resource_configurations[0].clone()
-                node.add_annotation(unique_resources)
-                if len(node.upstream_nodes) == 0:
-                    # Give each root node a unique worker id
-                    unique_resources.worker_id = uuid.uuid4().hex
-                else:
-                    # Use same worker id as its first upstream node
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
-            self._visualize_plan(dag)
-            return
 
         if not metadata_access.has_required_predictions():
-            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
+            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({self.config.worker_resource_configuration}) to all nodes")
             # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
             # Assign worker resources and ids
             for node in topo_sorted_nodes: 
-                unique_resources = middle_resource_config.clone()
+                unique_resources = self.config.worker_resource_configuration.clone()
                 node.add_annotation(unique_resources)
                 if len(node.upstream_nodes) == 0:
                     # Give each root node a unique worker id
@@ -90,13 +67,12 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             return
         
         logger.info(f"Starting DAG Planning Algorithm")
-        best_resource_config = self.config.available_worker_resource_configurations[0]
         
         algorithm_start_time = Timer()
 
-        #* Give best resources to all nodes and reuse worker ids
+        #* Give same resources to all nodes and reuse worker ids
         for node in topo_sorted_nodes:
-            resource_config = best_resource_config.clone()
+            resource_config = self.config.worker_resource_configuration.clone()
             node.add_annotation(resource_config)
             if len(node.upstream_nodes) == 0:
                 # Give each root node a unique worker id
@@ -106,67 +82,35 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
                 resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
         #* Initial planning with Best Resources for all nodes
-        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
+        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
         
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
 
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
-        lower_resources_simulation_timer = Timer()
-        successful_downgrades = 0
+        nodes_with_preload = 0
+        preload_simulation_timer = Timer()
         #* Simulate downgrading resources for nodes NOT on the critical path without creating a new critical path
         for node in nodes_outside_critical_path:
             node_id = node.id.get_full_id()
-            node_downgrade_successful = False
-            # Try each resource config from highest to lowest on the same worker or new workers
-            for resource_config in self.config.available_worker_resource_configurations:
-                original_config = node.get_annotation(TaskWorkerResourceConfiguration)
-                # if resource_config.cpus == original_config.cpus and resource_config.memory_mb == original_config.memory_mb: continue
-                # Temporarily assign this resource config
-                simulation_resource_config = resource_config.clone()
-                simulation_resource_config.worker_id = ""
+            # Only TRY preload annotation to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
+            if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0:
+                continue
 
-                for unode in node.upstream_nodes:
-                    unode_resources = unode.get_annotation(TaskWorkerResourceConfiguration)
-                    if unode_resources.cpus == simulation_resource_config.cpus and unode_resources.memory_mb == simulation_resource_config.memory_mb: 
-                        simulation_resource_config.worker_id = unode.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            node.add_annotation(PreLoad())
 
-                # couldn't find an upstream node with the same resources to reuse the worker, simulate a new worker with these resources
-                if simulation_resource_config.worker_id == "": simulation_resource_config.worker_id = uuid.uuid4().hex
-                node.add_annotation(simulation_resource_config) # replace the original one and simulate
-                        
-                # Recalculate timings with this resource configuration
-                temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
-                _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
+            # Recalculate timings with this optimization
+            temp_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+            _, new_critical_path_time = self._find_critical_path(dag, temp_nodes_info)
 
-                if new_critical_path_time != critical_path_time:
-                    node.add_annotation(original_config) # REVERT: This config changes the critical path
-                else:
-                    # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
-                    if original_config.memory_mb != simulation_resource_config.memory_mb and original_config.cpus != simulation_resource_config.cpus:
-                        node_downgrade_successful = True
-
-            if node_downgrade_successful:
-                successful_downgrades += 1
-
-        #* Add preload annotation to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
-        nodes_with_preload = 0
-        for node in topo_sorted_nodes:
-            if len(node.upstream_nodes) > 1 and len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) > 0:
-                node.add_annotation(PreLoad())
+            if new_critical_path_time != critical_path_time:
+                node.remove_annotation(PreLoad) # REVERT: because this changes the critical path
+            else:
+                # print(f"Node: {node_id[-6:]} | Downgraded Resources: {original_config.memory_mb} => {node_to_resource_config[node_id].memory_mb}")
                 nodes_with_preload += 1
 
-        logger.info(f"Assigned the 'PreLoad' annotation to {nodes_with_preload} nodes")
-        logger.info(f"Downgraded resources for {successful_downgrades} nodes out of {len(nodes_outside_critical_path)} nodes outside the critical path in {lower_resources_simulation_timer.stop():.3f} ms")
-        
-        # Log Results
-        resource_distribution = {}
-        for node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
-            config_key = f"CPU:{resource_config.cpus},Memory:{resource_config.memory_mb}MB"
-            if config_key not in resource_distribution: resource_distribution[config_key] = 0
-            resource_distribution[config_key] += 1
+        logger.info(f"Assigned the 'PreLoad' annotation to {nodes_with_preload} nodes in {preload_simulation_timer.stop():.3f} ms")
             
         unique_worker_ids = {}
         for node_id, node in _dag._all_nodes.items():
@@ -175,7 +119,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             unique_worker_ids[resource_config.worker_id] += 1
 
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
-        logger.info(f"Task Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
@@ -184,7 +127,7 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         self._visualize_plan(dag, updated_nodes_info, critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
         # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
+        exit()
 
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):

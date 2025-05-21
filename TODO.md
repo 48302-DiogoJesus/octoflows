@@ -1,17 +1,36 @@
-- Make `worker_id` optional
-    Not at the planner level, just on the "generic code" level
+- `pre-load` affects the planning results
+    `earliest_start` (and `path_completion_time` needs update after)
+    
+- create a DFS abstraction? strange lambdas?
 
-`pre-load` => Upgrade the simpledagplanner to implement report's 1st algorithm as a NEW algorithm (keep the first one that just does 1 pass and uses no optimizations)
+- resposta à pergunta do prof:
+    Q: "As runs que usam otimizações produzem metadados diferentes das runs que não as usam"
+    R: acho que não, porque ...
+
+Implement report algorithms
+    1st (new and simpler) => uniform workers + find CP
+        re-simulate w/ **preload** on eligible tasks to find the best time wo/ introducing new CP
+    2nd (update the SimpleDAGPlanner) => non-uniform workers + find CP for best resources
+        re-simulate w/ **downgrading resources**
+
+- Make `worker_id` optional to support "uniform workers" planner?
+    Not at the planner level, just on the "generic code" level
 
 - Explore Output Streaming
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
 
+- [ALGORITHM_OPTIMIZATION] Change the criteria to applying the `preload` optimization?
+    from: all tasks that have > 1 upstream task from another worker
+    to: All tasks that have > 1 upstream task from another worker **AND** only upstream tasks that are *expected* to finish at least `X ms earlier` than the others
+        [REQUIRES] Update the semantics of `PreLoad` to also allow specifying which upstream tasks to preload
+            e.g., node.add_annotation(PreLoad(preload=[t1, t2, t3]))
+
 [OPTIMIZATION]
 TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
 - Publishing TASK_READY events
 - Downloading input from storage
-        
+
 # PLANNING ALGORITHMS
 - Dashboard makespan (9 sec) VS client console (5 sec) completion time big diff.
 - 1 second diff. between `planned time` and `real time`
