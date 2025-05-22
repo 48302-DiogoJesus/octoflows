@@ -89,7 +89,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             self._visualize_plan(dag)
             return
         
-        logger.info(f"Starting DAG Planning Algorithm")
         best_resource_config = self.config.available_worker_resource_configurations[0]
         
         algorithm_start_time = Timer()

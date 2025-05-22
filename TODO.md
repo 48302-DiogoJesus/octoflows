@@ -1,16 +1,13 @@
-- `pre-load` affects the planning results
-    `earliest_start` (and `path_completion_time` needs update after)
-    TEST by looking at the plan image
-
 - resposta à pergunta do prof:
     Q: "As runs que usam otimizações produzem metadados diferentes das runs que não as usam"
     R: acho que não, porque ...
 
+- Refactor the realtime dashboard to use COMPLETE events instead of polling (faster and more efficient)
 
-Implement report algorithms
-    [DONE] [UNTESTED] 1st (new and simpler) => uniform workers + find CP
-        re-simulate w/ **preload** on eligible tasks to find the best time wo/ introducing new CP
-    2nd (update the SimpleDAGPlanner) => non-uniform workers + find CP for best resources
+[ISSUE]
+- With uniform planner => prediction is a lot more accurate, but above
+- With simple planner => prediction is too low
+    [=>] Implement 2nd planner from report => 3rd (keep the simple planner)
         re-simulate w/ **downgrading resources**
 
 - Make `worker_id` optional to support "uniform workers" planner?

@@ -81,6 +81,7 @@ class FullDAG(GenericDAG):
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             metadata_access = MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage)
             await metadata_access.load_metrics_from_storage()
+            logger.info(f"[PLANNING] Planner Selected: {wk.planner.__class__.__name__}")
             wk.planner.plan(self, metadata_access)
 
         if not isinstance(wk, LocalWorker):

@@ -3,7 +3,9 @@ import sys
 import time
 import numpy as np
 
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.planning.uniform_workers_planner import UniformWorkersPlanner
 from src.planning.simple_planner import SimpleDAGPlanner
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
@@ -28,14 +30,18 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=SimpleDAGPlanner.Config(
+    planner_config=UniformWorkersPlanner.Config(
         sla="avg",
-        available_worker_resource_configurations=[
-            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-        ],
+        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
     )
+    # planner_config=SimpleDAGPlanner.Config(
+    #     sla="avg",
+    #     available_worker_resource_configurations=[
+    #         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+    #         TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+    #         TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+    #     ],
+    # )
 )
 
 @DAGTask
@@ -50,7 +56,7 @@ def time_task_expensive(dummy_data: int) -> int:
 @DAGTask
 def time_task_more_expensive_task(dummy_data: int) -> int:
     # memory-sensitive computation
-    size = 4000
+    size = 4300
     a = np.random.rand(size, size)
     b = np.random.rand(size, size)
     result = np.matmul(a, b)
@@ -99,5 +105,5 @@ sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink_task.compute(config=dockerWorkerConfig, open_dashboard=True)
+    result = sink_task.compute(config=dockerWorkerConfig, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")
