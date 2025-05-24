@@ -1,14 +1,14 @@
-[ISSUE]
-- With uniform planner => prediction is a lot more accurate, but above
-- With simple planner => prediction is too low
-    [=>] Implement 2nd planner from report => 3rd (keep the simple planner)
-        re-simulate w/ **downgrading resources**
-
 [GENERIC] Make `worker_id` optional to support "uniform workers" planner?
     On the "generic code" level (support worker id being `None` (STRONGLY TYPED, not -1))
         The default WEL can use similar logic to WUKONG to delegate tasks
         Would this support preload?
     re-test
+
+[ISSUE]
+- With uniform planner => prediction is a lot more accurate, but above
+- With simple planner => prediction is too low
+    [=>] Implement 2nd planner from report => 3rd (keep the simple planner)
+        re-simulate w/ **downgrading resources**
 
 [PLANNER] Implement 2nd report algoritm
 
@@ -23,6 +23,7 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
 - Publishing TASK_READY events
 - Downloading input from storage
 - Uploading final metrics
+- Realtime dashboard
 [OPTIMIZATION:WORKER_STARTUP_SPEED]
 - Storing the full dag on redis is costly (DAG retrieval time adds up)
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)

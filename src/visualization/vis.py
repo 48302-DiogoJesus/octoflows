@@ -113,7 +113,7 @@ class DAGVisualizationDashboard:
         # Add sidebar with controls
         with st.sidebar:
             st.header("Controls")
-            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=4)
+            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=2)
             
             st.markdown("---")
             st.write("DAG Progress:")
