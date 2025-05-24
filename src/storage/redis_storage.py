@@ -33,8 +33,8 @@ class RedisStorage(storage.Storage):
         self._pubsub = None
         self._subscription_tasks: Dict[str, tuple[asyncio.Task, Any]] = {}
         
-        # Initialize connection in a non-blocking way
-        asyncio.run(self._get_or_create_connection(skip_verification=True))
+        # Don't initialize connection immediately to avoid event loop issues
+        # Connection will be created lazily when first needed
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
         if not skip_verification and await self._verify_connection():
@@ -73,17 +73,26 @@ class RedisStorage(storage.Storage):
     async def close_connection(self) -> None:
         """Close Redis connection and cancel any running subscription tasks."""
         # Cancel all subscription tasks
-        for channel, task in self._subscription_tasks.items():
+        for channel, (task, pubsub) in self._subscription_tasks.items():
             logger.info(f"Cancelling subscription to channel: {channel}")
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            await pubsub.aclose()
+        
+        self._subscription_tasks.clear()
         
         # Close PubSub if it exists
         if self._pubsub is not None:
             await self._pubsub.aclose()
+            self._pubsub = None
         
         # Close main connection
         if self._connection is not None:
             await self._connection.aclose()
+            self._connection = None
 
     async def _verify_connection(self) -> bool:
         try:
@@ -134,7 +143,13 @@ class RedisStorage(storage.Storage):
         """
         # Cancel existing subscription if any
         if channel in self._subscription_tasks:
-            self._subscription_tasks[channel][0].cancel()
+            task, pubsub = self._subscription_tasks[channel]
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            await pubsub.aclose()
             
         # Create a new connection and PubSub instance for this subscription
         conn = await self._get_or_create_connection()
