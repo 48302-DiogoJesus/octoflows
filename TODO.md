@@ -1,6 +1,3 @@
-[VISUALIZATION_OPTIMIZATION] Refactor the realtime dashboard to use COMPLETE events instead of polling 
-    (faster, more efficient, less impact on the workflow itself)
-
 [ISSUE]
 - With uniform planner => prediction is a lot more accurate, but above
 - With simple planner => prediction is too low

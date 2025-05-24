@@ -3,6 +3,7 @@ import tempfile
 import base64
 from collections import deque
 import sys
+import threading
 import cloudpickle
 import streamlit as st
 import graphviz
@@ -26,6 +27,8 @@ class DAGVisualizationDashboard:
         _worker_config: worker.Worker.Config = worker_config
         self.dag = dag
         self.intermediate_storage: storage.Storage = _worker_config.intermediate_storage_config.create_instance()
+        self._lock = threading.RLock()
+        self.completed_tasks = set()
 
     @staticmethod
     def start(dag, worker_config):
@@ -70,7 +73,12 @@ class DAGVisualizationDashboard:
         
         # Add nodes to the graph
         for name, node in self.dag._all_nodes.items():
-            is_completed = asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None
+            is_completed = node.id.get_full_id() in self.completed_tasks
+            if not is_completed:
+                is_completed = asyncio.run(self.intermediate_storage.exists(node.id.get_full_id_in_dag(self.dag)))
+                if is_completed: self.completed_tasks.add(node.id.get_full_id())
+            else:
+                is_completed = True
             
             # Set node attributes based on completion status
             if is_completed:
@@ -114,8 +122,7 @@ class DAGVisualizationDashboard:
             completed = 0
             total = len(self.dag._all_nodes)
             for name, node in self.dag._all_nodes.items():
-                if asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None:
-                    completed += 1
+                if node.id.get_full_id() in self.completed_tasks: completed += 1
             
             # Display progress bar
             st.progress(completed/total if total > 0 else 0)
@@ -148,39 +155,42 @@ class DAGVisualizationDashboard:
             if node.id.get_full_id() in visited:
                 continue
 
-            if asyncio.run(self.intermediate_storage.get(node.id.get_full_id_in_dag(self.dag))) is not None:
+            if node.id.get_full_id in self.completed_tasks:
                 visited.add(node.id.get_full_id())
 
                 for downstream in node.downstream_nodes:
                     queue.append(downstream)
 
 if __name__ == "__main__":
-    from src.workers.worker import Worker
-    from src.dag.dag import FullDAG
-    import sys
-    import base64
-    import cloudpickle
-    
-    if len(sys.argv) != 3:
-        raise Exception("Usage: python script.py <config_path> <dag_path>")
-    
-    try:
-        # Read and decode the config file
-        with open(sys.argv[1], 'r') as config_file:
-            config = cloudpickle.loads(base64.b64decode(config_file.read()))
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = False
+
+    if not st.session_state.initialized:
+        st.session_state.initialized = True
+        from src.workers.worker import Worker
+        from src.dag.dag import FullDAG
+        import sys
+        import base64
+        import cloudpickle
         
-        # Read and decode the DAG file
-        with open(sys.argv[2], 'r') as dag_file:
-            dag = cloudpickle.loads(base64.b64decode(dag_file.read()))
+        if len(sys.argv) != 3:
+            raise Exception("Usage: python script.py <config_path> <dag_path>")
         
-        if not isinstance(config, Worker.Config):
-            raise Exception("Error: config is not a Worker.Config instance")
-        if not isinstance(dag, FullDAG):
-            raise Exception("Error: dag is not a DAG instance")
+        try:
+            with open(sys.argv[1], 'r') as config_file:
+                config = cloudpickle.loads(base64.b64decode(config_file.read()))
+            with open(sys.argv[2], 'r') as dag_file:
+                dag = cloudpickle.loads(base64.b64decode(dag_file.read()))
+            
+            if not isinstance(config, Worker.Config):
+                raise Exception("Error: config is not a Worker.Config instance")
+            if not isinstance(dag, FullDAG):
+                raise Exception("Error: dag is not a DAG instance")
+            
+            print("Initializing dashboard (this should only print once)")
+            st.session_state.dashboard = DAGVisualizationDashboard(dag, config)
         
-        DAGVisualizationDashboard(dag, config).run_dashboard()
-    
-    except FileNotFoundError as e:
-        raise Exception(f"Temp file not found: {e}")
-    except Exception as e:
-        raise Exception(f"Error loading dashboard data: {e}")
+        except Exception as e:
+            raise Exception(f"Error loading dashboard: {e}")
+
+    st.session_state.dashboard.run_dashboard()
