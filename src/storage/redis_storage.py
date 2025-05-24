@@ -222,3 +222,88 @@ class RedisStorage(storage.Storage):
             traceback.print_exc()
         finally:
             await pubsub.aclose()
+
+    async def _execute_batch(self, operations: List[storage.BatchOperation]) -> List[Any]:
+        if not operations: return []
+        
+        conn = await self._get_or_create_connection()
+        
+        # https://redis.io/docs/latest/develop/use/pipelining/
+        pipe = conn.pipeline()
+        
+        # Queue all operations
+        for op in operations:
+            try:
+                if op.op_type == storage.BatchOperation.Type.GET:
+                    key = op.args[0]
+                    pipe.get(key)
+                    
+                elif op.op_type == storage.BatchOperation.Type.MGET:
+                    keys = op.args[0]
+                    pipe.mget(keys)
+                    
+                elif op.op_type == storage.BatchOperation.Type.EXISTS:
+                    keys = op.args
+                    pipe.exists(*keys)
+                    
+                elif op.op_type == storage.BatchOperation.Type.SET:
+                    key, value = op.args
+                    expire = op.kwargs.get('expire')
+                    pipe.set(key, value, ex=expire)
+                    
+                elif op.op_type == storage.BatchOperation.Type.ATOMIC_INCREMENT_AND_GET:
+                    key = op.args[0]
+                    pipe.incr(key, amount=1)
+                    
+                elif op.op_type == storage.BatchOperation.Type.KEYS:
+                    pattern = op.args[0]
+                    pipe.keys(pattern)
+                    
+                elif op.op_type == storage.BatchOperation.Type.PUBLISH:
+                    channel, message = op.args
+                    pipe.publish(channel, message)
+                    
+                else:
+                    raise ValueError(f"Unsupported batch operation type: {op.op_type}")
+                    
+            except Exception as e:
+                logger.error(f"Error queuing batch operation {op.op_type}: {e}")
+                raise
+        
+        try:
+            # Execute all operations in the pipeline
+            results = await pipe.execute()
+            
+            # Process results
+            processed_results = []
+            for i, (op, result) in enumerate(zip(operations, results)):
+                if op.op_type == storage.BatchOperation.Type.GET:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.MGET:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.EXISTS:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.SET:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.ATOMIC_INCREMENT_AND_GET:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.KEYS:
+                    processed_results.append(result)
+                    
+                elif op.op_type == storage.BatchOperation.Type.PUBLISH:
+                    processed_results.append(result)
+                    
+                else:
+                    processed_results.append(result)
+            
+            logger.debug(f"Successfully executed batch of {len(operations)} operations")
+            return processed_results
+            
+        except Exception as e:
+            logger.error(f"Error executing batch operations: {e}")
+            raise

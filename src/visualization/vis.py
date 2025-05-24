@@ -60,25 +60,32 @@ class DAGVisualizationDashboard:
         atexit.register(cleanup)
 
     def render_graphviz(self):
-        """Render the DAG using Graphviz with left-to-right layout"""
         self.dag: FullDAG = self.dag # type it without introducing a circular dependency
         
         # Create a new directed graph
         graph = graphviz.Digraph()
-        graph.attr(rankdir="LR")  # Left to right layout
+        graph.attr(rankdir="LR") # Left to right layout
         graph.attr(size="8,5")
         graph.attr(ratio="fill")
         graph.attr(fontname="Arial")
         graph.attr(fontsize="12")
         
+        async def update_completed_tasks():
+            async with self.intermediate_storage.batch() as batch:
+                for node_id, node in self.dag._all_nodes.items():
+                    if node_id in self.completed_tasks: continue
+                    await batch.exists(node.id.get_full_id_in_dag(self.dag), result_key=node_id)
+ 
+                await batch.execute()
+ 
+                for node_id in self.dag._all_nodes.keys():
+                    if batch.get_result(node_id): self.completed_tasks.add(node_id)
+        
+        asyncio.run(update_completed_tasks())
+
         # Add nodes to the graph
         for name, node in self.dag._all_nodes.items():
             is_completed = node.id.get_full_id() in self.completed_tasks
-            if not is_completed:
-                is_completed = asyncio.run(self.intermediate_storage.exists(node.id.get_full_id_in_dag(self.dag)))
-                if is_completed: self.completed_tasks.add(node.id.get_full_id())
-            else:
-                is_completed = True
             
             # Set node attributes based on completion status
             if is_completed:
@@ -113,7 +120,7 @@ class DAGVisualizationDashboard:
         # Add sidebar with controls
         with st.sidebar:
             st.header("Controls")
-            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=2)
+            refresh_rate = st.slider("Refresh rate (seconds)", min_value=1, max_value=10, value=3)
             
             st.markdown("---")
             st.write("DAG Progress:")
@@ -131,19 +138,13 @@ class DAGVisualizationDashboard:
         # Add explanation text
         st.write("This dashboard shows the DAG execution status in real-time. Green nodes have completed processing, while gray nodes are pending.")
         
-        # Function to update the graph
-        def update_graph():
-            self._check_completed_tasks()
-            
-            # Render the graph using Graphviz
-            graph = self.render_graphviz()
-            graph.engine = "dot"
-            st.graphviz_chart(graph, use_container_width=True)
-
-        while True:
-            update_graph()
-            st.rerun()
-            time.sleep(refresh_rate)
+        self._check_completed_tasks()
+        graph = self.render_graphviz()
+        graph.engine = "dot"
+        st.graphviz_chart(graph, use_container_width=True)
+        
+        time.sleep(refresh_rate)
+        st.rerun()
 
     def _check_completed_tasks(self):
         assert self.dag.root_nodes is not None

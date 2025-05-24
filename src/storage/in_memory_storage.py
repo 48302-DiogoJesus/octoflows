@@ -131,3 +131,6 @@ class InMemoryStorage(storage.Storage):
         with self._lock:
             if channel in self._subscribers:
                 del self._subscribers[channel]
+
+    async def _execute_batch(self, operations: list[storage.BatchOperation]) -> list[Any]:
+        raise NotImplementedError
