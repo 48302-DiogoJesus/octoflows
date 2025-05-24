@@ -161,6 +161,7 @@ class DAGVisualizationDashboard:
                 for downstream in node.downstream_nodes:
                     queue.append(downstream)
 
+# Note: Streamlit will re-run the entire script on every rerun() call. That's why I'm using session_state to avoid re-initializing the dashboard
 if __name__ == "__main__":
     if 'initialized' not in st.session_state:
         st.session_state.initialized = False
