@@ -10,7 +10,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
 
 # Be at the same level as the ./src directory
-from src.dag_task_annotation import TaskAnnotation
 from src.utils.utils import get_method_overridden
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration

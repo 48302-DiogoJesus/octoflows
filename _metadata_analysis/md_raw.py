@@ -27,7 +27,7 @@ def split_task_id(task_id: str) -> tuple[str, str, str]:
 
 def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"> Task Id: {task_id}")
-    print(f"\tWorker Id: {m.worker_id}")
+    print(f"\tWorker Id: {m.worker_resource_configuration.worker_id}")
     print(f"\tWorker Resource Configuration: {m.worker_resource_configuration}")
     print(f"\tStarted At Timestamp: {m.started_at_timestamp}")
     print(f"\tInput Metrics Len: {len(m.input_metrics)} | Sum: {sum(input_metric.size_bytes for input_metric in m.input_metrics)} bytes")

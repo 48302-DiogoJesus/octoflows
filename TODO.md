@@ -1,8 +1,7 @@
-[GENERIC] Make `worker_id` optional to support "uniform workers" planner?
-    On the "generic code" level (support worker id being `None` (STRONGLY TYPED, not -1))
-        The default WEL can use similar logic to WUKONG to delegate tasks
-        Would this support preload?
-    re-test
+[GENERIC] Think about the impact of `worker_id` == -1
+    Worker logic => task READY subscriptions
+    Delegating tasks
+    Pre-load
 
 [ISSUE]
 - With uniform planner => prediction is a lot more accurate, but above
