@@ -4,7 +4,6 @@ import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.planning.second_algorithm import SecondAlgorithm
-from src.planning.simple_planner import SimpleDAGPlanner
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.docker_worker import DockerWorker

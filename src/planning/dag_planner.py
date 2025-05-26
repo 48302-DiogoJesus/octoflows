@@ -149,10 +149,10 @@ class AbstractDAGPlanner(ABC):
                 download_time += predicted_download_time
                 continue
             
-            earliest_possible_download_start = latest_upstream_node_completion_time - unode_info.path_completion_time
+            earliest_possible_download_start_offset = latest_upstream_node_completion_time - unode_info.path_completion_time
             predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
             assert predicted_download_time
-            download_time += max(predicted_download_time - earliest_possible_download_start, 0)
+            download_time += max(predicted_download_time - earliest_possible_download_start_offset, 0)
             
         exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
         assert exec_time is not None
