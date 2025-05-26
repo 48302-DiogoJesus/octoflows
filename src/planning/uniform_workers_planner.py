@@ -41,6 +41,16 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         super().__init__()
         self.config = config
 
+    def get_description(self) -> str: 
+        return \
+            """
+            The first algorithm would target uniform Lambda
+            workers. It would use the MetadataAccess API to predict the longest workflow path (critical path). Then it would
+            simulate using the pre-load optimization on this path. If optimizing the critical path made it shorter than the
+            second longest path, the algorithm would repeat the process for this new critical path. This would be repeated
+            until we can't optimize the critical path any further.
+            """
+
     def internal_plan(self, dag, metadata_access: MetadataAccess):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
@@ -78,14 +88,13 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         total_preload_optimizations = 0
         while True:
             iteration += 1
-            logger.info(f"=== Critical Path Optimization Iteration {iteration} ===")
             
             # Calculate current node timings and find critical path
             nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
             critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
             critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
             
-            logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
+            # logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
 
             # Try to optimize nodes in the current critical path with PreLoad
             optimized_any_node = False
@@ -100,7 +109,7 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
                 if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0:
                     continue
 
-                logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
+                # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
                 
                 # Add PreLoad annotation temporarily
                 node.add_annotation(PreLoad())
@@ -113,14 +122,14 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
                 # Check if optimization improved performance
                 if new_critical_path_time < critical_path_time:
                     # Optimization helped - keep it
-                    logger.info(f"PreLoad optimization successful for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms")
+                    # logger.info(f"PreLoad optimization successful for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms")
                     optimized_any_node = True
                     nodes_optimized_this_iteration += 1
                     total_preload_optimizations += 1
                     
                     # Check if we introduced a new critical path (different set of nodes)
                     if critical_path_node_ids != new_critical_path_node_ids:
-                        logger.info(f"New critical path introduced. Old: {critical_path_node_ids} | New: {new_critical_path_node_ids}")
+                        # logger.info(f"New critical path introduced. Old: {critical_path_node_ids} | New: {new_critical_path_node_ids}")
                         break  # Start new iteration with the new critical path
                     else:
                         # Same critical path, continue optimizing it
@@ -130,14 +139,14 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
                         continue
                 else:
                     # Optimization didn't help, revert it
-                    logger.info(f"PreLoad optimization not beneficial for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms, reverting")
+                    # logger.info(f"PreLoad optimization not beneficial for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms, reverting")
                     node.remove_annotation(PreLoad)
 
-            logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
+            # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
             # If no optimization was applied in this iteration, we're done
             if not optimized_any_node:
-                logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
+                # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
                 break
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
@@ -147,7 +156,7 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
             
             if critical_path_node_ids == current_critical_path_node_ids:
-                logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
+                # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
                 break
                 
             # Prevent infinite loops
@@ -167,9 +176,10 @@ class UniformWorkersPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             unique_worker_ids[resource_config.worker_id] += 1
 
         logger.info(f"=== FINAL RESULTS ===")
-        logger.info(f"FINAL CRITICAL PATH | Nodes: {len(final_critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in final_critical_path_nodes]} | Predicted Completion Time: {final_critical_path_time} ms")
-        logger.info(f"Total PreLoad optimizations applied: {total_preload_optimizations}")
+        logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
+        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
+        logger.info(f"Worker Resource Configuration (same for all tasks): {self.config.worker_resource_configuration}")
 
         return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
 

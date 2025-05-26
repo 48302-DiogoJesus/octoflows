@@ -82,10 +82,10 @@ async def main():
         #* 1) Execute override_on_worker_ready
         on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
         if on_worker_ready_overriden:
-            logger.info(f"PLANNER.ON_WORKER_READY()")
+            # logger.info(f"PLANNER.ON_WORKER_READY()")
             await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
         else:
-            logger.info(f"WEL.ON_WORKER_READY()")
+            # logger.info(f"WEL.ON_WORKER_READY()")
             await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*

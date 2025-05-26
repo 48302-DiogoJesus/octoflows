@@ -1,6 +1,6 @@
 [PLANNER] Implement 2nd report algoritm
-    - reduce number of PLANNER logs
     - Check if `DAGPlanner.__calculate_node_timings_for_node` has bugs!
+    - remove the simple planner
 
 [GENERIC] Think about the impact of `worker_id` == -1
     Worker logic => task READY subscriptions

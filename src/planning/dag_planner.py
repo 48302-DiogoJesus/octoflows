@@ -48,6 +48,8 @@ class AbstractDAGPlanner(ABC):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
         
+        logger.info(f"Planner: {self.__class__.__name__}")
+        logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, metadata_access)
         if not plan_result: return # no plan was made
         self._visualize_plan(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
@@ -63,6 +65,9 @@ class AbstractDAGPlanner(ABC):
         To be implemented by the Planners
         """
         pass
+
+    @abstractmethod
+    def get_description(self) -> str: pass
 
     def _topological_sort(self, dag) -> list[DAGTaskNode]:
         """

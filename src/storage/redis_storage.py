@@ -38,7 +38,7 @@ class RedisStorage(storage.Storage):
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
         if not skip_verification and await self._verify_connection():
-            return self._connection
+            return self._connection # type: ignore
         else:
             self._connection = Redis(
                 host=self.redis_config.host,
@@ -129,7 +129,7 @@ class RedisStorage(storage.Storage):
             Number of clients that received the message
         """
         conn = await self._get_or_create_connection()
-        logger.info(f"Publishing message to channel: {channel}")
+        logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
 
     async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:

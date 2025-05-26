@@ -41,16 +41,16 @@ class SimpleDAGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         super().__init__()
         self.config = config
 
+    def get_description(self) -> str: 
+        return \
+            """
+            This planning algorithm:
+            - Assigns the best resource config to each node in the DAG
+            - Finds the critical path
+            - Simulates downgrading resource configs of tasks outside the critical path without affecting the critical path significantly
+            """
+
     def internal_plan(self, dag, metadata_access: MetadataAccess):
-        """
-        dag: dag.DAG
-
-        This planning algorithm:
-        - Assigns the best resource config to each node in the DAG
-        - Finds the critical path
-        - Simulates downgrading resource configs of tasks outside the critical path without affecting the critical path significantly
-
-        """
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
@@ -106,7 +106,7 @@ class SimpleDAGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
         
-        logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
+        logger.info(f"Initial critical path | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
 
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         lower_resources_simulation_timer = Timer()
@@ -153,8 +153,8 @@ class SimpleDAGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
                 node.add_annotation(PreLoad())
                 nodes_with_preload += 1
 
-        logger.info(f"Assigned the 'PreLoad' annotation to {nodes_with_preload} nodes")
         logger.info(f"Downgraded resources for {successful_downgrades} nodes out of {len(nodes_outside_critical_path)} nodes outside the critical path in {lower_resources_simulation_timer.stop():.3f} ms")
+        logger.info(f"Assigned the 'PreLoad' annotation to {nodes_with_preload} nodes")
         
         # Log Results
         resource_distribution = {}

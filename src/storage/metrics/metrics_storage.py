@@ -55,8 +55,9 @@ class MetricsStorage():
         if len(coroutines) > 0: await asyncio.gather(*coroutines)
         for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
-        end = time.time()
-        logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
+        if len(coroutines) > 0: 
+            end = time.time()
+            logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
 
 
-BASELINE_MEMORY_MB = 512 # for normalization
+BASELINE_MEMORY_MB = 512 # reference value for normalization

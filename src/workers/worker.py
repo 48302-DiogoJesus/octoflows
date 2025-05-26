@@ -66,10 +66,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 override_handle_inputs = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_inputs)
                 if override_handle_inputs: 
-                    self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
+                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await override_handle_inputs(self.intermediate_storage, current_task, subdag, self.my_resource_configuration)
                 else:
-                    self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
+                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
                     task_dependencies, task_metrics.input_metrics, task_metrics.total_input_download_time_ms = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, self.my_resource_configuration)
 
                 # METADATA: Register the size of hardcoded arguments as well
@@ -85,10 +85,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 override_handle_execution = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_execution)
                 if override_handle_execution: 
-                    self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_EXECUTION()")
+                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await override_handle_execution(current_task, task_dependencies)
                 else:
-                    self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
+                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await WorkerExecutionLogic.override_handle_execution(current_task, task_dependencies)
 
                 tasks_executed_by_this_coroutine.append(current_task.id.get_full_id())
@@ -104,10 +104,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 override_handle_output = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_output)
                 if override_handle_output:
-                    self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
+                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
                     output_upload_time_ms = await override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage)
                 else:
-                    self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
+                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
                     output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage)
 
                 task_metrics.output_metrics = TaskOutputMetrics(
@@ -128,13 +128,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
                     dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                    self.log(current_task.id.get_full_id(), f"Incremented DC of {dc_key} ({dependencies_met}/{downstream_task_total_dependencies})")
+                    self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         downstream_tasks_ready.append(downstream_task)
                 task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
-                self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out {current_task.id.get_full_id_in_dag(subdag)} => {[t.id.get_full_id_in_dag(subdag) for t in current_task.downstream_nodes]}")
+                self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
 
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
@@ -146,10 +146,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 override_handle_downstream = get_method_overridden(self.planner.__class__, WorkerExecutionLogic.override_handle_downstream)
                 if override_handle_downstream: 
-                    self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
+                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await override_handle_downstream(self, downstream_tasks_ready, subdag)
                 else:
-                    self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
+                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await WorkerExecutionLogic.override_handle_downstream(self, downstream_tasks_ready, subdag)
 
                 task_metrics.total_invocations_count = total_invocations_count

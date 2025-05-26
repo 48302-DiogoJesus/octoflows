@@ -41,19 +41,21 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
         super().__init__()
         self.config = config
 
-    def internal_plan(self, dag, metadata_access: MetadataAccess):
-        """
-        The second algorithm should use non-uniform workers. It would first find the critical path by predicting
-        times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
-        on the other paths as much as possible without introducing a new critical path. After attributing tasks to workers
-        (at plan-time, not run-time), this algorithm would then simulate using optimizations to further improve resource
-        efficiency and reduce makespan.
+    def get_description(self) -> str: 
+        return \
+            """
+            The second algorithm should use non-uniform workers. It would first find the critical path by predicting
+            times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
+            on the other paths as much as possible without introducing a new critical path. After attributing tasks to workers
+            (at plan-time, not run-time), this algorithm would then simulate using optimizations to further improve resource
+            efficiency and reduce makespan.
 
-        - Assign best resources to all tasks, find CP
-        - Simulate downgrading resources on non-critical path tasks (w/o introducing a new CP)
-        - Simulate using optimizations
-        """
-        
+            - Assign best resources to all tasks, find CP
+            - Simulate downgrading resources on non-critical path tasks (w/o introducing a new CP)
+            - Simulate using optimizations
+            """
+
+    def internal_plan(self, dag, metadata_access: MetadataAccess):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
@@ -88,7 +90,7 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
         best_resource_config = self.config.available_worker_resource_configurations[0]
         
         # Step 1: Assign best resources to all nodes and find initial critical path
-        logger.info("=== Step 1: Initial assignment with best resources ===")
+        # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
             node.add_annotation(resource_config)
@@ -102,10 +104,10 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
         
-        logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
+        # logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
 
         # Step 2: Downgrade resources on non-critical paths without introducing new critical path
-        logger.info("=== Step 2: Downgrading resources on non-critical paths ===")
+        # logger.info("=== Step 2: Downgrading resources on non-critical paths ===")
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         successful_downgrades = 0
         
@@ -151,7 +153,7 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
             if best_downgrade:
                 # note: no need to add annotation because it was added in the loop above
                 successful_downgrades += 1
-                logger.info(f"Downgraded node {node_id}: {original_config.memory_mb}MB -> {best_downgrade.memory_mb}MB")
+                # logger.info(f"Downgraded node {node_id}: {original_config.memory_mb}MB -> {best_downgrade.memory_mb}MB")
             else:
                 # Restore original config if no downgrade was beneficial
                 node.add_annotation(original_config)
@@ -159,19 +161,19 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
         logger.info(f"Successfully downgraded {successful_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
 
         # Step 3: Apply preload optimizations to improve resource efficiency and reduce makespan
-        logger.info("=== Step 3: Applying preload optimizations ===")
+        # logger.info("=== Step 3: Applying preload optimizations ===")
         iteration = 0
         total_preload_optimizations = 0
         while True:
             iteration += 1
-            logger.info(f"=== Preload Optimization Iteration {iteration} ===")
+            # logger.info(f"=== Preload Optimization Iteration {iteration} ===")
             
             # Recalculate current critical path with current resource assignments
             current_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
             current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, current_nodes_info)
             current_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
             
-            logger.info(f"Current Critical Path | Nodes: {len(current_critical_path_nodes)} | Time: {current_critical_path_time} ms")
+            # logger.info(f"Current Critical Path | Nodes: {len(current_critical_path_nodes)} | Time: {current_critical_path_time} ms")
 
             # Try to optimize nodes in the current critical path with PreLoad
             optimized_any_node = False
@@ -190,7 +192,7 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
                             node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0):
                     continue
 
-                logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
+                # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
                 
                 # Add PreLoad annotation temporarily
                 node.add_annotation(PreLoad())
@@ -203,14 +205,14 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
                 # Check if optimization improved performance
                 if new_critical_path_time < current_critical_path_time:
                     # Optimization helped - keep it
-                    logger.info(f"PreLoad optimization successful for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms")
+                    # logger.info(f"PreLoad optimization successful for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms")
                     optimized_any_node = True
                     nodes_optimized_this_iteration += 1
                     total_preload_optimizations += 1
                     
                     # Check if we introduced a new critical path (different set of nodes)
                     if current_critical_path_node_ids != new_critical_path_node_ids:
-                        logger.info(f"New critical path introduced. Old: {current_critical_path_node_ids} | New: {new_critical_path_node_ids}")
+                        # logger.info(f"New critical path introduced. Old: {current_critical_path_node_ids} | New: {new_critical_path_node_ids}")
                         break  # Start new iteration with the new critical path
                     else:
                         # Same critical path, continue optimizing it
@@ -220,14 +222,14 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
                         continue
                 else:
                     # Optimization didn't help, revert it
-                    logger.info(f"PreLoad optimization not beneficial for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms, reverting")
+                    # logger.info(f"PreLoad optimization not beneficial for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms, reverting")
                     node.remove_annotation(PreLoad)
 
-            logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
+            # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
             # If no optimization was applied in this iteration, we're done
             if not optimized_any_node:
-                logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
+                # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
                 break
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
@@ -236,7 +238,7 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
             final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
             
             if current_critical_path_node_ids == final_critical_path_node_ids:
-                logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
+                # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
                 break
                 
             # Prevent infinite loops
@@ -269,12 +271,11 @@ class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
                 nodes_with_preload += 1
 
         logger.info(f"=== FINAL RESULTS ===")
-        logger.info(f"FINAL CRITICAL PATH | Nodes: {len(final_critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in final_critical_path_nodes]} | Predicted Completion Time: {final_critical_path_time} ms")
-        logger.info(f"Total PreLoad optimizations applied: {total_preload_optimizations}")
-        logger.info(f"Nodes with PreLoad annotation: {nodes_with_preload}")
-        logger.info(f"Successfully downgraded resources: {successful_downgrades} nodes")
-        logger.info(f"Task Resource distribution: {resource_distribution}")
+        logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
+        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
+        logger.info(f"Successfully downgraded resources for {successful_downgrades}/{len(_dag._all_nodes)} nodes")
+        logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
 
         return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
 
