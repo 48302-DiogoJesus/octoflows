@@ -3,6 +3,7 @@ import sys
 import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.planning.second_algorithm import SecondAlgorithm
 from src.planning.simple_planner import SimpleDAGPlanner
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -39,7 +40,7 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=SimpleDAGPlanner.Config(
+    planner_config=SecondAlgorithm.Config(
         sla="avg",
         available_worker_resource_configurations=[
             TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),

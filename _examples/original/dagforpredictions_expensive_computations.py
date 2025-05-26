@@ -2,9 +2,9 @@ import os
 import sys
 import time
 import numpy as np
-
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from src.planning.second_algorithm import SecondAlgorithm
 from src.planning.uniform_workers_planner import UniformWorkersPlanner
 from src.planning.simple_planner import SimpleDAGPlanner
 from src.workers.docker_worker import DockerWorker
@@ -30,18 +30,18 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=UniformWorkersPlanner.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    )
-    # planner_config=SimpleDAGPlanner.Config(
+    # planner_config=UniformWorkersPlanner.Config(
     #     sla="avg",
-    #     available_worker_resource_configurations=[
-    #         TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-    #         TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    #         TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-    #     ],
+    #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
     # )
+    planner_config=SecondAlgorithm.Config(
+        sla="avg",
+        available_worker_resource_configurations=[
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+        ],
+    )
 )
 
 @DAGTask

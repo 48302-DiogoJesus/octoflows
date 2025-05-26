@@ -79,7 +79,6 @@ class UniformWorkersPlanner(DAGPlanner, WorkerExecutionLogic):
 
             iteration = 0
             total_preload_optimizations = 0
-            
             while True:
                 iteration += 1
                 logger.info(f"=== Critical Path Optimization Iteration {iteration} ===")

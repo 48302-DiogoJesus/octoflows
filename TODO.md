@@ -1,7 +1,18 @@
+[PLANNER] Implement 2nd report algoritm
+    - test on ALL workflows **execution**
+        BUG: Wordcount, 1 worker stays active + final result is not produced
+    - reduce number of PLANNER logs
+    - Check if `DAGPlanner.__calculate_node_timings_for_node` has bugs!
+
 [GENERIC] Think about the impact of `worker_id` == -1
     Worker logic => task READY subscriptions
     Delegating tasks
     Pre-load
+    Allow algorithms to not assign workers
+
+[REFACTOR]
+- Think how to make the **preload overrides** from the 2 planners be on the same place
+- Is it possible to move the planner logic that experiments **optimizations** and **resource downgrades** to a common place?
 
 [ISSUE]
 - With uniform planner => prediction is a lot more accurate, but above
@@ -9,7 +20,9 @@
     [=>] Implement 2nd planner from report => 3rd (keep the simple planner)
         re-simulate w/ **downgrading resources**
 
-[PLANNER] Implement 2nd report algoritm
+[BUG]
+- Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
+    check if the final result is even produced or if the worker is exiting too early
 
 [PLANNER_OPTIMIZATION] Explore Output Streaming
     - BENEFITS
