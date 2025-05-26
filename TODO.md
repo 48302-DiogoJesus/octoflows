@@ -1,7 +1,3 @@
-[PLANNER] Implement 2nd report algoritm
-    - Check if `DAGPlanner.__calculate_node_timings_for_node` has bugs!
-    - remove the simple planner
-
 [GENERIC] Think about the impact of `worker_id` == -1
     Worker logic => task READY subscriptions
     Delegating tasks
@@ -9,31 +5,40 @@
     Allow algorithms to not assign workers
 
 [REFACTOR]
-- Think how to make the **preload overrides** from the 2 planners be on the same place
+- Think how to make the **preload overrides** from the 2 planners be on the same place (avoid code duplication)
 - Is it possible to move the planner logic that experiments **optimizations** and **resource downgrades** to a common place?
 
 [ISSUE]
-- With uniform planner => prediction is a lot more accurate, but above
-- With simple planner => prediction is too low
-    [=>] Implement 2nd planner from report => 3rd (keep the simple planner)
-        re-simulate w/ **downgrading resources**
+- Planners predictions are not very accurate with reality!
 
-[BUG]
-- Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
-    check if the final result is even produced or if the worker is exiting too early
+---
 
-[PLANNER_OPTIMIZATION] Explore Output Streaming
+[PLANNER_OPTIMIZATIONS]
+- `pre-warm` (Just make an "empty" invocation (special message that the `Worker Handler` must be ready for?) to a container with a given **resource config**)
+    Possible benefits: faster startup times for some tasks on "new" workers
+        can't measure it at the planner level since the predictions aren't considering worker startup times (warm/cold)
+- `task-dup`
+    If a Worker A is waiting for the data of an upstream Task 1 (executing or to be executed on Worker 2 ) to be available, 
+    it can execute that task itself. By executing Task 1 locally, Worker 2 won’t need to wait for the data to be available 
+    and then download it from external storage. The results produced by Worker 2 will be ignored by Worker 1. 
+    Possible benefits: - makespan ; - data download time.
+- Create a planner that uses them + make the prediction calculations take it into account
+
+[REFACTOR]
+- Should the worker handler logic be encapsulated in a class?
+
+[PLANNER_NEW_OPTIMIZATION_??] Explore Output Streaming
     - BENEFITS
-        - Using pubsub to avoid storing intermediate outputs (when applicable) permanently
-
-[PLANNING_ALGORITHMS] [!!] Store the plan on storage so that the "Metadata Analysis" dashboard can compare the real results to the plan and draw conclusions
+        - Using pubsub to avoid storing intermediate outputs (when applicable) permanently and save download time (would be same as upload time because as 1 byte gets uploaded, it gets downloaded immediatelly)
 
 [OPTIMIZATION:DATA_ACCESS]
-TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
-- Publishing TASK_READY events
-- Downloading input from storage
-- Uploading final metrics
-- Realtime dashboard
+PIPE STORAGE OPERATIONS WHERE POSSIBLE:
+- Publishing TASK_READY events, Incrementing DCs
+- Downloading input from intermediate storage
+- Uploading metrics
+[OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
+    impl => remove storage keys that contain <master_dag_id>
+[OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
 [OPTIMIZATION:WORKER_STARTUP_SPEED]
 - Storing the full dag on redis is costly (DAG retrieval time adds up)
     - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
@@ -41,11 +46,17 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
         DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
     - Also, DAG size is too big for small code and tasks (35kb for image_transform)
     - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
-[OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
-[OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
-    impl => remove storage keys that contain <master_dag_id>
+
+[VISUALIZATION:AFTER_DASHBOARD] [!!] Store the plan on storage so that the "Metadata Analysis" dashboard can compare the real results to the plan and draw conclusions
 
 [PLANNING_ALGORITHMS] Dashboard makespan (5 sec) VS client console (9 sec) time big diff.
+
+[VISUALIZATION]
+- Update the realtime dashboard to use the same "agrapgh" configuration as the metrics Dashboard
+    then, allow clicking on individual tasks to see details (task_id, worker_id, resource config, individual logs)??
+    [BUG] (could use the individual task logs to debug this)
+    - Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
+        check if the final result is even produced or if the worker is exiting too early
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
@@ -55,9 +66,7 @@ TRANSACTION/PIPE REDIS OPERATIONS DONE TO THE SAME STORAGE
 - Implement **Dask** planner
     - just to produce a "Plan" and compare the expected impact of the diff. scheduling decisions for diff. types of workflows
 
-[VISUALIZATION]
-- Update the realtime dashboard to use the same "agrapgh" configuration as the metrics Dashboard
-    then, allow clicking on individual tasks to see details (task_id, worker_id, resource config)??
+---
 
 [ERROR_HANDLING]
 - Add retry mechanisms
