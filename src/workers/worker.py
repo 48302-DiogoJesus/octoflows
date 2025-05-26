@@ -4,7 +4,7 @@ import time
 import cloudpickle
 from abc import ABC, abstractmethod
 
-from src.planning.dag_planner import DAGPlanner
+from src.planning.dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
@@ -26,7 +26,7 @@ class Worker(ABC, WorkerExecutionLogic):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
-        planner_config: DAGPlanner.Config | None = None
+        planner_config: AbstractDAGPlanner.Config | None = None
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass

@@ -13,14 +13,13 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class DAGPlanner(ABC):
+class AbstractDAGPlanner(ABC):
     @dataclass
     class Config(ABC):
         sla: SLA
 
         @abstractmethod
-        def create_instance(self) -> "DAGPlanner": 
-            pass
+        def create_instance(self) -> "AbstractDAGPlanner": pass
 
     @dataclass
     class PlanningTaskInfo:
@@ -34,13 +33,34 @@ class DAGPlanner(ABC):
         earliest_start: float
         path_completion_time: float
 
-    @abstractmethod
+    @dataclass
+    class PlanOutput:
+        nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
+        critical_path_node_ids: set[str]
+
     def plan(self, dag, metadata_access: MetadataAccess):
         """
         dag: dag.DAG
         metadata_access: MetadataAccess
         
         Adds annotations to the given DAG tasks (mutates the tasks)
+        """
+        from src.dag.dag import FullDAG
+        _dag: FullDAG = dag
+        
+        plan_result = self.internal_plan(_dag, metadata_access)
+        if not plan_result: return # no plan was made
+        self._visualize_plan(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+        self.validate_plan(_dag.root_nodes)
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+
+    @abstractmethod
+    def internal_plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
+        """
+        dag: dag.DAG
+        metadata_access: MetadataAccess
+        
+        To be implemented by the Planners
         """
         pass
 
@@ -144,7 +164,7 @@ class DAGPlanner(ABC):
         total_time = download_time + exec_time + upload_time
         path_completion_time = earliest_start + total_time
         
-        nodes_info[node_id] = DAGPlanner.PlanningTaskInfo(
+        nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
             total_input_size, 
             output_size, 
@@ -160,7 +180,7 @@ class DAGPlanner(ABC):
         """
         Calculate timing information for all nodes using the same resource configuration
         """
-        nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
+        nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
             self.__calculate_node_timings_for_node(nodes_info, node, resource_config, metadata_access, sla)
@@ -171,7 +191,7 @@ class DAGPlanner(ABC):
         """
         Calculate timing information for all nodes using custom resource configurations
         """
-        nodes_info: dict[str, DAGPlanner.PlanningTaskInfo] = {}
+        nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
 
         for node in topo_sorted_nodes:
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
@@ -358,7 +378,7 @@ class DAGPlanner(ABC):
                 dot.edge(upstream_id, node_id)
         
         # Add resource configuration legend
-        with dot.subgraph(name='cluster_legend_resources') as legend:
+        with dot.subgraph(name='cluster_legend_resources') as legend: # type: ignore
             if legend is not None:  # Check if legend was created properly
                 legend.attr(label='Resource Configurations', style='filled', fillcolor='white')
                 
@@ -372,7 +392,7 @@ class DAGPlanner(ABC):
                 legend.edges([])
         
         # Add critical path legend with white background
-        with dot.subgraph(name='cluster_legend_critical') as legend:
+        with dot.subgraph(name='cluster_legend_critical') as legend: # type: ignore
             if legend is not None:  # Check if legend was created properly
                 legend.attr(label='Path Type', style='filled', fillcolor='white')
                 

@@ -50,7 +50,7 @@ class DAGTaskNode(Generic[R]):
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
         # Initialized with a dummy worker config annotation for local worker
-        from src.planning.dag_planner import DAGPlanner
+        from src.planning.dag_planner import AbstractDAGPlanner
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None

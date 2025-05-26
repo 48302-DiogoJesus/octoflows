@@ -1,6 +1,4 @@
 [PLANNER] Implement 2nd report algoritm
-    - test on ALL workflows **execution**
-        BUG: Wordcount, 1 worker stays active + final result is not produced
     - reduce number of PLANNER logs
     - Check if `DAGPlanner.__calculate_node_timings_for_node` has bugs!
 

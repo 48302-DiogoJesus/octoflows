@@ -10,7 +10,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.preload import PreLoad
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.planning.dag_planner import DAGPlanner
+from src.planning.dag_planner import AbstractDAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
@@ -23,9 +23,9 @@ from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class SecondAlgorithm(DAGPlanner, WorkerExecutionLogic):
+class SecondAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
     @dataclass
-    class Config(DAGPlanner.Config):
+    class Config(AbstractDAGPlanner.Config):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
         def __post_init__(self):
@@ -35,14 +35,13 @@ class SecondAlgorithm(DAGPlanner, WorkerExecutionLogic):
             """
             self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
-        def create_instance(self) -> "SecondAlgorithm":
-            return SecondAlgorithm(self)
+        def create_instance(self) -> "SecondAlgorithm": return SecondAlgorithm(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
         self.config = config
 
-    def plan(self, dag, metadata_access: MetadataAccess):
+    def internal_plan(self, dag, metadata_access: MetadataAccess):
         """
         The second algorithm should use non-uniform workers. It would first find the critical path by predicting
         times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
@@ -86,7 +85,6 @@ class SecondAlgorithm(DAGPlanner, WorkerExecutionLogic):
             self._visualize_plan(dag)
             return
         
-        algorithm_start_time = Timer()
         best_resource_config = self.config.available_worker_resource_configurations[0]
         
         # Step 1: Assign best resources to all nodes and find initial critical path
@@ -277,13 +275,8 @@ class SecondAlgorithm(DAGPlanner, WorkerExecutionLogic):
         logger.info(f"Successfully downgraded resources: {successful_downgrades} nodes")
         logger.info(f"Task Resource distribution: {resource_distribution}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
-        logger.info(f"Algorithm completed in {algorithm_start_time.stop():.3f} ms after {iteration} iterations")
 
-        # DEBUG: Plan Visualization
-        self._visualize_plan(dag, final_nodes_info, final_critical_path_node_ids)
-        self.validate_plan(_dag.root_nodes)
-        # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
+        return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
 
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):

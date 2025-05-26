@@ -10,7 +10,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.preload import PreLoad
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.planning.dag_planner import DAGPlanner
+from src.planning.dag_planner import AbstractDAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
@@ -23,9 +23,9 @@ from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
+class SimpleDAGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
     @dataclass
-    class Config(DAGPlanner.Config):
+    class Config(AbstractDAGPlanner.Config):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
         def __post_init__(self):
@@ -35,14 +35,13 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
             """
             self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
-        def create_instance(self) -> "SimpleDAGPlanner":
-            return SimpleDAGPlanner(self)
+        def create_instance(self) -> "SimpleDAGPlanner": return SimpleDAGPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
         self.config = config
 
-    def plan(self, dag, metadata_access: MetadataAccess):
+    def internal_plan(self, dag, metadata_access: MetadataAccess):
         """
         dag: dag.DAG
 
@@ -91,8 +90,6 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         
         best_resource_config = self.config.available_worker_resource_configurations[0]
         
-        algorithm_start_time = Timer()
-
         #* Give best resources to all nodes and reuse worker ids
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
@@ -176,12 +173,8 @@ class SimpleDAGPlanner(DAGPlanner, WorkerExecutionLogic):
         logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Predicted Completion Time: {critical_path_time} ms")
         logger.info(f"Task Resource distribution after optimization: {resource_distribution}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
-        logger.info(f"Completed in {algorithm_start_time.stop():.3f} ms")
 
-        self._visualize_plan(dag, nodes_info, critical_path_node_ids)
-        self.validate_plan(_dag.root_nodes)
-        # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!!
-        # exit()
+        return AbstractDAGPlanner.PlanOutput(nodes_info, critical_path_node_ids)
 
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):
