@@ -13,8 +13,9 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):
-        pass
+    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+        from src.planning.annotations.preload import PreLoadOptimization
+        await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
     async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, worker_resource_config) -> tuple[dict[str, Any], list, float]:
@@ -100,12 +101,25 @@ class WorkerExecutionLogic():
         coroutines = []
         total_invocation_time_timer = Timer()
         for task in _downstream_tasks_ready:
-            if task.get_annotation(TaskWorkerResourceConfiguration).worker_id == _this_worker.my_resource_configuration.worker_id:
+            task_resource_config = task.get_annotation(TaskWorkerResourceConfiguration)
+            #* NEW
+            if task_resource_config.worker_id is None:
+                # if I have the same resources, it's mine
+                if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
+                    my_continuation_tasks.append(task)
+                # else, delegate to a new worker
+                else:
+                    other_continuation_tasks.append(task)
+            elif task_resource_config.worker_id == _this_worker.my_resource_configuration.worker_id:
                 my_continuation_tasks.append(task)
             else:
                 requires_launching_worker = True
                 for dunode in task.upstream_nodes:
-                    if dunode.get_annotation(TaskWorkerResourceConfiguration).worker_id == task.get_annotation(TaskWorkerResourceConfiguration).worker_id:
+                    dunode_resource_config = dunode.get_annotation(TaskWorkerResourceConfiguration)
+                    #* NEW
+                    if dunode_resource_config.worker_id is None:
+                        pass # can't reuse these, flexible workers don't subscribe to TASK_READY events
+                    elif dunode_resource_config.worker_id == task_resource_config.worker_id:
                         # => We know that the worker for the downstream task was already launched meaning
                         #   we don't need to launch a new worker, only send the READY event and the appropriate 
                         #   worker will handle it

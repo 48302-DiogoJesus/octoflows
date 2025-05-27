@@ -4,16 +4,17 @@ from graphviz import Digraph
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
-from src.planning.annotations.preload import PreLoad
+from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class AbstractDAGPlanner(ABC):
+class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     @dataclass
     class Config(ABC):
         sla: SLA
@@ -142,7 +143,7 @@ class AbstractDAGPlanner(ABC):
             if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: 
                 continue
             unode_info = nodes_info[unode.id.get_full_id()]
-            if not node.try_get_annotation(PreLoad):
+            if not node.try_get_annotation(PreLoadOptimization):
                 # if parent node has preload, these upstream tasks will be preloaded
                 predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
                 assert predicted_download_time
@@ -360,7 +361,7 @@ class AbstractDAGPlanner(ABC):
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.input_size if node_info else 0} - {node_info.output_size if node_info else 0} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start if node_info else 0:.2f} - {node_info.path_completion_time if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoad) is not None}</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoadOptimization) is not None}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{node.get_annotation(TaskWorkerResourceConfiguration).worker_id[-6:]}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"

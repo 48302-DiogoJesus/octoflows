@@ -1,11 +1,11 @@
 [GENERIC] Think about the impact of `worker_id` == -1
-    Worker logic => task READY subscriptions
-    Delegating tasks
-    Pre-load
     Allow algorithms to not assign workers
+    Note: support some tasks not having a strict worker id and others having (hybrid)
+    remove `#* NEW` comments
 
 [REFACTOR]
 - Think how to make the **preload overrides** from the 2 planners be on the same place (avoid code duplication)
+    use **firstalgorithm** logic as reference
 - Is it possible to move the planner logic that experiments **optimizations** and **resource downgrades** to a common place?
 
 [ISSUE]

@@ -65,28 +65,30 @@ async def main():
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
 
-        all_tasks_for_this_worker: list[DAGTaskNode] = []
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
+        all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
         while _nodes_to_visit:
             current_node = _nodes_to_visit.pop(0)
             if current_node.id.get_full_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_full_id())
-
-            if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
+            
+            if this_worker_id is not None and current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
             
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
         #* 1) Execute override_on_worker_ready
-        on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
-        if on_worker_ready_overriden:
-            # logger.info(f"PLANNER.ON_WORKER_READY()")
-            await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
-        else:
-            # logger.info(f"WEL.ON_WORKER_READY()")
-            await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+        # on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
+        # if on_worker_ready_overriden:
+        #     # logger.info(f"PLANNER.ON_WORKER_READY()")
+        #     await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
+        # else:
+        #     # logger.info(f"WEL.ON_WORKER_READY()")
+        #     await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+        if wk.planner:
+            await wk.planner.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
@@ -99,12 +101,13 @@ async def main():
             return callback
         
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
-        for task in all_tasks_for_this_worker:
-            if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
-            if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
-                continue
-            tasks_that_depend_on_other_workers.append(task)
-            await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
+        if this_worker_id is not None:
+            for task in all_tasks_for_this_worker:
+                if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
+                if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
+                    continue
+                tasks_that_depend_on_other_workers.append(task)
+                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
@@ -121,12 +124,13 @@ async def main():
         await asyncio.gather(*direct_task_branches_coroutines)
 
         #* 5) Wait for MY executions that depend on OTHER tasks (because we have pending pubsub subscriptions for those)
-        remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
-        if len(remaining_tasks_for_this_worker) > 0:
-            completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
-            logger.info(f"Worker({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
-            await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
-            logger.info(f"Worker({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
+        if this_worker_id is not None:
+            remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
+            if len(remaining_tasks_for_this_worker) > 0:
+                completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
+                logger.info(f"Worker({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
+                await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
+                logger.info(f"Worker({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
 
         #* 5) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)

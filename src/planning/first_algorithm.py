@@ -7,8 +7,8 @@ import uuid
 import cloudpickle
 
 from src.dag.dag import FullDAG, SubDAG
-from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
-from src.planning.annotations.preload import PreLoad
+from src.dag_task_node import DAGTaskNode
+from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.dag_planner import AbstractDAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
@@ -19,11 +19,10 @@ from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class FirstAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
+class FirstAlgorithm(AbstractDAGPlanner):
     """
     The first algorithm would target uniform Lambda workers. 
     It would use the MetadataAccess API to predict the longest workflow path (critical path). Then it would
@@ -103,16 +102,16 @@ class FirstAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
             for node in critical_path_nodes:
                 node_id = node.id.get_full_id()
                 
-                if node.try_get_annotation(PreLoad): continue # Skip if node already has PreLoad annotation
+                if node.try_get_annotation(PreLoadOptimization): continue # Skip if node already has PreLoad annotation
                     
-                # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
-                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0:
+                # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker id
+                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or un.get_annotation(TaskWorkerResourceConfiguration).worker_id != node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0:
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
                 
                 # Add PreLoad annotation temporarily
-                node.add_annotation(PreLoad())
+                node.add_annotation(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
                 new_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
@@ -140,7 +139,7 @@ class FirstAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
                 else:
                     # Optimization didn't help, revert it
                     # logger.info(f"PreLoad optimization not beneficial for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms, reverting")
-                    node.remove_annotation(PreLoad)
+                    node.remove_annotation(PreLoadOptimization)
 
             # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
@@ -206,111 +205,3 @@ class FirstAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
             dfs_paths(root_node, [], 0)
             
         return all_paths
-
-    @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str):
-        # Only executes once, even if there are multiple tasks with this annotation
-        def _on_preload_task_completed_builder(upstream_task: DAGTaskNode, annotation: PreLoad, intermediate_storage: Storage, dag: FullDAG):
-            async def _callback(_: dict):
-                async with annotation._lock:
-                    if not annotation.allow_new_preloads: return
-                    annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
-                
-                logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
-
-                task_output = cloudpickle.loads(await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag)))
-                # Store the result so that its visible to other coroutines
-                dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(task_output)
-                
-                async with annotation._lock:
-                    annotation.preloading_complete_events[upstream_task.id.get_full_id()].set()
-                    logger.info(f"[PRELOADING - DONE] Task: {upstream_task.id.get_full_id()}")
-
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}")
-            return _callback
-
-        _nodes_to_visit = dag.root_nodes
-        visited_nodes = set()
-        while _nodes_to_visit:
-            current_node = _nodes_to_visit.pop(0)
-            if current_node.id.get_full_id() in visited_nodes: continue
-            visited_nodes.add(current_node.id.get_full_id())
-            for downstream_node in current_node.downstream_nodes:
-                if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
-            # MY Logic
-            if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id: continue
-            preload_annotation = current_node.try_get_annotation(PreLoad)
-            if not preload_annotation: continue
-            for unode in current_node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: continue
-                logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
-                await intermediate_storage.subscribe(
-                    f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                    _on_preload_task_completed_builder(unode, preload_annotation, intermediate_storage, dag)
-                )
-
-    @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
-        task_dependencies: dict[str, Any] = {}
-        _input_metrics: list[TaskInputMetrics] = []
-        dependency_download_timer = Timer()
-        upstream_tasks_to_fetch = []
-        
-        preload_annotation = task.try_get_annotation(PreLoad)
-        __tasks_preloading_coroutines: dict[str, CoroutineType] = {}
-        if preload_annotation:
-            async with preload_annotation._lock:
-                preload_annotation.allow_new_preloads = False
-                for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
-                    logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
-                    __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
-
-        for t in task.upstream_nodes:
-            if t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
-                logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
-                # unsubscribe because we are going to fetch it, in the future it won't matter
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
-                upstream_tasks_to_fetch.append(t)
-                
-        async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
-            fotimer = Timer()
-            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            input_fetch_time = fotimer.stop()
-            loaded_data = cloudpickle.loads(task_output)
-            return (
-                dependency_task.id.get_full_id(),
-                loaded_data,
-                TaskInputMetrics(
-                    task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                    size_bytes=calculate_data_structure_size(loaded_data),
-                    time_ms=input_fetch_time,
-                    normalized_time_ms=input_fetch_time * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
-                )
-            )
-
-        # Fetch data that is not being preloaded
-        fetch_coroutines = [_fetch_dependency_data(ut, subdag, intermediate_storage) for ut in upstream_tasks_to_fetch]
-        results = await asyncio.gather(*fetch_coroutines)
-        for task_id, data, metrics in results:
-            task_dependencies[task_id] = data
-            _input_metrics.append(metrics)
-        
-        # Wait for preloading to finish
-        await asyncio.gather(*__tasks_preloading_coroutines.values())
-        
-        # Grab cached + preloaded data
-        for t in task.upstream_nodes:
-            if t.cached_result:
-                task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                _input_metrics.append(
-                    TaskInputMetrics(
-                        task_id=t.id.get_full_id_in_dag(subdag),
-                        size_bytes=calculate_data_structure_size(t.cached_result.result),
-                        time_ms=0,
-                        normalized_time_ms=0
-                    )
-                )
-
-        _total_input_download_time_ms = dependency_download_timer.stop()
-        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
