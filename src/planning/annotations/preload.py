@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from types import CoroutineType
-from typing import Any
+from typing import Any, Awaitable
 import cloudpickle
 
 from src.dag.dag import FullDAG, SubDAG
@@ -79,10 +79,15 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 )
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, worker_resource_config: TaskWorkerResourceConfiguration | None) -> tuple[dict[str, Any], list[TaskInputMetrics], float]:
-        task_dependencies: dict[str, Any] = {}
-        _input_metrics: list[TaskInputMetrics] = []
-        dependency_download_timer = Timer()
+    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+        """
+        returns (
+            tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
+            input_metrics,
+            acc_input_download_time_ms
+            wait_until_coroutine (so that the caller can fetch the tasks in parallel)
+        )
+        """
         upstream_tasks_to_fetch = []
         
         preload_annotation = task.try_get_annotation(PreLoadOptimization)
@@ -100,37 +105,14 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 # unsubscribe because we are going to fetch it, in the future it won't matter
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
                 upstream_tasks_to_fetch.append(t)
-                
-        async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
-            fotimer = Timer()
-            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            input_fetch_time = fotimer.stop()
-            loaded_data = cloudpickle.loads(task_output)
-            return (
-                dependency_task.id.get_full_id(),
-                loaded_data,
-                TaskInputMetrics(
-                    task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                    size_bytes=calculate_data_structure_size(loaded_data),
-                    time_ms=input_fetch_time,
-                    normalized_time_ms=input_fetch_time * (worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if worker_resource_config else 0
-                )
-            )
 
-        # Fetch data that is not being preloaded
-        fetch_coroutines = [_fetch_dependency_data(ut, subdag, intermediate_storage) for ut in upstream_tasks_to_fetch]
-        results = await asyncio.gather(*fetch_coroutines)
-        for task_id, data, metrics in results:
-            task_dependencies[task_id] = data
-            _input_metrics.append(metrics)
-        
-        # Wait for preloading to finish
-        await asyncio.gather(*__tasks_preloading_coroutines.values())
-        
-        # Grab cached + preloaded data
-        for t in task.upstream_nodes:
-            if t.cached_result:
+        async def _wait_all_preloads_coroutine() -> list[TaskInputMetrics]:
+            _input_metrics: list[TaskInputMetrics] = []
+            await asyncio.gather(*__tasks_preloading_coroutines.values()) # Wait for all preloading to finish for this task
+            # Grab preloaded data results
+            for t in task.upstream_nodes:
+                if t.id.get_full_id() not in __tasks_preloading_coroutines: continue
+                if not t.cached_result: raise Exception(f"ERROR: Task {t.id.get_full_id()} was preloading. After preload, it doesn't have a cached result!!")
                 task_dependencies[t.id.get_full_id()] = t.cached_result.result
                 _input_metrics.append(
                     TaskInputMetrics(
@@ -140,6 +122,6 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                         normalized_time_ms=0
                     )
                 )
+            return _input_metrics
 
-        _total_input_download_time_ms = dependency_download_timer.stop()
-        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
+        return (upstream_tasks_to_fetch, _wait_all_preloads_coroutine())

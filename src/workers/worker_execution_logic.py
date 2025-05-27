@@ -1,4 +1,5 @@
 import asyncio
+from types import CoroutineType
 from typing import Any
 import cloudpickle
 
@@ -7,7 +8,6 @@ from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
-from src.utils.utils import calculate_data_structure_size
 
 logger = create_logger(__name__)
 
@@ -18,57 +18,15 @@ class WorkerExecutionLogic():
         await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, worker_resource_config) -> tuple[dict[str, Any], list, float]:
-        from src.storage.metrics.metrics_types import TaskInputMetrics
-        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-        from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
-        _worker_resource_config: TaskWorkerResourceConfiguration = worker_resource_config
-        task_dependencies: dict[str, Any] = {}
-        _input_metrics: list[TaskInputMetrics] = []
-        dependency_download_timer = Timer()
-        upstream_tasks_without_cached_results = []
-
-        for t in task.upstream_nodes:
-            if t.cached_result is None:
-                upstream_tasks_without_cached_results.append(t)
-            else:
-                task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                _input_metrics.append(
-                    TaskInputMetrics(
-                        task_id=t.id.get_full_id_in_dag(subdag),
-                        size_bytes=calculate_data_structure_size(t.cached_result.result),
-                        time_ms=0,
-                        normalized_time_ms=0
-                    )
-                )
-
-        async def _fetch_dependency_data(dependency_task, subdag, intermediate_storage):
-            fotimer = Timer()
-            task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-            if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-            input_fetch_time = fotimer.stop()
-            loaded_data = cloudpickle.loads(task_output)
-            return (
-                dependency_task.id.get_full_id(),
-                loaded_data,
-                TaskInputMetrics(
-                    task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                    size_bytes=calculate_data_structure_size(loaded_data),
-                    time_ms=input_fetch_time,
-                    normalized_time_ms=input_fetch_time * (_worker_resource_config.memory_mb / BASELINE_MEMORY_MB) if _worker_resource_config else 0
-                )
-            )
-
-        # Concurrently fetch dependencies
-        fetch_coroutines = [_fetch_dependency_data(dependency_task, subdag, intermediate_storage) for dependency_task in upstream_tasks_without_cached_results]
-        results = await asyncio.gather(*fetch_coroutines)
-
-        for task_id, data, metrics in results:
-            task_dependencies[task_id] = data
-            _input_metrics.append(metrics)
-        
-        _total_input_download_time_ms = dependency_download_timer.stop()
-        return (task_dependencies, _input_metrics, _total_input_download_time_ms)
+    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+        """
+        returns (
+            tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
+            input_metrics,
+            wait_until_coroutine (so that the caller can fetch the tasks in parallel)
+        )
+        """
+        return (upstream_tasks_without_cached_results, None)
     
     @staticmethod
     async def override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
