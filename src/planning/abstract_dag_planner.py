@@ -15,6 +15,10 @@ from src.workers.worker_execution_logic import WorkerExecutionLogic
 logger = create_logger(__name__, prefix="PLANNING")
 
 class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
+    """
+    A planner should override WorkerExecutionLogic methods if it uses annotations that may conflict with each other.
+    This way, the planner can specify the desired behavior.
+    """
     @dataclass
     class Config(ABC):
         sla: SLA

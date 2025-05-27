@@ -4,7 +4,7 @@ import time
 import cloudpickle
 from abc import ABC, abstractmethod
 
-from src.planning.dag_planner import AbstractDAGPlanner
+from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskHardcodedInputMetrics, TaskMetrics, TaskOutputMetrics
 from src.utils.timer import Timer

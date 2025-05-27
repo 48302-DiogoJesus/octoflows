@@ -3,7 +3,7 @@ import uuid
 
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.planning.dag_planner import AbstractDAGPlanner
+from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.metadata_access.metadata_access import MetadataAccess
 from src.utils.logger import create_logger
 

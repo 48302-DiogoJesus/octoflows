@@ -1,5 +1,11 @@
 [REFACTOR]
 - Is it possible to isolate the changes required by the preload optimization on `override_handle_inputs`?
+    - need to know:
+        `override_handle_inputs -> tuple[list[task_ids_to_fetch_immediatelly], AdvanceCoroutine]`
+            generic handler executes **fetching** and **waiting** in parallel
+        which tasks already have output cached locally (known a priori, generic)
+        which tasks to fetch (optimization has to decide)
+        when to advance to next stage => task execution (optimization should block until all outputs are ready (e.g., wait for pending preloads to finish))
 
 [GENERIC] Think about the impact of `worker_id` == -1
     Allow algorithms to NOT assign worker ids (change `validate` function)
