@@ -1,12 +1,12 @@
-[GENERIC] Think about the impact of `worker_id` == -1
-    Allow algorithms to not assign workers
-    Note: support some tasks not having a strict worker id and others having (hybrid)
-    remove `#* NEW` comments
-
 [REFACTOR]
-- Think how to make the **preload overrides** from the 2 planners be on the same place (avoid code duplication)
-    use **firstalgorithm** logic as reference
-- Is it possible to move the planner logic that experiments **optimizations** and **resource downgrades** to a common place?
+- Is it possible to isolate the changes required by the preload optimization on `override_handle_inputs`?
+
+[GENERIC] Think about the impact of `worker_id` == -1
+    Allow algorithms to NOT assign worker ids (change `validate` function)
+    on the 2 planners, when we short circuit the planning, don't assign worker ids!    
+    Create a new planner (similar to WUKONG, with all workers being automatic)
+    Experiment with algorithms to not assign workers
+    remove `#* NEW` comments
 
 [ISSUE]
 - Planners predictions are not very accurate with reality!

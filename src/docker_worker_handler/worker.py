@@ -4,13 +4,12 @@ import base64
 import cloudpickle
 import os
 import platform
+# Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # Define a lock file path
 LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
 
-# Be at the same level as the ./src directory
-from src.utils.utils import get_method_overridden
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_READY_EVENT_PREFIX
@@ -80,15 +79,10 @@ async def main():
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
         #* 1) Execute override_on_worker_ready
-        # on_worker_ready_overriden = get_method_overridden(wk.planner.__class__, WorkerExecutionLogic.override_on_worker_ready)
-        # if on_worker_ready_overriden:
-        #     # logger.info(f"PLANNER.ON_WORKER_READY()")
-        #     await on_worker_ready_overriden(wk.intermediate_storage, fulldag, this_worker_id)
-        # else:
-        #     # logger.info(f"WEL.ON_WORKER_READY()")
-        #     await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
         if wk.planner:
             await wk.planner.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+        else:
+            await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
