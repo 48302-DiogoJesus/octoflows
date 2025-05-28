@@ -148,7 +148,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 continue
             unode_info = nodes_info[unode.id.get_full_id()]
             if not node.try_get_annotation(PreLoadOptimization):
-                # if parent node has preload, these upstream tasks will be preloaded
                 predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
                 assert predicted_download_time
                 download_time += predicted_download_time
@@ -165,7 +164,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         assert output_size is not None
         
         # Won't need to upload since it will be executed on the same worker
-        if len(node.downstream_nodes) > 0 and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+        if len(node.downstream_nodes) > 0 and worker_id is not None and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0
         else:
             upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
@@ -273,7 +272,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             worker_id = resource_config.worker_id
             
             # Validation #1 => Similar Worker IDs have same resources
-            if worker_id == "":
+            if worker_id == None:
                 raise Exception(f"Task {node.id.get_full_id()} has no 'worker_id' assigned")
             
             if worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
@@ -283,11 +282,13 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             
             # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
             if node in root_nodes:
-                used_worker_ids.add(node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
+                worker_config = node.get_annotation(TaskWorkerResourceConfiguration)
+                if worker_config.worker_id is not None: used_worker_ids.add(worker_config.worker_id)
             else:
                 dnodes_grouped_by_worker_id: dict[str, list[DAGTaskNode]] = {}
                 for n in node.downstream_nodes:
                     wid = n.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    if wid is None: continue
                     if wid not in dnodes_grouped_by_worker_id: dnodes_grouped_by_worker_id[wid] = []
                     dnodes_grouped_by_worker_id[wid].append(n)
 
@@ -366,7 +367,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start if node_info else 0:.2f} - {node_info.path_completion_time if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoadOptimization) is not None}</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{node.get_annotation(TaskWorkerResourceConfiguration).worker_id[-6:]}</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"
             

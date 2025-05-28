@@ -171,11 +171,15 @@ class SecondAlgorithm(AbstractDAGPlanner):
                 if node.try_get_annotation(PreLoadOptimization):
                     continue  # Skip if node already has PreLoad annotation
                     
+                resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+
+                if resource_config.worker_id is None: continue # flexible workers can't have preload
+
                 # Only try to apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
                 if (len(node.upstream_nodes) == 0 or 
                     len([un for un in node.upstream_nodes 
                         if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != 
-                            node.get_annotation(TaskWorkerResourceConfiguration).worker_id]) == 0):
+                            resource_config.worker_id]) == 0):
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
@@ -239,7 +243,7 @@ class SecondAlgorithm(AbstractDAGPlanner):
         
         # Calculate resource distribution
         resource_distribution = {}
-        unique_worker_ids = {}
+        unique_worker_ids: dict[str, int] = {}
         nodes_with_preload = 0
         
         for node_id, node in _dag._all_nodes.items():
@@ -249,6 +253,7 @@ class SecondAlgorithm(AbstractDAGPlanner):
                 resource_distribution[config_key] = 0
             resource_distribution[config_key] += 1
             
+            if resource_config.worker_id is None: continue
             if resource_config.worker_id not in unique_worker_ids:
                 unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1

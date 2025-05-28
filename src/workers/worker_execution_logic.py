@@ -60,7 +60,6 @@ class WorkerExecutionLogic():
         total_invocation_time_timer = Timer()
         for task in _downstream_tasks_ready:
             task_resource_config = task.get_annotation(TaskWorkerResourceConfiguration)
-            #* NEW
             if task_resource_config.worker_id is None:
                 # if I have the same resources, it's mine
                 if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
@@ -74,7 +73,6 @@ class WorkerExecutionLogic():
                 requires_launching_worker = True
                 for dunode in task.upstream_nodes:
                     dunode_resource_config = dunode.get_annotation(TaskWorkerResourceConfiguration)
-                    #* NEW
                     if dunode_resource_config.worker_id is None:
                         pass # can't reuse these, flexible workers don't subscribe to TASK_READY events
                     elif dunode_resource_config.worker_id == task_resource_config.worker_id:

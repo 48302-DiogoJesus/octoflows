@@ -34,11 +34,26 @@ class DockerWorker(Worker):
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         All HTTP requests are executed in parallel, and the function only returns once all requests are completed
         '''
-        if len(subdags) == 0: raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
-        subdags.sort(key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id, reverse=True)
+        if len(subdags) == 0: 
+            raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
+        
+        subdags.sort(key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id or "", reverse=True)
+        
+        # Separate tasks with None worker_id from those with specific worker_ids
+        tasks_with_worker_id = []
+        tasks_without_worker_id = []
+        
+        for subdag in subdags:
+            worker_id = subdag.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            if worker_id is None:
+                tasks_without_worker_id.append(subdag)
+            else:
+                tasks_with_worker_id.append(subdag)
+        
+        # Group tasks with specific worker_ids (existing logic)
         tasks_grouped_by_id = {
             worker_id: list(tasks)
-            for worker_id, tasks in groupby(subdags, key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
+            for worker_id, tasks in groupby(tasks_with_worker_id, key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
         }
         
         # Create a list to store all the async tasks
@@ -66,9 +81,13 @@ class DockerWorker(Worker):
                         raise Exception(f"Failed to invoke worker: {text}")
                     return response.status
         
-        # Create a task for each worker_id
+        # Create a task for each worker_id (grouped requests)
         for worker_id, worker_subdags in tasks_grouped_by_id.items():
             http_tasks.append(make_worker_request(worker_id, worker_subdags))
+        
+        # Create individual tasks for each subdag with worker_id = None
+        for subdag in tasks_without_worker_id:
+            http_tasks.append(make_worker_request(None, [subdag]))
         
         # Wait for all HTTP requests to complete
         await asyncio.gather(*http_tasks)
