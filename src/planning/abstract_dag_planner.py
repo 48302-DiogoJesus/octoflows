@@ -57,7 +57,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, metadata_access)
         if not plan_result: return # no plan was made
-        self._visualize_plan(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+        self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
 
@@ -272,13 +272,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             worker_id = resource_config.worker_id
             
             # Validation #1 => Similar Worker IDs have same resources
-            if worker_id == None:
-                raise Exception(f"Task {node.id.get_full_id()} has no 'worker_id' assigned")
-            
-            if worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
+            if worker_id is not None and worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):
                 raise Exception(f"Worker {worker_id} has different resource configurations on different tasks")
             
-            worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
+            if worker_id is not None:
+                worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
             
             # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
             if node in root_nodes:
@@ -303,7 +301,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 
         logger.info("Validation Succeeded!")
 
-    def _visualize_plan(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo] = dict(), critical_path_node_ids: set[str] = set()):
+    def _store_plan_image(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo] = dict(), critical_path_node_ids: set[str] = set()):
         """
         Visualize the DAG with task information using Graphviz.
         

@@ -1,14 +1,5 @@
-[ISSUE]
-    wordcount runs fine, but afterwards, 1 worker (last, I think) remains active waiting for TASK_COMPLETE events!
-    overrides from annotations are not being called (only the `on_worker_ready`)
-
 [GENERIC] `worker_id` == None
-    Allow algorithms to NOT assign worker ids (change `validate` function)
-    On the `SecondAlgorithm` planners, when we short circuit the planning, don't assign worker ids!
-        Test
-        If all goes fine, do the same for `FirstAlgorithm`
-    Create a new planner (similar to WUKONG, with all workers being automatic)
-    Experiment with algorithms to not assign workers
+    Temporarily modify `SecondAlgorithm` to assign worker ids to some tasks and None to others and see how they work on WORDCOUNT
 
 [ISSUE]
 - Workers are remaining active once again after executing

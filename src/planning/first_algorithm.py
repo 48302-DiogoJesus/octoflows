@@ -53,14 +53,9 @@ class FirstAlgorithm(AbstractDAGPlanner):
             # Assign worker resources and ids
             for node in topo_sorted_nodes: 
                 unique_resources = self.config.worker_resource_configuration.clone()
+                unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.add_annotation(unique_resources)
-                if len(node.upstream_nodes) == 0:
-                    # Give each root node a unique worker id
-                    unique_resources.worker_id = uuid.uuid4().hex
-                else:
-                    # Use same worker id as its first upstream node
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
-            self._visualize_plan(dag)
+            self._store_plan_image(dag)
             return
         
         # Give same resources to all nodes and assign worker ids

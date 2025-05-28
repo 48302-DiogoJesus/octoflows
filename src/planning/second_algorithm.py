@@ -60,7 +60,7 @@ class SecondAlgorithm(AbstractDAGPlanner):
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
                     unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
-            self._visualize_plan(dag)
+            self._store_plan_image(dag)
             return
 
         middle_resource_config = self.config.available_worker_resource_configurations[len(self.config.available_worker_resource_configurations) // 2]
@@ -70,11 +70,8 @@ class SecondAlgorithm(AbstractDAGPlanner):
             for node in topo_sorted_nodes: 
                 unique_resources = middle_resource_config.clone()
                 node.add_annotation(unique_resources)
-                if len(node.upstream_nodes) == 0:
-                    unique_resources.worker_id = uuid.uuid4().hex
-                else:
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
-            self._visualize_plan(dag)
+                unique_resources.worker_id = None # note: ALL workers will be "flexible"
+            self._store_plan_image(dag)
             return
         
         best_resource_config = self.config.available_worker_resource_configurations[0]
