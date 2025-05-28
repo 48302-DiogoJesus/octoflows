@@ -2,11 +2,6 @@
     Temporarily modify `SecondAlgorithm` to assign worker ids to some tasks and None to others and see how they work on WORDCOUNT
 
 [ISSUE]
-- Workers are remaining active once again after executing
-    on wordcount, it's happening more often
-    cause ?: changes because of supporting "flexible workers"?
-
-[ISSUE]
 - Planners predictions are not very accurate with reality!
 
 ---
