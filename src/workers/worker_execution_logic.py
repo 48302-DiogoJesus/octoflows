@@ -14,8 +14,7 @@ logger = create_logger(__name__)
 class WorkerExecutionLogic():
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
-        from src.planning.annotations.preload import PreLoadOptimization
-        await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
+        pass
 
     @staticmethod
     async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:

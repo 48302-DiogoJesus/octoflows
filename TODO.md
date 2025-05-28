@@ -1,12 +1,12 @@
-[BUG]
-- docker worker is not waiting for all tasks properly!
-    prints "DONE Waiting for all coroutines!"
-    then prints task related data
-        origin: coro named: "start_executing_immediate_followup"
+[ISSUE]
+    wordcount runs fine, but afterwards, 1 worker (last, I think) remains active waiting for TASK_COMPLETE events!
+    overrides from annotations are not being called (only the `on_worker_ready`)
 
-[GENERIC] Think about the impact of `worker_id` == None
+[GENERIC] `worker_id` == None
     Allow algorithms to NOT assign worker ids (change `validate` function)
-    On the 2 planners, when we short circuit the planning, don't assign worker ids!    
+    On the `SecondAlgorithm` planners, when we short circuit the planning, don't assign worker ids!
+        Test
+        If all goes fine, do the same for `FirstAlgorithm`
     Create a new planner (similar to WUKONG, with all workers being automatic)
     Experiment with algorithms to not assign workers
 

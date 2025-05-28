@@ -33,14 +33,14 @@ dockerWorkerConfig = DockerWorker.Config(
     #     sla="avg",
     #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
     # )
-    planner_config=FirstAlgorithm.Config(
+    planner_config=SecondAlgorithm.Config(
         sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-        # available_worker_resource_configurations=[
-        #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-        #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-        #     TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-        # ],
+        # worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+        available_worker_resource_configurations=[
+            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+            TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
+        ],
     )
 )
 

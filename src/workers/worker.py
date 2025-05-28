@@ -86,7 +86,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 _download_dependencies_timer = Timer()
 
-                if self.planner: 
+                if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
                     tasks_to_fetch, wait_until_coroutine = await self.planner.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 else:
@@ -118,7 +118,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 
                 if wait_until_coroutine:
                     utasks_outputs = all_results[:-1] # All results except the last one (wait coroutine)
-                    task_metrics.input_metrics.append(all_results[-1]) # wait_until_coroutine coroutine returns list[TaskInputMetrics]
+                    task_metrics.input_metrics.extend(all_results[-1]) # wait_until_coroutine coroutine returns list[TaskInputMetrics]
                 else:
                     utasks_outputs = all_results
 
