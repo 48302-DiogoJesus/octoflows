@@ -44,6 +44,7 @@ class Worker(ABC, WorkerExecutionLogic):
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
         tasks_executed_by_this_coroutine = []
+        other_coroutines_i_launched = []
 
         try:
             while True:
@@ -61,7 +62,6 @@ class Worker(ABC, WorkerExecutionLogic):
                     total_invocations_count=0,
                     total_invocation_time_ms=0
                 )
-                other_coroutines_i_launched = []
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")

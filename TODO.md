@@ -1,3 +1,9 @@
+[BUG]
+- docker worker is not waiting for all tasks properly!
+    prints "DONE Waiting for all coroutines!"
+    then prints task related data
+        origin: coro named: "start_executing_immediate_followup"
+
 [GENERIC] Think about the impact of `worker_id` == None
     Allow algorithms to NOT assign worker ids (change `validate` function)
     On the 2 planners, when we short circuit the planning, don't assign worker ids!    
@@ -6,6 +12,7 @@
 
 [ISSUE]
 - Workers are remaining active once again after executing
+    on wordcount, it's happening more often
     cause ?: changes because of supporting "flexible workers"?
 
 [ISSUE]
@@ -25,7 +32,7 @@
 - Create a planner that uses them + make the prediction calculations take it into account
 
 [REFACTOR]
-- Should the worker handler logic be encapsulated in a class?
+- Should the worker handler logic be encapsulated in a class (e.g., on existing `Worker` class ?)
 
 [PLANNER_NEW_OPTIMIZATION_??] Explore Output Streaming
     - BENEFITS
