@@ -98,13 +98,13 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                     __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
 
         #! FOR DEBUG ONLY
-        if len(task.downstream_nodes) == 0:
-            logger.info(f"Sink Task has {len(task.upstream_nodes)} unodes")
+        # if len(task.downstream_nodes) == 0:
+        #     logger.info(f"Sink Task has {len(task.upstream_nodes)} unodes")
 
         for t in task.upstream_nodes:
             if t.cached_result:
-                if len(task.downstream_nodes) == 0:
-                    logger.info(f"has cached result: {t.id.get_full_id()}")
+                # if len(task.downstream_nodes) == 0:
+                #     logger.info(f"has cached result: {t.id.get_full_id()}")
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
             elif t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
                 if len(task.downstream_nodes) == 0:
@@ -113,9 +113,6 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 # unsubscribe because we are going to fetch it, in the future it won't matter
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
                 upstream_tasks_to_fetch.append(t)
-            else:
-                if len(task.downstream_nodes) == 0:
-                    logger.info(f"will wait preloading: {t.id.get_full_id()}")
 
         async def _wait_all_preloads_coroutine() -> list[TaskInputMetrics]:
             _input_metrics: list[TaskInputMetrics] = []

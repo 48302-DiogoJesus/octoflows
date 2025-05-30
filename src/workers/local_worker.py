@@ -25,4 +25,4 @@ class LocalWorker(Worker):
     
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
         for subdag in subdags:
-            await asyncio.create_task(self.start_executing(subdag), name=f"local_delegate_subdag(task={subdag.root_node.id.get_full_id()})")
+            await asyncio.create_task(self.execute_branch(subdag, ""), name=f"local_delegate_subdag(task={subdag.root_node.id.get_full_id()})")

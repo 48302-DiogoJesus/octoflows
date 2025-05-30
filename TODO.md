@@ -1,8 +1,15 @@
-[GENERIC] `worker_id` == None
-    Temporarily modify `SecondAlgorithm` to assign worker ids to some tasks and None to others and see how they work on WORDCOUNT
+[ISSUE] Planners predictions are not very accurate with reality!
+    - Create a simple planner for reference that only assigns worker ids and a single config and makes predictions, without optimizations
+        - parametrizable with **diff. worker resource configs** + **strict vs flexible worker ids** for all tasks
 
-[ISSUE]
-- Planners predictions are not very accurate with reality!
+[VISUALIZATION] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
+- Can I show a general percentage offset of how wrong the plan predictions were
+
+[OPTIMIZATION:DATA_ACCESS]
+PIPE STORAGE OPERATIONS WHERE POSSIBLE:
+- Publishing TASK_READY events, Incrementing DCs
+- Downloading input from intermediate storage
+- Uploading metrics
 
 ---
 
@@ -18,17 +25,21 @@
 - Create a planner that uses them + make the prediction calculations take it into account
 
 [REFACTOR]
-- Should the worker handler logic be encapsulated in a class (e.g., on existing `Worker` class ?)
+- Should the faas worker handler logic (`docker_worker_handler/worker.py`) be encapsulated in a class (e.g., on existing `Worker` class ?)
+    ! only if it's generic enough that it would also work on `AWS Lambda` workers for example. Otherwise keep it separate.
+    - `start_executing` rename to `execute_branch` since it starts at a task and keeps going down, delegating when necessary
+    - new function would be called `start_worker_lifecycle`
 
-[PLANNER_NEW_OPTIMIZATION_??] Explore Output Streaming
+[NEW_OPTIMIZATION?:OUTPUT_STREAMING]
+    - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete
+    - Possible to do using Redis?
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently and save download time (would be same as upload time because as 1 byte gets uploaded, it gets downloaded immediatelly)
+    - DRAWBACKS
+        - Would have to know if the receiver was already active (SYNC point?)
+            how:
+                - Check if the result of the first task of the receiver worker already **exists** in storage
 
-[OPTIMIZATION:DATA_ACCESS]
-PIPE STORAGE OPERATIONS WHERE POSSIBLE:
-- Publishing TASK_READY events, Incrementing DCs
-- Downloading input from intermediate storage
-- Uploading metrics
 [OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
     impl => remove storage keys that contain <master_dag_id>
 [OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage

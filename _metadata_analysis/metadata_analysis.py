@@ -12,12 +12,9 @@ import redis
 import cloudpickle
 import pandas as pd
 import plotly.express as px
-
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
-
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
@@ -280,9 +277,8 @@ def main():
                 
                 # Basic task info
                 st.metric("Function", task_node.func_name)
-                resource_config = task_node.get_annotation(TaskWorkerResourceConfiguration)
-                st.metric("Worker", resource_config.worker_id)
-                st.metric("Worker Resources", f"{resource_config.cpus} CPUs + {resource_config.memory_mb} MB")
+                st.metric("Worker", metrics.worker_resource_configuration.worker_id)
+                st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus} CPUs + {metrics.worker_resource_configuration.memory_mb} MB")
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:

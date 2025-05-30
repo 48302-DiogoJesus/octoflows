@@ -40,17 +40,24 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def start_executing(self, subdag: dag.SubDAG) -> list[str]:
+    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> list[str]:
+        """
+        Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
+        """
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
+        self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.get_annotation(TaskWorkerResourceConfiguration)
+        # To help understand locality decisions afterwards, at the dashboard
+        my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
+        my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
+        
         tasks_executed_by_this_coroutine = []
         other_coroutines_i_launched = []
 
         try:
             while True:
-                self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.get_annotation(TaskWorkerResourceConfiguration)
                 task_metrics = TaskMetrics(
-                    worker_resource_configuration=self.my_resource_configuration,
+                    worker_resource_configuration=my_resource_configuration_with_flexible_worker_id,
                     started_at_timestamp = time.time(),
                     input_metrics = [],
                     hardcoded_input_metrics = [],
@@ -222,7 +229,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     my_other_tasks = my_continuation_tasks[1:]
                     # Execute other tasks on coroutines in this worker
                     for t in my_other_tasks:
-                        other_coroutines_i_launched.append(asyncio.create_task(self.start_executing(subdag.create_subdag(t)), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
+                        other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
         except Exception as e:
             self.log(current_task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
             raise e

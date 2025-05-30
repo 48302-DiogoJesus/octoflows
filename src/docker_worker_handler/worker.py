@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import base64
+from uuid import uuid4
 import cloudpickle
 import os
 import platform
@@ -65,6 +66,7 @@ async def main():
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
+        _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
@@ -91,7 +93,7 @@ async def main():
                 await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}")
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.start_executing(subdag), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
+                asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
             return callback
         
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
@@ -110,7 +112,7 @@ async def main():
         for task_id in immediate_task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
-            direct_task_branches_coroutines.append(asyncio.create_task(wk.start_executing(subdag), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
         logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
