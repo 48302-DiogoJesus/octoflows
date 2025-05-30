@@ -5,7 +5,7 @@ import io
 from typing import List
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.planning.second_algorithm import SecondAlgorithm
+from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -29,7 +29,7 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=SecondAlgorithm.Config(
+    planner_config=SecondPlannerAlgorithm.Config(
         sla="avg",
         available_worker_resource_configurations=[
             TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),

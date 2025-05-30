@@ -160,7 +160,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 total_input_size = sum(m.size_bytes for m in task_metrics.input_metrics) + sum(m.size_bytes for m in task_metrics.hardcoded_input_metrics)
                 task_metrics.normalized_execution_time_per_input_byte_ms = task_metrics.execution_time_ms \
                     * (task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB)  \
-                    / total_input_size if task_metrics.worker_resource_configuration and total_input_size > 0 else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
+                    / total_input_size if total_input_size > 0 else 0 # 0, not to influence predictions, using task_metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")

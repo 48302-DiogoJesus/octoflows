@@ -13,19 +13,12 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class FirstAlgorithm(AbstractDAGPlanner):
-    """
-    The first algorithm would target uniform Lambda workers. 
-    It would use the MetadataAccess API to predict the longest workflow path (critical path). Then it would
-    simulate using the pre-load optimization on this path. If optimizing the critical path introduced a new critical path, 
-    the algorithm would repeat the process for this new critical path. This would be repeated until optimizing a critical doesn't introduce a new
-    critical path
-    """
+class FirstPlannerAlgorithm(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.Config):
         worker_resource_configuration: TaskWorkerResourceConfiguration
 
-        def create_instance(self) -> "FirstAlgorithm": return FirstAlgorithm(self)
+        def create_instance(self) -> "FirstPlannerAlgorithm": return FirstPlannerAlgorithm(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -172,30 +165,6 @@ class FirstAlgorithm(AbstractDAGPlanner):
 
         return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
 
-    def _find_all_paths_timings(self, dag, nodes_info):
-        """Helper method to find timing information for all paths in the DAG"""
-        # This is a simplified implementation - you may need to adjust based on your DAG structure
-        # and how paths are represented in your system
-        all_paths = []
-        
-        def dfs_paths(node, current_path, current_time):
-            current_path = current_path + [node]
-            node_info = nodes_info.get(node.id.get_full_id(), {})
-            node_completion_time = node_info.get('completion_time', 0)
-            current_time = max(current_time, node_completion_time)
-            
-            if len(node.downstream_nodes) == 0:  # Leaf node
-                all_paths.append((current_path.copy(), current_time))
-            else:
-                for downstream_node in node.downstream_nodes:
-                    dfs_paths(downstream_node, current_path, current_time)
-        
-        # Start DFS from all root nodes
-        for root_node in dag.root_nodes:
-            dfs_paths(root_node, [], 0)
-            
-        return all_paths
-    
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         from src.planning.annotations.preload import PreLoadOptimization

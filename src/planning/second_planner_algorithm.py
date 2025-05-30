@@ -13,7 +13,7 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class SecondAlgorithm(AbstractDAGPlanner):
+class SecondPlannerAlgorithm(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.Config):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
@@ -25,7 +25,7 @@ class SecondAlgorithm(AbstractDAGPlanner):
             """
             self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
-        def create_instance(self) -> "SecondAlgorithm": return SecondAlgorithm(self)
+        def create_instance(self) -> "SecondPlannerAlgorithm": return SecondPlannerAlgorithm(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -37,12 +37,11 @@ class SecondAlgorithm(AbstractDAGPlanner):
             The second algorithm should use non-uniform workers. It would first find the critical path by predicting
             times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
             on the other paths as much as possible without introducing a new critical path. After attributing tasks to workers
-            (at plan-time, not run-time), this algorithm would then simulate using optimizations to further improve resource
-            efficiency and reduce makespan.
+            (at plan-time, not run-time), it simulates using preload optimization to reduce makespan by masking dependency download time.
 
             - Assign best resources to all tasks, find CP
             - Simulate downgrading resources on non-critical path tasks (w/o introducing a new CP)
-            - Simulate using optimizations
+            - Simulate using optimizations (preload)
             """
 
     def internal_plan(self, dag, metadata_access: MetadataAccess):

@@ -1,15 +1,38 @@
 [ISSUE] Planners predictions are not very accurate with reality!
-    - Create a simple planner for reference that only assigns worker ids and a single config and makes predictions, without optimizations
-        - parametrizable with **diff. worker resource configs** + **strict vs flexible worker ids** for all tasks
+    1 => Experiment with simple planner (change resource configs, then change flexible workers to struct workers). run multiple times
+        Try to make the normalized predictions NON-LINEAR, so that reducing the resources by half won't predict half the resources
+            DELETE ALL METADATA, then experiment with 512mb vs 256mb
+        Offset causes:
+            - predictions don't consider worker start times (cold start, warm start, same worker)
+            - [ISSUE] Predictions made with resources diff. from the BASELINE for normalization (512mb) are very off
+                e.g., 512 mb real time ~= 8-10s | 256 real time ~= 12-14s (but predicted is 24s)
+                because the normalization is linear, assumes that the code will improve linearly as resources change
+                [POSSIBLE_SOLUTION?]
+                    - Store task_execution_metrics for each resource config (besides the normalized metrics)
+                    - Change the way the normalized metrics are stored to not be linear and test it with 512 vs 256
+                    - If we don't have metrics for a given resource config OR below a samples threshold (e.g., 5):
+                        - use the normalized current method
+                    - Else
+                        - make prediction based on samples that used the exact same memory
+                        (drawback: before running a task with X memory we won't make accurate predictions about it)
+                    - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
+    2 => experiment with `FirstPlannerAlgorithm` w/o PreLoad
+    3 => experiment with `FirstPlannerAlgorithm` w/ PreLoad
+    4 => experiment with `SecondPlannerAlgorithm`
+    _
+    [=>] [VISUALIZATION] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
+        - BEFORE: Dashboard makespan (5 sec) VS client console (9 sec) time big diff.
+        - for each task, show `planned_download_inputs time vs real`, `planned_exec_time vs real`, etc...
+        - can I show a general percentage offset of how wrong the plan predictions were?
 
-[VISUALIZATION] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- Can I show a general percentage offset of how wrong the plan predictions were
+[THINK:OPTIMIZATIONS_IMPL]
+- `pre-warm` + `pre-load`
 
-[OPTIMIZATION:DATA_ACCESS]
-PIPE STORAGE OPERATIONS WHERE POSSIBLE:
-- Publishing TASK_READY events, Incrementing DCs
-- Downloading input from intermediate storage
-- Uploading metrics
+[EVALUATION:PREPARE]
+- Implement **WUKONG** planner
+    + optimizations
+        - Task Clustering (fan-ins + fan-outs)
+        - Delayed I/O
 
 ---
 
@@ -30,15 +53,9 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
     - `start_executing` rename to `execute_branch` since it starts at a task and keeps going down, delegating when necessary
     - new function would be called `start_worker_lifecycle`
 
-[NEW_OPTIMIZATION?:OUTPUT_STREAMING]
-    - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete
-    - Possible to do using Redis?
-    - BENEFITS
-        - Using pubsub to avoid storing intermediate outputs (when applicable) permanently and save download time (would be same as upload time because as 1 byte gets uploaded, it gets downloaded immediatelly)
-    - DRAWBACKS
-        - Would have to know if the receiver was already active (SYNC point?)
-            how:
-                - Check if the result of the first task of the receiver worker already **exists** in storage
+[EVALUATION:PREPARE]
+?? Implement **Dask** planner ?? 
+    - just to produce a "Plan" and compare the expected impact of the diff. scheduling decisions for diff. types of workflows
 
 [OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
     impl => remove storage keys that contain <master_dag_id>
@@ -51,9 +68,21 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
     - Also, DAG size is too big for small code and tasks (35kb for image_transform)
     - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
 
-[VISUALIZATION:AFTER_DASHBOARD] [!!] Store the plan on storage so that the "Metadata Analysis" dashboard can compare the real results to the plan and draw conclusions
+[OPTIMIZATION:DATA_ACCESS]
+PIPE STORAGE OPERATIONS WHERE POSSIBLE:
+- Publishing TASK_READY events, Incrementing DCs
+- Downloading input from intermediate storage
+- Uploading metrics
 
-[PLANNING_ALGORITHMS] Dashboard makespan (5 sec) VS client console (9 sec) time big diff.
+[NEW_OPTIMIZATION?:OUTPUT_STREAMING]
+    - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete
+    - Possible to do using Redis?
+    - BENEFITS
+        - Using pubsub to avoid storing intermediate outputs (when applicable) permanently and save download time (would be same as upload time because as 1 byte gets uploaded, it gets downloaded immediatelly)
+    - DRAWBACKS
+        - Would have to know if the receiver was already active (SYNC point?)
+            how:
+                - Check if the result of the first task of the receiver worker already **exists** in storage
 
 [VISUALIZATION]
 - Update the realtime dashboard to use the same "agrapgh" configuration as the metrics Dashboard
@@ -62,22 +91,7 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
     - Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
         check if the final result is even produced or if the worker is exiting too early
 
-[EVALUATION:PREPARE]
-- Implement **WUKONG** planner
-    + optimizations
-        - Task Clustering (fan-ins + fan-outs)
-        - Delayed I/O
-- Implement **Dask** planner
-    - just to produce a "Plan" and compare the expected impact of the diff. scheduling decisions for diff. types of workflows
-
 ---
-
-[ERROR_HANDLING]
-- Add retry mechanisms
-    - On a task level (logic inside a worker)
-    - On a worker level (how to report this error if we don't have a centralized Job queue?)
-- Redis key to store errors (JSON that stores stderr for each DAG task). Use redis transactions
-    Client then should also poll this key periodically
 
 [VERSATILITY]
 - Allow user to specify requirements.txt dependencies so that they don't need to be downloaded at runtime

@@ -4,6 +4,6 @@ from typing import Literal, TypeAlias
 
 @dataclass
 class Percentile:
-    value: int
+    value: int # higher => more confidence
 
 SLA: TypeAlias = Literal["avg"] | Percentile
