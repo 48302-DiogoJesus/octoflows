@@ -124,7 +124,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         return total_input_size
     
-    def __calculate_node_timings_for_node(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, metadata_access: MetadataAccess, sla: SLA):
+    def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, metadata_access: MetadataAccess, sla: SLA):
         node_id = node.id.get_full_id()
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         total_input_size = self._calculate_total_input_size(node, nodes_info)
@@ -192,7 +192,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
-            self.__calculate_node_timings_for_node(nodes_info, node, resource_config, metadata_access, sla)
+            self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
             
         return nodes_info
     
@@ -205,7 +205,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for node in topo_sorted_nodes:
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             # note: modifies `nodes_info`
-            self.__calculate_node_timings_for_node(nodes_info, node, resource_config, metadata_access, sla)
+            self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
 
         return nodes_info
     

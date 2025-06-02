@@ -1,8 +1,5 @@
 [ISSUE] Planners predictions are not very accurate with reality!
-    1 => Experiment with simple planner (change resource configs, then change flexible workers to struct workers). run multiple times
-        Try to make the normalized predictions NON-LINEAR, so that reducing the resources by half won't predict half the resources
-            DELETE ALL METADATA, then experiment with 512mb vs 256mb
-        Offset causes:
+    1 => Experiment with simple planner (change flexible workers to struct workers)
     2 => experiment with `FirstPlannerAlgorithm` w/o PreLoad
     3 => experiment with `FirstPlannerAlgorithm` w/ PreLoad
     4 => experiment with `SecondPlannerAlgorithm`

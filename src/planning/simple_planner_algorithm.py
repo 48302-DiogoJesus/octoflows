@@ -77,7 +77,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
-        logger.info(f"Worker Resource Configuration (same for all tasks): {self.config.worker_resource_configuration}")
+        logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
 
         return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
     
