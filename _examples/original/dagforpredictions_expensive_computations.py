@@ -34,7 +34,7 @@ dockerWorkerConfig = DockerWorker.Config(
     planner_config=SimplePlannerAlgorithm.Config(
         sla="avg",
         all_flexible_workers=False,
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=1024),
         # worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
         # available_worker_resource_configurations=[
         #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),

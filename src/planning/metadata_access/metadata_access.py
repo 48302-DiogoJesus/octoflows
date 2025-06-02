@@ -49,11 +49,11 @@ class MetadataAccess:
         for task_id, metrics in task_specific_metrics.items():
             function_name = self._split_task_id(task_id)[0]
             if metrics.worker_resource_configuration:
-                if metrics.normalized_execution_time_per_input_byte_ms == 0: continue
+                if metrics.execution_time_per_input_byte_ms == 0: continue
                 if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
                 # Store tuple of (normalized_time, cpus, memory_mb)
                 self.cached_execution_time_per_byte[function_name].append((
-                    metrics.normalized_execution_time_per_input_byte_ms,
+                    metrics.execution_time_per_input_byte_ms,
                     metrics.worker_resource_configuration.cpus,
                     metrics.worker_resource_configuration.memory_mb
                 ))
@@ -158,23 +158,21 @@ class MetadataAccess:
 
         logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
         
-        if len(matching_samples) < 3:
-            # While we don't have enough samples using the same resources, use an approximation formula
-            all_normalized_times = [normalized_time for normalized_time, _, _ in all_samples]
-            if sla == "avg": normalized_ms_per_byte = np.mean(all_normalized_times)
-            else: normalized_ms_per_byte = np.percentile(all_normalized_times, 100 - sla.value)
-            if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
-            # - 1/2 (0.5x) → ~1.5x execution time | 1/4 (0.25x) → ~2.1x execution time | 2x (2x) → ~0.66x execution time
-            # MEMORY SCALING EXPONENT (current value: 0.6)
-            # At 1.0 = pure inverse relationship (half memory = double time)
-            # At 0.0 = memory has no effect on execution time
-            res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.6 # Non-linear memory factor
+        if len(matching_samples) >= 2:
+            # Direct prediction using exact resource matches (no memory scaling needed)
+            if sla == "avg": ms_per_byte = np.mean(matching_samples)
+            else: ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
+            if ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
+            res = ms_per_byte * input_size
         else:
-            # When we enough samples using the same resources, use only those samples and a linear memory relationship
-            if sla == "avg": normalized_ms_per_byte = np.mean(matching_samples)
-            else: normalized_ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
-            if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
-            res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) # Linear memory factor
+            # Insufficient exact matches - use memory scaling model with baseline normalization
+            # First, normalize all samples to baseline memory configuration
+            baseline_normalized_samples = [t * (memory_mb / BASELINE_MEMORY_MB) ** 0.6 for t, cpus, memory_mb in all_samples]
+            
+            if sla == "avg": baseline_ms_per_byte = np.mean(baseline_normalized_samples) 
+            else: baseline_ms_per_byte = np.percentile(baseline_normalized_samples, 100 - sla.value)
+            if baseline_ms_per_byte <= 0:  raise ValueError(f"No data available for function {function_name}")
+            res = baseline_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.6
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore

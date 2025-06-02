@@ -44,7 +44,7 @@ class TaskMetrics:
     hardcoded_input_metrics: list[TaskHardcodedInputMetrics] # known ahead of time (not "lazy", not DAGTasks)
     total_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)
     execution_time_ms: float
-    normalized_execution_time_per_input_byte_ms: float
+    execution_time_per_input_byte_ms: float
     update_dependency_counters_time_ms: float
     output_metrics: TaskOutputMetrics
     total_invocations_count: int
