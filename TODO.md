@@ -1,15 +1,8 @@
 [ISSUE] Predictions made with resources diff. from the BASELINE for normalization (512mb) are very off
     e.g., 512 mb real time ~= 8-10s | 256 real time ~= 12-14s (but predicted is 24s)
-    because the normalization is linear, assumes that the code will improve linearly as resources change
-    [POSSIBLE_SOLUTION?]
-        - Store task_execution_metrics for each resource config (besides the normalized metrics)
-        - Change the way the normalized metrics are stored to not be linear and test it with 512 vs 256
-        - If we don't have metrics for a given resource config OR below a samples threshold (e.g., 5):
-            - use the normalized current method
-        - Else
-            - make prediction based on samples that used the exact same memory
-            (drawback: before running a task with X memory we won't make accurate predictions about it)
-        - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
+    - issue: now predicts lower values even if previous run took longer than avg
+        on the `approximation path` only
+    - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
 
 [ISSUE] Planners predictions are not very accurate with reality!
     1 => Experiment with simple planner (change resource configs, then change flexible workers to struct workers). run multiple times
@@ -90,6 +83,9 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
     [BUG] (could use the individual task logs to debug this)
     - Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
         check if the final result is even produced or if the worker is exiting too early
+
+[OPTIMIZATION:PLANNING]
+- When predicting normalized stuff, and we don't have enough samples yet, try to use the samples of the closest resource config  (up or odnw)
 
 ---
 

@@ -32,7 +32,7 @@ dockerWorkerConfig = DockerWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
     planner_config=SimplePlannerAlgorithm.Config(
-        sla=Percentile(value=80),
+        sla="avg",
         all_flexible_workers=False,
         worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         # worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),

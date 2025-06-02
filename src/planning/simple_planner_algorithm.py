@@ -54,7 +54,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
             resource_config = self.config.worker_resource_configuration.clone()
             node.add_annotation(resource_config)
             
-            if self.config.all_flexible_workers:
+            if not self.config.all_flexible_workers:
                 if len(node.upstream_nodes) == 0:
                     # Give each root node a unique worker id
                     resource_config.worker_id = uuid.uuid4().hex

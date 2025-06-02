@@ -14,8 +14,8 @@ class MetadataAccess:
     cached_upload_speeds: list[float] = [] # bytes/ms
     cached_download_speeds: list[float] = [] # bytes/ms
     cached_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
-    # Value: dict[memory_mb, list[normalized_execution_time_ms / input_size_bytes]]
-    cached_execution_time_per_byte: dict[str, list[float]] = {}
+    # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb]]]
+    cached_execution_time_per_byte: dict[str, list[tuple[float, float, int]]] = {}
 
     _cached_prediction_data_transfer_times: dict[str, float] = {}
     _cached_prediction_execution_times: dict[str, float] = {}
@@ -51,7 +51,12 @@ class MetadataAccess:
             if metrics.worker_resource_configuration:
                 if metrics.normalized_execution_time_per_input_byte_ms == 0: continue
                 if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
-                self.cached_execution_time_per_byte[function_name].append(metrics.normalized_execution_time_per_input_byte_ms)
+                # Store tuple of (normalized_time, cpus, memory_mb)
+                self.cached_execution_time_per_byte[function_name].append((
+                    metrics.normalized_execution_time_per_input_byte_ms,
+                    metrics.worker_resource_configuration.cpus,
+                    metrics.worker_resource_configuration.memory_mb
+                ))
 
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
@@ -136,23 +141,41 @@ class MetadataAccess:
         """
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
         if function_name not in self.cached_execution_time_per_byte: raise ValueError(f"Function {function_name} not found in metadata")
-        normalized_ms_per_byte_for_function = self.cached_execution_time_per_byte[function_name]
-        if len(normalized_ms_per_byte_for_function) == 0: raise ValueError(f"No data available for function {function_name}")
-
+        
         prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_execution_times: 
             return self._cached_prediction_execution_times[prediction_key]
         
-        if sla == "avg":
-            normalized_ms_per_byte = np.mean(normalized_ms_per_byte_for_function)
+        # Get all samples for this function
+        all_samples = self.cached_execution_time_per_byte[function_name]
+        if len(all_samples) == 0: raise ValueError(f"No data available for function {function_name}")
+        
+        # Filter samples by exact resource match
+        matching_samples = [
+            normalized_time for normalized_time, cpus, memory_mb in all_samples
+            if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
+        ]
+
+        logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
+        
+        if len(matching_samples) < 3:
+            # While we don't have enough samples using the same resources, use an approximation formula
+            all_normalized_times = [normalized_time for normalized_time, _, _ in all_samples]
+            if sla == "avg": normalized_ms_per_byte = np.mean(all_normalized_times)
+            else: normalized_ms_per_byte = np.percentile(all_normalized_times, 100 - sla.value)
+            if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
+            # - 1/2 (0.5x) → ~1.5x execution time | 1/4 (0.25x) → ~2.1x execution time | 2x (2x) → ~0.66x execution time
+            # MEMORY SCALING EXPONENT (current value: 0.6)
+            # At 1.0 = pure inverse relationship (half memory = double time)
+            # At 0.0 = memory has no effect on execution time
+            res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.6 # Non-linear memory factor
         else:
-            if sla.value < 0 or sla.value > 100:
-                raise ValueError("SLA must be between 0 and 100")
-            normalized_ms_per_byte = np.percentile(normalized_ms_per_byte_for_function, 100 - sla.value)
+            # When we enough samples using the same resources, use only those samples and a linear memory relationship
+            if sla == "avg": normalized_ms_per_byte = np.mean(matching_samples)
+            else: normalized_ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
+            if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
+            res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) # Linear memory factor
         
-        if normalized_ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
-        
-        res = normalized_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb)
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
