@@ -11,8 +11,9 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 logger = create_logger(__name__)
 
 class MetadataAccess:
-    cached_upload_speeds: list[float] = [] # bytes/ms
-    cached_download_speeds: list[float] = [] # bytes/ms
+    # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
+    cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
+    cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int]]] = {}
@@ -37,13 +38,26 @@ class MetadataAccess:
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
             if self.dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
-            # UPLOAD SPEEDS
-            if metrics.output_metrics.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                self.cached_upload_speeds.append(metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms)
-            # DOWNLOAD SPEEDS
-            for input_metric in metrics.input_metrics:
-                if input_metric.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                    self.cached_download_speeds.append(input_metric.size_bytes / input_metric.normalized_time_ms)
+            
+            # Store upload/download speeds with resource configuration
+            if metrics.worker_resource_configuration:
+                # UPLOAD SPEEDS
+                if metrics.output_metrics.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                    upload_speed = metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms
+                    self.cached_upload_speeds.append((
+                        upload_speed,
+                        metrics.worker_resource_configuration.cpus,
+                        metrics.worker_resource_configuration.memory_mb
+                    ))
+                # DOWNLOAD SPEEDS
+                for input_metric in metrics.input_metrics:
+                    if input_metric.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                        download_speed = input_metric.size_bytes / input_metric.normalized_time_ms
+                        self.cached_download_speeds.append((
+                            download_speed,
+                            metrics.worker_resource_configuration.cpus,
+                            metrics.worker_resource_configuration.memory_mb
+                        ))
 
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
@@ -95,27 +109,55 @@ class MetadataAccess:
         return res
 
     def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = False) -> float | None:
-        """
+        """Predict data transfer time for upload/download given data size and resources.
+        
+        Args:
+            type: 'upload' or 'download'
+            data_size_bytes: Size of data to transfer in bytes
+            resource_config: Worker resource configuration (CPUs + RAM)
+            sla: Either "avg" for mean prediction or percentile (0-100)
+        
         Returns:
             Predicted data transfer time in milliseconds
             None if no data is available
         """
+        if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
+        if data_size_bytes == 0: return 0
+        
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
         if len(cached_data) == 0: raise ValueError(f"No data available for {type}")
-        if data_size_bytes == 0: return 0
+        
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
             return self._cached_prediction_data_transfer_times[prediction_key]
-        if sla == "avg":
-            normalized_speed_bytes_per_ms = np.mean(cached_data)
+        
+        # Filter samples by exact resource match
+        matching_samples = [
+            speed for speed, cpus, memory_mb in cached_data
+            if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
+        ]
+
+        logger.info(f"Found {len(matching_samples)} exact resource matches for {type}")
+        
+        if len(matching_samples) >= 2:
+            # Direct prediction using exact resource matches (no memory scaling needed)
+            if sla == "avg": normalized_speed_bytes_per_ms = np.mean(matching_samples)
+            else: normalized_speed_bytes_per_ms = np.percentile(matching_samples, 100 - sla.value)
+            if normalized_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
+            res = data_size_bytes / normalized_speed_bytes_per_ms
         else:
-            if sla.value < 0 or sla.value > 100: 
-                raise ValueError("SLA must be between 0 and 100")
-            normalized_speed_bytes_per_ms = np.percentile(cached_data, 100 - sla.value)
+            # Insufficient exact matches - use memory scaling model with baseline normalization
+            # First, normalize all samples to baseline memory configuration
+            baseline_normalized_samples = [speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.7 for speed, cpus, memory_mb in cached_data]
+            if sla == "avg":  baseline_speed_bytes_per_ms = np.mean(baseline_normalized_samples)
+            else: baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, 100 - sla.value)
+            
+            if baseline_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
+            
+            # Scale from baseline to target resource configuration
+            actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+            res = data_size_bytes / actual_speed
         
-        if normalized_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
-        
-        res = (data_size_bytes / normalized_speed_bytes_per_ms) * (BASELINE_MEMORY_MB / resource_config.memory_mb) 
         self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
@@ -167,43 +209,16 @@ class MetadataAccess:
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [t * (memory_mb / BASELINE_MEMORY_MB) ** 0.6 for t, cpus, memory_mb in all_samples]
+            baseline_normalized_samples = [t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5 for t, cpus, memory_mb in all_samples]
             
             if sla == "avg": baseline_ms_per_byte = np.mean(baseline_normalized_samples) 
             else: baseline_ms_per_byte = np.percentile(baseline_normalized_samples, 100 - sla.value)
             if baseline_ms_per_byte <= 0:  raise ValueError(f"No data available for function {function_name}")
-            res = baseline_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.6
+            res = baseline_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.5
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _calculate_weighted_times(
-        self,
-        metrics_list: list[TaskMetrics],
-        resource_config: TaskWorkerResourceConfiguration,
-    ) -> list[float]:
-        """Calculate resource-adjusted normalized execution times."""
-        weighted_times = []
-        
-        for metrics in metrics_list:
-            total_input = sum(m.size_bytes for m in metrics.input_metrics) + sum(m.size_bytes for m in metrics.hardcoded_input_metrics)
-            
-            if total_input <= 0: continue
-
-            assert metrics.worker_resource_configuration # metrics_list only contains metrics with worker_resource_configuration
-            hist_cpu = metrics.worker_resource_configuration.cpus
-            hist_mem = metrics.worker_resource_configuration.memory_mb
-            
-            cpu_factor = hist_cpu / resource_config.cpus if resource_config.cpus > 0 else 1
-            mem_factor = np.sqrt(hist_mem / resource_config.memory_mb) if resource_config.memory_mb > 0 else 1
-            resource_factor = 0.7 * cpu_factor + 0.3 * mem_factor  # Weighted combination
-            
-            # Normalize execution time and apply resource adjustment
-            normalized_time = (metrics.execution_time_ms / total_input) * resource_factor
-            weighted_times.append(normalized_time)
-        
-        return weighted_times
-        
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, dag_id] """
         task_id = task_id.removeprefix(MetricsStorage.TASK_METRICS_KEY_PREFIX)

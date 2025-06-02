@@ -1,9 +1,3 @@
-[ISSUE] Predictions made with resources diff. from the BASELINE for normalization (512mb) are very off
-    e.g., 512 mb real time ~= 8-10s | 256 real time ~= 12-14s (but predicted is 24s)
-    - issue: now predicts lower values even if previous run took longer than avg
-        on the `approximation path` only
-    - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
-
 [ISSUE] Planners predictions are not very accurate with reality!
     1 => Experiment with simple planner (change resource configs, then change flexible workers to struct workers). run multiple times
         Try to make the normalized predictions NON-LINEAR, so that reducing the resources by half won't predict half the resources
