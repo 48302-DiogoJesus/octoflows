@@ -1,21 +1,21 @@
+[ISSUE] Predictions made with resources diff. from the BASELINE for normalization (512mb) are very off
+    e.g., 512 mb real time ~= 8-10s | 256 real time ~= 12-14s (but predicted is 24s)
+    because the normalization is linear, assumes that the code will improve linearly as resources change
+    [POSSIBLE_SOLUTION?]
+        - Store task_execution_metrics for each resource config (besides the normalized metrics)
+        - Change the way the normalized metrics are stored to not be linear and test it with 512 vs 256
+        - If we don't have metrics for a given resource config OR below a samples threshold (e.g., 5):
+            - use the normalized current method
+        - Else
+            - make prediction based on samples that used the exact same memory
+            (drawback: before running a task with X memory we won't make accurate predictions about it)
+        - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
+
 [ISSUE] Planners predictions are not very accurate with reality!
     1 => Experiment with simple planner (change resource configs, then change flexible workers to struct workers). run multiple times
         Try to make the normalized predictions NON-LINEAR, so that reducing the resources by half won't predict half the resources
             DELETE ALL METADATA, then experiment with 512mb vs 256mb
         Offset causes:
-            - predictions don't consider worker start times (cold start, warm start, same worker)
-            - [ISSUE] Predictions made with resources diff. from the BASELINE for normalization (512mb) are very off
-                e.g., 512 mb real time ~= 8-10s | 256 real time ~= 12-14s (but predicted is 24s)
-                because the normalization is linear, assumes that the code will improve linearly as resources change
-                [POSSIBLE_SOLUTION?]
-                    - Store task_execution_metrics for each resource config (besides the normalized metrics)
-                    - Change the way the normalized metrics are stored to not be linear and test it with 512 vs 256
-                    - If we don't have metrics for a given resource config OR below a samples threshold (e.g., 5):
-                        - use the normalized current method
-                    - Else
-                        - make prediction based on samples that used the exact same memory
-                        (drawback: before running a task with X memory we won't make accurate predictions about it)
-                    - Do the same for `TaskOutputMetrics` and `TaskInputMetrics` normalized fields
     2 => experiment with `FirstPlannerAlgorithm` w/o PreLoad
     3 => experiment with `FirstPlannerAlgorithm` w/ PreLoad
     4 => experiment with `SecondPlannerAlgorithm`

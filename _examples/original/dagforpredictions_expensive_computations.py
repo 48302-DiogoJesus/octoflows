@@ -31,9 +31,11 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
+    planner_config=SimplePlannerAlgorithm.Config(
         sla=Percentile(value=80),
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+        all_flexible_workers=False,
+        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        # worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
         # available_worker_resource_configurations=[
         #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
         #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
