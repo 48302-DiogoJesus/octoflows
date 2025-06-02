@@ -58,7 +58,7 @@ class Worker(ABC, WorkerExecutionLogic):
             while True:
                 task_metrics = TaskMetrics(
                     worker_resource_configuration=my_resource_configuration_with_flexible_worker_id,
-                    started_at_timestamp = time.time(),
+                    started_at_timestamp_s = time.time(),
                     input_metrics = [],
                     hardcoded_input_metrics = [],
                     total_input_download_time_ms = 0,

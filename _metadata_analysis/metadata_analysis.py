@@ -99,7 +99,7 @@ def main():
     function_groups = set()
     
     _task_with_earliest_start_time = None
-    _task_with_latest_start_time = None
+    _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
         metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
@@ -110,11 +110,11 @@ def main():
         func_name = dag._all_nodes[task_id].func_name
         function_groups.add(func_name)
 
-        if _task_with_earliest_start_time is None or metrics.started_at_timestamp < _task_with_earliest_start_time.started_at_timestamp:
-            _task_with_earliest_start_time = metrics
+        if task_id == dag.sink_node.id.get_full_id():
+            _sink_task_metrics = metrics
 
-        if _task_with_latest_start_time is None or metrics.started_at_timestamp > _task_with_latest_start_time.started_at_timestamp:
-            _task_with_latest_start_time = metrics
+        if _task_with_earliest_start_time is None or metrics.started_at_timestamp_s < _task_with_earliest_start_time.started_at_timestamp_s:
+            _task_with_earliest_start_time = metrics
 
         total_time_invoking_tasks_ms += metrics.total_invocation_time_ms
         total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms
@@ -134,7 +134,7 @@ def main():
         # Prepare data for visualization
         task_metrics_data.append({
             'task_id': task_id,
-            'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp).strftime("%Y-%m-%d %H:%M:%S:%f"),
+            'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp_s).strftime("%Y-%m-%d %H:%M:%S:%f"),
             'function_name': func_name,
             'execution_time_ms': metrics.execution_time_ms,
             'worker_id': metrics.worker_resource_configuration.worker_id,
@@ -145,9 +145,11 @@ def main():
             'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
             'downstream_calls': metrics.total_invocations_count
         })
+    
+    assert _sink_task_metrics
 
-    last_task_total_time = (_task_with_latest_start_time.started_at_timestamp * 1000) + _task_with_latest_start_time.total_input_download_time_ms + _task_with_latest_start_time.execution_time_ms + _task_with_latest_start_time.output_metrics.time_ms + _task_with_latest_start_time.total_invocation_time_ms # type: ignore
-    makespan_ms = last_task_total_time - (_task_with_earliest_start_time.started_at_timestamp * 1000) # type: ignore
+    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.total_input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
+    makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
 
     keys = metrics_redis.keys('metrics-storage-dag-*')
     total_time_downloading_dag_ms = 0

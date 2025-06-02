@@ -39,7 +39,7 @@ class TaskInvocationMetrics:
 @dataclass
 class TaskMetrics:
     worker_resource_configuration: TaskWorkerResourceConfiguration
-    started_at_timestamp: float # time at which the task started being processed by a worker
+    started_at_timestamp_s: float # time at which the task started being processed by a worker
     input_metrics: list[TaskInputMetrics]
     hardcoded_input_metrics: list[TaskHardcodedInputMetrics] # known ahead of time (not "lazy", not DAGTasks)
     total_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)

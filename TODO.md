@@ -1,13 +1,6 @@
-[ISSUE] Planners predictions are not very accurate with reality!
-    1 => Experiment with simple planner (change flexible workers to struct workers)
-    2 => experiment with `FirstPlannerAlgorithm` w/o PreLoad
-    3 => experiment with `FirstPlannerAlgorithm` w/ PreLoad
-    4 => experiment with `SecondPlannerAlgorithm`
-    _
-    [=>] [VISUALIZATION] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-        - BEFORE: Dashboard makespan (5 sec) VS client console (9 sec) time big diff.
-        - for each task, show `planned_download_inputs time vs real`, `planned_exec_time vs real`, etc...
-        - can I show a general percentage offset of how wrong the plan predictions were?
+[VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
+- For each task, show `planned_download_inputs time vs real`, `planned_exec_time vs real`, etc...
+- Can I show a general percentage offset of how wrong the plan predictions were?
 
 [THINK:OPTIMIZATIONS_IMPL]
 - `pre-warm` + `pre-load`
