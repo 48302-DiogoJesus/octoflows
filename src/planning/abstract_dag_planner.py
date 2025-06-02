@@ -129,47 +129,48 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         total_input_size = self._calculate_total_input_size(node, nodes_info)
         
-        # Calculate earliest start time and latest upstream completion time
+        # 1. Calculate earliest start time (max of upstream completions)
         earliest_start = 0
-        latest_upstream_node_completion_time = 0
-        
         for unode in node.upstream_nodes:
-            unode_info = nodes_info[unode.id.get_full_id()]
-            # Update earliest start based on all upstream nodes
-            earliest_start = max(earliest_start, unode_info.path_completion_time)
-            
-            # Track latest completion time for nodes on different workers (for preload calculations)
-            if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id:
-                latest_upstream_node_completion_time = max(latest_upstream_node_completion_time, unode_info.path_completion_time)
-
-        download_time = 0
+            earliest_start = max(earliest_start, nodes_info[unode.id.get_full_id()].path_completion_time)
+        
+        # 2. Calculate download finish time (accounts for parallel downloads)
+        download_finish_time = 0
         for unode in node.upstream_nodes:
             if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: 
-                continue
-            unode_info = nodes_info[unode.id.get_full_id()]
-            if not node.try_get_annotation(PreLoadOptimization):
-                predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-                assert predicted_download_time
-                download_time += predicted_download_time
-                continue
+                continue # same worker => no need to download from storage
             
-            earliest_possible_download_start_offset = latest_upstream_node_completion_time - unode_info.path_completion_time
+            unode_info = nodes_info[unode.id.get_full_id()]
             predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
             assert predicted_download_time
-            download_time += max(predicted_download_time - earliest_possible_download_start_offset, 0)
             
+            if node.try_get_annotation(PreLoadOptimization):
+                # preload: start downloading as soon as data is available
+                download_start = unode_info.path_completion_time # Data available time
+            else:
+                # Non-preload: Downloads start AFTER all upstreams complete
+                download_start = earliest_start 
+            
+            download_finish_time = max(download_finish_time, download_start + predicted_download_time)
+        
+        # 3. Compute effective download delay
+        download_time = max(download_finish_time - earliest_start, 0)
+        
+        # 4. Proceed with execution and upload calculations...
         exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
         assert exec_time is not None
         output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
         assert output_size is not None
         
-        # Won't need to upload since it will be executed on the same worker
-        if len(node.downstream_nodes) > 0 and worker_id is not None and all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+        # 5. Calculate upload_time (existing logic is correct)
+        if len(node.downstream_nodes) > 0 and worker_id is not None and \
+            all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0
         else:
             upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-        assert upload_time is not None
-        
+            assert upload_time
+
+        # 6. Total timing
         total_time = download_time + exec_time + upload_time
         path_completion_time = earliest_start + total_time
         
