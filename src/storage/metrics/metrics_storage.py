@@ -38,12 +38,13 @@ class MetricsStorage():
         self.cached_metrics[f"{self.TASK_METRICS_KEY_PREFIX}{task_id}"] = metrics
 
     def store_dag_download_time(self, id: str, dag_download_metrics: FullDAGPrepareTime):
-        # logger.info(f"Caching download time for root node {id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
+        # logger.info(f"Caching download time for root node {self.DAG_METRICS_KEY_PREFIX}{id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
         self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
     
     async def flush(self):
         start = time.time()
-        if len(self.cached_metrics) == 0: return
+        len_before_flush = len(self.cached_metrics)
+        if len_before_flush == 0: return
 
         coroutines = []
         keys_to_remove = []
@@ -57,7 +58,7 @@ class MetricsStorage():
         
         if len(coroutines) > 0: 
             end = time.time()
-            logger.info(f"Flushed {len(self.cached_metrics)} metrics to storage in {end - start:.4f} seconds")
+            logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
 
 BASELINE_MEMORY_MB = 512 # reference value for normalization

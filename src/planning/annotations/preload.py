@@ -103,12 +103,8 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
 
         for t in task.upstream_nodes:
             if t.cached_result:
-                # if len(task.downstream_nodes) == 0:
-                #     logger.info(f"has cached result: {t.id.get_full_id()}")
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
             elif t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
-                if len(task.downstream_nodes) == 0:
-                    logger.info(f"will be fetched: {t.id.get_full_id()}")
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
                 # unsubscribe because we are going to fetch it, in the future it won't matter
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
