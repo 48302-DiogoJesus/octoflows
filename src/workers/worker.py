@@ -254,10 +254,6 @@ class Worker(ABC, WorkerExecutionLogic):
     async def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.FullDAG):
         await metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
 
-    @staticmethod
-    async def store_plan(metrics_storage: storage_module.Storage, plan: AbstractDAGPlanner.PlanOutput):
-        await metrics_storage.set(f"plan-{dag.master_dag_id}", cloudpickle.dumps(plan))
-
     async def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
         serialized_dag = await self.metadata_storage.get(f"dag-{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")

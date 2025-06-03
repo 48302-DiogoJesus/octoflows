@@ -12,6 +12,7 @@ logger = create_logger(__name__)
 class MetricsStorage():
     TASK_METRICS_KEY_PREFIX = "metrics-storage-tasks-"
     DAG_METRICS_KEY_PREFIX = "metrics-storage-dag-"
+    PLAN_KEY_PREFIX = "metrics-storage-plan-"
 
     @dataclass
     class Config:
@@ -21,8 +22,9 @@ class MetricsStorage():
             return MetricsStorage(self.storage_config)
 
     def __init__(self, storage_config: Storage.Config) -> None:
+        from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.storage = storage_config.create_instance()
-        self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime] = {}
+        self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime | AbstractDAGPlanner.PlanOutput] = {}
 
     async def keys(self, pattern: str) -> list:
         return await self.storage.keys(pattern)
@@ -41,6 +43,9 @@ class MetricsStorage():
         # logger.info(f"Caching download time for root node {self.DAG_METRICS_KEY_PREFIX}{id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
         self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
     
+    def store_plan(self, id: str, plan):
+        self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{id}"] = plan
+
     async def flush(self):
         start = time.time()
         len_before_flush = len(self.cached_metrics)

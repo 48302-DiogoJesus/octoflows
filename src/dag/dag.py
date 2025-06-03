@@ -72,7 +72,7 @@ class FullDAG(GenericDAG):
         from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.metadata_access.metadata_access import MetadataAccess
-
+        
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
 
@@ -83,11 +83,11 @@ class FullDAG(GenericDAG):
             await metadata_access.load_metrics_from_storage()
             logger.info(f"[PLANNING] Planner Selected: {wk.planner.__class__.__name__}")
             plan_result = wk.planner.plan(self, metadata_access)
-            if plan_result: await Worker.store_plan(wk.metrics_storage, plan_result)
+            if plan_result: wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
-            await Worker.store_full_dag(wk.metadata_storage, self)
+            _ = await Worker.store_full_dag(wk.metadata_storage, self)
 
         if open_dashboard:
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
@@ -104,6 +104,9 @@ class FullDAG(GenericDAG):
             self.sink_node,
             self
         )
+
+        if wk.metrics_storage:
+            await wk.metrics_storage.flush()
 
         return res
 

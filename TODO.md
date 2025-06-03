@@ -1,15 +1,21 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- [DONE] Store the plan in storage
-- Note: the plan may not exist in storage (when no plan is produced because no metadata, for example)
+- [ERROR] @END OF GRAPH VIEW
+```
+File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\_metadata_analysis\metadata_analysis.py", line 917, in <module>
+    main()
+File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\_metadata_analysis\metadata_analysis.py", line 463, in main
+    metrics_df = pd.DataFrame(task_metrics_data)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\venv\Lib\site-packages\pandas\core\frame.py", line 886, in __init__
+    raise ValueError("DataFrame constructor not properly called!")
+```
 - For each task, show (planned vs real)
-    - `input_size`
-    - `output_size`
-    - `download_time`
-    - `exec_time`
-    - `upload_time`
     - `earliest_start`
     - `path_completion_time`
-- Can I show a general percentage offset of how wrong the plan predictions were?
+- (Graph/Visualization tab) Show the critical path in bold green (calculate from real values)
+- (Graph/Visualization tab) Show the planned critical path in bold yellow, if diff. from real path (plan.critical_path_node_ids)
+- (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
+- ?? (Plan tab) A way to visualize the same graph but with a better plan vs reality view
 
 [THINK:OPTIMIZATIONS_IMPL]
 - `pre-warm` + `pre-load`
