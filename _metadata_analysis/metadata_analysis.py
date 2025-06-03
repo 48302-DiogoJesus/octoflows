@@ -15,7 +15,6 @@ import plotly.express as px
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import MetricsStorage

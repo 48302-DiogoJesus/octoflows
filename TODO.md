@@ -1,5 +1,14 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- For each task, show `planned_download_inputs time vs real`, `planned_exec_time vs real`, etc...
+- [DONE] Store the plan in storage
+- Note: the plan may not exist in storage (when no plan is produced because no metadata, for example)
+- For each task, show (planned vs real)
+    - `input_size`
+    - `output_size`
+    - `download_time`
+    - `exec_time`
+    - `upload_time`
+    - `earliest_start`
+    - `path_completion_time`
 - Can I show a general percentage offset of how wrong the plan predictions were?
 
 [THINK:OPTIMIZATIONS_IMPL]

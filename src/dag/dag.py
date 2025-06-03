@@ -77,12 +77,13 @@ class FullDAG(GenericDAG):
         wk: Worker = _wk_config.create_instance()
 
         # Only do PLANNING if `metrics_storage` is specified
-        if wk.planner: 
+        if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             metadata_access = MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage)
             await metadata_access.load_metrics_from_storage()
             logger.info(f"[PLANNING] Planner Selected: {wk.planner.__class__.__name__}")
-            wk.planner.plan(self, metadata_access)
+            plan_result = wk.planner.plan(self, metadata_access)
+            if plan_result: await Worker.store_plan(wk.metrics_storage, plan_result)
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!

@@ -43,7 +43,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
         critical_path_node_ids: set[str]
 
-    def plan(self, dag, metadata_access: MetadataAccess):
+    def plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
         """
         dag: dag.DAG
         metadata_access: MetadataAccess
@@ -56,10 +56,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         logger.info(f"Planner: {self.__class__.__name__}")
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, metadata_access)
-        if not plan_result: return # no plan was made
+        if not plan_result: return None # no plan was made
         self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        return plan_result
 
     @abstractmethod
     def internal_plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
