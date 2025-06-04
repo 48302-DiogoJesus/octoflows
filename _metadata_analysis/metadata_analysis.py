@@ -165,39 +165,36 @@ def main():
             "dag_size": deserialized.size_bytes
         })
 
-    # After collecting all task metrics, calculate earliest start time and path completion times
-    min_start_time = None
-    task_end_times = {}
-    task_start_times = {}
-
+    # Calculate task timing metrics (start times, end times, path completion times)
+    task_timings = {}
+    
     # First pass: collect all task metrics and find the minimum start time
-    for task_id in dag._all_nodes.keys():
-        task_metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
-        tmd = metrics_redis.get(task_metrics_key)
-        if tmd:
-            task_metrics = cloudpickle.loads(tmd)
-            task_start_time = task_metrics.started_at_timestamp_s
-            task_start_times[task_id] = task_start_time
-            
-            if min_start_time is None or task_start_time < min_start_time:
-                min_start_time = task_start_time
-
-    # Second pass: calculate end times and relative start times
+    min_start_time = None
     for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
-        start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-        end_time = start_time + metrics.execution_time_ms
+        task_start_time = metrics.started_at_timestamp_s
+        task_timings[task_id] = {
+            'start_time': task_start_time,
+            'end_time': None,
+            'path_completion_time': None
+        }
+        
+        if min_start_time is None or task_start_time < min_start_time:
+            min_start_time = task_start_time
+    
+    # Second pass: calculate end times relative to min_start_time
+    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
+        relative_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
+        end_time = relative_start_time + metrics.execution_time_ms
         if metrics.output_metrics:
             end_time += metrics.output_metrics.time_ms
-        task_end_times[task_id] = end_time
-
-    # Calculate path completion times (max end time of all tasks in each path)
-    path_completion_times = {}
+        task_timings[task_id]['end_time'] = end_time
+    
+    # Third pass: calculate path completion times (max end time of all tasks in each path)
     for task_id in dag._all_nodes.keys():
-        # For each task, find all downstream paths and calculate max end time
-        max_end_time = task_end_times[task_id]
+        max_end_time = task_timings[task_id]['end_time']
         
         # Use DFS to find all paths from this task
-        stack = [(task_id, task_end_times[task_id])]
+        stack = [(task_id, max_end_time)]
         while stack:
             current_task_id, current_end_time = stack.pop()
             if current_end_time > max_end_time:
@@ -207,15 +204,24 @@ def main():
             current_node = dag._all_nodes[current_task_id]
             for downstream in current_node.downstream_nodes:
                 downstream_id = downstream.id.get_full_id()
-                stack.append((downstream_id, task_end_times[downstream_id]))
+                stack.append((downstream_id, task_timings[downstream_id]['end_time']))
         
-        path_completion_times[task_id] = max_end_time
-
+        task_timings[task_id]['path_completion_time'] = max_end_time
+    
+    # Update task_metrics_data with the calculated timing information
     for i, task_data in enumerate(task_metrics_data):
         task_id = task_data['task_id']
-        task_metrics_data[i]['relative_start_time_ms'] = (task_start_times[task_id] - min_start_time) * 1000
-        task_metrics_data[i]['end_time_ms'] = task_end_times[task_id]
-        task_metrics_data[i]['path_completion_time_ms'] = path_completion_times[task_id]
+        task_metrics_data[i].update({
+            'relative_start_time_ms': (task_timings[task_id]['start_time'] - min_start_time) * 1000,
+            'end_time_ms': task_timings[task_id]['end_time'],
+            'path_completion_time_ms': task_timings[task_id]['path_completion_time']
+        })
+    
+    # Make timing information available for the rest of the code
+    min_start_time_ms = min_start_time * 1000  # Convert to ms for consistency
+    task_end_times = {task_id: timing['end_time'] for task_id, timing in task_timings.items()}
+    task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
+    path_completion_times = {task_id: timing['path_completion_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([

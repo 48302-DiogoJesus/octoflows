@@ -32,8 +32,7 @@
 [REFACTOR]
 - Should the faas worker handler logic (`docker_worker_handler/worker.py`) be encapsulated in a class (e.g., on existing `Worker` class ?)
     ! only if it's generic enough that it would also work on `AWS Lambda` workers for example. Otherwise keep it separate.
-    - `start_executing` rename to `execute_branch` since it starts at a task and keeps going down, delegating when necessary
-    - new function would be called `start_worker_lifecycle`
+    - new function would be called `Worker.start_worker_lifecycle`
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
