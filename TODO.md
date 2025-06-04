@@ -1,14 +1,4 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- [ERROR] @END OF GRAPH VIEW
-```
-File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\_metadata_analysis\metadata_analysis.py", line 917, in <module>
-    main()
-File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\_metadata_analysis\metadata_analysis.py", line 463, in main
-    metrics_df = pd.DataFrame(task_metrics_data)
-                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-File "C:\Users\dijes\Desktop\Current\PG\Tecnico\_A2\_PIC\code\Dask\kong\venv\Lib\site-packages\pandas\core\frame.py", line 886, in __init__
-    raise ValueError("DataFrame constructor not properly called!")
-```
 - For each task, show (planned vs real)
     - `earliest_start`
     - `path_completion_time`

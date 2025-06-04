@@ -460,7 +460,6 @@ def main():
     # Metrics tabs (unchanged from original)
     with tab_summary:
         # Create dataframe for visualizations
-        print(task_metrics_data)
         metrics_df = pd.DataFrame(task_metrics_data)
         grouped_df = metrics_df.groupby('function_name').agg({
             'execution_time_ms': ['sum', 'mean', 'count']
