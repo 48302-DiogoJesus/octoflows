@@ -619,13 +619,15 @@ def main():
             st.warning("No planning data available for this DAG")
         else:
             try:
-                plan = cloudpickle.loads(plan_data)  # type: ignore
+                plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data)  # type: ignore
                 
-                # Calculate planned metrics
-                planned_makespan = getattr(plan, 'makespan', 0)
-                planned_download_time = sum(getattr(node, 'download_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
-                planned_upload_time = sum(getattr(node, 'upload_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
-                planned_execution_time = sum(getattr(node, 'exec_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
+                # Calculate planned metrics from nodes_info
+                nodes_info = plan.nodes_info
+                # Makespan is the maximum path completion time across all nodes
+                planned_makespan = max((node.path_completion_time for node in nodes_info.values()), default=0)
+                planned_download_time = sum(node.download_time for node in nodes_info.values())
+                planned_upload_time = sum(node.upload_time for node in nodes_info.values())
+                planned_execution_time = sum(node.exec_time for node in nodes_info.values())
                 
                 # Calculate actual metrics
                 actual_makespan = makespan_ms

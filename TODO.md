@@ -1,9 +1,5 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- FIX ISSUES
-    - iNPUT METRICS DETAILS TO FAR OUT
-    - PLan tab: 
-        planned makespan = 0
-        ALL download times = 0
+- [BUG] PLan tab (ALL download times = 0)
 
 - (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
 
