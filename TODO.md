@@ -1,11 +1,14 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- For each task, show (planned vs real)
-    - `earliest_start`
-    - `path_completion_time`
 - (Graph/Visualization tab) Show the critical path in bold green (calculate from real values)
 - (Graph/Visualization tab) Show the planned critical path in bold yellow, if diff. from real path (plan.critical_path_node_ids)
 - (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
 - ?? (Plan tab) A way to visualize the same graph but with a better plan vs reality view
+
+[OPTIMIZATION:DATA_ACCESS]
+PIPE STORAGE OPERATIONS WHERE POSSIBLE:
+- Publishing TASK_READY events, Incrementing DCs
+- Downloading input from intermediate storage
+- Uploading metrics
 
 [THINK:OPTIMIZATIONS_IMPL]
 - `pre-warm` + `pre-load`
@@ -48,12 +51,6 @@
         DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
     - Also, DAG size is too big for small code and tasks (35kb for image_transform)
     - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
-
-[OPTIMIZATION:DATA_ACCESS]
-PIPE STORAGE OPERATIONS WHERE POSSIBLE:
-- Publishing TASK_READY events, Incrementing DCs
-- Downloading input from intermediate storage
-- Uploading metrics
 
 [NEW_OPTIMIZATION?:OUTPUT_STREAMING]
     - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete

@@ -237,32 +237,77 @@ def main():
         # Create columns for graph and task details
         graph_col, details_col = st.columns([2, 1])
         
+        def get_color_for_worker(worker_id):
+            # Create a hash of the worker_id
+            hash_obj = hashlib.md5(worker_id.encode())
+            hash_int = int(hash_obj.hexdigest(), 16)
+            
+            # Generate a hue value that is more spaced out
+            hue = (hash_int % 360)  # Full hue spectrum (0-359 degrees)
+            saturation = 0.7  # Keep colors vibrant
+            lightness = 0.5   # Ensure colors are not too dark or too bright
+
+            # Convert HSL to RGB (values between 0-1)
+            r, g, b = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
+
+            # Scale to 0-255 and format as RGB
+            return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
+            
         with graph_col:
             nodes = []
             edges = []
             node_levels = {}  # Tracks hierarchy levels
             visited = set()
-
-            def get_color_for_worker(worker_id):
-               # Create a hash of the worker_id
-                hash_obj = hashlib.md5(worker_id.encode())
-                hash_int = int(hash_obj.hexdigest(), 16)
-
-                # Generate a hue value that is more spaced out
-                hue = (hash_int % 360)  # Full hue spectrum (0-359 degrees)
-                saturation = 0.7  # Keep colors vibrant
-                lightness = 0.5   # Ensure colors are not too dark or too bright
-
-                # Convert HSL to RGB (values between 0-1)
-                r, g, b = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
-
-                # Scale to 0-255 and format as RGB
-                return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
-
+            
+            # Find critical path (longest path from source to sink)
+            def find_critical_path():
+                # Perform DFS to find the longest path from source to sink
+                max_path = []
+                max_length = -1
+                
+                def dfs(node, path, current_length):
+                    nonlocal max_path, max_length
+                    node_id = node.id.get_full_id()
+                    
+                    # Get the task's end time (or path completion time if available)
+                    task_metrics = next((t for t in task_metrics_data if t['task_id'] == node_id), None)
+                    if not task_metrics:
+                        return
+                        
+                    # Use path completion time if available, otherwise use end time
+                    task_time = task_metrics.get('path_completion_time_ms', task_metrics.get('end_time_ms', 0))
+                    
+                    # Update path and length
+                    new_path = path + [node_id]
+                    new_length = current_length + task_time
+                    
+                    # If this is the sink node, check if it's the longest path
+                    if node_id == dag.sink_node.id.get_full_id():
+                        if new_length > max_length:
+                            max_length = new_length
+                            max_path = new_path
+                        return
+                    
+                    # Continue DFS to downstream nodes
+                    for downstream in node.downstream_nodes:
+                        dfs(downstream, new_path, new_length)
+                
+                # Start DFS from all root nodes
+                for root in dag.root_nodes:
+                    dfs(root, [], 0)
+                
+                # Convert the critical path to a set for O(1) lookups
+                critical_nodes = set(max_path)
+                critical_edges = set(zip(max_path[:-1], max_path[1:]))
+                return critical_nodes, critical_edges
+            
+            # Get critical path
+            critical_nodes, critical_edges = find_critical_path()
+            
             def traverse_dag(node: DAGTaskNode, level=0):
                 """ Recursively traverse DAG from root nodes """
                 node_id = node.id.get_full_id()
-                worker_id = [m for m in task_metrics_data if m["task_id"] == node.id.get_full_id()][0]['worker_id']
+                worker_id = [m for m in task_metrics_data if m["task_id"] == node_id][0]['worker_id']
 
                 if node_id in visited:
                     return  # Prevents duplicate processing
@@ -270,28 +315,32 @@ def main():
                 visited.add(node_id)
                 node_levels[node_id] = level
 
-                # Create node
+                # Create node (no special styling for critical path nodes)
+                node_color = get_color_for_worker(worker_id)
+                
                 nodes.append(Node(
                     id=node_id, 
                     label=node.func_name,
                     title=f"task_id: {node_id}\nworker_id: {worker_id}",
                     size=20,
-                    color=get_color_for_worker(worker_id),
+                    color=node_color,
                     shape="dot",
                     font={"color": "white", "size": 10, "face": "Arial"},
-                    level=level,
-                    # Additional label for worker_id
-                    labelHighlightBold=True,
-                    # This may require custom configuration depending on your graph library
+                    level=level
                 ))
 
-                # Process downstream nodes
+                # Process downstream nodes - highlight critical path edges in red
                 for downstream in node.downstream_nodes:
+                    downstream_id = downstream.id.get_full_id()
+                    is_critical_edge = (node_id, downstream_id) in critical_edges
+                    
                     edges.append(Edge(
                         source=node_id, 
-                        target=downstream.id.get_full_id(), 
+                        target=downstream_id, 
                         arrow="to",
-                        color="#ffffff"
+                        color="#FF0000" if is_critical_edge else "#888888",
+                        width=2 if is_critical_edge else 1,
+                        title="Critical Path" if is_critical_edge else ""
                     ))
                     traverse_dag(downstream, level + 1)
                     
