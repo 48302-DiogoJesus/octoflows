@@ -316,9 +316,9 @@ def main():
                             # First pass: collect all task metrics and find the minimum start time
                             for task_id in dag._all_nodes.keys():
                                 task_metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
-                                task_metrics_data = metrics_redis.get(task_metrics_key)
-                                if task_metrics_data:
-                                    task_metrics = cloudpickle.loads(task_metrics_data) # type: ignore
+                                tmd = metrics_redis.get(task_metrics_key)
+                                if tmd:
+                                    task_metrics = cloudpickle.loads(tmd) # type: ignore
                                     all_task_metrics[task_id] = task_metrics
                                     if min_start_time is None or task_metrics.started_at_timestamp_s < min_start_time:
                                         min_start_time = task_metrics.started_at_timestamp_s
@@ -460,6 +460,7 @@ def main():
     # Metrics tabs (unchanged from original)
     with tab_summary:
         # Create dataframe for visualizations
+        print(task_metrics_data)
         metrics_df = pd.DataFrame(task_metrics_data)
         grouped_df = metrics_df.groupby('function_name').agg({
             'execution_time_ms': ['sum', 'mean', 'count']
