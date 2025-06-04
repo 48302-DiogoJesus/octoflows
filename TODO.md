@@ -1,8 +1,11 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- (Graph/Visualization tab) Show the critical path in bold green (calculate from real values)
-- (Graph/Visualization tab) Show the planned critical path in bold yellow, if diff. from real path (plan.critical_path_node_ids)
+- FIX ISSUES
+    - iNPUT METRICS DETAILS TO FAR OUT
+    - PLan tab: 
+        planned makespan = 0
+        ALL download times = 0
+
 - (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
-- ?? (Plan tab) A way to visualize the same graph but with a better plan vs reality view
 
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:
@@ -10,8 +13,16 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
 - Downloading input from intermediate storage
 - Uploading metrics
 
-[THINK:OPTIMIZATIONS_IMPL]
-- `pre-warm` + `pre-load`
+[OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
+    impl => remove storage keys that contain <master_dag_id>
+[OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
+[OPTIMIZATION:WORKER_STARTUP_SPEED]
+- Storing the full dag on redis is costly (DAG retrieval time adds up)
+    - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
+    - If below a certain bytes threshold, pass the subDAG in the invocation itself
+        DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
+    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
@@ -21,7 +32,7 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
 
 ---
 
-[PLANNER_OPTIMIZATIONS]
+[THINK:PLANNER_OPTIMIZATIONS]
 - `pre-warm` (Just make an "empty" invocation (special message that the `Worker Handler` must be ready for?) to a container with a given **resource config**)
     Possible benefits: faster startup times for some tasks on "new" workers
         can't measure it at the planner level since the predictions aren't considering worker startup times (warm/cold)
@@ -37,20 +48,10 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
     ! only if it's generic enough that it would also work on `AWS Lambda` workers for example. Otherwise keep it separate.
     - new function would be called `Worker.start_worker_lifecycle`
 
+
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
     - just to produce a "Plan" and compare the expected impact of the diff. scheduling decisions for diff. types of workflows
-
-[OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
-    impl => remove storage keys that contain <master_dag_id>
-[OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
-[OPTIMIZATION:WORKER_STARTUP_SPEED]
-- Storing the full dag on redis is costly (DAG retrieval time adds up)
-    - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
-    - If below a certain bytes threshold, pass the subDAG in the invocation itself
-        DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
-    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
-    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
 
 [NEW_OPTIMIZATION?:OUTPUT_STREAMING]
     - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete

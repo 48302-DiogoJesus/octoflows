@@ -224,14 +224,78 @@ def main():
     path_completion_times = {task_id: timing['path_completion_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
-    tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
+    tab_viz, tab_summary, tab_exec, tab_data, tab_workers, tab_planning = st.tabs([
         "Visualization", 
         "Summary", 
         "Execution Times", 
         "Data Transfer", 
-        "Worker Distribution"
+        "Worker Distribution",
+        "Planning"
     ])
     
+    def show_input_metrics(task_id):
+        if not task_id:
+            return
+            
+        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
+        metrics_data = metrics_redis.get(metrics_key)
+        
+        if not metrics_data:
+            st.info("No metrics data available for this task")
+            return
+            
+        try:
+            # Handle potential async response
+            if hasattr(metrics_data, 'result') and callable(getattr(metrics_data, 'result', None)):
+                metrics_data = metrics_data.result()  # type: ignore
+                    
+            # Ensure we have bytes data for cloudpickle
+            if isinstance(metrics_data, str):
+                metrics_data = metrics_data.encode('utf-8')
+                
+            if metrics_data:
+                metrics: TaskMetrics = cloudpickle.loads(metrics_data)  # type: ignore
+                
+                if metrics and hasattr(metrics, 'input_metrics') and metrics.input_metrics:
+                    # Display section header
+                    st.subheader("Input Metrics")
+                    
+                    # Create a dataframe for the input metrics
+                    input_data = []
+                    for m in metrics.input_metrics:
+                        if hasattr(m, 'task_id') and hasattr(m, 'size_bytes') and hasattr(m, 'time_ms'):
+                            input_data.append({
+                                'Source Task': m.task_id,
+                                'Size': format_bytes(m.size_bytes),
+                                'Download Time (ms)': m.time_ms
+                            })
+                    
+                    if input_data:
+                        input_df = pd.DataFrame(input_data)
+                        # Display the input metrics table
+                        st.dataframe(
+                            input_df,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Source Task": st.column_config.TextColumn("Source Task"),
+                                "Size": st.column_config.TextColumn("Size"),
+                                "Download Time (ms)": st.column_config.NumberColumn("Download Time (ms)", format="%.2f")
+                            }
+                        )
+                        
+                        # Calculate and display total input data
+                        total_input = sum(m.size_bytes for m in metrics.input_metrics if hasattr(m, 'size_bytes'))
+                        st.write(f"**Total Input Data:** {format_bytes(total_input)}")
+                    else:
+                        st.info("No input metrics available for this task")
+                else:
+                    st.info("No input metrics available for this task")
+        except Exception as e:
+            st.error(f"Error processing task metrics: {str(e)}")
+            import traceback
+            st.text(traceback.format_exc())
+
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
@@ -249,6 +313,7 @@ def main():
 
             # Convert HSL to RGB (values between 0-1)
             r, g, b = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
+
 
             # Scale to 0-255 and format as RGB
             return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
@@ -541,45 +606,177 @@ def main():
                             st.warning("No planning data available for selected task")
                     except Exception as e:
                         st.error(f"Error loading plan data: {str(e)}")
-                else:
-                    st.info("No planning data available for this DAG")
-        
-        # Input metrics section below the DAG visualization
-        if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
-            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
-            metrics_data = metrics_redis.get(metrics_key)
-            
-            if metrics_data:
-                metrics: TaskMetrics = cloudpickle.loads(metrics_data)
                 
-                if metrics.input_metrics:
-                    st.subheader("Input Metrics Details")
-                    
-                    # Create a dataframe for the input metrics
-                    input_df = pd.DataFrame([{
-                        'Source Task': m.task_id,
-                        'Size': format_bytes(m.size_bytes),
-                        'Download Time (ms)': m.time_ms
-                    } for m in metrics.input_metrics])
-                    
-                    # Calculate and display total input data
-                    total_input = sum(m.size_bytes for m in metrics.input_metrics)
-                    st.write(f"**Total Input Data:** {format_bytes(total_input)}")
-                    
-                    # Display the input metrics table
-                    st.dataframe(
-                        input_df,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Source Task": st.column_config.TextColumn(width="medium"),
-                            "Size": st.column_config.TextColumn(width="small"),
-                            "Data Type": st.column_config.TextColumn(width="medium"),
-                            "Transfer Time (ms)": st.column_config.NumberColumn(width="small")
-                        }
-                    )
-                else:
-                    st.write("**No input metrics available for this task**")
+    # Planning tab
+    with tab_planning:
+        st.header("Planned vs Actual Execution Metrics")
+        
+        # Get plan data if available
+        plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+        plan_data = metrics_redis.get(plan_key)
+        
+        if not plan_data:
+            st.warning("No planning data available for this DAG")
+        else:
+            try:
+                plan = cloudpickle.loads(plan_data)  # type: ignore
+                
+                # Calculate planned metrics
+                planned_makespan = getattr(plan, 'makespan', 0)
+                planned_download_time = sum(getattr(node, 'download_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
+                planned_upload_time = sum(getattr(node, 'upload_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
+                planned_execution_time = sum(getattr(node, 'exec_time', 0) for node in getattr(plan, 'nodes_info', {}).values())
+                
+                # Calculate actual metrics
+                actual_makespan = makespan_ms
+                actual_download_time = total_time_downloading_data_ms
+                actual_upload_time = total_time_uploading_data_ms
+                actual_execution_time = total_time_executing_tasks_ms
+                
+                # Create comparison data
+                metrics_data = [
+                    {
+                        'Metric': 'Makespan',
+                        'Planned (ms)': planned_makespan,
+                        'Actual (ms)': actual_makespan,
+                        'Difference (ms)': actual_makespan - planned_makespan,
+                        'Difference (%)': ((actual_makespan - planned_makespan) / planned_makespan * 100) if planned_makespan > 0 else 0
+                    },
+                    {
+                        'Metric': 'Total Download Time',
+                        'Planned (ms)': planned_download_time,
+                        'Actual (ms)': actual_download_time,
+                        'Difference (ms)': actual_download_time - planned_download_time,
+                        'Difference (%)': ((actual_download_time - planned_download_time) / planned_download_time * 100) if planned_download_time > 0 else 0
+                    },
+                    {
+                        'Metric': 'Total Upload Time',
+                        'Planned (ms)': planned_upload_time,
+                        'Actual (ms)': actual_upload_time,
+                        'Difference (ms)': actual_upload_time - planned_upload_time,
+                        'Difference (%)': ((actual_upload_time - planned_upload_time) / planned_upload_time * 100) if planned_upload_time > 0 else 0
+                    },
+                    {
+                        'Metric': 'Total Execution Time',
+                        'Planned (ms)': planned_execution_time,
+                        'Actual (ms)': actual_execution_time,
+                        'Difference (ms)': actual_execution_time - planned_execution_time,
+                        'Difference (%)': ((actual_execution_time - planned_execution_time) / planned_execution_time * 100) if planned_execution_time > 0 else 0
+                    }
+                ]
+                
+                # Create a dataframe
+                df = pd.DataFrame(metrics_data)
+                
+                # Display the comparison table
+                st.subheader("Planned vs Actual Metrics")
+                
+                # Format the dataframe for display
+                display_df = df.copy()
+                for col in ['Planned (ms)', 'Actual (ms)']:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) else "N/A")
+                
+                for col in ['Difference (ms)']:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].apply(lambda x: f"{x:+,.2f}" if pd.notna(x) else "N/A")
+                
+                for col in ['Difference (%)']:
+                    if col in display_df.columns:
+                        display_df[col] = display_df[col].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
+                
+                # Display the table with custom styling
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        'Metric': st.column_config.TextColumn("Metric"),
+                        'Planned (ms)': st.column_config.TextColumn("Planned (ms)"),
+                        'Actual (ms)': st.column_config.TextColumn("Actual (ms)"),
+                        'Difference (ms)': st.column_config.TextColumn("Difference (ms)"),
+                        'Difference (%)': st.column_config.TextColumn("Difference (%)")
+                    }
+                )
+                
+                # Create a bar chart for visual comparison
+                st.subheader("Planned vs Actual Comparison")
+                
+                # Prepare data for the bar chart
+                chart_data = pd.melt(
+                    df, 
+                    id_vars=['Metric'], 
+                    value_vars=['Planned (ms)', 'Actual (ms)'],
+                    var_name='Type',
+                    value_name='Time (ms)'
+                )
+                
+                # Create a grouped bar chart
+                fig = px.bar(
+                    chart_data,
+                    x='Metric',
+                    y='Time (ms)',
+                    color='Type',
+                    barmode='group',
+                    title='Planned vs Actual Execution Metrics',
+                    color_discrete_map={
+                        'Planned (ms)': '#636EFA',
+                        'Actual (ms)': '#EF553B'
+                    }
+                )
+                
+                # Add text to bars with 2 significant digits
+                fig.update_traces(
+                    texttemplate='%{y:.2f}',
+                    textposition='outside'
+                )
+                
+                # Update layout for better readability
+                fig.update_layout(
+                    xaxis_title='Metric',
+                    yaxis_title='Time (ms)',
+                    legend_title='',
+                    hovermode='x unified',
+                    showlegend=True,
+                    height=500,
+                    uniformtext_minsize=8,
+                    uniformtext_mode='hide'
+                )
+                
+                # Add difference annotations
+                for _, row in df.iterrows():
+                    try:
+                        planned = float(row['Planned (ms)'])
+                        actual = float(row['Actual (ms)'])
+                        diff = float(row['Difference (ms)'])
+                        diff_pct = float(row['Difference (%)'])
+                        max_val = max(planned, actual)
+                        if not pd.isna(max_val):
+                            fig.add_annotation(
+                                x=row['Metric'],
+                                y=max_val * 1.1,
+                                text=f"{diff:+,.2f} ms ({diff_pct:+.1f}%)",
+                                showarrow=False,
+                                font=dict(
+                                    color='red' if diff > 0 else 'green',
+                                    size=10
+                                )
+                            )
+                    except (ValueError, TypeError):
+                        continue
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            except Exception as e:
+                st.error(f"Error loading planning data: {str(e)}")
+                import traceback
+                st.text(traceback.format_exc())
+    
+    # Visualization tab
+    with tab_viz:
+        # Show input metrics for selected task in the Visualization tab
+        if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
+            show_input_metrics(st.session_state.selected_task_id)
     
     # Metrics tabs (unchanged from original)
     with tab_summary:
@@ -617,20 +814,20 @@ def main():
             st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
             st.metric("DAG Size", format_bytes(avg_dag_size))
         with col3:
-            st.metric("Unique Workers", metrics_df['worker_id'].nunique())
+            st.metric("Unique Workers", int(metrics_df['worker_id'].nunique()))
             st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
-            st.metric("Total Worker Invocations (excludes initial) ", f"{sum(metrics_df["downstream_calls"])}") # type: ignore
+            st.metric("Total Worker Invocations (excludes initial)", f"{int(metrics_df['downstream_calls'].sum())}")
             st.metric("Total Time Downloading DAG", f"{total_time_downloading_dag_ms:.2f} ms")
         with col4:
             st.metric("Unique Tasks", len(function_groups))
             st.metric("Total Invocation Time", f"{total_time_invoking_tasks_ms:.2f} ms")
-            st.metric("", "")
-            st.metric("", "")
+            st.metric(" ", " ", help="")
+            st.metric(" ", " ", help="")
             st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
         with col5:
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
-            st.metric("", "")
-            st.metric("", "")
+            st.metric(" ", " ", help="")
+            st.metric(" ", " ", help="")
 
         breakdown_data = {
             "Task Execution": total_time_executing_tasks_ms,
@@ -710,7 +907,7 @@ def main():
                     },
                     title="Total Execution Time by Function",
                     color='function_name',
-                    text_auto='.2s'
+                    text_auto=True
                 )
                 fig.update_layout(showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
@@ -728,7 +925,7 @@ def main():
                     },
                     title="Average Execution Time by Function",
                     color='function_name',
-                    text_auto='.2s'
+                    text_auto=True
                 )
                 fig.update_layout(showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
