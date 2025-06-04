@@ -301,8 +301,26 @@ def main():
                 critical_edges = set(zip(max_path[:-1], max_path[1:]))
                 return critical_nodes, critical_edges
             
-            # Get critical path
+            # Get actual critical path
             critical_nodes, critical_edges = find_critical_path()
+            
+            # Get planned critical path if available
+            planned_critical_edges = set()
+            try:
+                plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+                plan_data = metrics_redis.get(plan_key)
+                if plan_data:
+                    # Ensure we have bytes before attempting to deserialize
+                    if isinstance(plan_data, bytes):
+                        plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data)
+                        if hasattr(plan, 'critical_path_node_ids') and plan.critical_path_node_ids:
+                            planned_path = list(plan.critical_path_node_ids)
+                            if len(planned_path) > 1:
+                                planned_critical_edges = set(zip(planned_path[:-1], planned_path[1:]))
+                    else:
+                        st.warning(f"Expected bytes from Redis, got {type(plan_data).__name__}")
+            except Exception as e:
+                st.warning(f"Could not load planned critical path: {e}")
             
             def traverse_dag(node: DAGTaskNode, level=0):
                 """ Recursively traverse DAG from root nodes """
@@ -329,18 +347,34 @@ def main():
                     level=level
                 ))
 
-                # Process downstream nodes - highlight critical path edges in red
+                # Process downstream nodes - highlight actual and planned critical paths
                 for downstream in node.downstream_nodes:
                     downstream_id = downstream.id.get_full_id()
-                    is_critical_edge = (node_id, downstream_id) in critical_edges
+                    edge = (node_id, downstream_id)
+                    is_actual_critical = edge in critical_edges
+                    is_planned_critical = edge in planned_critical_edges
+                    
+                    # Determine edge color and title
+                    if is_actual_critical and is_planned_critical:
+                        edge_color = "#FF0000"  # Red - both actual and planned critical
+                        edge_title = "Critical Path (Actual & Planned)"
+                    elif is_actual_critical:
+                        edge_color = "#FF0000"  # Red - only actual critical
+                        edge_title = "Critical Path (Actual)"
+                    elif is_planned_critical:
+                        edge_color = "#FFD700"  # Yellow - only planned critical
+                        edge_title = "Critical Path (Planned)"
+                    else:
+                        edge_color = "#888888"  # Gray - not critical
+                        edge_title = ""
                     
                     edges.append(Edge(
                         source=node_id, 
                         target=downstream_id, 
                         arrow="to",
-                        color="#FF0000" if is_critical_edge else "#888888",
-                        width=2 if is_critical_edge else 1,
-                        title="Critical Path" if is_critical_edge else ""
+                        color=edge_color,
+                        width=2 if (is_actual_critical or is_planned_critical) else 1,
+                        title=edge_title
                     ))
                     traverse_dag(downstream, level + 1)
                     
