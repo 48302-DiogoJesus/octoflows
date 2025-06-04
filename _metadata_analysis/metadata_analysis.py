@@ -165,6 +165,58 @@ def main():
             "dag_size": deserialized.size_bytes
         })
 
+    # After collecting all task metrics, calculate earliest start time and path completion times
+    min_start_time = None
+    task_end_times = {}
+    task_start_times = {}
+
+    # First pass: collect all task metrics and find the minimum start time
+    for task_id in dag._all_nodes.keys():
+        task_metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
+        tmd = metrics_redis.get(task_metrics_key)
+        if tmd:
+            task_metrics = cloudpickle.loads(tmd)
+            task_start_time = task_metrics.started_at_timestamp_s
+            task_start_times[task_id] = task_start_time
+            
+            if min_start_time is None or task_start_time < min_start_time:
+                min_start_time = task_start_time
+
+    # Second pass: calculate end times and relative start times
+    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
+        start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
+        end_time = start_time + metrics.execution_time_ms
+        if metrics.output_metrics:
+            end_time += metrics.output_metrics.time_ms
+        task_end_times[task_id] = end_time
+
+    # Calculate path completion times (max end time of all tasks in each path)
+    path_completion_times = {}
+    for task_id in dag._all_nodes.keys():
+        # For each task, find all downstream paths and calculate max end time
+        max_end_time = task_end_times[task_id]
+        
+        # Use DFS to find all paths from this task
+        stack = [(task_id, task_end_times[task_id])]
+        while stack:
+            current_task_id, current_end_time = stack.pop()
+            if current_end_time > max_end_time:
+                max_end_time = current_end_time
+                
+            # Add downstream tasks to stack
+            current_node = dag._all_nodes[current_task_id]
+            for downstream in current_node.downstream_nodes:
+                downstream_id = downstream.id.get_full_id()
+                stack.append((downstream_id, task_end_times[downstream_id]))
+        
+        path_completion_times[task_id] = max_end_time
+
+    for i, task_data in enumerate(task_metrics_data):
+        task_id = task_data['task_id']
+        task_metrics_data[i]['relative_start_time_ms'] = (task_start_times[task_id] - min_start_time) * 1000
+        task_metrics_data[i]['end_time_ms'] = task_end_times[task_id]
+        task_metrics_data[i]['path_completion_time_ms'] = path_completion_times[task_id]
+
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
         "Visualization", 
@@ -302,121 +354,104 @@ def main():
                 st.subheader("Planned vs Observed Metrics")
                 plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data = metrics_redis.get(plan_key)
-                
+
                 if plan_data:
                     try:
                         plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
-                        task_plan = plan.nodes_info[st.session_state.selected_task_id]
+                        task_plan = plan.nodes_info.get(st.session_state.selected_task_id)
                         
                         if task_plan:
-                            # Get all task metrics to calculate relative times
-                            all_task_metrics = {}
-                            min_start_time = None
-                            
-                            # First pass: collect all task metrics and find the minimum start time
-                            for task_id in dag._all_nodes.keys():
-                                task_metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
-                                tmd = metrics_redis.get(task_metrics_key)
-                                if tmd:
-                                    task_metrics = cloudpickle.loads(tmd) # type: ignore
-                                    all_task_metrics[task_id] = task_metrics
-                                    if min_start_time is None or task_metrics.started_at_timestamp_s < min_start_time:
-                                        min_start_time = task_metrics.started_at_timestamp_s
-                            
-                            # Calculate task end times
-                            task_end_times = {}
-                            for task_id, task_metrics in all_task_metrics.items():
-                                start_time = (task_metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-                                end_time = start_time + task_metrics.execution_time_ms
-                                if task_metrics.output_metrics:
-                                    end_time += task_metrics.output_metrics.time_ms
-                                task_end_times[task_id] = end_time
-                            
-                            # Calculate path completion time (max end time of all tasks in the path)
-                            current_task_id = st.session_state.selected_task_id
-                            path_completion_time = task_end_times.get(current_task_id, 0)
-                            
-                            # Create columns for planned and observed values
-                            col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
-
-                            # Add header
-                            with col_metric:
-                                st.markdown("**Metric**")
-                            with col_planned:
-                                st.markdown("**Planned**")
-                            with col_observed:
-                                st.markdown("**Observed**")
-                            with col_diff:
-                                st.markdown("**Difference**")
-                            
-                            # Calculate total input size from input_metrics and hardcoded_input_metrics
-                            total_input_size = (
-                                sum(im.size_bytes for im in metrics.input_metrics) +
-                                sum(hm.size_bytes for hm in metrics.hardcoded_input_metrics)
+                            # Get the current task's timing metrics
+                            current_task_metrics = next(
+                                (t for t in task_metrics_data if t['task_id'] == st.session_state.selected_task_id),
+                                None
                             )
                             
-                            # Get output size from output_metrics
-                            output_size = metrics.output_metrics.size_bytes if metrics.output_metrics else 0
-                            
-                            # Calculate actual start time relative to the first task
-                            actual_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-                            
-                            # Compare all numeric fields from PlanningTaskInfo
-                            numeric_fields = [
-                                ('Input Size (bytes)', 'input_size', total_input_size),
-                                ('Output Size (bytes)', 'output_size', output_size),
-                                ('Download Time (ms)', 'download_time', metrics.total_input_download_time_ms),
-                                ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
-                                ('Upload Time (ms)', 'upload_time', metrics.output_metrics.time_ms if metrics.output_metrics else 0),
-                                ('Total Time (ms)', 'total_time', metrics.total_input_download_time_ms + metrics.execution_time_ms + (metrics.output_metrics.time_ms if metrics.output_metrics else 0)),
-                                ('Earliest Start (ms)', 'earliest_start', actual_start_time),
-                                ('Path Completion Time (ms)', 'path_completion_time', path_completion_time)
-                            ]
-                            
-                            for label, field, observed_value in numeric_fields:
+                            if current_task_metrics:
+                                # Calculate all the metrics we want to compare
+                                total_input_size = (
+                                    sum(im.size_bytes for im in metrics.input_metrics) +
+                                    sum(hm.size_bytes for hm in metrics.hardcoded_input_metrics)
+                                )
+                                
+                                output_size = metrics.output_metrics.size_bytes if metrics.output_metrics else 0
+                                actual_start_time = current_task_metrics['relative_start_time_ms']
+                                actual_path_completion = current_task_metrics['path_completion_time_ms']
+                                
+                                # Create columns for comparison
+                                col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
+
+                                # Add header
                                 with col_metric:
-                                    st.text(label)
+                                    st.markdown("**Metric**")
+                                with col_planned:
+                                    st.markdown("**Planned**")
+                                with col_observed:
+                                    st.markdown("**Observed**")
+                                with col_diff:
+                                    st.markdown("**Difference**")
                                 
-                                # Get planned value if available
-                                planned_value = getattr(task_plan, field, None)
+                                # Comparison fields
+                                numeric_fields = [
+                                    ('Input Size (bytes)', 'input_size', total_input_size),
+                                    ('Output Size (bytes)', 'output_size', output_size),
+                                    ('Download Time (ms)', 'download_time', metrics.total_input_download_time_ms),
+                                    ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
+                                    ('Upload Time (ms)', 'upload_time', metrics.output_metrics.time_ms if metrics.output_metrics else 0),
+                                    ('Total Task Time (ms)', 'total_time', 
+                                    metrics.total_input_download_time_ms + 
+                                    metrics.execution_time_ms + 
+                                    (metrics.output_metrics.time_ms if metrics.output_metrics else 0)),
+                                    ('Earliest Start (ms)', 'earliest_start', actual_start_time),
+                                    ('Path Completion Time (ms)', 'path_completion_time', actual_path_completion)
+                                ]
                                 
-                                # Format values for display
-                                if planned_value is not None:
-                                    with col_planned:
-                                        if 'Size' in label:
-                                            st.text(format_bytes(planned_value))
-                                        else:
-                                            st.text(f"{float(planned_value):.2f} ms" if isinstance(planned_value, (int, float)) else str(planned_value))
+                                for label, field, observed_value in numeric_fields:
+                                    with col_metric:
+                                        st.text(label)
                                     
-                                    with col_observed:
-                                        if 'Size' in label:
-                                            st.text(format_bytes(observed_value))
-                                        else:
-                                            st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
+                                    # Get planned value if available
+                                    planned_value = getattr(task_plan, field, None)
                                     
-                                    # Calculate and display difference as percentage with color coding
-                                    with col_diff:
-                                        if isinstance(planned_value, (int, float)) and isinstance(observed_value, (int, float)) and planned_value != 0:
-                                            pct_diff = ((observed_value - planned_value) / planned_value) * 100
-                                            # For time metrics, higher is worse; for size metrics, higher is also worse
-                                            is_worse = (pct_diff > 0) if 'Time' in label or 'Size' in label else (pct_diff < 0)
-                                            color = 'red' if is_worse else 'green'
-                                            diff_text = f"<span style='color: {color}'>{pct_diff:+.1f}%</span>"
-                                            st.markdown(diff_text, unsafe_allow_html=True)
-                                        else:
+                                    # Format values for display
+                                    if planned_value is not None:
+                                        with col_planned:
+                                            if 'Size' in label:
+                                                st.text(format_bytes(planned_value))
+                                            else:
+                                                st.text(f"{float(planned_value):.2f} ms" if isinstance(planned_value, (int, float)) else str(planned_value))
+                                        
+                                        with col_observed:
+                                            if 'Size' in label:
+                                                st.text(format_bytes(observed_value))
+                                            else:
+                                                st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
+                                        
+                                        # Calculate and display difference
+                                        with col_diff:
+                                            if isinstance(planned_value, (int, float)) and isinstance(observed_value, (int, float)) and planned_value != 0:
+                                                pct_diff = ((observed_value - planned_value) / planned_value) * 100
+                                                # For time metrics, higher is worse; for size metrics, higher is also worse
+                                                is_worse = (pct_diff > 0) if 'Time' in label or 'Size' in label else (pct_diff < 0)
+                                                color = 'red' if is_worse else 'green'
+                                                diff_text = f"<span style='color: {color}'>{pct_diff:+.1f}%</span>"
+                                                st.markdown(diff_text, unsafe_allow_html=True)
+                                            else:
+                                                st.text("-")
+                                    else:
+                                        with col_planned:
+                                            st.text("N/A")
+                                        with col_observed:
+                                            if 'Size' in label:
+                                                st.text(format_bytes(observed_value))
+                                            else:
+                                                st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
+                                        with col_diff:
                                             st.text("-")
-                                else:
-                                    with col_planned:
-                                        st.text("N/A")
-                                    with col_observed:
-                                        if 'Size' in label:
-                                            st.text(format_bytes(observed_value))
-                                        else:
-                                            st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
-                                    with col_diff:
-                                        st.text("-")
+                        else:
+                            st.warning("No planning data available for selected task")
                     except Exception as e:
-                        st.warning(f"Could not load plan data: {str(e)}")
+                        st.error(f"Error loading plan data: {str(e)}")
                 else:
                     st.info("No planning data available for this DAG")
         
