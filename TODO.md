@@ -1,5 +1,5 @@
 [VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- [BUG] PLan tab (ALL download times = 0)
+- [BUG] Don't show download times and upload times for now
 
 - (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
 

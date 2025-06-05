@@ -549,13 +549,7 @@ def main():
                                 numeric_fields = [
                                     ('Input Size (bytes)', 'input_size', total_input_size),
                                     ('Output Size (bytes)', 'output_size', output_size),
-                                    ('Download Time (ms)', 'download_time', metrics.total_input_download_time_ms),
                                     ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
-                                    ('Upload Time (ms)', 'upload_time', metrics.output_metrics.time_ms if metrics.output_metrics else 0),
-                                    ('Total Task Time (ms)', 'total_time', 
-                                    metrics.total_input_download_time_ms + 
-                                    metrics.execution_time_ms + 
-                                    (metrics.output_metrics.time_ms if metrics.output_metrics else 0)),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
                                     ('Path Completion Time (ms)', 'path_completion_time', actual_path_completion)
                                 ]
@@ -625,14 +619,10 @@ def main():
                 nodes_info = plan.nodes_info
                 # Makespan is the maximum path completion time across all nodes
                 planned_makespan = max((node.path_completion_time for node in nodes_info.values()), default=0)
-                planned_download_time = sum(node.download_time for node in nodes_info.values())
-                planned_upload_time = sum(node.upload_time for node in nodes_info.values())
                 planned_execution_time = sum(node.exec_time for node in nodes_info.values())
                 
                 # Calculate actual metrics
                 actual_makespan = makespan_ms
-                actual_download_time = total_time_downloading_data_ms
-                actual_upload_time = total_time_uploading_data_ms
                 actual_execution_time = total_time_executing_tasks_ms
                 
                 # Create comparison data
@@ -643,20 +633,6 @@ def main():
                         'Actual (ms)': actual_makespan,
                         'Difference (ms)': actual_makespan - planned_makespan,
                         'Difference (%)': ((actual_makespan - planned_makespan) / planned_makespan * 100) if planned_makespan > 0 else 0
-                    },
-                    {
-                        'Metric': 'Total Download Time',
-                        'Planned (ms)': planned_download_time,
-                        'Actual (ms)': actual_download_time,
-                        'Difference (ms)': actual_download_time - planned_download_time,
-                        'Difference (%)': ((actual_download_time - planned_download_time) / planned_download_time * 100) if planned_download_time > 0 else 0
-                    },
-                    {
-                        'Metric': 'Total Upload Time',
-                        'Planned (ms)': planned_upload_time,
-                        'Actual (ms)': actual_upload_time,
-                        'Difference (ms)': actual_upload_time - planned_upload_time,
-                        'Difference (%)': ((actual_upload_time - planned_upload_time) / planned_upload_time * 100) if planned_upload_time > 0 else 0
                     },
                     {
                         'Metric': 'Total Execution Time',
