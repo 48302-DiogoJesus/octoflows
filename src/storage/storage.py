@@ -16,6 +16,7 @@ class BatchOperation:
         ATOMIC_INCREMENT_AND_GET = "atomic_increment_and_get"
         KEYS = "keys"
         PUBLISH = "publish"
+        DELETE = "delete"
     
     def __init__(self, op_type: Type, args: tuple, kwargs: dict, result_key: Optional[str] = None):
         self.op_type = op_type
@@ -70,6 +71,41 @@ class BatchContext:
     async def publish(self, channel: str, message: Union[str, bytes], result_key: Optional[str] = None) -> "BatchContext":
         """Queue a publish operation"""
         op = BatchOperation(BatchOperation.Type.PUBLISH, (channel, message), {}, result_key)
+        self._operations.append(op)
+        return self
+    
+    async def delete(
+        self, 
+        key: str, 
+        *, 
+        pattern: bool = False, 
+        prefix: bool = False, 
+        suffix: bool = False, 
+        result_key: Optional[str] = None
+    ) -> "BatchContext":
+        """
+        Queue a delete operation.
+        
+        Args:
+            key: The key pattern/prefix/suffix to match for deletion
+            pattern: If True, treat key as a pattern to match (e.g., 'user:*')
+            prefix: If True, delete all keys that start with the given key
+            suffix: If True, delete all keys that end with the given key
+            result_key: Optional key to store the result under
+            
+        Returns:
+            Self for method chaining
+            
+        Note:
+            Only one of pattern, prefix, or suffix should be True at a time.
+            If none are True, performs an exact key match delete.
+        """
+        op = BatchOperation(
+            BatchOperation.Type.DELETE, 
+            (key,), 
+            {"pattern": pattern, "prefix": prefix, "suffix": suffix}, 
+            result_key
+        )
         self._operations.append(op)
         return self
     
@@ -129,7 +165,26 @@ class Storage(ABC):
     @abstractmethod
     async def unsubscribe(self, channel: str) -> None: pass
 
-    # BATCH OPERATIONS
+    @abstractmethod
+    async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
+        """
+        Delete keys from the storage.
+        
+        Args:
+            key: The key pattern/prefix/suffix to match for deletion
+            pattern: If True, treat key as a pattern to match (e.g., 'user:*')
+            prefix: If True, delete all keys that start with the given key
+            suffix: If True, delete all keys that end with the given key
+            
+        Returns:
+            int: Number of keys that were deleted
+            
+        Note:
+            Only one of pattern, prefix, or suffix should be True at a time.
+            If none are True, performs an exact key match delete.
+        """
+        pass
+        
     @abstractmethod
     async def _execute_batch(self, operations: list[BatchOperation]) -> list[Any]:
         """Execute a batch of operations. Implementations should optimize this for their backend."""

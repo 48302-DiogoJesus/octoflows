@@ -132,5 +132,52 @@ class InMemoryStorage(storage.Storage):
             if channel in self._subscribers:
                 del self._subscribers[channel]
 
+    async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
+        """
+        Delete keys from the storage.
+        
+        Args:
+            key: The key pattern/prefix/suffix to match for deletion
+            pattern: If True, treat key as a pattern to match (e.g., 'user:*')
+            prefix: If True, delete all keys that start with the given key
+            suffix: If True, delete all keys that end with the given key
+            
+        Returns:
+            int: Number of keys that were deleted
+            
+        Note:
+            Only one of pattern, prefix, or suffix should be True at a time.
+            If none are True, performs an exact key match delete.
+        """
+        with self._lock:
+            # Count how many of the flags are True
+            match_flags = sum([bool(pattern), bool(prefix), bool(suffix)])
+            if match_flags > 1:
+                raise ValueError("Only one of pattern, prefix, or suffix can be True")
+                
+            if pattern:
+                # Find all keys matching the pattern
+                matching_keys = await self.keys(key)
+            elif prefix:
+                # Find all keys starting with the prefix
+                matching_keys = [k for k in self._data.keys() if k.startswith(key)]
+            elif suffix:
+                # Find all keys ending with the suffix
+                matching_keys = [k for k in self._data.keys() if k.endswith(key)]
+            else:
+                # Exact match
+                matching_keys = [key] if key in self._data else []
+            
+            # Delete all matching keys
+            deleted_count = 0
+            for k in matching_keys:
+                if k in self._data:
+                    del self._data[k]
+                    if k in self._expiry:
+                        del self._expiry[k]
+                    deleted_count += 1
+            
+            return deleted_count
+
     async def _execute_batch(self, operations: list[storage.BatchOperation]) -> list[Any]:
         raise NotImplementedError

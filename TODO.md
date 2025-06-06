@@ -1,7 +1,5 @@
-[VISUALIZATION:PLANNER] On the `metadata_analysis.py` dashboard think of how to compare the plan against the final result
-- [BUG] Don't show download times and upload times for now
-
-- (Summary) Can I show a general percentage offset of how wrong the plan predictions were?
+[CLEANUP] "dependency-counter" and "dag-" key prefixes are hardcoded!
+    Do shift-f
 
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:
@@ -9,16 +7,15 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
 - Downloading input from intermediate storage
 - Uploading metrics
 
-[OPTIMIZATION:STORAGE_CLEANUP] Remove intermediate results of a dag after complete (sink task is responsible for this)
-    impl => remove storage keys that contain <master_dag_id>
 [OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
+
 [OPTIMIZATION:WORKER_STARTUP_SPEED]
 - Storing the full dag on redis is costly (DAG retrieval time adds up)
-    - Don't store the whole DAG (figure out how to partition DAG in a way that is correct)
     - If below a certain bytes threshold, pass the subDAG in the invocation itself
-        DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
-    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+    - Worker first checks if the invocation contains the subDAG and if so, doesn't download it from storage
     - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
+    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+    [EXTRA_SAME_SPIRIT] DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner

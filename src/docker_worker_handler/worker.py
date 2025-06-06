@@ -135,6 +135,20 @@ async def main():
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
         logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")
 
+        if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):
+            logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
+
+            # logger.info(f"Deleting {len(fulldag._all_nodes.keys()) - 1} intermediate results for dag id: {fulldag.master_dag_id}")
+            # Delete intermediate results
+            for t in fulldag._all_nodes.values():
+                # note: don't delete final result because client needs it
+                if t.id.get_full_id() == fulldag.sink_node.id.get_full_id():
+                    await wk.intermediate_storage.delete(f"dependency-counter-{t.id.get_full_id_in_dag(fulldag)}")
+                    continue
+                # logger.info(f"Deleting intermediate result for task: {t.id.get_full_id()}")
+                await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)
+            
+
         #* 6) Upload metrics collected during task execution
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(

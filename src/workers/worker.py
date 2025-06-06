@@ -40,7 +40,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> list[str]:
+    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> tuple[list[str], bool]:
         """
         Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
         """
@@ -54,6 +54,7 @@ class Worker(ABC, WorkerExecutionLogic):
         tasks_executed_by_this_coroutine = []
         other_coroutines_i_launched = []
         task_metrics: dict[str, TaskMetrics] = {}
+        sink_task_executed = False
 
         try:
             while True:
@@ -179,6 +180,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 )
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
+                    sink_task_executed = True
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
                     break
 
@@ -235,13 +237,13 @@ class Worker(ABC, WorkerExecutionLogic):
             self.log(current_task.id.get_full_id(), f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
             await asyncio.gather(*other_coroutines_i_launched)
 
-        if self.metrics_storage: 
+        if self.metrics_storage:
             for tid, tm in task_metrics.items(): 
                 self.metrics_storage.store_task_metrics(tid, tm)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
 
-        return tasks_executed_by_this_coroutine
+        return tasks_executed_by_this_coroutine, sink_task_executed
 
     @abstractmethod
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
