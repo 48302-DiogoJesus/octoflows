@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from src.storage.metrics.metrics_storage import MetricsStorage
 
 # Set page config to use wide layout (first thing in your script)
 st.set_page_config(layout="wide")
@@ -97,13 +98,13 @@ def main():
     
     with tab1:
         display_metrics_table(
-            pattern="metrics-storage-tasks-*",
+            pattern=f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*",
             title="Task Metrics"
         )
     
     with tab2:
         display_metrics_table(
-            pattern="metrics-storage-dag-*",
+            pattern=f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}*",
             title="DAG Prepare Metrics"
         )
 

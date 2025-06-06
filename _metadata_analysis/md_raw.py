@@ -40,7 +40,7 @@ def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"\tTotal Invocation Time: {m.total_invocation_time_ms} ms")
 
 def get_all_task_metrics() -> list[tuple[str, TaskMetrics]]:
-    keys = client.keys('metrics-storage-tasks-*')
+    keys = client.keys(f'{MetricsStorage.TASK_METRICS_KEY_PREFIX}*')
 
     task_metrics: list[tuple[str, TaskMetrics]] = []
 
@@ -58,7 +58,7 @@ def get_all_task_metrics() -> list[tuple[str, TaskMetrics]]:
     return task_metrics
 
 def get_all_dag_prepare_metrics() -> list[FullDAGPrepareTime]:
-    keys = client.keys('metrics-storage-dag-*')
+    keys = client.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
 
     task_metrics: list[FullDAGPrepareTime] = []
 

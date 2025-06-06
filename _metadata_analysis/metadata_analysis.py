@@ -152,7 +152,7 @@ def main():
     sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.total_input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
     makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
 
-    keys = metrics_redis.keys('metrics-storage-dag-*')
+    keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
     total_time_downloading_dag_ms = 0
     dag_prepare_metrics = []
     for key in keys:

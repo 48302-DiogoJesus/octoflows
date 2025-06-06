@@ -1,6 +1,3 @@
-DAG_METRICS_KEY_PREFIX is not used on some places
-    search for metrics-storage-dag-
-
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:
 - Publishing TASK_READY events, Incrementing DCs
