@@ -32,7 +32,7 @@ def print_task_metrics(task_id: str, m: TaskMetrics):
     print(f"\tStarted At Timestamp: {m.started_at_timestamp_s}")
     print(f"\tInput Metrics Len: {len(m.input_metrics)} | Sum: {sum(input_metric.size_bytes for input_metric in m.input_metrics)} bytes")
     print(f"\tHardcoded Input Metrics Len: {len(m.hardcoded_input_metrics)} | Sum: {sum(h_input_metric.size_bytes for h_input_metric in m.hardcoded_input_metrics)} bytes")
-    print(f"\tTotal Input Download Time: {m.total_input_download_time_ms} ms")
+    print(f"\tTotal Input Download Time: {m.input_download_time_ms} ms")
     print(f"\tExecution Time: {m.execution_time_ms} ms")
     print(f"\tUpdate Dependency Counters Time: {m.update_dependency_counters_time_ms} ms")
     print(f"\tOutput Metrics: {m.output_metrics}")

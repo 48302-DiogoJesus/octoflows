@@ -50,14 +50,13 @@ class MetadataAccess:
                         metrics.worker_resource_configuration.memory_mb
                     ))
                 # DOWNLOAD SPEEDS
-                for input_metric in metrics.input_metrics:
-                    if input_metric.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                        download_speed = input_metric.size_bytes / input_metric.normalized_time_ms
-                        self.cached_download_speeds.append((
-                            download_speed,
-                            metrics.worker_resource_configuration.cpus,
-                            metrics.worker_resource_configuration.memory_mb
-                        ))
+                if metrics.normalized_input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                    download_speed = metrics.downloadable_input_size_bytes / metrics.normalized_input_download_time_ms
+                    self.cached_download_speeds.append((
+                        download_speed,
+                        metrics.worker_resource_configuration.cpus,
+                        metrics.worker_resource_configuration.memory_mb
+                    ))
 
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
@@ -75,7 +74,7 @@ class MetadataAccess:
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
                 self.cached_io_ratios[function_name] = []
-            input = sum(input_metric.size_bytes for input_metric in metrics.input_metrics) + sum(h_input_metric.size_bytes for h_input_metric in metrics.hardcoded_input_metrics)
+            input = metrics.downloadable_input_size_bytes + metrics.hardcoded_input_size_bytes
             output = metrics.output_metrics.size_bytes
             self.cached_io_ratios[function_name].append(output / input if input > 0 else 0)
 

@@ -9,7 +9,6 @@ from src.dag_task_annotation import TaskAnnotation
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskInputMetrics
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
@@ -97,10 +96,6 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                     logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
                     __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
 
-        #! FOR DEBUG ONLY
-        # if len(task.downstream_nodes) == 0:
-        #     logger.info(f"Sink Task has {len(task.upstream_nodes)} unodes")
-
         for t in task.upstream_nodes:
             if t.cached_result:
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
@@ -110,22 +105,16 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
                 upstream_tasks_to_fetch.append(t)
 
-        async def _wait_all_preloads_coroutine() -> list[TaskInputMetrics]:
-            _input_metrics: list[TaskInputMetrics] = []
+        async def _wait_all_preloads_coroutine() -> int:
+            total_input_size_bytes = 0
             await asyncio.gather(*__tasks_preloading_coroutines.values()) # Wait for all preloading to finish for this task
             # Grab preloaded data results
             for t in task.upstream_nodes:
                 if t.id.get_full_id() not in __tasks_preloading_coroutines: continue
                 if not t.cached_result: raise Exception(f"ERROR: Task {t.id.get_full_id()} was preloading. After preload, it doesn't have a cached result!!")
                 task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                _input_metrics.append(
-                    TaskInputMetrics(
-                        task_id=t.id.get_full_id_in_dag(subdag),
-                        size_bytes=calculate_data_structure_size(t.cached_result.result),
-                        time_ms=0,
-                        normalized_time_ms=0
-                    )
-                )
-            return _input_metrics
+                total_input_size_bytes += calculate_data_structure_size(t.cached_result.result)
+                
+            return total_input_size_bytes
 
         return (upstream_tasks_to_fetch, _wait_all_preloads_coroutine())

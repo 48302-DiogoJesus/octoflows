@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskHardcodedInputMetrics, TaskInputMetrics, TaskMetrics, TaskOutputMetrics
+from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -63,9 +63,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task_metrics = TaskMetrics(
                     worker_resource_configuration=my_resource_configuration_with_flexible_worker_id,
                     started_at_timestamp_s = time.time(),
-                    input_metrics = [],
-                    hardcoded_input_metrics = [],
-                    total_input_download_time_ms = 0,
+                    hardcoded_input_size_bytes=0,
+                    normalized_input_download_time_ms=0,
+                    input_download_time_ms = 0,
+                    downloadable_input_size_bytes=0,
                     execution_time_ms = 0,
                     execution_time_per_input_byte_ms = 0,
                     update_dependency_counters_time_ms = 0,
@@ -82,14 +83,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 for t in current_task.upstream_nodes:
                     if t.cached_result:
                         task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                        current_task_metrics.input_metrics.append(
-                            TaskInputMetrics(
-                                task_id=t.id.get_full_id_in_dag(subdag),
-                                size_bytes=calculate_data_structure_size(t.cached_result.result),
-                                time_ms=0,
-                                normalized_time_ms=0
-                            )
-                        )
+                        current_task_metrics.downloadable_input_size_bytes += calculate_data_structure_size(t.cached_result.result)
                 
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
                 for t in current_task.upstream_nodes:
@@ -125,33 +119,25 @@ class Worker(ABC, WorkerExecutionLogic):
                         
                         serialized_data = cloudpickle.loads(task_output)
                         task_dependencies[dependency_task.id.get_full_id()] = serialized_data
-                        
-                        # Add metrics (note: batch operations don't have individual timing)
-                        current_task_metrics.input_metrics.append(
-                            TaskInputMetrics(
-                                task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                                size_bytes=calculate_data_structure_size(serialized_data),
-                                time_ms=0,  # Batch operations don't have individual timing
-                                normalized_time_ms=0
-                            )
-                        )
+                        current_task_metrics.downloadable_input_size_bytes += calculate_data_structure_size(serialized_data)
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine:
                     wait_result = await wait_until_coroutine
-                    current_task_metrics.input_metrics.extend(wait_result)  # wait_until_coroutine returns list[TaskInputMetrics]
+                    current_task_metrics.downloadable_input_size_bytes += wait_result
 
-                current_task_metrics.total_input_download_time_ms = _download_dependencies_timer.stop()
+                current_task_metrics.input_download_time_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 else 0
+                current_task_metrics.normalized_input_download_time_ms = current_task_metrics.input_download_time_ms / (current_task_metrics.downloadable_input_size_bytes / BASELINE_MEMORY_MB) if current_task_metrics.downloadable_input_size_bytes > 0 else 0
 
                 # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in current_task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    current_task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_arg)))
+                    current_task_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_arg)
 
                 for func_kwarg in current_task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
-                    current_task_metrics.hardcoded_input_metrics.append(TaskHardcodedInputMetrics(size_bytes=calculate_data_structure_size(func_kwarg)))
-                
+                    current_task_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
+                    
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 if self.planner:
@@ -165,7 +151,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 current_task_metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
-                total_input_size = sum(m.size_bytes for m in current_task_metrics.input_metrics) + sum(m.size_bytes for m in current_task_metrics.hardcoded_input_metrics)
+                total_input_size = current_task_metrics.downloadable_input_size_bytes + current_task_metrics.hardcoded_input_size_bytes
                 current_task_metrics.execution_time_per_input_byte_ms = current_task_metrics.execution_time_ms / total_input_size \
                     if total_input_size > 0 else 0 # 0, not to influence predictions, using current_task_metrics.execution_time_ms would be incorrect
                 

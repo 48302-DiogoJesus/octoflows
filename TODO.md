@@ -1,6 +1,5 @@
-remove TaskInputMetrics (the times don't make sense anymore since data fetching is done in batching)
-move it to TaskMetrics.total_input_download_time_ms
-add field TaskMetrics.total_input_size
+for consistency:
+- Don't store task metrics input/output NORMALIZED!! normalize when predicting in metadata_access, similar to execution_time_per_input_byte_ms
 
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:

@@ -105,7 +105,7 @@ def main():
         metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
         if not metrics_data: raise Exception(f"Could not find metrics for key: {metrics_key}")
-        metrics = cloudpickle.loads(metrics_data) # type: ignore
+        metrics: TaskMetrics = cloudpickle.loads(metrics_data) # type: ignore
         dag_metrics.append(metrics)
         
         func_name = dag._all_nodes[task_id].func_name
@@ -122,9 +122,7 @@ def main():
 
         # Calculate data transferred
         task_data = 0
-        for input_metric in metrics.input_metrics:
-            task_data += input_metric.size_bytes
-            total_time_downloading_data_ms += input_metric.time_ms
+        total_time_downloading_data_ms += metrics.input_download_time_ms
         if metrics.output_metrics:
             task_data += metrics.output_metrics.size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.time_ms
@@ -141,15 +139,14 @@ def main():
             'worker_id': metrics.worker_resource_configuration.worker_id,
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
-            'input_count': len(metrics.input_metrics),
-            'input_size': sum([m.size_bytes for m in metrics.input_metrics]),
+            'input_size': metrics.downloadable_input_size_bytes,
             'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
             'downstream_calls': metrics.total_invocations_count
         })
     
     assert _sink_task_metrics
 
-    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.total_input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
+    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
     makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
 
     keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
@@ -234,69 +231,6 @@ def main():
         "Planning"
     ])
     
-    def show_input_metrics(task_id):
-        if not task_id:
-            return
-            
-        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
-        metrics_data = metrics_redis.get(metrics_key)
-        
-        if not metrics_data:
-            st.info("No metrics data available for this task")
-            return
-            
-        try:
-            # Handle potential async response
-            if hasattr(metrics_data, 'result') and callable(getattr(metrics_data, 'result', None)):
-                metrics_data = metrics_data.result()  # type: ignore
-                    
-            # Ensure we have bytes data for cloudpickle
-            if isinstance(metrics_data, str):
-                metrics_data = metrics_data.encode('utf-8')
-                
-            if metrics_data:
-                metrics: TaskMetrics = cloudpickle.loads(metrics_data)  # type: ignore
-                
-                if metrics and hasattr(metrics, 'input_metrics') and metrics.input_metrics:
-                    # Display section header
-                    st.subheader("Input Metrics")
-                    
-                    # Create a dataframe for the input metrics
-                    input_data = []
-                    for m in metrics.input_metrics:
-                        if hasattr(m, 'task_id') and hasattr(m, 'size_bytes') and hasattr(m, 'time_ms'):
-                            input_data.append({
-                                'Source Task': m.task_id,
-                                'Size': format_bytes(m.size_bytes),
-                                'Download Time (ms)': m.time_ms
-                            })
-                    
-                    if input_data:
-                        input_df = pd.DataFrame(input_data)
-                        # Display the input metrics table
-                        st.dataframe(
-                            input_df,
-                            use_container_width=True,
-                            hide_index=True,
-                            column_config={
-                                "Source Task": st.column_config.TextColumn("Source Task"),
-                                "Size": st.column_config.TextColumn("Size"),
-                                "Download Time (ms)": st.column_config.NumberColumn("Download Time (ms)", format="%.2f")
-                            }
-                        )
-                        
-                        # Calculate and display total input data
-                        total_input = sum(m.size_bytes for m in metrics.input_metrics if hasattr(m, 'size_bytes'))
-                        st.write(f"**Total Input Data:** {format_bytes(total_input)}")
-                    else:
-                        st.info("No input metrics available for this task")
-                else:
-                    st.info("No input metrics available for this task")
-        except Exception as e:
-            st.error(f"Error processing task metrics: {str(e)}")
-            import traceback
-            st.text(traceback.format_exc())
-
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
@@ -491,9 +425,9 @@ def main():
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:
-                    total_task_handling_time = metrics.total_input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
+                    total_task_handling_time = metrics.input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
-                    st.metric("Dependencies Download Time", f"{metrics.total_input_download_time_ms:.2f} ms")
+                    st.metric("Dependencies Download Time", f"{metrics.input_download_time_ms:.2f} ms")
                     st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
                     st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
                     st.metric("Tasks Upstream", len(task_node.upstream_nodes))
@@ -524,11 +458,6 @@ def main():
                             
                             if current_task_metrics:
                                 # Calculate all the metrics we want to compare
-                                total_input_size = (
-                                    sum(im.size_bytes for im in metrics.input_metrics) +
-                                    sum(hm.size_bytes for hm in metrics.hardcoded_input_metrics)
-                                )
-                                
                                 output_size = metrics.output_metrics.size_bytes if metrics.output_metrics else 0
                                 actual_start_time = current_task_metrics['relative_start_time_ms']
                                 actual_path_completion = current_task_metrics['path_completion_time_ms']
@@ -548,7 +477,7 @@ def main():
                                 
                                 # Comparison fields
                                 numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', total_input_size),
+                                    ('Input Size (bytes)', 'input_size', metrics.downloadable_input_size_bytes),
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
@@ -751,12 +680,6 @@ def main():
                 import traceback
                 st.text(traceback.format_exc())
     
-    # Visualization tab
-    with tab_viz:
-        # Show input metrics for selected task in the Visualization tab
-        if 'selected_task_id' in st.session_state and st.session_state.selected_task_id:
-            show_input_metrics(st.session_state.selected_task_id)
-    
     # Metrics tabs (unchanged from original)
     with tab_summary:
         # Create dataframe for visualizations
@@ -851,7 +774,7 @@ def main():
 
         st.subheader("Raw Task Metrics")
         raw_task_df = metrics_df.sort_values('function_name').reset_index(drop=True)
-        columns_to_exclude = { "input_count", "function_name" }
+        columns_to_exclude = { "function_name" }
         columns_to_show = [col for col in raw_task_df.columns if col not in columns_to_exclude]
         st.dataframe(
             raw_task_df[columns_to_show],
@@ -1074,13 +997,12 @@ def main():
 
             for task_metrics in dag_metrics:
                 # Calculate download throughputs for each input
-                for input_metric in task_metrics.input_metrics:
-                    if input_metric.time_ms > 0:
-                        throughput_mb = (input_metric.size_bytes / (input_metric.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                        speed_bytes_ms = input_metric.size_bytes / input_metric.time_ms  # bytes/ms
-                        download_throughputs.append(throughput_mb)
-                        all_transfer_speeds.append(speed_bytes_ms)
-                    total_data_downloaded += input_metric.size_bytes
+                if task_metrics.input_download_time_ms > 0:
+                    throughput_mb = (task_metrics.downloadable_input_size_bytes / (task_metrics.input_download_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.downloadable_input_size_bytes / task_metrics.input_download_time_ms  # bytes/ms
+                    download_throughputs.append(throughput_mb)
+                    all_transfer_speeds.append(speed_bytes_ms)
+                total_data_downloaded += task_metrics.downloadable_input_size_bytes
 
                 # Calculate upload throughput for output if available
                 if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
