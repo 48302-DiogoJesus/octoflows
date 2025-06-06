@@ -51,19 +51,18 @@ class MetricsStorage():
         len_before_flush = len(self.cached_metrics)
         if len_before_flush == 0: return
 
-        coroutines = []
         keys_to_remove = []
-        for key, metrics in self.cached_metrics.items():
-            coroutines.append(self.storage.set(key, cloudpickle.dumps(metrics)))
-            # remove from self.cached_metrics
-            keys_to_remove.append(key)
+        async with self.storage.batch() as batch:
+            for key, metrics in self.cached_metrics.items():
+                await batch.set(key, cloudpickle.dumps(metrics))
+                # remove from self.cached_metrics
+                keys_to_remove.append(key)
+            await batch.execute()
 
-        if len(coroutines) > 0: await asyncio.gather(*coroutines)
         for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
-        if len(coroutines) > 0: 
-            end = time.time()
-            logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
+        end = time.time()
+        logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
 
 BASELINE_MEMORY_MB = 512 # reference value for normalization

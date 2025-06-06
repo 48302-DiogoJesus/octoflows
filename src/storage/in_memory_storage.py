@@ -18,29 +18,16 @@ class InMemoryStorage(storage.Storage):
     def __init__(self, config: Config) -> None:
         super().__init__()
         self._data: dict[str, Any] = {}
-        self._expiry: dict[str, float] = {}
         self._lock = threading.RLock()
         self._subscribers: dict[str, list[tuple[Callable[[dict], Any], bool]]] = {}
 
     async def get(self, key: str):
         with self._lock:
-            if key in self._data:
-                # Check if the key has expired
-                if key in self._expiry and self._expiry[key] <= time.time():
-                    del self._data[key]
-                    del self._expiry[key]
-                    return None
-                return self._data[key]
-            return None
+            return self._data.get(key)
 
-    async def set(self, key: str, value, expire=None):
+    async def set(self, key: str, value):
         with self._lock:
             self._data[key] = value
-            
-            if expire is not None:
-                self._expiry[key] = time.time() + expire
-            elif key in self._expiry:
-                del self._expiry[key]
 
     async def exists(self, *keys: str) -> Any:
         with self._lock:
@@ -173,8 +160,6 @@ class InMemoryStorage(storage.Storage):
             for k in matching_keys:
                 if k in self._data:
                     del self._data[k]
-                    if k in self._expiry:
-                        del self._expiry[k]
                     deleted_count += 1
             
             return deleted_count

@@ -18,7 +18,7 @@ class BatchOperation:
         PUBLISH = "publish"
         DELETE = "delete"
     
-    def __init__(self, op_type: Type, args: tuple, kwargs: dict, result_key: Optional[str] = None):
+    def __init__(self, op_type: Type, args: tuple, kwargs, result_key: Optional[str] = None):
         self.op_type = op_type
         self.args = args
         self.kwargs = kwargs
@@ -50,9 +50,9 @@ class BatchContext:
         self._operations.append(op)
         return self
     
-    async def set(self, key: str, value: Any, expire: Optional[int] = None, result_key: Optional[str] = None) -> "BatchContext":
+    async def set(self, key: str, value: Any, result_key: Optional[str] = None) -> "BatchContext":
         """Queue a set operation"""
-        op = BatchOperation(BatchOperation.Type.SET, (key, value), {"expire": expire}, result_key)
+        op = BatchOperation(BatchOperation.Type.SET, (key, value), {}, result_key)
         self._operations.append(op)
         return self
     
@@ -147,7 +147,7 @@ class Storage(ABC):
     async def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
     
     @abstractmethod
-    async def set(self, key: str, value, expire=None) -> Any: pass
+    async def set(self, key: str, value) -> Any: pass
     
     @abstractmethod
     async def atomic_increment_and_get(self, key: str) -> Any: pass

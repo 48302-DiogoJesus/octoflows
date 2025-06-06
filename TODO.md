@@ -1,11 +1,5 @@
-[OPTIMIZATION:DATA_ACCESS]
-PIPE STORAGE OPERATIONS WHERE POSSIBLE:
-- [DONE] Fetching input data
-- Publishing TASK_READY events, Incrementing DCs
-- Uploading metrics
-
 [OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
-
+    
 [OPTIMIZATION:WORKER_STARTUP_SPEED]
 - Storing the full dag on redis is costly (DAG retrieval time adds up)
     - If below a certain bytes threshold, pass the subDAG in the invocation itself

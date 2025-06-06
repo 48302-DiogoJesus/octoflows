@@ -57,9 +57,9 @@ class RedisStorage(storage.Storage):
             return None
         return await conn.get(key)
 
-    async def set(self, key: str, value: Any, expire: Optional[int] = None) -> bool:
+    async def set(self, key: str, value: Any) -> bool:
         conn = await self._get_or_create_connection()
-        return await conn.set(key, value, ex=expire)
+        return await conn.set(key, value)
 
     async def atomic_increment_and_get(self, key: str) -> int:
         conn = await self._get_or_create_connection()

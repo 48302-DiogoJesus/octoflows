@@ -173,9 +173,12 @@ class Worker(ABC, WorkerExecutionLogic):
                 # Update Dependency Counters of Downstream Tasks
                 updating_dependency_counters_timer = Timer()
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
-                for downstream_task in current_task.downstream_nodes:
-                    dc_key = f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}"
-                    dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
+                async with self.metadata_storage.batch() as batch:
+                    for downstream_task in current_task.downstream_nodes:
+                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    results = await batch.execute()
+                    
+                for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
