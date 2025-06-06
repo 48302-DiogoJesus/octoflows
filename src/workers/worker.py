@@ -18,6 +18,8 @@ import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
 import src.storage.storage as storage_module
 from src.workers.worker_execution_logic import WorkerExecutionLogic
+from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
+from src.storage.prefixes import DAG_PREFIX
 
 logger = create_logger(__name__)
 
@@ -188,7 +190,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 updating_dependency_counters_timer = Timer()
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 for downstream_task in current_task.downstream_nodes:
-                    dc_key = f"dependency-counter-{downstream_task.id.get_full_id_in_dag(subdag)}"
+                    dc_key = f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}"
                     dependencies_met = await self.metadata_storage.atomic_increment_and_get(dc_key)
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
@@ -254,10 +256,10 @@ class Worker(ABC, WorkerExecutionLogic):
 
     @staticmethod
     async def store_full_dag(metadata_storage: storage_module.Storage, dag: dag.FullDAG):
-        await metadata_storage.set(f"dag-{dag.master_dag_id}", cloudpickle.dumps(dag))
+        await metadata_storage.set(f"{DAG_PREFIX}{dag.master_dag_id}", cloudpickle.dumps(dag))
 
     async def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
-        serialized_dag = await self.metadata_storage.get(f"dag-{dag_id}")
+        serialized_dag = await self.metadata_storage.get(f"{DAG_PREFIX}{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")

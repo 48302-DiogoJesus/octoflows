@@ -19,6 +19,7 @@ from src.storage.metrics.metrics_types import FullDAGPrepareTime
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
+from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 
 logger = create_logger(__name__)
 
@@ -143,7 +144,7 @@ async def main():
             for t in fulldag._all_nodes.values():
                 # note: don't delete final result because client needs it
                 if t.id.get_full_id() == fulldag.sink_node.id.get_full_id():
-                    await wk.intermediate_storage.delete(f"dependency-counter-{t.id.get_full_id_in_dag(fulldag)}")
+                    await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_full_id_in_dag(fulldag)}")
                     continue
                 # logger.info(f"Deleting intermediate result for task: {t.id.get_full_id()}")
                 await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)

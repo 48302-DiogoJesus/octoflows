@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
 from src.dag.dag import FullDAG
@@ -57,7 +58,7 @@ def main():
     metrics_redis = get_redis_connection(6380)
     
     # Get all DAG keys
-    dag_keys = [key for key in dag_redis.keys() if key.startswith(b'dag-')]
+    dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)]
     
     if not dag_keys:
         st.warning("No DAGs found in Redis")
