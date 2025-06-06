@@ -10,25 +10,20 @@ class FullDAGPrepareTime:
     size_bytes: int
 
 @dataclass
+class TaskInputMetrics:
+    hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
+    downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
+    input_download_time_ms: float = 0  # time to download all inputs
+
+@dataclass
 class TaskOutputMetrics:
     size_bytes: int
     time_ms: float
-    normalized_time_ms: float
-
 
 @dataclass
 class TaskInvocationMetrics:
     task_id: str
     time_ms: float
-
-
-@dataclass
-class TaskInputMetrics:
-    hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
-    downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
-    input_download_time_ms: float = 0  # time to download all inputs
-    normalized_input_download_time_ms: float = 0  # download time normalized by input size
-
 
 @dataclass
 class TaskMetrics:

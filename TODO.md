@@ -1,5 +1,4 @@
-for consistency:
-- Don't store task metrics input/output NORMALIZED!! normalize when predicting in metadata_access, similar to execution_time_per_input_byte_ms
+[BUG] On dashboard, observed path completion time is always the same (critical path/makespan??)
 
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:

@@ -7,12 +7,11 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics, TaskInvocationMetrics, TaskInputMetrics
+from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics, TaskInputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB
 from src.utils.logger import create_logger
 import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
@@ -124,7 +123,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     current_task_metrics.input_metrics.downloadable_input_size_bytes += wait_result
 
                 current_task_metrics.input_metrics.input_download_time_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 else 0
-                current_task_metrics.input_metrics.normalized_input_download_time_ms = current_task_metrics.input_metrics.input_download_time_ms / (current_task_metrics.input_metrics.downloadable_input_size_bytes / BASELINE_MEMORY_MB) if current_task_metrics.input_metrics.downloadable_input_size_bytes > 0 else 0
+                # Store raw values, normalization will be done during prediction
 
                 # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in current_task.func_args:
@@ -163,8 +162,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 current_task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),
-                    time_ms=output_upload_time_ms,
-                    normalized_time_ms=output_upload_time_ms * (current_task_metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if current_task_metrics.worker_resource_configuration else 0
+                    time_ms=output_upload_time_ms
                 )
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():

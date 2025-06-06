@@ -42,21 +42,27 @@ class MetadataAccess:
             # Store upload/download speeds with resource configuration
             if metrics.worker_resource_configuration:
                 # UPLOAD SPEEDS
-                if metrics.output_metrics.normalized_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                    upload_speed = metrics.output_metrics.size_bytes / metrics.output_metrics.normalized_time_ms
-                    self.cached_upload_speeds.append((
-                        upload_speed,
-                        metrics.worker_resource_configuration.cpus,
-                        metrics.worker_resource_configuration.memory_mb
-                    ))
+                if metrics.output_metrics.time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                    # Normalize the upload speed based on memory
+                    normalized_time_ms = metrics.output_metrics.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                    upload_speed = metrics.output_metrics.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
+                    if upload_speed > 0:
+                        self.cached_upload_speeds.append((
+                            upload_speed,
+                            metrics.worker_resource_configuration.cpus,
+                            metrics.worker_resource_configuration.memory_mb
+                        ))
                 # DOWNLOAD SPEEDS
-                if metrics.input_metrics.normalized_input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                    download_speed = metrics.input_metrics.downloadable_input_size_bytes / metrics.input_metrics.normalized_input_download_time_ms
-                    self.cached_download_speeds.append((
-                        download_speed,
-                        metrics.worker_resource_configuration.cpus,
-                        metrics.worker_resource_configuration.memory_mb
-                    ))
+                if metrics.input_metrics.input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                    # Normalize the download speed based on memory
+                    normalized_time_ms = metrics.input_metrics.input_download_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                    download_speed = metrics.input_metrics.downloadable_input_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
+                    if download_speed > 0:
+                        self.cached_download_speeds.append((
+                            download_speed,
+                            metrics.worker_resource_configuration.cpus,
+                            metrics.worker_resource_configuration.memory_mb
+                        ))
 
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
