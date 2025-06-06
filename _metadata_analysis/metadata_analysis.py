@@ -122,7 +122,7 @@ def main():
 
         # Calculate data transferred
         task_data = 0
-        total_time_downloading_data_ms += metrics.input_download_time_ms
+        total_time_downloading_data_ms += metrics.input_metrics.input_download_time_ms
         if metrics.output_metrics:
             task_data += metrics.output_metrics.size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.time_ms
@@ -139,14 +139,14 @@ def main():
             'worker_id': metrics.worker_resource_configuration.worker_id,
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
-            'input_size': metrics.downloadable_input_size_bytes,
+            'input_size': metrics.input_metrics.downloadable_input_size_bytes,
             'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
             'downstream_calls': metrics.total_invocations_count
         })
     
     assert _sink_task_metrics
 
-    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
+    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_metrics.input_download_time_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
     makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
 
     keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
@@ -425,9 +425,9 @@ def main():
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:
-                    total_task_handling_time = metrics.input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
+                    total_task_handling_time = metrics.input_metrics.input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
-                    st.metric("Dependencies Download Time", f"{metrics.input_download_time_ms:.2f} ms")
+                    st.metric("Dependencies Download Time", f"{metrics.input_metrics.input_download_time_ms:.2f} ms")
                     st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
                     st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
                     st.metric("Tasks Upstream", len(task_node.upstream_nodes))
@@ -477,7 +477,7 @@ def main():
                                 
                                 # Comparison fields
                                 numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', metrics.downloadable_input_size_bytes),
+                                    ('Input Size (bytes)', 'input_size', metrics.input_metrics.downloadable_input_size_bytes),
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
@@ -997,12 +997,12 @@ def main():
 
             for task_metrics in dag_metrics:
                 # Calculate download throughputs for each input
-                if task_metrics.input_download_time_ms > 0:
-                    throughput_mb = (task_metrics.downloadable_input_size_bytes / (task_metrics.input_download_time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.downloadable_input_size_bytes / task_metrics.input_download_time_ms  # bytes/ms
+                if task_metrics.input_metrics.input_download_time_ms > 0:
+                    throughput_mb = (task_metrics.input_metrics.downloadable_input_size_bytes / (task_metrics.input_metrics.input_download_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.input_metrics.downloadable_input_size_bytes / task_metrics.input_metrics.input_download_time_ms  # bytes/ms
                     download_throughputs.append(throughput_mb)
                     all_transfer_speeds.append(speed_bytes_ms)
-                total_data_downloaded += task_metrics.downloadable_input_size_bytes
+                total_data_downloaded += task_metrics.input_metrics.downloadable_input_size_bytes
 
                 # Calculate upload throughput for output if available
                 if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:

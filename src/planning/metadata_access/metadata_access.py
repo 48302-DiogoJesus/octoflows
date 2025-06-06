@@ -50,8 +50,8 @@ class MetadataAccess:
                         metrics.worker_resource_configuration.memory_mb
                     ))
                 # DOWNLOAD SPEEDS
-                if metrics.normalized_input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
-                    download_speed = metrics.downloadable_input_size_bytes / metrics.normalized_input_download_time_ms
+                if metrics.input_metrics.normalized_input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                    download_speed = metrics.input_metrics.downloadable_input_size_bytes / metrics.input_metrics.normalized_input_download_time_ms
                     self.cached_download_speeds.append((
                         download_speed,
                         metrics.worker_resource_configuration.cpus,
@@ -74,9 +74,9 @@ class MetadataAccess:
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
                 self.cached_io_ratios[function_name] = []
-            input = metrics.downloadable_input_size_bytes + metrics.hardcoded_input_size_bytes
+            input_size = metrics.input_metrics.downloadable_input_size_bytes + metrics.input_metrics.hardcoded_input_size_bytes
             output = metrics.output_metrics.size_bytes
-            self.cached_io_ratios[function_name].append(output / input if input > 0 else 0)
+            self.cached_io_ratios[function_name].append(output / input_size if input_size > 0 else 0)
 
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 

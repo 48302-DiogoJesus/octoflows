@@ -23,14 +23,19 @@ class TaskInvocationMetrics:
 
 
 @dataclass
+class TaskInputMetrics:
+    hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
+    downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
+    input_download_time_ms: float = 0  # time to download all inputs
+    normalized_input_download_time_ms: float = 0  # download time normalized by input size
+
+
+@dataclass
 class TaskMetrics:
     worker_resource_configuration: TaskWorkerResourceConfiguration
-    started_at_timestamp_s: float # time at which the task started being processed by a worker
+    started_at_timestamp_s: float  # time at which the task started being processed by a worker
     
-    hardcoded_input_size_bytes: int # known ahead of time (not "lazy", not DAGTasks)
-    downloadable_input_size_bytes: int
-    input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)
-    normalized_input_download_time_ms: float # time to download all inputs (improves if we download inputs in parallel => this wouldn't be visible just with the input_metrics)
+    input_metrics: TaskInputMetrics
 
     execution_time_ms: float
     execution_time_per_input_byte_ms: float
@@ -40,4 +45,4 @@ class TaskMetrics:
     output_metrics: TaskOutputMetrics
     
     total_invocations_count: int
-    total_invocation_time_ms: float # time to do all invocations
+    total_invocation_time_ms: float  # time to do all invocations
