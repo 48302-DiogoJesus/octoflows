@@ -105,38 +105,41 @@ class Worker(ABC, WorkerExecutionLogic):
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
                     tasks_to_fetch, wait_until_coroutine = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
 
-                async def _fetch_utask_data(dependency_task, subdag, intermediate_storage):
-                    fotimer = Timer()
-                    task_output = await intermediate_storage.get(dependency_task.id.get_full_id_in_dag(subdag))
-                    if task_output is None: raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-                    input_fetch_time = fotimer.stop()
-                    loaded_data = cloudpickle.loads(task_output)
-                    return (
-                        dependency_task.id.get_full_id(),
-                        loaded_data,
-                        TaskInputMetrics(
-                            task_id=dependency_task.id.get_full_id_in_dag(subdag),
-                            size_bytes=calculate_data_structure_size(loaded_data),
-                            time_ms=input_fetch_time,
-                            normalized_time_ms=input_fetch_time * (self.my_resource_configuration.memory_mb / BASELINE_MEMORY_MB) if self.my_resource_configuration else 0
+                if tasks_to_fetch:
+                    # Prepare batch operations for fetching task data
+                    task_keys = [dependency_task.id.get_full_id_in_dag(subdag) for dependency_task in tasks_to_fetch]
+                    
+                    # Use batching to fetch all task data at once
+                    async with self.intermediate_storage.batch() as batch:
+                        # Queue all get operations with result keys
+                        for i, task_key in enumerate(task_keys):
+                            await batch.get(task_key, result_key=f"task_{i}")
+                        
+                        # Execute all operations at once
+                        fetch_results = await batch.execute()
+                    
+                    # Process the fetched data
+                    for i, (dependency_task, task_output) in enumerate(zip(tasks_to_fetch, fetch_results)):
+                        if task_output is None:
+                            raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
+                        
+                        serialized_data = cloudpickle.loads(task_output)
+                        task_dependencies[dependency_task.id.get_full_id()] = serialized_data
+                        
+                        # Add metrics (note: batch operations don't have individual timing)
+                        current_task_metrics.input_metrics.append(
+                            TaskInputMetrics(
+                                task_id=dependency_task.id.get_full_id_in_dag(subdag),
+                                size_bytes=calculate_data_structure_size(serialized_data),
+                                time_ms=0,  # Batch operations don't have individual timing
+                                normalized_time_ms=0
+                            )
                         )
-                    )
 
-                # Concurrently fetch dependencies
-                fetch_coroutines = [_fetch_utask_data(dependency_task, subdag, self.intermediate_storage) for dependency_task in tasks_to_fetch]
-                coroutines_to_run: list = fetch_coroutines.copy()  # Make a copy to avoid modifying the original list
-                if wait_until_coroutine: coroutines_to_run.append(wait_until_coroutine)
-                all_results = await asyncio.gather(*coroutines_to_run)
-                
+                # Handle wait_until_coroutine if present
                 if wait_until_coroutine:
-                    utasks_outputs = all_results[:-1] # All results except the last one (wait coroutine)
-                    current_task_metrics.input_metrics.extend(all_results[-1]) # wait_until_coroutine coroutine returns list[TaskInputMetrics]
-                else:
-                    utasks_outputs = all_results
-
-                for task_id, data, metrics in utasks_outputs:
-                    task_dependencies[task_id] = data
-                    current_task_metrics.input_metrics.append(metrics)
+                    wait_result = await wait_until_coroutine
+                    current_task_metrics.input_metrics.extend(wait_result)  # wait_until_coroutine returns list[TaskInputMetrics]
 
                 current_task_metrics.total_input_download_time_ms = _download_dependencies_timer.stop()
 
