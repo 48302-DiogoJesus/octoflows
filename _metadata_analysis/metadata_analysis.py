@@ -163,7 +163,7 @@ def main():
             "dag_size": deserialized.size_bytes
         })
 
-    # Calculate task timing metrics (start times, end times, path completion times)
+    # Calculate task timing metrics (start times, end times)
     task_timings = {}
     
     # First pass: collect all task metrics and find the minimum start time
@@ -172,8 +172,7 @@ def main():
         task_start_time = metrics.started_at_timestamp_s
         task_timings[task_id] = {
             'start_time': task_start_time,
-            'end_time': None,
-            'path_completion_time': None
+            'end_time': None
         }
         
         if min_start_time is None or task_start_time < min_start_time:
@@ -182,44 +181,22 @@ def main():
     # Second pass: calculate end times relative to min_start_time
     for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
         relative_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-        end_time = relative_start_time + metrics.execution_time_ms
-        if metrics.output_metrics:
-            end_time += metrics.output_metrics.time_ms
+        end_time = relative_start_time + metrics.input_metrics.input_download_time_ms + metrics.execution_time_ms + metrics.total_invocation_time_ms
+        if metrics.output_metrics: end_time += metrics.output_metrics.time_ms
         task_timings[task_id]['end_time'] = end_time
-    
-    # Third pass: calculate path completion times (max end time of all tasks in each path)
-    for task_id in dag._all_nodes.keys():
-        max_end_time = task_timings[task_id]['end_time']
-        
-        # Use DFS to find all paths from this task
-        stack = [(task_id, max_end_time)]
-        while stack:
-            current_task_id, current_end_time = stack.pop()
-            if current_end_time > max_end_time:
-                max_end_time = current_end_time
-                
-            # Add downstream tasks to stack
-            current_node = dag._all_nodes[current_task_id]
-            for downstream in current_node.downstream_nodes:
-                downstream_id = downstream.id.get_full_id()
-                stack.append((downstream_id, task_timings[downstream_id]['end_time']))
-        
-        task_timings[task_id]['path_completion_time'] = max_end_time
     
     # Update task_metrics_data with the calculated timing information
     for i, task_data in enumerate(task_metrics_data):
         task_id = task_data['task_id']
         task_metrics_data[i].update({
             'relative_start_time_ms': (task_timings[task_id]['start_time'] - min_start_time) * 1000,
-            'end_time_ms': task_timings[task_id]['end_time'],
-            'path_completion_time_ms': task_timings[task_id]['path_completion_time']
+            'end_time_ms': task_timings[task_id]['end_time']
         })
     
     # Make timing information available for the rest of the code
     min_start_time_ms = min_start_time * 1000  # Convert to ms for consistency
     task_end_times = {task_id: timing['end_time'] for task_id, timing in task_timings.items()}
     task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
-    path_completion_times = {task_id: timing['path_completion_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data, tab_workers, tab_planning = st.tabs([
@@ -269,13 +246,11 @@ def main():
                     nonlocal max_path, max_length
                     node_id = node.id.get_full_id()
                     
-                    # Get the task's end time (or path completion time if available)
                     task_metrics = next((t for t in task_metrics_data if t['task_id'] == node_id), None)
                     if not task_metrics:
                         return
                         
-                    # Use path completion time if available, otherwise use end time
-                    task_time = task_metrics.get('path_completion_time_ms', task_metrics.get('end_time_ms', 0))
+                    task_time = task_metrics.get('end_time_ms', 0)
                     
                     # Update path and length
                     new_path = path + [node_id]
@@ -460,7 +435,7 @@ def main():
                                 # Calculate all the metrics we want to compare
                                 output_size = metrics.output_metrics.size_bytes if metrics.output_metrics else 0
                                 actual_start_time = current_task_metrics['relative_start_time_ms']
-                                actual_path_completion = current_task_metrics['path_completion_time_ms']
+                                end_time_ms = current_task_metrics['end_time_ms']
                                 
                                 # Create columns for comparison
                                 col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
@@ -481,7 +456,7 @@ def main():
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
-                                    ('Path Completion Time (ms)', 'path_completion_time', actual_path_completion)
+                                    ('End Time (ms)', 'end_time', end_time_ms)
                                 ]
                                 
                                 for label, field, observed_value in numeric_fields:
@@ -518,7 +493,7 @@ def main():
                                                 st.text("-")
                                     else:
                                         with col_planned:
-                                            st.text("N/A")
+                                            st.text(f"{float(task_plan.path_completion_time):.2f} ms" if isinstance(task_plan.path_completion_time, (int, float)) else str(task_plan.path_completion_time))
                                         with col_observed:
                                             if 'Size' in label:
                                                 st.text(format_bytes(observed_value))
@@ -547,7 +522,6 @@ def main():
                 
                 # Calculate planned metrics from nodes_info
                 nodes_info = plan.nodes_info
-                # Makespan is the maximum path completion time across all nodes
                 planned_makespan = max((node.path_completion_time for node in nodes_info.values()), default=0)
                 planned_execution_time = sum(node.exec_time for node in nodes_info.values())
                 

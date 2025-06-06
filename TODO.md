@@ -1,10 +1,7 @@
-[BUG] On dashboard, observed path completion time is always the same (critical path/makespan??)
-
 [OPTIMIZATION:DATA_ACCESS]
 PIPE STORAGE OPERATIONS WHERE POSSIBLE:
-- Fetching input data
+- [DONE] Fetching input data
 - Publishing TASK_READY events, Incrementing DCs
-- Downloading input from intermediate storage
 - Uploading metrics
 
 [OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
@@ -40,7 +37,6 @@ PIPE STORAGE OPERATIONS WHERE POSSIBLE:
 - Should the faas worker handler logic (`docker_worker_handler/worker.py`) be encapsulated in a class (e.g., on existing `Worker` class ?)
     ! only if it's generic enough that it would also work on `AWS Lambda` workers for example. Otherwise keep it separate.
     - new function would be called `Worker.start_worker_lifecycle`
-
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
