@@ -159,7 +159,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
                     output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
-
+                
                 current_task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),
                     time_ms=output_upload_time_ms

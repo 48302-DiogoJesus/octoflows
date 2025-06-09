@@ -39,7 +39,7 @@ class WorkerExecutionLogic():
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         _task: DAGTaskNode = task
         
-        task_result_output_time_ms = -1
+        task_result_output_time_ms = 0
         # only upload if necessary
         if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
             output_upload_timer = Timer()
