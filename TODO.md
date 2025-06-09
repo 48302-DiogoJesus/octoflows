@@ -1,10 +1,17 @@
-[OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
-    side effect => output upload timer can now be non existant. 
-        How to handle it? 
-        How do I currently handle inputs that are already local?
+[VISUALIZATION:DASHBOARD]
+- For each workflow type (already ran):
+    - Show nodes graph
+    - For each algorithm that was used on prev. runs, draw graphics comparing stuff when:
+        - no history
+        - + history
+        - ++ history
+        - +++ history
+    - Show the impact of PRE-LOAD vs no PRE-LOAD
+    - Objetivo
+        - Medir **speedups** e **desvios** do executado em relação ao previsto para perceber:
+            - se mais histórico traz mais consistência
+            - como diferentes algoritmos podem ser melhores para diferentes workflows
 
-[BUG]
-- image_transform: assert chunks
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
