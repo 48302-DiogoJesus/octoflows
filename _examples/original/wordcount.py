@@ -32,18 +32,15 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=SecondPlannerAlgorithm.Config(
+    planner_config=FirstPlannerAlgorithm.Config(
         sla="avg",
-        available_worker_resource_configurations=[
-            TaskWorkerResourceConfiguration(cpus=1, memory_mb=128),
-            TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-            TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-        ],
+        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
+        # available_worker_resource_configurations=[
+        #     TaskWorkerResourceConfiguration(cpus=1, memory_mb=128),
+        #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
+        #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+        # ],
     )
-    #  planner_config=UniformWorkersPlanner.Config(
-    #     sla="avg",
-    #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    # )
 )
 
 def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:

@@ -1,12 +1,10 @@
 [OPTIMIZATION:STORAGE_USAGE] Task output doesn't always need to go to intermediate storage
-    
-[OPTIMIZATION:WORKER_STARTUP_SPEED]
-- Storing the full dag on redis is costly (DAG retrieval time adds up)
-    - If below a certain bytes threshold, pass the subDAG in the invocation itself
-    - Worker first checks if the invocation contains the subDAG and if so, doesn't download it from storage
-    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
-    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
-    [EXTRA_SAME_SPIRIT] DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
+    side effect => output upload timer can now be non existant. 
+        How to handle it? 
+        How do I currently handle inputs that are already local?
+
+[BUG]
+- image_transform: assert chunks
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
@@ -15,6 +13,14 @@
         - Delayed I/O
 
 ---
+
+[OPTIMIZATION:WORKER_STARTUP_SPEED]
+- Storing the full dag on redis is costly (DAG retrieval time adds up)
+    - If below a certain bytes threshold, pass the subDAG in the invocation itself
+    - Worker first checks if the invocation contains the subDAG and if so, doesn't download it from storage
+    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
+    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+    [EXTRA_SAME_SPIRIT] DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
 
 [THINK:PLANNER_OPTIMIZATIONS]
 - `pre-warm` (Just make an "empty" invocation (special message that the `Worker Handler` must be ready for?) to a container with a given **resource config**)

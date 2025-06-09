@@ -49,8 +49,8 @@ class Worker(ABC, WorkerExecutionLogic):
         current_task = subdag.root_node
         self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.get_annotation(TaskWorkerResourceConfiguration)
         # To help understand locality decisions afterwards, at the dashboard
-        my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
-        my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
+        _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
+        _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
         
         tasks_executed_by_this_coroutine = []
         other_coroutines_i_launched = []
@@ -60,7 +60,7 @@ class Worker(ABC, WorkerExecutionLogic):
         try:
             while True:
                 current_task_metrics = TaskMetrics(
-                    worker_resource_configuration=my_resource_configuration_with_flexible_worker_id,
+                    worker_resource_configuration=_my_resource_configuration_with_flexible_worker_id,
                     started_at_timestamp_s=time.time(),
                     input_metrics=TaskInputMetrics(),
                     execution_time_ms=0,
@@ -155,10 +155,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await self.planner.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage)
+                    output_upload_time_ms = await self.planner.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage)
+                    output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
 
                 current_task_metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),

@@ -34,13 +34,22 @@ class WorkerExecutionLogic():
         return (task_result, exec_timer.stop())
 
     @staticmethod
-    async def override_handle_output(task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage) -> float: 
-        output_upload_timer = Timer()
-        task_result_serialized = cloudpickle.dumps(task_result)
-        await intermediate_storage.set(task.id.get_full_id_in_dag(subdag), task_result_serialized)
-        task_result_output_time_ms = output_upload_timer.stop()
+    async def override_handle_output(task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage, this_worker_id: str | None) -> float:
+        from src.dag_task_node import DAGTaskNode
+        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+        _task: DAGTaskNode = task
+        
+        task_result_output_time_ms = -1
+        # only upload if necessary
+        if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
+            output_upload_timer = Timer()
+            task_result_serialized = cloudpickle.dumps(task_result)
+            await intermediate_storage.set(_task.id.get_full_id_in_dag(subdag), task_result_serialized)
+            task_result_output_time_ms = output_upload_timer.stop()
+        else:
+            logger.info(f"Worker({this_worker_id}) Task({task.id.get_full_id_in_dag(subdag)}) WON'T upload task result. Not needed...")
         #! Can be optimized, don't need to always be sending this
-        receivers = await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(subdag)}", b"1")
+        receivers = await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{_task.id.get_full_id_in_dag(subdag)}", b"1")
         # logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
         return task_result_output_time_ms
 
