@@ -10,9 +10,6 @@
         time spent uploading data
     - UI "switch" to alternate between planning algorithms + "global" (compares all planning algorithms)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
-    - TODO
-        - what do I need?
-            - workflow name (sink task name, can find by deserializing DAG)
 
 
 [EVALUATION:PREPARE]

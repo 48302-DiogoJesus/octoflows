@@ -47,7 +47,7 @@ class WorkflowInfo:
     dag: FullDAG
     instances: List[WorkflowInstanceInfo]
 
-def get_workflow_types(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> Dict[str, WorkflowInfo]:
+def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> Dict[str, WorkflowInfo]:
     workflow_types: Dict[str, WorkflowInfo] = {}
     
     try:
@@ -113,7 +113,7 @@ def main():
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
-        st.session_state.workflow_types = get_workflow_types(intermediate_storage_conn, metrics_storage_conn)
+        st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
     
     workflow_types = st.session_state.workflow_types
     
@@ -124,7 +124,7 @@ def main():
     # Add a refresh button to force reload workflow types
     if st.sidebar.button("🔄 Refresh Workflow Types"):
         # Clear the session state and reload
-        st.session_state.workflow_types = get_workflow_types(intermediate_storage_conn, metrics_storage_conn)
+        st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
         st.rerun()
     
     # Sidebar for workflow type selection
@@ -137,13 +137,36 @@ def main():
         index=0
     )
     
-    # Get DAG keys based on selection
+    # Get all unique planner names from the selected workflow instances
+    all_planners = set()
+    if selected_workflow == "All":
+        for workflow in workflow_types.values():
+            for instance in workflow.instances:
+                if instance.plan and instance.plan.planner_name:
+                    all_planners.add(instance.plan.planner_name)
+    else:
+        for instance in workflow_types[selected_workflow].instances:
+            if instance.plan and instance.plan.planner_name:
+                all_planners.add(instance.plan.planner_name)
+    
+    # Add a dropdown to select planner
+    selected_planner = st.sidebar.selectbox(
+        "Select Planner",
+        options=["All"] + sorted(list(all_planners)),
+        index=0
+    )
+    
+    # Get DAG keys based on workflow and planner selection
     workflow_instances = []
     if selected_workflow == "All":
-        for keys in workflow_types.values():
-            workflow_instances.extend(keys.instances)
+        for workflow in workflow_types.values():
+            for instance in workflow.instances:
+                if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
+                    workflow_instances.append(instance)
     else:
-        workflow_instances = list(workflow_types[selected_workflow].instances)
+        for instance in workflow_types[selected_workflow].instances:
+            if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
+                workflow_instances.append(instance)
     
     st.sidebar.subheader("Workflow Statistics")
     workflow_stats = []
