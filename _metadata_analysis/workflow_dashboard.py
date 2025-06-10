@@ -26,37 +26,23 @@ def get_redis_connection(port: int = 6379):
         decode_responses=False
     )
 
-def get_workflow_types(dag_redis_6379, dag_redis_6780) -> Dict[str, Set[Tuple[bytes, int]]]:
-    """
-    Get all unique workflow types (sink_task.id.function_name) from both Redis instances
-    Returns a dictionary mapping workflow types to sets of DAG keys
-    """
-    workflow_types: Dict[str, Set[Tuple[bytes, int]]] = {}
+def get_workflow_types(intermediate_storage_conn: redis.Redis) -> Dict[str, Tuple[FullDAG, Set[bytes]]]:
+    workflow_types: Dict[str, Tuple[FullDAG, Set[bytes]]] = {} # workflow name -> dag keys
     
-    # Check both Redis instances
-    for redis_instance, port in [(dag_redis_6379, 6379), (dag_redis_6780, 6780)]:
-        try:
-            dag_keys = [key for key in redis_instance.keys() if key.decode('utf-8').startswith(DAG_PREFIX)]
-            
-            for dag_key in dag_keys:
-                try:
-                    dag_data = redis_instance.get(dag_key)
-                    dag: FullDAG = cloudpickle.loads(dag_data)
-                    
-                    # Get the sink task's function name
-                    sink_func_name = dag.sink_node.func_name
-                    
-                    # Add to our workflow types dictionary with port information
-                    if sink_func_name not in workflow_types:
-                        workflow_types[sink_func_name] = set()
-                    # Store as tuple of (key, port) to identify which Redis instance to use later
-                    # The key is bytes, port is int
-                    workflow_types[sink_func_name].add((dag_key, port))
-                    
-                except Exception as e:
-                    print(f"Error processing DAG {dag_key} from port {port}: {e}")
-        except Exception as e:
-            print(f"Error accessing Redis on port {port}: {e}")
+    try:
+        redis_instance = intermediate_storage_conn
+        all_dag_keys = [key for key in redis_instance.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
+        
+        for dag_key in all_dag_keys:
+            try:
+                dag_data = redis_instance.get(dag_key)
+                dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
+                if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = (dag, set())
+                workflow_types[dag.dag_name][1].add(dag_key)
+            except Exception as e:
+                print(f"Error processing DAG {dag_key}: {e}")
+    except Exception as e:
+        print(f"Error accessing Redis: {e}")
     
     return workflow_types
 
@@ -91,12 +77,12 @@ def main():
     st.title("DAG Workflow Dashboard")
     
     # Connect to both Redis instances
-    dag_redis_6379 = get_redis_connection(6379)
-    dag_redis_6780 = get_redis_connection(6780)
+    intermediate_storage_conn = get_redis_connection(6379)
+    metrics_storage_conn = get_redis_connection(6780)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
-        st.session_state.workflow_types = get_workflow_types(dag_redis_6379, dag_redis_6780)
+        st.session_state.workflow_types = get_workflow_types(intermediate_storage_conn)
     
     workflow_types = st.session_state.workflow_types
     
@@ -107,7 +93,7 @@ def main():
     # Add a refresh button to force reload workflow types
     if st.sidebar.button("🔄 Refresh Workflow Types"):
         # Clear the session state and reload
-        st.session_state.workflow_types = get_workflow_types(dag_redis_6379, dag_redis_6780)
+        st.session_state.workflow_types = get_workflow_types(intermediate_storage_conn)
         st.rerun()
     
     # Sidebar for workflow type selection
@@ -121,18 +107,13 @@ def main():
     )
     
     # Get DAG keys based on selection
-    dag_entries = []
+    workflow_instances = []
     if selected_workflow == "All":
         for keys in workflow_types.values():
-            dag_entries.extend(keys)
+            workflow_instances.extend(keys)
     else:
-        dag_entries = list(workflow_types[selected_workflow])
+        workflow_instances = list(workflow_types[selected_workflow][1])
     
-    # Helper function to get the appropriate Redis connection based on port
-    def get_redis_conn(port: int) -> redis.Redis:
-        return dag_redis_6379 if port == 6379 else dag_redis_6780
-    
-    # Display workflow type statistics
     st.sidebar.subheader("Workflow Statistics")
     workflow_stats = []
     for workflow, keys in workflow_types.items():
@@ -142,7 +123,7 @@ def main():
             "Color": get_color_for_workflow(workflow)
         })
     
-    # Create a bar chart of workflow counts
+    # Bar Chart of workflow counts
     if workflow_stats:
         df_workflows = pd.DataFrame(workflow_stats)
         fig = px.bar(
@@ -156,61 +137,18 @@ def main():
         fig.update_layout(showlegend=False)
         st.sidebar.plotly_chart(fig, use_container_width=True)
     
-    # Main content area
-    st.header(f"DAGs for Workflow: {selected_workflow if selected_workflow != 'All' else 'All Workflows'}")
-    
-    # Display DAGs in a table
-    dags_data = []
-    for dag_entry in dag_entries:
-        dag_key, port = dag_entry
+    st.header(selected_workflow if selected_workflow != 'All' else 'All Workflows')
+
+    st.metric("Workflow Instances", len(workflow_instances))
+    if selected_workflow != 'All':
+        st.metric("Workflow Tasks", len(workflow_types[selected_workflow][0]._all_nodes))
+
+    for dag_key in workflow_instances:
         try:
-            redis_conn = get_redis_conn(port)
-            dag_data = redis_conn.get(dag_key)  # type: ignore
-            dag: FullDAG = cloudpickle.loads(dag_data)
-            
-            # Basic DAG information
-            dags_data.append({
-                "DAG ID": f"{dag_key.decode('utf-8') if isinstance(dag_key, bytes) else dag_key} (port {port})",
-                "Workflow Type": dag.sink_node.func_name,
-                "Total Nodes": len(dag._all_nodes),
-                "Root Nodes": len(dag.root_nodes),
-                "Sink Node ID": dag.sink_node.id.get_full_id(),
-                "Master DAG ID": dag.master_dag_id.split('_')[0],  # Just show the timestamp part
-                "Structure Hash": dag.master_dag_structure_hash[:8] + "...",  # Shorten the hash for display
-                "Has Upstream": len(dag.sink_node.upstream_nodes) > 0,
-                "Has Downstream": len(dag.sink_node.downstream_nodes) > 0
-            })
+            dag_data = intermediate_storage_conn.get(dag_key)
+            dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
         except Exception as e:
             print(f"Error processing DAG {dag_key}: {e}")
     
-    if dags_data:
-        df_dags = pd.DataFrame(dags_data)
-        
-        # Add some basic statistics
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total DAGs", len(df_dags))
-        with col2:
-            unique_workflows = int(df_dags['Workflow Type'].nunique())
-            st.metric("Unique Workflow Types", unique_workflows)
-        
-        # Display the DAGs table
-        st.dataframe(
-            df_dags,
-            column_config={
-                "DAG ID": "DAG ID",
-                "Workflow Type": "Workflow Type",
-                "Number of Nodes": "# Nodes",
-                "Root Nodes": "# Root Nodes",
-                "Sink Node": "Sink Node ID",
-                "Created At": "Creation Time"
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-        
-    else:
-        st.info("No DAGs found for the selected workflow type.")
-
 if __name__ == "__main__":
     main()

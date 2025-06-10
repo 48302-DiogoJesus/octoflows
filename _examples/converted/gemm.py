@@ -112,6 +112,6 @@ if __name__ == "__main__":
     # distributed_result.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "gemm"), open_after=True)
 
     start_time = time.time()
-    distributed_result = distributed_result.compute(config=localWorkerConfig)
+    distributed_result = distributed_result.compute(dag_name="gemm", config=localWorkerConfig)
     print(f"GEMM completed in {time.time() - start_time:.4f} seconds")
     print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)}")

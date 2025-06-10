@@ -23,6 +23,8 @@
 
 ---
 
+- [!!] Add support for final result to be None, store a wrapper in storage instead
+
 [OPTIMIZATION:WORKER_STARTUP_SPEED]
 - Storing the full dag on redis is costly (DAG retrieval time adds up)
     - If below a certain bytes threshold, pass the subDAG in the invocation itself

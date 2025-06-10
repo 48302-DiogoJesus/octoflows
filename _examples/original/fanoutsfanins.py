@@ -61,5 +61,5 @@ c4 = c(b2)
 print(f"TPLIBS: {c4.third_party_libs}")
 for i in range(1):
     start_time = time.time()
-    result = c4.compute(config=dockerWorkerConfig)
+    result = c4.compute(dag_name="fanoutsfanins", config=dockerWorkerConfig)
     print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

@@ -50,5 +50,5 @@ sink: DAGTaskNode = L[0] # type: ignore
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink.compute(config=dockerWorkerConfig)
+    result = sink.compute(dag_name="tree_reduction", config=dockerWorkerConfig)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

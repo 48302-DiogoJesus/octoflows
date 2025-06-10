@@ -18,6 +18,7 @@ class GenericDAG(ABC):
     sink_node: dag_task_node.DAGTaskNode
     master_dag_structure_hash: str
     master_dag_id: str
+    dag_name: str
 
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self._all_nodes[node_id.get_full_id()]
@@ -67,7 +68,7 @@ class FullDAG(GenericDAG):
         self.master_dag_structure_hash = self.get_structure_hash()
         self.master_dag_id = f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.master_dag_structure_hash}" # type: ignore
 
-    async def compute(self, config, open_dashboard: bool = False):
+    async def compute(self, config, dag_name: str, open_dashboard: bool = False):
         from src.workers.worker import Worker
         from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
@@ -75,6 +76,7 @@ class FullDAG(GenericDAG):
         
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
+        self.dag_name = dag_name
 
         # Only do PLANNING if `metrics_storage` is specified
         if wk.planner:
