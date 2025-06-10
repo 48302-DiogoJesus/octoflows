@@ -102,7 +102,7 @@ def get_color_for_workflow(workflow_name: str) -> str:
 def main():
     # Configure page layout for better visualization
     st.set_page_config(layout="wide")
-    st.title("DAG Workflow Dashboard")
+    st.title("Workflow Execution Analysis Dashboard")
     
     # Connect to both Redis instances
     intermediate_storage_conn = get_redis_connection(6379)
@@ -189,9 +189,133 @@ def main():
     
     st.header(selected_workflow if selected_workflow != 'All' else 'All Workflows')
 
-    st.metric("Workflow Instances", len(matching_workflow_instances))
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Workflow Instances", len(matching_workflow_instances))
     if selected_workflow != 'All':
-        st.metric("Workflow Tasks", len(workflow_types[selected_workflow].dag._all_nodes))
+        with col2:
+            st.metric("Workflow Tasks", len(workflow_types[selected_workflow].dag._all_nodes))
+    
+    # Show metrics based on selection
+    if selected_workflow != 'All' and matching_workflow_instances:
+        if selected_planner != 'All':
+            # Show average times for specific planner
+            st.subheader("Average Times")
+            
+            # Initialize metrics
+            total_execution_time = 0.0
+            total_download_time = 0.0
+            total_upload_time = 0.0
+            valid_instances = 0
+            
+            # Calculate totals
+            for instance in matching_workflow_instances:
+                if not instance.plan or not instance.tasks:
+                    continue
+                    
+                valid_instances += 1
+                instance_execution_time = sum(task.metrics.execution_time_ms for task in instance.tasks)
+                instance_download_time = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks)
+                instance_upload_time = sum(task.metrics.output_metrics.time_ms for task in instance.tasks)
+                
+                total_execution_time += instance_execution_time
+                total_download_time += instance_download_time
+                total_upload_time += instance_upload_time
+            
+            # Calculate averages if we have valid instances
+            if valid_instances > 0:
+                avg_execution = total_execution_time / (valid_instances * 1000)  # Convert to seconds
+                avg_download = total_download_time / (valid_instances * 1000)     # Convert to seconds
+                avg_upload = total_upload_time / (valid_instances * 1000)         # Convert to seconds
+                
+                # Display metrics in columns
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Avg Execution Time", f"{avg_execution:.2f}s")
+                with col2:
+                    st.metric("Avg Download Time", f"{avg_download:.2f}s")
+                with col3:
+                    st.metric("Avg Upload Time", f"{avg_upload:.2f}s")
+        else:
+            # Show comparison chart for all planners of this workflow type
+            st.subheader("Performance Comparison by Planner")
+            
+            # Group instances by planner
+            planner_metrics = {}
+            
+            for instance in workflow_types[selected_workflow].instances:
+                if not instance.plan or not instance.plan.planner_name or not instance.tasks:
+                    continue
+                    
+                planner_name = instance.plan.planner_name
+                if planner_name not in planner_metrics:
+                    planner_metrics[planner_name] = {
+                        'execution_times': [],
+                        'download_times': [],
+                        'upload_times': [],
+                        'instance_count': 0
+                    }
+                
+                # Calculate metrics for this instance
+                instance_execution = sum(task.metrics.execution_time_ms for task in instance.tasks) / 1000  # to seconds
+                instance_download = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks) / 1000
+                instance_upload = sum(task.metrics.output_metrics.time_ms for task in instance.tasks) / 1000
+                
+                planner_metrics[planner_name]['execution_times'].append(instance_execution)
+                planner_metrics[planner_name]['download_times'].append(instance_download)
+                planner_metrics[planner_name]['upload_times'].append(instance_upload)
+                planner_metrics[planner_name]['instance_count'] += 1
+            
+            # Calculate averages for each planner
+            chart_data = []
+            for planner, metrics in planner_metrics.items():
+                if metrics['instance_count'] > 0:
+                    chart_data.append({
+                        'Planner': planner,
+                        'Metric': 'Execution Time',
+                        'Seconds': sum(metrics['execution_times']) / metrics['instance_count']
+                    })
+                    chart_data.append({
+                        'Planner': planner,
+                        'Metric': 'Download Time',
+                        'Seconds': sum(metrics['download_times']) / metrics['instance_count']
+                    })
+                    chart_data.append({
+                        'Planner': planner,
+                        'Metric': 'Upload Time',
+                        'Seconds': sum(metrics['upload_times']) / metrics['instance_count']
+                    })
+            
+            if chart_data:
+                df = pd.DataFrame(chart_data)
+                
+                # Create grouped bar chart
+                fig = px.bar(
+                    df, 
+                    x='Planner', 
+                    y='Seconds',
+                    color='Metric',
+                    barmode='group',
+                    title=f'Average Times by Planner for {selected_workflow}',
+                    labels={'Seconds': 'Time (seconds)'},
+                    color_discrete_map={
+                        'Execution Time': '#1f77b4',
+                        'Download Time': '#ff7f0e',
+                        'Upload Time': '#2ca02c'
+                    }
+                )
+                
+                # Improve layout
+                fig.update_layout(
+                    xaxis_title='Planner',
+                    yaxis_title='Time (seconds)',
+                    legend_title='Metric',
+                    height=500
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No valid planner data available for comparison.")
     
 if __name__ == "__main__":
     main()

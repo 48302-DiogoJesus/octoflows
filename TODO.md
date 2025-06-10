@@ -1,14 +1,13 @@
 [VISUALIZATION:DASHBOARD]
 - For each workflow type (already ran), show:
     - Dimensões
-        tamanho do histórico (traz mais precisão/consistência nas previsões?)
+        tamanho total do/das histórico/samples (traz mais precisão/consistência nas previsões?)
         algoritmo de planeamento usado
     - Valores a comparar:
-        makespan
+        [TODO] makespan
         time spent executing tasks
         time spent downloading data
         time spent uploading data
-    - UI "switch" to alternate between planning algorithms + "global" (compares all planning algorithms)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
 
 
