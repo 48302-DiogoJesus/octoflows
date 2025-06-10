@@ -206,6 +206,7 @@ def main():
             total_execution_time = 0.0
             total_download_time = 0.0
             total_upload_time = 0.0
+            total_makespan = 0.0
             valid_instances = 0
             
             # Calculate totals
@@ -214,9 +215,29 @@ def main():
                     continue
                     
                 valid_instances += 1
+                
+                # Calculate per-task metrics
                 instance_execution_time = sum(task.metrics.execution_time_ms for task in instance.tasks)
                 instance_download_time = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks)
                 instance_upload_time = sum(task.metrics.output_metrics.time_ms for task in instance.tasks)
+                
+                # Calculate makespan for this instance
+                task_timings = []
+                for task in instance.tasks:
+                    task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
+                    task_end = task_start
+                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.execution_time_ms
+                    task_end += task.metrics.total_invocation_time_ms
+                    if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
+                        task_end += task.metrics.output_metrics.time_ms
+                    task_timings.append((task_start, task_end))
+                
+                if task_timings:
+                    min_start = min(start for start, _ in task_timings)
+                    max_end = max(end for _, end in task_timings)
+                    instance_makespan = max_end - min_start
+                    total_makespan += instance_makespan
                 
                 total_execution_time += instance_execution_time
                 total_download_time += instance_download_time
@@ -227,15 +248,18 @@ def main():
                 avg_execution = total_execution_time / (valid_instances * 1000)  # Convert to seconds
                 avg_download = total_download_time / (valid_instances * 1000)     # Convert to seconds
                 avg_upload = total_upload_time / (valid_instances * 1000)         # Convert to seconds
+                avg_makespan = total_makespan / (valid_instances * 1000)          # Convert to seconds
                 
                 # Display metrics in columns
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Avg Execution Time", f"{avg_execution:.2f}s")
                 with col2:
                     st.metric("Avg Download Time", f"{avg_download:.2f}s")
                 with col3:
                     st.metric("Avg Upload Time", f"{avg_upload:.2f}s")
+                with col4:
+                    st.metric("Avg Makespan", f"{avg_makespan:.2f}s")
         else:
             # Show comparison chart for all planners of this workflow type
             st.subheader("Performance Comparison by Planner")
@@ -253,6 +277,7 @@ def main():
                         'execution_times': [],
                         'download_times': [],
                         'upload_times': [],
+                        'makespans': [],
                         'instance_count': 0
                     }
                 
@@ -261,9 +286,28 @@ def main():
                 instance_download = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks) / 1000
                 instance_upload = sum(task.metrics.output_metrics.time_ms for task in instance.tasks) / 1000
                 
+                # Calculate makespan for this instance
+                task_timings = []
+                for task in instance.tasks:
+                    task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
+                    task_end = task_start
+                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.execution_time_ms
+                    task_end += task.metrics.total_invocation_time_ms
+                    if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
+                        task_end += task.metrics.output_metrics.time_ms
+                    task_timings.append((task_start, task_end))
+                
+                instance_makespan = 0
+                if task_timings:
+                    min_start = min(start for start, _ in task_timings)
+                    max_end = max(end for _, end in task_timings)
+                    instance_makespan = (max_end - min_start) / 1000  # Convert to seconds
+                
                 planner_metrics[planner_name]['execution_times'].append(instance_execution)
                 planner_metrics[planner_name]['download_times'].append(instance_download)
                 planner_metrics[planner_name]['upload_times'].append(instance_upload)
+                planner_metrics[planner_name]['makespans'].append(instance_makespan)
                 planner_metrics[planner_name]['instance_count'] += 1
             
             # Calculate averages for each planner
@@ -285,6 +329,11 @@ def main():
                         'Metric': 'Upload Time',
                         'Seconds': sum(metrics['upload_times']) / metrics['instance_count']
                     })
+                    chart_data.append({
+                        'Planner': planner,
+                        'Metric': 'Makespan',
+                        'Seconds': sum(metrics['makespans']) / metrics['instance_count']
+                    })
             
             if chart_data:
                 df = pd.DataFrame(chart_data)
@@ -301,7 +350,8 @@ def main():
                     color_discrete_map={
                         'Execution Time': '#1f77b4',
                         'Download Time': '#ff7f0e',
-                        'Upload Time': '#2ca02c'
+                        'Upload Time': '#2ca02c',
+                        'Makespan': '#d62728'
                     }
                 )
                 
