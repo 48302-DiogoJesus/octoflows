@@ -1,16 +1,18 @@
 [VISUALIZATION:DASHBOARD]
-- For each workflow type (already ran):
-    - Show nodes graph
-    - For each algorithm that was used on prev. runs, draw graphics comparing stuff when:
-        - no history
-        - + history
-        - ++ history
-        - +++ history
-    - Show the impact of PRE-LOAD vs no PRE-LOAD
-    - Objetivo
-        - Medir **speedups** e **desvios** do executado em relação ao previsto para perceber:
-            - se mais histórico traz mais consistência
-            - como diferentes algoritmos podem ser melhores para diferentes workflows
+- For each workflow type (already ran), show:
+    - Dimensões
+        tamanho do histórico (traz mais precisão/consistência nas previsões?)
+        algoritmo de planeamento usado
+    - Valores a comparar:
+        makespan
+        time spent executing tasks
+        time spent downloading data
+        time spent uploading data
+    - UI "switch" to alternate between planning algorithms + "global" (compares all planning algorithms)
+    - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
+    - TODO
+        - what do I need?
+            - workflow name (sink task name, can find by deserializing DAG)
 
 
 [EVALUATION:PREPARE]

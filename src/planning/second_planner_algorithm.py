@@ -268,7 +268,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Successfully downgraded resources for {successful_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
 
-        return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
+        return AbstractDAGPlanner.PlanOutput(self.__class__.__name__, final_nodes_info, final_critical_path_node_ids)
 
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):

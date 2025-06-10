@@ -79,7 +79,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
 
-        return AbstractDAGPlanner.PlanOutput(final_nodes_info, final_critical_path_node_ids)
+        return AbstractDAGPlanner.PlanOutput(self.__class__.__name__, final_nodes_info, final_critical_path_node_ids)
     
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):

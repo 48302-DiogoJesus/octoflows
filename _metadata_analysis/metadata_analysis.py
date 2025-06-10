@@ -400,19 +400,17 @@ def main():
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.size_bytes
                 with col1:
-                    total_task_handling_time = metrics.input_metrics.input_download_time_ms + metrics.execution_time_ms + metrics.update_dependency_counters_time_ms + metrics.output_metrics.time_ms + metrics.total_invocation_time_ms
+                    total_task_handling_time = max(metrics.input_metrics.input_download_time_ms, 0) + max(metrics.execution_time_ms, 0) + max(metrics.update_dependency_counters_time_ms, 0) + max(metrics.output_metrics.time_ms, 0) + max(metrics.total_invocation_time_ms, 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
                     st.metric("Dependencies Download Time", f"{metrics.input_metrics.input_download_time_ms:.2f} ms")
                     st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
-                    st.metric("Output Upload Time", f"{metrics.output_metrics.time_ms:.2f} ms")
-                    st.metric("Tasks Upstream", len(task_node.upstream_nodes))
+                    st.metric("Output Upload Time", f"{max(metrics.output_metrics.time_ms, 0):.2f} ms")
                 with col2:
                     st.metric("", "")
                     st.metric("", "")
                     st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
                     st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
-                    st.metric("Tasks Downstream", len(task_node.downstream_nodes))
                 
                 # Add planned vs observed metrics if available
                 st.subheader("Planned vs Observed Metrics")

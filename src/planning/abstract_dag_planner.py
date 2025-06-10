@@ -40,6 +40,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
     @dataclass
     class PlanOutput:
+        planner_name: str
         nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
         critical_path_node_ids: set[str]
 
