@@ -8,8 +8,6 @@ from datetime import datetime
 import hashlib
 import colorsys
 from dataclasses import dataclass
-
-# Import necessary modules from the project
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -21,7 +19,6 @@ from src.storage.metrics.metrics_storage import MetricsStorage
 from src.dag.dag import FullDAG
 from src.storage.metrics.metrics_types import FullDAGPrepareTime
 
-# Redis connection setup
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
         host='localhost',
@@ -149,24 +146,23 @@ def main():
             if instance.plan and instance.plan.planner_name:
                 all_planners.add(instance.plan.planner_name)
     
-    # Add a dropdown to select planner
     selected_planner = st.sidebar.selectbox(
         "Select Planner",
         options=["All"] + sorted(list(all_planners)),
         index=0
     )
     
-    # Get DAG keys based on workflow and planner selection
-    workflow_instances = []
+    # Filter workflow instances based on selection (workflow type + planner)
+    matching_workflow_instances = []
     if selected_workflow == "All":
         for workflow in workflow_types.values():
             for instance in workflow.instances:
                 if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
-                    workflow_instances.append(instance)
+                    matching_workflow_instances.append(instance)
     else:
         for instance in workflow_types[selected_workflow].instances:
             if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
-                workflow_instances.append(instance)
+                matching_workflow_instances.append(instance)
     
     st.sidebar.subheader("Workflow Statistics")
     workflow_stats = []
@@ -193,7 +189,7 @@ def main():
     
     st.header(selected_workflow if selected_workflow != 'All' else 'All Workflows')
 
-    st.metric("Workflow Instances", len(workflow_instances))
+    st.metric("Workflow Instances", len(matching_workflow_instances))
     if selected_workflow != 'All':
         st.metric("Workflow Tasks", len(workflow_types[selected_workflow].dag._all_nodes))
     
