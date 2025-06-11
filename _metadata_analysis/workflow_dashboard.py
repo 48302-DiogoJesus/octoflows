@@ -656,22 +656,35 @@ def main():
                     earliest_finish[node_id] = max_upstream_finish + node_duration
                 predicted_makespan = max(earliest_finish.values()) if earliest_finish else 0.0
             
-            # Calculate differences and percentages
-            def format_metric(actual: float, predicted: float) -> str:
+            # Calculate differences and percentages with sample counts
+            def format_metric(actual, predicted, samples=None):
                 if predicted == 0 and actual == 0:
-                    return "0.00s (0.00%)"
-                diff = actual - predicted
-                pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
-                sign = "+" if diff >= 0 else ""
-                return f"{actual:.2f}s vs {predicted:.2f}s ({sign}{diff:.2f}s, {sign}{pct_diff:.2f}%)"
+                    base = "0.00s (0.00%)"
+                else:
+                    diff = actual - predicted
+                    pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
+                    sign = "+" if diff >= 0 else ""
+                    base = f"{predicted:.2f}s → {actual:.2f}s ({sign}{abs(diff):.2f}s, {sign}{abs(pct_diff):.1f}%)"
+                
+                if samples is not None:
+                    return f"{base}\n(samples: {samples})"
+                return base
+            
+            # Get sample counts if available
+            sample_counts = instance.plan.prediction_sample_counts if instance.plan and hasattr(instance.plan, 'prediction_sample_counts') else None
             
             instance_data.append({
+                'Workflow Type': selected_workflow,
                 'Instance': f"Instance {idx+1}",
                 'Planner': instance.plan.planner_name if instance.plan else 'N/A',
-                'Makespan': format_metric(actual_makespan, predicted_makespan),
-                'Execution Time': format_metric(actual_execution, predicted_execution),
-                'Download Time': format_metric(actual_download, predicted_download),
-                'Upload Time': format_metric(actual_upload, predicted_upload),
+                'Makespan': format_metric(actual_makespan, predicted_makespan, 
+                                       sample_counts.for_execution_time if sample_counts else None),
+                'Execution Time': format_metric(actual_execution, predicted_execution, 
+                                            sample_counts.for_execution_time if sample_counts else None),
+                'Download Time': format_metric(actual_download, predicted_download, 
+                                           sample_counts.for_download_speed if sample_counts else None),
+                'Upload Time': format_metric(actual_upload, predicted_upload, 
+                                         sample_counts.for_upload_speed if sample_counts else None),
             })
         
         if instance_data:
@@ -682,14 +695,24 @@ def main():
             st.dataframe(
                 df_instances,
                 column_config={
-                    'Makespan': "Makespan (Actual vs Predicted)",
-                    'Execution Time': "Execution Time (Actual vs Predicted)",
-                    'Download Time': "Download Time (Actual vs Predicted)",
-                    'Upload Time': "Upload Time (Actual vs Predicted)",
+                    'Workflow Type': "Workflow Type",
+                    'Makespan': "Makespan (Predicted → Actual)",
+                    'Execution Time': "Execution Time (Predicted → Actual)",
+                    'Download Time': "Download Time (Predicted → Actual)",
+                    'Upload Time': "Upload Time (Predicted → Actual)",
                 },
                 use_container_width=True,
                 height=min(400, 35 * (len(df_instances) + 1)),  # Dynamic height based on number of rows
-                hide_index=True
+                hide_index=True,
+                column_order=[
+                    'Workflow Type', 
+                    'Planner', 
+                    'Instance', 
+                    'Makespan', 
+                    'Execution Time', 
+                    'Download Time', 
+                    'Upload Time'
+                ]
             )
             
             # Add a download button for the data
