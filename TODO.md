@@ -8,9 +8,10 @@
         time spent executing tasks
         time spent downloading data
         time spent uploading data
+    - Mostrar:
+        confidence level
+        standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
-    BUG
-        `for_execution_time` AND 
 
 
 [EVALUATION:PREPARE]

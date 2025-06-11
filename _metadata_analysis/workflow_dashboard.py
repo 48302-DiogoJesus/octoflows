@@ -161,7 +161,7 @@ def main():
     )
     
     # Filter workflow instances based on selection (workflow type + planner)
-    matching_workflow_instances = []
+    matching_workflow_instances: list[WorkflowInstanceInfo] = []
     if selected_workflow == "All":
         for workflow in workflow_types.values():
             for instance in workflow.instances:
@@ -380,6 +380,8 @@ def main():
             
             # Prepare data for sample count analysis
             sample_data = []
+            error_summary_data = []
+            
             for instance in workflow_types[selected_workflow].instances:
                 if not instance.plan or not instance.plan.prediction_sample_counts or not instance.tasks:
                     continue
@@ -389,41 +391,185 @@ def main():
                 actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_output_size = sum(task.metrics.output_metrics.size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
-                    
+                
+                # Calculate makespan
+                task_timings = []
+                for task in instance.tasks:
+                    task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
+                    task_end = task_start
+                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.execution_time_ms
+                    task_end += task.metrics.total_invocation_time_ms
+                    if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
+                        task_end += task.metrics.output_metrics.time_ms
+                    task_timings.append((task_start, task_end))
+                
+                actual_makespan = 0
+                if task_timings:
+                    min_start = min(start for start, _ in task_timings)
+                    max_end = max(end for _, end in task_timings)
+                    actual_makespan = (max_end - min_start) / 1000  # Convert to seconds
+                
                 if instance.plan and instance.plan.nodes_info:
+                    # Calculate total metrics for non-makespan related stats
                     predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())  # in bytes
                     
-                        # Calculate prediction errors
+                    # Calculate makespan using critical path analysis
+                    # Initialize earliest start and finish times for each node
+                    earliest_start = {node_id: 0.0 for node_id in instance.plan.nodes_info}
+                    earliest_finish = {node_id: 0.0 for node_id in instance.plan.nodes_info}
+                    
+                    # Process nodes in topological order
+                    for node_id, info in instance.plan.nodes_info.items():
+                        # Total time for this node (download + exec + upload)
+                        node_duration = (info.download_time + info.exec_time + info.upload_time) / 1000  # in seconds
+                        
+                        # Find the latest finishing upstream node
+                        max_upstream_finish = 0.0
+                        for upstream_node in info.node_ref.upstream_nodes:
+                            upstream_id = upstream_node.id.get_full_id()
+                            if upstream_id in earliest_finish:
+                                max_upstream_finish = max(max_upstream_finish, earliest_finish[upstream_id])
+                        
+                        # Update this node's start and finish times
+                        earliest_start[node_id] = max_upstream_finish
+                        earliest_finish[node_id] = max_upstream_finish + node_duration
+                    
+                    # The makespan is the maximum finish time of all nodes
+                    predicted_makespan = max(earliest_finish.values()) if earliest_finish else 0.0
+                    
+                    # Calculate prediction errors
                     download_error = calculate_prediction_error(actual_download, predicted_download)
                     execution_error = calculate_prediction_error(actual_execution, predicted_execution)
                     upload_error = calculate_prediction_error(actual_upload, predicted_upload)
                     output_size_error = calculate_prediction_error(actual_output_size, predicted_output_size)
+                    makespan_error = calculate_prediction_error(actual_makespan, predicted_makespan)
+                    
+                    # Time differences (actual - predicted)
+                    download_diff = actual_download - predicted_download
+                    execution_diff = actual_execution - predicted_execution
+                    upload_diff = actual_upload - predicted_upload
+                    makespan_diff = actual_makespan - predicted_makespan
                     
                     sample_data.append({
                         'Planner': instance.plan.planner_name,
                         'Download Samples': instance.plan.prediction_sample_counts.for_download_speed,
                         'Execution Samples': instance.plan.prediction_sample_counts.for_execution_time,
                         'Upload Samples': instance.plan.prediction_sample_counts.for_upload_speed,
-                        'Output Size Samples': getattr(instance.plan.prediction_sample_counts, 'for_output_size', 0),  # Handle case where this might not exist
+                        'Output Size Samples': getattr(instance.plan.prediction_sample_counts, 'for_output_size', 0),
                         'Download Error %': download_error,
                         'Execution Error %': execution_error,
                         'Upload Error %': upload_error,
                         'Output Size Error %': output_size_error,
+                        'Makespan Error %': makespan_error,
                         'Instance': f"{instance.plan.planner_name}_{len(sample_data)}",
                         'Actual Output Size': actual_output_size,
-                        'Predicted Output Size': predicted_output_size
+                        'Predicted Output Size': predicted_output_size,
+                        'Download Diff (s)': download_diff,
+                        'Execution Diff (s)': execution_diff,
+                        'Upload Diff (s)': upload_diff,
+                        'Makespan Diff (s)': makespan_diff
+                    })
+                    
+                    # Add to error summary data
+                    error_summary_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Metric': 'Download Time',
+                        'Error %': download_error,
+                        'Diff (s)': download_diff
+                    })
+                    error_summary_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Metric': 'Execution Time',
+                        'Error %': execution_error,
+                        'Diff (s)': execution_diff
+                    })
+                    error_summary_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Metric': 'Upload Time',
+                        'Error %': upload_error,
+                        'Diff (s)': upload_diff
+                    })
+                    error_summary_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Metric': 'Makespan',
+                        'Error %': makespan_error,
+                        'Diff (s)': makespan_diff
                     })
             
             if sample_data:
                 df_samples = pd.DataFrame(sample_data)
+                df_errors = pd.DataFrame(error_summary_data)
                 
                 # Create tabs for different visualizations
-                tab1, _ = st.tabs(["Error vs Samples", ""])
+                tab1, tab2 = st.tabs(["Prediction Errors", "Error vs Samples"])
                 
                 with tab1:
+                    st.write("### Prediction Error Analysis")
+                    
+                    # Calculate average errors by planner and metric
+                    error_stats = df_errors.groupby(['Planner', 'Metric']).agg({
+                        'Error %': 'mean',
+                        'Diff (s)': 'mean'
+                    }).reset_index()
+                    
+                    # Pivot the data for better visualization
+                    error_pivot = error_stats.pivot(
+                        index='Planner',
+                        columns='Metric',
+                        values=['Error %', 'Diff (s)']
+                    ).reset_index()
+                    
+                    # Flatten multi-index columns
+                    error_pivot.columns = [' '.join(col).strip() for col in error_pivot.columns.values]
+                    
+                    # Show the error statistics table
+                    st.write("#### Average Prediction Errors")
+                    st.dataframe(
+                        error_pivot.style.format({
+                            'Error % Download Time': '{:.2f}%',
+                            'Error % Execution Time': '{:.2f}%',
+                            'Error % Upload Time': '{:.2f}%',
+                            'Error % Makespan': '{:.2f}%',
+                            'Diff (s) Download Time': '{:.3f}s',
+                            'Diff (s) Execution Time': '{:.3f}s',
+                            'Diff (s) Upload Time': '{:.3f}s',
+                            'Diff (s) Makespan': '{:.3f}s'
+                        }),
+                        use_container_width=True
+                    )
+                    
+                    # Create bar charts for error visualization
+                    st.write("#### Error Percentage by Metric")
+                    fig_error_pct = px.bar(
+                        error_stats,
+                        x='Metric',
+                        y='Error %',
+                        color='Planner',
+                        barmode='group',
+                        title='Average Prediction Error Percentage by Metric',
+                        labels={'Error %': 'Error Percentage (%)'},
+                        height=500
+                    )
+                    st.plotly_chart(fig_error_pct, use_container_width=True)
+                    
+                    st.write("#### Time Difference by Metric")
+                    fig_error_diff = px.bar(
+                        error_stats,
+                        x='Metric',
+                        y='Diff (s)',
+                        color='Planner',
+                        barmode='group',
+                        title='Average Time Difference (Actual - Predicted)',
+                        labels={'Diff (s)': 'Time Difference (seconds)'},
+                        height=500
+                    )
+                    st.plotly_chart(fig_error_diff, use_container_width=True)
+                
+                with tab2:
                     st.write("### Prediction Error vs Sample Count")
                     
                     # Let user select which metric to analyze
@@ -434,7 +580,6 @@ def main():
                     ).lower()
                     
                     # Create scatter plot of error vs sample count
-                    # Ensure proper case for column names
                     metric_display = metric.replace('_', ' ').title()
                     samples_col = f"{metric_display} Samples"
                     error_col = f"{metric_display} Error %"
@@ -459,6 +604,104 @@ def main():
                     st.plotly_chart(fig_error, use_container_width=True)
             else:
                 st.warning("No sample count data available for analysis.")
+        
+        # Add instance comparison table at the end of the page
+        st.subheader("Instance Comparison")
+        
+        # Prepare data for the instance comparison table
+        instance_data = []
+        for idx, instance in enumerate(matching_workflow_instances):
+            if not instance.plan or not instance.tasks:
+                continue
+                
+            # Calculate actual metrics
+            actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
+            actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
+            actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
+            
+            # Calculate actual makespan
+            task_timings = []
+            for task in instance.tasks:
+                task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
+                task_end = task_start
+                task_end += task.metrics.input_metrics.input_download_time_ms
+                task_end += task.metrics.execution_time_ms
+                task_end += task.metrics.total_invocation_time_ms
+                if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
+                    task_end += task.metrics.output_metrics.time_ms
+                task_timings.append((task_start, task_end))
+            
+            actual_makespan = 0
+            if task_timings:
+                min_start = min(start for start, _ in task_timings)
+                max_end = max(end for _, end in task_timings)
+                actual_makespan = (max_end - min_start) / 1000  # Convert to seconds
+            
+            # Get predicted metrics if available
+            predicted_download = predicted_execution = predicted_upload = predicted_makespan = 0
+            if instance.plan and instance.plan.nodes_info:
+                predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                
+                # Calculate predicted makespan using critical path analysis
+                earliest_finish = {node_id: 0.0 for node_id in instance.plan.nodes_info}
+                for node_id, info in instance.plan.nodes_info.items():
+                    node_duration = (info.download_time + info.exec_time + info.upload_time) / 1000
+                    max_upstream_finish = 0.0
+                    for upstream_node in info.node_ref.upstream_nodes:
+                        upstream_id = upstream_node.id.get_full_id()
+                        if upstream_id in earliest_finish:
+                            max_upstream_finish = max(max_upstream_finish, earliest_finish[upstream_id])
+                    earliest_finish[node_id] = max_upstream_finish + node_duration
+                predicted_makespan = max(earliest_finish.values()) if earliest_finish else 0.0
+            
+            # Calculate differences and percentages
+            def format_metric(actual: float, predicted: float) -> str:
+                if predicted == 0 and actual == 0:
+                    return "0.00s (0.00%)"
+                diff = actual - predicted
+                pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
+                sign = "+" if diff >= 0 else ""
+                return f"{actual:.2f}s vs {predicted:.2f}s ({sign}{diff:.2f}s, {sign}{pct_diff:.2f}%)"
+            
+            instance_data.append({
+                'Instance': f"Instance {idx+1}",
+                'Planner': instance.plan.planner_name if instance.plan else 'N/A',
+                'Makespan': format_metric(actual_makespan, predicted_makespan),
+                'Execution Time': format_metric(actual_execution, predicted_execution),
+                'Download Time': format_metric(actual_download, predicted_download),
+                'Upload Time': format_metric(actual_upload, predicted_upload),
+            })
+        
+        if instance_data:
+            # Create a DataFrame for the table
+            df_instances = pd.DataFrame(instance_data)
+            
+            # Display the table with better formatting
+            st.dataframe(
+                df_instances,
+                column_config={
+                    'Makespan': "Makespan (Actual vs Predicted)",
+                    'Execution Time': "Execution Time (Actual vs Predicted)",
+                    'Download Time': "Download Time (Actual vs Predicted)",
+                    'Upload Time': "Upload Time (Actual vs Predicted)",
+                },
+                use_container_width=True,
+                height=min(400, 35 * (len(df_instances) + 1)),  # Dynamic height based on number of rows
+                hide_index=True
+            )
+            
+            # Add a download button for the data
+            csv = df_instances.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download as CSV",
+                data=csv,
+                file_name=f"{selected_workflow}_{selected_planner}_comparison.csv",
+                mime='text/csv',
+            )
+        else:
+            st.warning("No instance data available for the selected filters.")
     
 if __name__ == "__main__":
     main()
