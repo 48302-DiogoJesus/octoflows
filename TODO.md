@@ -2,9 +2,11 @@
 - For each workflow type (already ran), show:
     - Dimensões
         tamanho total do/das histórico/samples (traz mais precisão/consistência nas previsões?)
+            Total number of samples used for ALL predictions of a workflow instance
+                upload speed samples + download speed samples + task execution samples
         algoritmo de planeamento usado
     - Valores a comparar:
-        [TODO] makespan
+        makespan
         time spent executing tasks
         time spent downloading data
         time spent uploading data

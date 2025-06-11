@@ -39,10 +39,18 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         path_completion_time: float
 
     @dataclass
+    class PlanPredictionSampleCounts:
+        for_download_speed: int
+        for_upload_speed: int
+        for_execution_time: int
+        for_output_size: int
+
+    @dataclass
     class PlanOutput:
         planner_name: str
         nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
         critical_path_node_ids: set[str]
+        prediction_sample_counts: "AbstractDAGPlanner.PlanPredictionSampleCounts"
 
     def plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
         """

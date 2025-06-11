@@ -261,14 +261,29 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             if node.try_get_annotation(PreLoadOptimization):
                 nodes_with_preload += 1
 
+        prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
+            # note: data from ALL workflow instances
+            for_download_speed=len(metadata_access.cached_download_speeds),
+            for_upload_speed=len(metadata_access.cached_upload_speeds),
+            # note: only related to instances from same workflow type
+            for_execution_time=len(metadata_access.cached_execution_time_per_byte),
+            for_output_size=len(metadata_access.cached_io_ratios)
+        )
+
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
         logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Successfully downgraded resources for {successful_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
+        logger.info(f"Prediction samples used: {prediction_samples_used}")
 
-        return AbstractDAGPlanner.PlanOutput(self.__class__.__name__, final_nodes_info, final_critical_path_node_ids)
+        return AbstractDAGPlanner.PlanOutput(
+            self.__class__.__name__, 
+            final_nodes_info, 
+            final_critical_path_node_ids, 
+            prediction_samples_used
+        )
 
     @staticmethod
     async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
