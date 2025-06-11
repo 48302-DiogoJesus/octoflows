@@ -99,6 +99,14 @@ def get_color_for_workflow(workflow_name: str) -> str:
     # Scale to 0-255 and format as RGB
     return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
 
+def calculate_prediction_error(actual, predicted):
+    """Calculate relative prediction error percentage"""
+    if actual == 0 and predicted == 0:
+        return 0
+    if actual == 0:
+        return float('inf')
+    return abs(actual - predicted) / actual * 100
+
 def main():
     # Configure page layout for better visualization
     st.set_page_config(layout="wide")
@@ -366,6 +374,91 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No valid planner data available for comparison.")
+            
+            # Add sample count analysis section
+            st.subheader("Sample Count Analysis")
+            
+            # Prepare data for sample count analysis
+            sample_data = []
+            for instance in workflow_types[selected_workflow].instances:
+                if not instance.plan or not instance.plan.prediction_sample_counts or not instance.tasks:
+                    continue
+                
+                # Calculate actual vs predicted metrics
+                actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
+                actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
+                actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
+                actual_output_size = sum(task.metrics.output_metrics.size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
+                    
+                if instance.plan and instance.plan.nodes_info:
+                    predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())  # in bytes
+                    
+                        # Calculate prediction errors
+                    download_error = calculate_prediction_error(actual_download, predicted_download)
+                    execution_error = calculate_prediction_error(actual_execution, predicted_execution)
+                    upload_error = calculate_prediction_error(actual_upload, predicted_upload)
+                    output_size_error = calculate_prediction_error(actual_output_size, predicted_output_size)
+                    
+                    sample_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Download Samples': instance.plan.prediction_sample_counts.for_download_speed,
+                        'Execution Samples': instance.plan.prediction_sample_counts.for_execution_time,
+                        'Upload Samples': instance.plan.prediction_sample_counts.for_upload_speed,
+                        'Output Size Samples': getattr(instance.plan.prediction_sample_counts, 'for_output_size', 0),  # Handle case where this might not exist
+                        'Download Error %': download_error,
+                        'Execution Error %': execution_error,
+                        'Upload Error %': upload_error,
+                        'Output Size Error %': output_size_error,
+                        'Instance': f"{instance.plan.planner_name}_{len(sample_data)}",
+                        'Actual Output Size': actual_output_size,
+                        'Predicted Output Size': predicted_output_size
+                    })
+            
+            if sample_data:
+                df_samples = pd.DataFrame(sample_data)
+                
+                # Create tabs for different visualizations
+                tab1, _ = st.tabs(["Error vs Samples", ""])
+                
+                with tab1:
+                    st.write("### Prediction Error vs Sample Count")
+                    
+                    # Let user select which metric to analyze
+                    metric = st.radio(
+                        "Select Metric to Analyze:",
+                        ["Download", "Execution", "Upload", "Output Size"],
+                        horizontal=True
+                    ).lower()
+                    
+                    # Create scatter plot of error vs sample count
+                    # Ensure proper case for column names
+                    metric_display = metric.replace('_', ' ').title()
+                    samples_col = f"{metric_display} Samples"
+                    error_col = f"{metric_display} Error %"
+                    
+                    fig_error = px.scatter(
+                        df_samples,
+                        x=samples_col,
+                        y=error_col,
+                        color='Planner',
+                        title=f'{metric_display} Prediction Error vs Sample Count',
+                        hover_data=['Instance', 'Actual Output Size', 'Predicted Output Size'] if 'output_size' in metric else ['Instance'],
+                        trendline='lowess',
+                        labels={
+                            samples_col: f"Number of {metric.replace('_', ' ')} samples",
+                            error_col: f"Prediction Error %"
+                        }
+                    )
+                    fig_error.update_traces(
+                        marker=dict(size=10, line=dict(width=1, color='DarkSlateGrey')),
+                        selector=dict(mode='markers')
+                    )
+                    st.plotly_chart(fig_error, use_container_width=True)
+            else:
+                st.warning("No sample count data available for analysis.")
     
 if __name__ == "__main__":
     main()

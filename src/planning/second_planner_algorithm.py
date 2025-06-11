@@ -266,8 +266,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             for_download_speed=len(metadata_access.cached_download_speeds),
             for_upload_speed=len(metadata_access.cached_upload_speeds),
             # note: only related to instances from same workflow type
-            for_execution_time=len(metadata_access.cached_execution_time_per_byte),
-            for_output_size=len(metadata_access.cached_io_ratios)
+            for_execution_time=sum(map(len, metadata_access.cached_execution_time_per_byte.values())),
+            for_output_size=sum(map(len, metadata_access.cached_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")
