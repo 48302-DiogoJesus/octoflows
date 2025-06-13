@@ -48,12 +48,11 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
     workflow_types: Dict[str, WorkflowInfo] = {}
     
     try:
-        redis_instance = intermediate_storage_conn
-        all_dag_keys = [key for key in redis_instance.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
+        all_dag_keys = [key for key in intermediate_storage_conn.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
         
         for dag_key in all_dag_keys:
             try:
-                dag_data = redis_instance.get(dag_key)
+                dag_data = intermediate_storage_conn.get(dag_key)
                 dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
 
                 plan_data = metrics_storage_conn.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
@@ -261,7 +260,7 @@ def main():
                 # Display metrics in columns
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Avg Execution Time", f"{avg_execution:.2f}s")
+                    st.metric("Avg Time Executing Tasks", f"{avg_execution:.2f}s")
                 with col2:
                     st.metric("Avg Download Time", f"{avg_download:.2f}s")
                 with col3:
