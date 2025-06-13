@@ -194,7 +194,7 @@ def main():
         fig.update_layout(showlegend=False)
         st.sidebar.plotly_chart(fig, use_container_width=True)
     
-    st.header(selected_workflow if selected_workflow != 'All' else 'All Workflows')
+    st.header(selected_workflow if selected_workflow != 'All' else 'All Workflow Instances')
 
     col1, col2 = st.columns(2)
     with col1:
@@ -662,7 +662,7 @@ def main():
                 else:
                     diff = actual - predicted
                     pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
-                    sign = "+" if diff >= 0 else ""
+                    sign = "+" if diff >= 0 else "-"
                     base = f"{predicted:.2f}s → {actual:.2f}s ({sign}{abs(diff):.2f}s, {sign}{abs(pct_diff):.1f}%)"
                 
                 if samples is not None:

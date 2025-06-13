@@ -13,16 +13,24 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-    - On the raw table sort by sample size
+        - On the raw table sort by sample size
+        - On the raw table sort, show dag-id to allow debugging
+        - [BUG] On the raw table, predicted upload time is always 0
+        - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
+        - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?
 
+- On PlanOutput, also store the `SLA` the user specified
+- Add “downstream invocation times” to the prediction logic?
+    Use the `metadata_analysis` dashboard to see if invocation time is relevant
+- Add cold-start/warm-start to the predictions
+
+---
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
     + optimizations
         - Task Clustering (fan-ins + fan-outs)
         - Delayed I/O
-
----
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
 
