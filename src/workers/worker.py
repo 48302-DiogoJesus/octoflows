@@ -122,7 +122,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     wait_result = await wait_until_coroutine
                     current_task_metrics.input_metrics.downloadable_input_size_bytes += wait_result
 
-                current_task_metrics.input_metrics.input_download_time_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 else 0
+                current_task_metrics.input_metrics.input_download_time_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and current_task_metrics.input_metrics.downloadable_input_size_bytes > 0 else 0
                 # Store raw values, normalization will be done during prediction
 
                 # METADATA: Register the size of hardcoded arguments as well

@@ -617,6 +617,7 @@ def main():
             actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
+            print("actual_download", actual_download)
             
             # Calculate actual makespan
             task_timings = []
@@ -684,9 +685,9 @@ def main():
                                        sample_counts.for_execution_time if sample_counts else None),
                 'Execution Time': format_metric(actual_execution, predicted_execution, 
                                             sample_counts.for_execution_time if sample_counts else None),
-                'Download Time': format_metric(actual_download, predicted_download, 
+                'Total Download Time': format_metric(actual_download, predicted_download, 
                                            sample_counts.for_download_speed if sample_counts else None),
-                'Upload Time': format_metric(actual_upload, predicted_upload, 
+                'Total Upload Time': format_metric(actual_upload, predicted_upload, 
                                          sample_counts.for_upload_speed if sample_counts else None),
                 '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
             })
@@ -714,8 +715,8 @@ def main():
                     'Workflow Type': "Workflow Type",
                     'Makespan': "Makespan (Predicted → Actual)",
                     'Execution Time': "Execution Time (Predicted → Actual)",
-                    'Download Time': "Download Time (Predicted → Actual)",
-                    'Upload Time': "Upload Time (Predicted → Actual)",
+                    'Total Download Time': "Total Download Time (Predicted → Actual)",
+                    'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                 },
                 use_container_width=True,
                 height=min(400, 35 * (len(df_instances) + 1)),  # Dynamic height based on number of rows
@@ -726,8 +727,8 @@ def main():
                     'Master DAG ID',
                     'Makespan', 
                     'Execution Time', 
-                    'Download Time', 
-                    'Upload Time'
+                    'Total Download Time', 
+                    'Total Upload Time'
                 ]
             )
             
