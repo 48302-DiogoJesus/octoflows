@@ -660,12 +660,12 @@ def main():
             # Calculate differences and percentages with sample counts
             def format_metric(actual, predicted, samples=None):
                 if predicted == 0 and actual == 0:
-                    base = "0.00s (0.00%)"
+                    base = "0.000s (0.000%)"
                 else:
                     diff = actual - predicted
                     pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
                     sign = "+" if diff >= 0 else "-"
-                    base = f"{predicted:.2f}s → {actual:.2f}s ({sign}{abs(diff):.2f}s, {sign}{abs(pct_diff):.1f}%)"
+                    base = f"{predicted:.3f}s → {actual:.3f}s ({sign}{abs(diff):.3f}s, {sign}{abs(pct_diff):.1f}%)"
                 
                 if samples is not None:
                     return f"{base}\n(samples: {samples})"

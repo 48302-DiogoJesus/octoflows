@@ -13,8 +13,6 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - master dag id is the same for all "Instance Comparison" rows
-        - actual download time is sometimes 0, check those cases
         - [BUG] On the raw table, predicted download time is always 0
         - [BUG] On the raw table, predicted upload time is always 0
         - Add to the table: predicted Input vs real output + predicted Output vs real output
