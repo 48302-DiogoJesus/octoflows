@@ -34,6 +34,7 @@ class WorkflowInstanceTaskInfo:
 
 @dataclass
 class WorkflowInstanceInfo:
+    master_dag_id: str
     plan: AbstractDAGPlanner.PlanOutput | None
     download_time: FullDAGPrepareTime | None
     tasks: List[WorkflowInstanceTaskInfo]
@@ -65,7 +66,7 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
 
                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(plan_output, download_time, tasks))
+                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, download_time, tasks))
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
     except Exception as e:
@@ -673,14 +674,10 @@ def main():
             # Get sample counts if available
             sample_counts = instance.plan.prediction_sample_counts if instance.plan and hasattr(instance.plan, 'prediction_sample_counts') else None
             
-            # Get the master_dag_id from the workflow's DAG object
-            workflow_info = workflow_types.get(selected_workflow)
-            master_dag_id = workflow_info.dag.master_dag_id if workflow_info and hasattr(workflow_info.dag, 'master_dag_id') else 'N/A'
-            
             instance_data.append({
                 'Workflow Type': selected_workflow,
                 'Planner': instance.plan.planner_name if instance.plan else 'N/A',
-                'Master DAG ID': master_dag_id,
+                'Master DAG ID': instance.master_dag_id,
                 'Makespan': format_metric(actual_makespan, predicted_makespan, 
                                        sample_counts.for_execution_time if sample_counts else None),
                 'Execution Time': format_metric(actual_execution, predicted_execution, 
@@ -708,7 +705,10 @@ def main():
             columns = ['Master DAG ID'] + [col for col in df_instances.columns if col != 'Master DAG ID']
             df_instances = df_instances[columns]
             
-            # Display the table with better formatting
+            # Display the instance comparison table
+            st.markdown("### Instance Comparison")
+            
+            # Display the table
             st.dataframe(
                 df_instances,
                 column_config={
@@ -719,7 +719,7 @@ def main():
                     'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                 },
                 use_container_width=True,
-                height=min(400, 35 * (len(df_instances) + 1)),  # Dynamic height based on number of rows
+                height=min(400, 35 * (len(df_instances) + 1)),
                 hide_index=True,
                 column_order=[
                     'Workflow Type', 
@@ -731,6 +731,91 @@ def main():
                     'Total Upload Time'
                 ]
             )
+            
+            st.markdown("""
+                **Legend:**
+                - Predicted → Actual: Shows predicted value followed by actual value
+                - Values in parentheses show the difference and percentage difference
+                - Sample counts show how many samples were used for predictions
+                """)
+            
+            # Add a section to view task metrics by DAG ID
+            st.markdown("---")
+            st.markdown("### View Task Metrics by DAG ID")
+            
+            # Add a section to view task metrics by DAG ID
+            st.markdown("### View Task Metrics by DAG ID")
+            
+            # Create a text input for DAG ID
+            dag_id = st.text_input("Enter DAG ID to view task metrics:", "")
+            
+            # Initialize variables
+            selected_instance_info = None
+            workflow_name = ""
+            planner_name = ""
+            
+            # Process the entered DAG ID
+            if dag_id and 'Master DAG ID' in df_instances.columns:
+                # Find rows with matching DAG ID
+                matching_rows = df_instances[df_instances['Master DAG ID'].astype(str) == dag_id]
+                
+                if len(matching_rows) > 0:
+                    # Get the first matching row
+                    row = matching_rows.iloc[0]  # type: ignore
+                    workflow_name = str(row['Workflow Type']) if pd.notna(row['Workflow Type']) else ""
+                    planner_name = str(row['Planner']) if pd.notna(row['Planner']) else ""
+                    
+                    # Show success message
+                    st.success(f"Found matching workflow: {workflow_name} - {planner_name}")
+                    
+                    # Find the selected instance
+                    if workflow_name and planner_name and workflow_name in workflow_types:
+                        for instance in workflow_types[workflow_name].instances:
+                            if (instance.plan and 
+                                instance.plan.planner_name == planner_name and
+                                instance.master_dag_id == dag_id):
+                                selected_instance_info = instance
+                                break
+                else:
+                    st.warning(f"No workflow found with DAG ID: {dag_id}")
+                
+                if selected_instance_info and selected_instance_info.tasks:
+                    st.markdown("---")
+                    st.markdown(f"### Task Metrics for {workflow_name} - {planner_name}")
+                    
+                    # Prepare task metrics data
+                    task_metrics_data = []
+                    for task in selected_instance_info.tasks:
+                        task_metrics = task.metrics
+                        task_metrics_data.append({
+                            'Task ID': task.task_id,
+                            'Worker Config': str(task_metrics.worker_resource_configuration),
+                            'Start Time (s)': task_metrics.started_at_timestamp_s,
+                            'Input Size (bytes)': task_metrics.input_metrics.downloadable_input_size_bytes,
+                            'Download Time (ms)': task_metrics.input_metrics.input_download_time_ms,
+                            'Execution Time (ms)': task_metrics.execution_time_ms,
+                            'Output Size (bytes)': task_metrics.output_metrics.size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
+                            'Output Time (ms)': task_metrics.output_metrics.time_ms if hasattr(task_metrics, 'output_metrics') else 0,
+                        })
+                    
+                    # Display task metrics table
+                    if task_metrics_data:
+                        df_task_metrics = pd.DataFrame(task_metrics_data)
+                        st.dataframe(
+                            df_task_metrics,
+                            column_config={
+                                'Task ID': "Task ID",
+                                'Worker Config': "Worker Configuration",
+                                'Start Time (s)': st.column_config.NumberColumn("Start Time (s)", format="%.2f"),
+                                'Input Size (bytes)': st.column_config.NumberColumn("Input Size (bytes)", format="%d"),
+                                'Download Time (ms)': st.column_config.NumberColumn("Download Time (ms)", format="%.2f"),
+                                'Execution Time (ms)': st.column_config.NumberColumn("Execution Time (ms)", format="%.2f"),
+                                'Output Size (bytes)': st.column_config.NumberColumn("Output Size (bytes)", format="%d"),
+                                'Output Time (ms)': st.column_config.NumberColumn("Output Time (ms)", format="%.2f"),
+                            },
+                            use_container_width=True,
+                            hide_index=True,
+                        )
             
             # Add a download button for the data
             csv = df_instances.to_csv(index=False).encode('utf-8')
