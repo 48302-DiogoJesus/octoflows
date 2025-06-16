@@ -142,13 +142,14 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         node_id = node.id.get_full_id()
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         total_input_size = self._calculate_total_input_size(node, nodes_info)
+        downloadable_input_size = 0
         
         # 1. Calculate earliest start time (max of upstream completions)
         earliest_start = 0
         for unode in node.upstream_nodes:
             earliest_start = max(earliest_start, nodes_info[unode.id.get_full_id()].path_completion_time)
         
-        # 2. Calculate download finish time (accounts for parallel downloads)
+        # 2. Calculate download finish time (considering parallel downloads)
         download_finish_time = 0
         for unode in node.upstream_nodes:
             if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: 
@@ -156,7 +157,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             
             unode_info = nodes_info[unode.id.get_full_id()]
             predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
-            assert predicted_download_time
+            downloadable_input_size += unode_info.output_size
             
             if node.try_get_annotation(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
@@ -169,12 +170,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         download_time = max(download_finish_time - earliest_start, 0)
+        total_download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla, allow_cached=True)
         
         # 4. Proceed with execution and upload calculations...
         exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
-        assert exec_time is not None
         output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
-        assert output_size is not None
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
@@ -182,7 +182,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             upload_time = 0
         else:
             upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
-            assert upload_time
 
         # 6. Total timing
         total_time = download_time + exec_time + upload_time
@@ -195,8 +194,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             download_time, 
             exec_time, 
             upload_time,
-            0, 
-            0,
+            total_download_time,
             total_time, 
             earliest_start,
             path_completion_time

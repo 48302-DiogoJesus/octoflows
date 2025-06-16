@@ -89,11 +89,10 @@ class MetadataAccess:
     def has_required_predictions(self) -> bool:
         return len(self.cached_upload_speeds) > 0 and len(self.cached_download_speeds) > 0 and len(self.cached_io_ratios) > 0 and len(self.cached_execution_time_per_byte) > 0
 
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int | None:
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:
         """
         Returns:
             Predicted output size in bytes
-            None if no data is available
         """
         if input_size < 0: raise ValueError("Input size cannot be negative")
         if function_name not in self.cached_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
@@ -113,7 +112,7 @@ class MetadataAccess:
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
-    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = False) -> float | None:
+    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = False) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
         Args:
@@ -124,7 +123,6 @@ class MetadataAccess:
         
         Returns:
             Predicted data transfer time in milliseconds
-            None if no data is available
         """
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
         if data_size_bytes == 0: return 0
@@ -173,7 +171,7 @@ class MetadataAccess:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = False
-    ) -> float | None:
+    ) -> float:
         """Predict execution time for a function given input size and resources.
         
         Args:
