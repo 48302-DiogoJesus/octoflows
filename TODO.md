@@ -13,12 +13,23 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
+        - refactor/rethink:
+            - metrics gathering
+            - plan output data
+            - predictions
         - [BUG] On the raw table, predicted download time is always 0
+            - Check if adding total_download_time makes it work
         - Add to the table: predicted Input vs real output + predicted Output vs real output
         - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
         - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?
 
 - On PlanOutput, also store the `SLA` the user specified
+
+- Is this correct:
+    - download_time (REAL, PLAN OUTPUT, PREDICTED)
+    - upload_time (REAL, PLAN OUTPUT, PREDICTED)
+    - execution_time (REAL, PLAN OUTPUT, PREDICTED)
+
 - Add “downstream invocation times” to the prediction logic?
     Use the `metadata_analysis` dashboard to see if invocation time is relevant
 - Add cold-start/warm-start to the predictions

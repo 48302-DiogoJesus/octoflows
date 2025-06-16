@@ -412,7 +412,7 @@ def main():
                 
                 if instance.plan and instance.plan.nodes_info:
                     # Calculate total metrics for non-makespan related stats
-                    predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())  # in bytes
@@ -637,7 +637,7 @@ def main():
             # Get predicted metrics if available
             predicted_download = predicted_execution = predicted_upload = predicted_makespan = 0
             if instance.plan and instance.plan.nodes_info:
-                predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 print("predicted_download", predicted_download)
                 predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
