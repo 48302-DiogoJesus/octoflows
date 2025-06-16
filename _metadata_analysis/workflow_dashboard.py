@@ -605,9 +605,6 @@ def main():
             else:
                 st.warning("No sample count data available for analysis.")
         
-        # Add instance comparison table at the end of the page
-        st.subheader("Instance Comparison")
-        
         # Prepare data for the instance comparison table
         instance_data = []
         for idx, instance in enumerate(matching_workflow_instances):
@@ -618,7 +615,6 @@ def main():
             actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
-            print("actual_download", actual_download)
             
             # Calculate actual makespan
             task_timings = []
@@ -642,6 +638,7 @@ def main():
             predicted_download = predicted_execution = predicted_upload = predicted_makespan = 0
             if instance.plan and instance.plan.nodes_info:
                 predicted_download = sum(info.download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                print("predicted_download", predicted_download)
                 predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 
@@ -688,8 +685,6 @@ def main():
                                          sample_counts.for_upload_speed if sample_counts else None),
                 '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
             })
-
-# ... (rest of the code remains the same)
 
         if instance_data:
             # Create a DataFrame for the table
@@ -739,11 +734,8 @@ def main():
                 - Sample counts show how many samples were used for predictions
                 """)
             
-            # Add a section to view task metrics by DAG ID
             st.markdown("---")
-            st.markdown("### View Task Metrics by DAG ID")
-            
-            # Add a section to view task metrics by DAG ID
+
             st.markdown("### View Task Metrics by DAG ID")
             
             # Create a text input for DAG ID

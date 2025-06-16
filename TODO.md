@@ -14,7 +14,6 @@
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
         - [BUG] On the raw table, predicted download time is always 0
-        - [BUG] On the raw table, predicted upload time is always 0
         - Add to the table: predicted Input vs real output + predicted Output vs real output
         - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
         - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?

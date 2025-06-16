@@ -13,7 +13,7 @@ class FullDAGPrepareTime:
 class TaskInputMetrics:
     hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
     downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
-    input_download_time_ms: float = 0  # time to download all inputs
+    input_download_time_ms: float = 0  # task-path time to download all inputs (can be 0 if was preloaded)
 
 @dataclass
 class TaskOutputMetrics:

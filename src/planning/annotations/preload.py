@@ -80,8 +80,6 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
-            input_metrics,
-            acc_input_download_time_ms
             wait_until_coroutine (so that the caller can fetch the tasks in parallel)
         )
         """

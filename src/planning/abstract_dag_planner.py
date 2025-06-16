@@ -31,9 +31,13 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         node_ref: DAGTaskNode
         input_size: int
         output_size: int
-        download_time: float
+
+        download_time: float  # task-path download time (can be 0 if data was "preloaded")
         exec_time: float
         upload_time: float
+        
+        total_download_time: float # time spent downloading data for the task (can't be 0 if data was "preloaded")
+        
         total_time: float
         earliest_start: float
         path_completion_time: float
@@ -190,7 +194,9 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             output_size, 
             download_time, 
             exec_time, 
-            upload_time, 
+            upload_time,
+            0, 
+            0,
             total_time, 
             earliest_start,
             path_completion_time
