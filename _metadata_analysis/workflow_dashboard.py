@@ -672,10 +672,14 @@ def main():
             # Get sample counts if available
             sample_counts = instance.plan.prediction_sample_counts if instance.plan and hasattr(instance.plan, 'prediction_sample_counts') else None
             
+            # Get the master_dag_id from the workflow's DAG object
+            workflow_info = workflow_types.get(selected_workflow)
+            master_dag_id = workflow_info.dag.master_dag_id if workflow_info and hasattr(workflow_info.dag, 'master_dag_id') else 'N/A'
+            
             instance_data.append({
                 'Workflow Type': selected_workflow,
-                'Instance': f"Instance {idx+1}",
                 'Planner': instance.plan.planner_name if instance.plan else 'N/A',
+                'Master DAG ID': master_dag_id,
                 'Makespan': format_metric(actual_makespan, predicted_makespan, 
                                        sample_counts.for_execution_time if sample_counts else None),
                 'Execution Time': format_metric(actual_execution, predicted_execution, 
@@ -684,11 +688,24 @@ def main():
                                            sample_counts.for_download_speed if sample_counts else None),
                 'Upload Time': format_metric(actual_upload, predicted_upload, 
                                          sample_counts.for_upload_speed if sample_counts else None),
+                '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
             })
-        
+
+# ... (rest of the code remains the same)
+
         if instance_data:
             # Create a DataFrame for the table
             df_instances = pd.DataFrame(instance_data)
+            
+            # Sort by sample count in descending order
+            df_instances = df_instances.sort_values('_sample_count', ascending=False)
+            
+            # Remove the temporary sample count column before display
+            df_instances = df_instances.drop(columns=['_sample_count'])
+            
+            # Reorder columns to put Master DAG ID first
+            columns = ['Master DAG ID'] + [col for col in df_instances.columns if col != 'Master DAG ID']
+            df_instances = df_instances[columns]
             
             # Display the table with better formatting
             st.dataframe(
@@ -705,8 +722,8 @@ def main():
                 hide_index=True,
                 column_order=[
                     'Workflow Type', 
-                    'Planner', 
-                    'Instance', 
+                    'Planner',
+                    'Master DAG ID',
                     'Makespan', 
                     'Execution Time', 
                     'Download Time', 

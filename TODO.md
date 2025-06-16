@@ -13,8 +13,6 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - On the raw table sort by sample size
-        - On the raw table sort, show dag-id to allow debugging
         - [BUG] On the raw table, predicted upload time is always 0
         - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
         - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?
