@@ -14,9 +14,21 @@
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
         - refactor/rethink:
-            - metrics gathering
-            - plan output data
-            - predictions
+            predictions:
+                - function i/o | requires:
+                    - ALL input size + output size
+                - function execution time | requires:
+                    - measure exec. time
+                - data download/upload time | requires:
+                    - store download/upload time for each task download made instead of grouped, associate it with the task metrics
+            task-path stuff, for display requires:
+                - [NOT_IMPLEMENTED] time spent waiting for worker to load
+                - time spent downloading data (*doesn't include pre-load)
+                - time spent executing task
+                - time spent uploading data (*could be null if no need to upload)
+                - [NOT_IMPLEMENTED] time spent invoking upstream tasks
+        - solution: store metrics inside of task ref. in the DAG object
+
         - [BUG] On the raw table, predicted download time is always 0
             - Check if adding total_download_time makes it work
         - Add to the table: predicted Input vs real output + predicted Output vs real output
@@ -24,11 +36,6 @@
         - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?
 
 - On PlanOutput, also store the `SLA` the user specified
-
-- Is this correct:
-    - download_time (REAL, PLAN OUTPUT, PREDICTED)
-    - upload_time (REAL, PLAN OUTPUT, PREDICTED)
-    - execution_time (REAL, PLAN OUTPUT, PREDICTED)
 
 - Add “downstream invocation times” to the prediction logic?
     Use the `metadata_analysis` dashboard to see if invocation time is relevant

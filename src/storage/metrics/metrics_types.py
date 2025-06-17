@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
@@ -10,10 +10,17 @@ class FullDAGPrepareTime:
     size_bytes: int
 
 @dataclass
+class TaskInputDownloadMetrics:
+    size_bytes: int
+    time_ms: float
+
+@dataclass
 class TaskInputMetrics:
     hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
-    downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
-    input_download_time_ms: float = 0  # task-path time to download all inputs (can be 0 if was preloaded)
+    # downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
+
+    tp_download_inputs_time_ms: float = 0  # task-path time to download all inputs (can be 0 if was preloaded)
+    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download
 
 @dataclass
 class TaskOutputMetrics:

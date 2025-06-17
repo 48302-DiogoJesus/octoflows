@@ -226,7 +226,7 @@ def main():
                 
                 # Calculate per-task metrics
                 instance_execution_time = sum(task.metrics.execution_time_ms for task in instance.tasks)
-                instance_download_time = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks)
+                instance_download_time = sum(task.metrics.input_metrics.tp_download_inputs_time_ms for task in instance.tasks)
                 instance_upload_time = sum(task.metrics.output_metrics.time_ms for task in instance.tasks)
                 
                 # Calculate makespan for this instance
@@ -234,7 +234,7 @@ def main():
                 for task in instance.tasks:
                     task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
                     task_end = task_start
-                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.input_metrics.tp_download_inputs_time_ms
                     task_end += task.metrics.execution_time_ms
                     task_end += task.metrics.total_invocation_time_ms
                     if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
@@ -291,7 +291,7 @@ def main():
                 
                 # Calculate metrics for this instance
                 instance_execution = sum(task.metrics.execution_time_ms for task in instance.tasks) / 1000  # to seconds
-                instance_download = sum(task.metrics.input_metrics.input_download_time_ms for task in instance.tasks) / 1000
+                instance_download = sum(task.metrics.input_metrics.tp_download_inputs_time_ms for task in instance.tasks) / 1000
                 instance_upload = sum(task.metrics.output_metrics.time_ms for task in instance.tasks) / 1000
                 
                 # Calculate makespan for this instance
@@ -299,7 +299,7 @@ def main():
                 for task in instance.tasks:
                     task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
                     task_end = task_start
-                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.input_metrics.tp_download_inputs_time_ms
                     task_end += task.metrics.execution_time_ms
                     task_end += task.metrics.total_invocation_time_ms
                     if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
@@ -387,7 +387,7 @@ def main():
                     continue
                 
                 # Calculate actual vs predicted metrics
-                actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
+                actual_download = sum(task.metrics.input_metrics.tp_download_inputs_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_output_size = sum(task.metrics.output_metrics.size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
@@ -397,7 +397,7 @@ def main():
                 for task in instance.tasks:
                     task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
                     task_end = task_start
-                    task_end += task.metrics.input_metrics.input_download_time_ms
+                    task_end += task.metrics.input_metrics.tp_download_inputs_time_ms
                     task_end += task.metrics.execution_time_ms
                     task_end += task.metrics.total_invocation_time_ms
                     if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
@@ -612,7 +612,7 @@ def main():
                 continue
                 
             # Calculate actual metrics
-            actual_download = sum(task.metrics.input_metrics.input_download_time_ms / 1000 for task in instance.tasks)  # in seconds
+            actual_download = sum(task.metrics.input_metrics.tp_download_inputs_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
             
@@ -621,7 +621,7 @@ def main():
             for task in instance.tasks:
                 task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
                 task_end = task_start
-                task_end += task.metrics.input_metrics.input_download_time_ms
+                task_end += task.metrics.input_metrics.tp_download_inputs_time_ms
                 task_end += task.metrics.execution_time_ms
                 task_end += task.metrics.total_invocation_time_ms
                 if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics:
@@ -784,7 +784,7 @@ def main():
                             'Worker Config': str(task_metrics.worker_resource_configuration),
                             'Start Time (s)': task_metrics.started_at_timestamp_s,
                             'Input Size (bytes)': task_metrics.input_metrics.downloadable_input_size_bytes,
-                            'Download Time (ms)': task_metrics.input_metrics.input_download_time_ms,
+                            'Download Time (ms)': task_metrics.input_metrics.tp_download_inputs_time_ms,
                             'Execution Time (ms)': task_metrics.execution_time_ms,
                             'Output Size (bytes)': task_metrics.output_metrics.size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
                             'Output Time (ms)': task_metrics.output_metrics.time_ms if hasattr(task_metrics, 'output_metrics') else 0,

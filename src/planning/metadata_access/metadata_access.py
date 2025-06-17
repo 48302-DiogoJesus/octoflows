@@ -53,9 +53,9 @@ class MetadataAccess:
                             metrics.worker_resource_configuration.memory_mb
                         ))
                 # DOWNLOAD SPEEDS
-                if metrics.input_metrics.input_download_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                if metrics.input_metrics.tp_download_inputs_time_ms > 0: # it can be 0 if the input was present at the worker (locality)
                     # Normalize the download speed based on memory
-                    normalized_time_ms = metrics.input_metrics.input_download_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                    normalized_time_ms = metrics.input_metrics.tp_download_inputs_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
                     download_speed = metrics.input_metrics.downloadable_input_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
                     if download_speed > 0:
                         self.cached_download_speeds.append((
