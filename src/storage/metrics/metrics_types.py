@@ -8,11 +8,12 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 class FullDAGPrepareTime:
     download_time_ms: float
     create_subdags_time_ms: float # time to create a subdag
-    size_bytes: int
+    serialized_size_bytes: int
 
 @dataclass
 class TaskInputDownloadMetrics:
-    size_bytes: int
+    serialized_size_bytes: int # for download time prediction
+    deserialized_size_bytes: int # for i/o prediction
     time_ms: float
 
 @dataclass
@@ -25,7 +26,8 @@ class TaskInputMetrics:
 
 @dataclass
 class TaskOutputMetrics:
-    size_bytes: int
+    serialized_size_bytes: int # for upload time prediction
+    deserialized_size_bytes: int # for i/o prediction
     time_ms: float | Literal[-1]
 
 @dataclass

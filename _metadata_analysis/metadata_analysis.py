@@ -124,7 +124,7 @@ def main():
         task_data = 0
         total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms
         if metrics.output_metrics:
-            task_data += metrics.output_metrics.size_bytes
+            task_data += metrics.output_metrics.serialized_size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.time_ms
         
         total_data_transferred += task_data
@@ -140,7 +140,7 @@ def main():
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
             'input_size': metrics.input_metrics.downloadable_input_size_bytes,
-            'output_size': metrics.output_metrics.size_bytes if metrics.output_metrics else 0,
+            'output_size': metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0,
             'downstream_calls': metrics.total_invocations_count
         })
     
@@ -160,7 +160,7 @@ def main():
         dag_prepare_metrics.append({
             "dag_download_time": deserialized.download_time_ms,
             "create_subdag_time": deserialized.create_subdags_time_ms,
-            "dag_size": deserialized.size_bytes
+            "dag_size": deserialized.serialized_size_bytes
         })
 
     # Calculate task timing metrics (start times, end times)
@@ -398,7 +398,7 @@ def main():
                 st.metric("Worker", metrics.worker_resource_configuration.worker_id)
                 st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus} CPUs + {metrics.worker_resource_configuration.memory_mb} MB")
                 col1, col2 = st.columns(2)
-                output_data = metrics.output_metrics.size_bytes
+                output_data = metrics.output_metrics.serialized_size_bytes
                 with col1:
                     total_task_handling_time = max(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms, 0) + max(metrics.execution_time_ms, 0) + max(metrics.update_dependency_counters_time_ms, 0) + max(metrics.output_metrics.time_ms, 0) + max(metrics.total_invocation_time_ms, 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
@@ -431,7 +431,7 @@ def main():
                             
                             if current_task_metrics:
                                 # Calculate all the metrics we want to compare
-                                output_size = metrics.output_metrics.size_bytes if metrics.output_metrics else 0
+                                output_size = metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0
                                 actual_start_time = current_task_metrics['relative_start_time_ms']
                                 end_time_ms = current_task_metrics['end_time_ms']
                                 
@@ -978,11 +978,11 @@ def main():
 
                 # Calculate upload throughput for output if available
                 if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
-                    throughput_mb = (task_metrics.output_metrics.size_bytes / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.output_metrics.size_bytes / task_metrics.output_metrics.time_ms  # bytes/ms
+                    throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.time_ms  # bytes/ms
                     upload_throughputs.append(throughput_mb)
                     all_transfer_speeds.append(speed_bytes_ms)
-                    total_data_uploaded += task_metrics.output_metrics.size_bytes
+                    total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes
 
             # Calculate average throughputs
             avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0

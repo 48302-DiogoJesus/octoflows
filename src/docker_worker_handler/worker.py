@@ -60,7 +60,7 @@ async def main():
         wk = DockerWorker(config)
 
         dag_download_time_ms = Timer()
-        dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
+        serialized_dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
         dag_download_time_ms = dag_download_time_ms.stop()
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
@@ -154,7 +154,7 @@ async def main():
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
                 immediate_task_ids[0].get_full_id_in_dag(fulldag),
-                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, size_bytes=dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
+                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
             )
             await wk.metrics_storage.flush()
 

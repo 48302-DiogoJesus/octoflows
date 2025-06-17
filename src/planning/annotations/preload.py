@@ -45,11 +45,14 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 
                 _timer = Timer()
                 serialized_data = await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag))
-                dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
-                    size_bytes=calculate_data_structure_size(serialized_data),
-                    time_ms=_timer.stop()
-                )
+                time_to_fetch_ms = _timer.stop()
                 deserialized_task_output = cloudpickle.loads(serialized_data)
+                dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
+                    serialized_size_bytes=calculate_data_structure_size(serialized_data),
+                    deserialized_size_bytes=calculate_data_structure_size(deserialized_task_output),
+                    time_ms=time_to_fetch_ms
+                )
+
                 # Store the result so that its visible to other coroutines
                 dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(deserialized_task_output)
                 

@@ -13,17 +13,15 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        [BUG] metadata_access => download_speeds + i/o ratio are empty
-        {tasks_executed_by_this_coroutine} isn't used
+        - store the **size of**
+            serialized data (for download/upload time prediction)
+            deserialized data (for i/o prediction)
+            [TODO] properly use it on metadata_access predictions
+            **ctrl+f** "serialized_size_bytes" to ensure it's really the serialized size
+        - {tasks_executed_by_this_coroutine} isn't used
             test 1 docker workflow run to make sure
         - ensure code that reads taskmetrics fields are prepared for -1:
-            - planner logic
-            - dashboards (dont worry as much)
-
-        - check if planner types are good
-        - store the **size of**
-            serialized data (for download/upload prediction)
-            deserialized data (for i/o prediction)
+            - dashboards
 
         - [BUG] On the raw table, predicted download time is always 0
             - Check if adding total_download_time makes it work

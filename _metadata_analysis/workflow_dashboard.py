@@ -390,7 +390,7 @@ def main():
                 actual_download = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
-                actual_output_size = sum(task.metrics.output_metrics.size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
+                actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
                 
                 # Calculate makespan
                 task_timings = []
@@ -786,7 +786,7 @@ def main():
                             'Input Size (bytes)': task_metrics.input_metrics.downloadable_input_size_bytes,
                             'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
                             'Execution Time (ms)': task_metrics.execution_time_ms,
-                            'Output Size (bytes)': task_metrics.output_metrics.size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
+                            'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
                             'Output Time (ms)': task_metrics.output_metrics.time_ms if hasattr(task_metrics, 'output_metrics') else 0,
                         })
                     

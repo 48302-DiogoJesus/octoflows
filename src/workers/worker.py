@@ -70,7 +70,8 @@ class Worker(ABC, WorkerExecutionLogic):
                     if t.cached_result:
                         task_dependencies[t.id.get_full_id()] = t.cached_result.result
                         current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
-                            size_bytes=calculate_data_structure_size(t.cached_result.result), 
+                            serialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
+                            deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
                             time_ms=-1
                         )
                 
@@ -93,13 +94,14 @@ class Worker(ABC, WorkerExecutionLogic):
                         _timer = Timer()
                         serialized_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
                         if serialized_result is None: raise Exception(f"[ERROR] Task {utask.id.get_full_id_in_dag(subdag)}'s data is not available")
-                        current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            size_bytes=calculate_data_structure_size(serialized_result), 
-                            time_ms=_timer.stop()
-                        )
-
+                        time_to_fetch_ms = _timer.stop()
                         deserialized_result = cloudpickle.loads(serialized_result)
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
+                        current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size(serialized_result), 
+                            deserialized_size_bytes=calculate_data_structure_size(deserialized_result),
+                            time_ms=time_to_fetch_ms
+                        )
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
@@ -130,7 +132,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 current_task.metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
-                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
+                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.execution_time_ms / total_input_size \
                     if total_input_size > 0 else -1  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
                 
@@ -204,7 +206,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
         if self.metrics_storage:
             for task_executed in tasks_executed_by_this_coroutine: 
-                self.metrics_storage.store_task_metrics(task_executed.id.get_full_id(), task_executed.metrics)
+                self.metrics_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
 
@@ -224,9 +226,9 @@ class Worker(ABC, WorkerExecutionLogic):
     async def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
         serialized_dag = await self.metadata_storage.get(f"{DAG_PREFIX}{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
-        deserialized = cloudpickle.loads(serialized_dag)
-        if not isinstance(deserialized, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
-        return (calculate_data_structure_size(deserialized), deserialized)
+        deserialized_dag = cloudpickle.loads(serialized_dag)
+        if not isinstance(deserialized_dag, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
+        return (calculate_data_structure_size(serialized_dag), deserialized_dag)
 
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):

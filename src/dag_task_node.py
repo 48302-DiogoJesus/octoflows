@@ -57,7 +57,7 @@ class DAGTaskNode(Generic[R]):
             execution_time_ms=0,
             execution_time_per_input_byte_ms=-1,
             update_dependency_counters_time_ms=-1,
-            output_metrics=TaskOutputMetrics(size_bytes=-1, time_ms=-1),
+            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, time_ms=-1),
             total_invocations_count=0,
             total_invocation_time_ms=-1
         )

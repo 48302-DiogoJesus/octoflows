@@ -43,13 +43,15 @@ class WorkerExecutionLogic():
         _task: DAGTaskNode = task
         
         _task.metrics.output_metrics = TaskOutputMetrics(
-            size_bytes=calculate_data_structure_size(task_result),
+            serialized_size_bytes=calculate_data_structure_size(task_result), 
+            deserialized_size_bytes=calculate_data_structure_size(task_result), # accurate
             time_ms=-1
         )
         # only upload if necessary
         if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
             output_upload_timer = Timer()
             task_result_serialized = cloudpickle.dumps(task_result)
+            _task.metrics.output_metrics.serialized_size_bytes = calculate_data_structure_size(task_result_serialized)
             await intermediate_storage.set(_task.id.get_full_id_in_dag(subdag), task_result_serialized)
             _task.metrics.output_metrics.time_ms = output_upload_timer.stop()
         else:
