@@ -615,6 +615,8 @@ def main():
             actual_download = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for task in instance.tasks)  # in seconds
             actual_execution = sum(task.metrics.execution_time_ms / 1000 for task in instance.tasks)  # in seconds
             actual_upload = sum(task.metrics.output_metrics.time_ms / 1000 for task in instance.tasks)  # in seconds
+            actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) for task in instance.tasks])  # in bytes
+            actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
             
             # Calculate actual makespan
             task_timings = []
@@ -636,11 +638,14 @@ def main():
             
             # Get predicted metrics if available
             predicted_download = predicted_execution = predicted_upload = predicted_makespan = 0
+            predicted_input_size = predicted_output_size = 0
             if instance.plan and instance.plan.nodes_info:
                 predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 print("predicted_download", predicted_download)
                 predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                 predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))  # in bytes
+                predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))  # in bytes
                 
                 # Calculate predicted makespan using critical path analysis
                 earliest_finish = {node_id: 0.0 for node_id in instance.plan.nodes_info}
@@ -671,6 +676,19 @@ def main():
             # Get sample counts if available
             sample_counts = instance.plan.prediction_sample_counts if instance.plan and hasattr(instance.plan, 'prediction_sample_counts') else None
             
+            def format_size_metric(actual, predicted, samples=None):
+                formatted_actual = format_bytes(actual)
+                formatted_predicted = format_bytes(predicted)
+                if predicted == 0 and actual == 0:
+                    return f"{formatted_predicted} → {formatted_actual} (0.0%)"
+                diff = actual - predicted
+                pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
+                sign = "+" if diff >= 0 else "-"
+                base = f"{formatted_predicted} → {formatted_actual} ({sign}{abs(pct_diff):.1f}%)"
+                if samples is not None:
+                    return f"{base}\n(samples: {samples})"
+                return base
+                
             instance_data.append({
                 'Workflow Type': selected_workflow,
                 'Planner': instance.plan.planner_name if instance.plan else 'N/A',
@@ -683,6 +701,10 @@ def main():
                                            sample_counts.for_download_speed if sample_counts else None),
                 'Total Upload Time': format_metric(actual_upload, predicted_upload, 
                                          sample_counts.for_upload_speed if sample_counts else None),
+                'Total Input Size': format_size_metric(actual_input_size, predicted_input_size,
+                                           sample_counts.for_download_speed if sample_counts else None),
+                'Total Output Size': format_size_metric(actual_output_size, predicted_output_size,
+                                           sample_counts.for_upload_speed if sample_counts else None),
                 '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
             })
 
@@ -712,6 +734,8 @@ def main():
                     'Total Execution Time': "Total Execution Time (Predicted → Actual)",
                     'Total Download Time': "Total Download Time (Predicted → Actual)",
                     'Total Upload Time': "Total Upload Time (Predicted → Actual)",
+                    'Total Input Size': "Total Input Size (Predicted → Actual)",
+                    'Total Output Size': "Total Output Size (Predicted → Actual)",
                 },
                 use_container_width=True,
                 height=min(400, 35 * (len(df_instances) + 1)),
@@ -723,7 +747,9 @@ def main():
                     'Makespan', 
                     'Total Execution Time', 
                     'Total Download Time', 
-                    'Total Upload Time'
+                    'Total Upload Time',
+                    'Total Input Size',
+                    'Total Output Size'
                 ]
             )
             
@@ -783,7 +809,7 @@ def main():
                             'Task ID': task.task_id,
                             'Worker Config': str(task_metrics.worker_resource_configuration),
                             'Start Time (s)': task_metrics.started_at_timestamp_s,
-                            'Input Size (bytes)': task_metrics.input_metrics.downloadable_input_size_bytes,
+                            'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
                             'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
                             'Execution Time (ms)': task_metrics.execution_time_ms,
                             'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
