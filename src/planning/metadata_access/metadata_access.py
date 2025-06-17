@@ -40,30 +40,30 @@ class MetadataAccess:
             if self.dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
             
             # Store upload/download speeds with resource configuration
-            if metrics.worker_resource_configuration:
-                # UPLOAD SPEEDS
-                if metrics.output_metrics.time_ms != -1: # it can be -1 if the output was present at the worker
-                    # Normalize the upload speed based on memory
-                    normalized_time_ms = metrics.output_metrics.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
-                    upload_speed = metrics.output_metrics.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
-                    if upload_speed > 0:
-                        self.cached_upload_speeds.append((
-                            upload_speed,
-                            metrics.worker_resource_configuration.cpus,
-                            metrics.worker_resource_configuration.memory_mb
-                        ))
-                # DOWNLOAD SPEEDS
-                for input_metric in metrics.input_metrics.input_download_metrics.values():
-                    if input_metric.time_ms == -1:  continue # it can be -1 if the input was present at the worker
-                    # Normalize the download speed based on memory
-                    normalized_time_ms = input_metric.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
-                    download_speed = input_metric.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
-                    if download_speed > 0:
-                        self.cached_download_speeds.append((
-                            download_speed,
-                            metrics.worker_resource_configuration.cpus,
-                            metrics.worker_resource_configuration.memory_mb
-                        ))
+            # UPLOAD SPEEDS
+            if metrics.output_metrics.time_ms != -1: # it can be -1 if the output was present at the worker
+                # Normalize the upload speed based on memory
+                normalized_time_ms = metrics.output_metrics.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                upload_speed = metrics.output_metrics.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
+                if upload_speed > 0:
+                    self.cached_upload_speeds.append((
+                        upload_speed,
+                        metrics.worker_resource_configuration.cpus,
+                        metrics.worker_resource_configuration.memory_mb
+                    ))
+
+            # DOWNLOAD SPEEDS
+            for input_metric in metrics.input_metrics.input_download_metrics.values():
+                if input_metric.time_ms == -1: continue # it can be -1 if the input was present at the worker
+                # Normalize the download speed based on memory
+                normalized_time_ms = input_metric.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                download_speed = input_metric.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
+                if download_speed > 0:
+                    self.cached_download_speeds.append((
+                        download_speed,
+                        metrics.worker_resource_configuration.cpus,
+                        metrics.worker_resource_configuration.memory_mb
+                    ))
 
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
@@ -87,6 +87,10 @@ class MetadataAccess:
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
     def has_required_predictions(self) -> bool:
+        print("Upload speeds len: ", len(self.cached_upload_speeds))
+        print("Download speeds len: ", len(self.cached_download_speeds))
+        print("IO ratios len: ", len(self.cached_io_ratios))
+        print("Execution time per byte len: ", len(self.cached_execution_time_per_byte))
         return len(self.cached_upload_speeds) > 0 and len(self.cached_download_speeds) > 0 and len(self.cached_io_ratios) > 0 and len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:

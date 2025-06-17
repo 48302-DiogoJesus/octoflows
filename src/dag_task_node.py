@@ -41,10 +41,8 @@ class _CachedResultWrapper(Generic[R]):
     result: R
 
 class DAGTaskNode(Generic[R]):
-    from src.storage.metrics.metrics_types import TaskMetrics
-    metrics: TaskMetrics # just defining it
-
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
+        from src.storage.metrics.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
         self.func_code = func
@@ -52,6 +50,17 @@ class DAGTaskNode(Generic[R]):
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
+        self.metrics: TaskMetrics = TaskMetrics(
+            worker_resource_configuration=TaskWorkerResourceConfiguration(-1, -1),
+            started_at_timestamp_s=0,
+            input_metrics=TaskInputMetrics(input_download_metrics={}),
+            execution_time_ms=0,
+            execution_time_per_input_byte_ms=-1,
+            update_dependency_counters_time_ms=-1,
+            output_metrics=TaskOutputMetrics(size_bytes=-1, time_ms=-1),
+            total_invocations_count=0,
+            total_invocation_time_ms=-1
+        )
         # Initialized with a dummy worker config annotation for local worker
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
@@ -101,7 +110,7 @@ class DAGTaskNode(Generic[R]):
         }
 
     """ config: worker.Worker.Config """
-    def compute(self, config, dag_name: str, open_dashboard: bool = False) -> R:
+    def compute(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> R:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config
@@ -110,7 +119,7 @@ class DAGTaskNode(Generic[R]):
         logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
         return asyncio.run(dag_representation.compute(_config, dag_name, open_dashboard))
 
-    async def compute_async(self, config, dag_name: str, open_dashboard: bool = False) -> R:
+    async def compute_async(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> R:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config

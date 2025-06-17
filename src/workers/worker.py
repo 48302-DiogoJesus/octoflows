@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics, TaskInputMetrics, TaskInputDownloadMetrics
+from src.storage.metrics.metrics_types import TaskInputMetrics, TaskInputDownloadMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -89,28 +89,15 @@ class Worker(ABC, WorkerExecutionLogic):
                     tasks_to_fetch, wait_until_coroutine = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
 
                 if tasks_to_fetch:
-                    # Prepare batch operations for fetching task data
-                    task_keys = [dependency_task.id.get_full_id_in_dag(subdag) for dependency_task in tasks_to_fetch]
-                    
-                    # Use batching to fetch all task data at once
-                    async with self.intermediate_storage.batch() as batch:
-                        # Queue all get operations with result keys
-                        for i, task_key in enumerate(task_keys):
-                            await batch.get(task_key, result_key=f"task_{i}")
-                        
-                        # Execute all operations at once
-                        fetch_results = await batch.execute()
-                    
-                    # Process the fetched data
-                    for i, (dependency_task, task_output) in enumerate(zip(tasks_to_fetch, fetch_results)):
-                        if task_output is None:
-                            raise Exception(f"[ERROR] Task {dependency_task.id.get_full_id_in_dag(subdag)}'s data is not available")
-                        
-                        serialized_data = cloudpickle.loads(task_output)
-                        task_dependencies[dependency_task.id.get_full_id()] = serialized_data
-                        current_task.metrics.input_metrics.input_download_metrics[dependency_task.id.get_full_id()] = TaskInputDownloadMetrics(
+                    for utask in tasks_to_fetch:
+                        result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
+                        if result is None: raise Exception(f"[ERROR] Task {utask.id.get_full_id_in_dag(subdag)}'s data is not available")
+                        serialized_data = cloudpickle.loads(result)
+                        _timer = Timer()
+                        task_dependencies[utask.id.get_full_id()] = serialized_data
+                        current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
                             size_bytes=calculate_data_structure_size(serialized_data), 
-                            time_ms=-1
+                            time_ms=_timer.stop()
                         )
 
                 # Handle wait_until_coroutine if present
