@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Literal
 
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
@@ -20,17 +21,12 @@ class TaskInputMetrics:
     # downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
 
     tp_download_inputs_time_ms: float = 0  # task-path time to download all inputs (can be 0 if was preloaded)
-    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download
+    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download (won't include inputs that were already available, but will include preloaded inputs since they required downloading)
 
 @dataclass
 class TaskOutputMetrics:
     size_bytes: int
-    time_ms: float
-
-@dataclass
-class TaskInvocationMetrics:
-    task_id: str
-    time_ms: float
+    time_ms: float | Literal[-1]
 
 @dataclass
 class TaskMetrics:
@@ -42,9 +38,9 @@ class TaskMetrics:
     execution_time_ms: float
     execution_time_per_input_byte_ms: float
 
-    update_dependency_counters_time_ms: float
+    update_dependency_counters_time_ms: float | Literal[-1]
     
     output_metrics: TaskOutputMetrics
     
     total_invocations_count: int
-    total_invocation_time_ms: float  # time to do all invocations
+    total_invocation_time_ms: float | Literal[-1]
