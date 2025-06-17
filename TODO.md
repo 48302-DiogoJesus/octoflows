@@ -13,27 +13,28 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - store the **size of**
-            serialized data (for download/upload time prediction)
-            deserialized data (for i/o prediction)
-            [TODO] properly use it on metadata_access predictions
-            **ctrl+f** "serialized_size_bytes" to ensure it's really the serialized size
         - {tasks_executed_by_this_coroutine} isn't used
             test 1 docker workflow run to make sure
         - ensure code that reads taskmetrics fields are prepared for -1:
             - dashboards
-
+        - add to table:
+            tp download time
+            tp execution time
+            tp upload time
+            total download time
+            total upload time
         - [BUG] On the raw table, predicted download time is always 0
             - Check if adding total_download_time makes it work
         - Add to the table: predicted Input vs real output + predicted Output vs real output
-        - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
-        - [BUG?] Predicted `download_time` is 0 bc of preload but sometimes REAL is not. For those workflow instances, the REAL critical path must have been different, right?
+
+- Try to find where the gap is (after showing TPs on the table)
+- [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
 
 - On PlanOutput, also store the `SLA` the user specified
 
 - Add “downstream invocation times” to the prediction logic?
     Use the `metadata_analysis` dashboard to see if invocation time is relevant
-- Add cold-start/warm-start to the predictions
+- Add cold-start/warm-start to the predictions?
 
 ---
 

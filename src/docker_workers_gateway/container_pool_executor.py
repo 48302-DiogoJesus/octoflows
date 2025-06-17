@@ -106,10 +106,14 @@ class ContainerPoolExecutor:
                 logger.error(f"STDERR: {remaining_stderr.decode(errors='replace')}")
         
         print(f"\nExit Code: {exit_code}")
-        
+
         # Keep the original behavior of exiting on stderr
         if process.stderr and process.stderr.read():
             sys.exit(0) # ! for easier debugging
+        
+        with self.lock: 
+            # to avoid killing container after it exits (if it takes longer than the container idle timeout)
+            self.containers[container_id].last_active_time = time.time()
             
         return exit_code
 

@@ -41,7 +41,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> tuple[list[dag_task_node.DAGTaskNode], bool]:
+    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> None:
         """
         Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
         """
@@ -54,7 +54,6 @@ class Worker(ABC, WorkerExecutionLogic):
         
         tasks_executed_by_this_coroutine: list[dag_task_node.DAGTaskNode] = []
         other_coroutines_i_launched = []
-        sink_task_executed = False
 
         try:
             while True:
@@ -146,7 +145,6 @@ class Worker(ABC, WorkerExecutionLogic):
                     await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
                 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
-                    sink_task_executed = True
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
                     break
 
@@ -209,8 +207,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.metrics_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
-
-        return tasks_executed_by_this_coroutine, sink_task_executed
+        return None
 
     @abstractmethod
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
