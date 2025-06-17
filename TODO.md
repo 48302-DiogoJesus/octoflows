@@ -13,30 +13,10 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - refactor/rethink:
-            predictions:
-                - [DONE] function i/o | requires:
-                    ALL input size (hardcoded + sum(input_metrics.values().size_bytes)) 
-                    + 
-                    output_metrics.size
-                - [DONE] function execution time | requires:
-                    - measure exec. time
-                - [DONE] data download | requires:
-                    - store download time for each download made instead of grouped
-                - [DONE] data upload time (*!!ignore samples where time = -1)
-            task-path stuff, for display requires:
-                - [NOT_IMPLEMENTED] time spent waiting for worker to load
-                - time spent downloading data (*doesn't include pre-load)
-                - [DONE] time spent executing task
-                - time spent uploading data (could be -1)
-                - [NOT_IMPLEMENTED] time spent invoking upstream tasks
-        - solution: store metrics inside of task ref. in the DAG object
-        - ensure that taskmetrics fields are assigned -1 when adequate
-        - ensure code that reads taskmetrics fields are prepared for -1
-            - predictions
+        - ensure code that reads taskmetrics fields are prepared for -1:
             - planner logic
             - dashboards (dont worry as much)
-        - check planner types are good
+        - check if planner types are good
         - store the **size of**
             serialized data (for download/upload prediction)
             deserialized data (for i/o prediction)

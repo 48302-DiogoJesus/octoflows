@@ -150,16 +150,11 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await self.planner.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
+                    await self.planner.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
-                    output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
+                    await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
                 
-                current_task.metrics.output_metrics = TaskOutputMetrics(
-                    size_bytes=calculate_data_structure_size(task_result),
-                    time_ms=output_upload_time_ms
-                )
-
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     sink_task_executed = True
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
