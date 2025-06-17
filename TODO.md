@@ -13,19 +13,15 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - {tasks_executed_by_this_coroutine} isn't used
-            test 1 docker workflow run to make sure
-        - ensure code that reads taskmetrics fields are prepared for -1:
-            - dashboards
         - add to table:
+            predicted input size vs real input size and predicted output size vs real output size
             tp download time
             tp execution time
             tp upload time
             total download time
             total upload time
-        - [BUG] On the raw table, predicted download time is always 0
-            - Check if adding total_download_time makes it work
-        - Add to the table: predicted Input vs real output + predicted Output vs real output
+        - ensure code that reads taskmetrics fields are prepared for -1:
+            - dashboards
 
 - Try to find where the gap is (after showing TPs on the table)
 - [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?

@@ -677,7 +677,7 @@ def main():
                 'Master DAG ID': instance.master_dag_id,
                 'Makespan': format_metric(actual_makespan, predicted_makespan, 
                                        sample_counts.for_execution_time if sample_counts else None),
-                'Execution Time': format_metric(actual_execution, predicted_execution, 
+                'Total Execution Time': format_metric(actual_execution, predicted_execution, 
                                             sample_counts.for_execution_time if sample_counts else None),
                 'Total Download Time': format_metric(actual_download, predicted_download, 
                                            sample_counts.for_download_speed if sample_counts else None),
@@ -709,7 +709,7 @@ def main():
                 column_config={
                     'Workflow Type': "Workflow Type",
                     'Makespan': "Makespan (Predicted → Actual)",
-                    'Execution Time': "Execution Time (Predicted → Actual)",
+                    'Total Execution Time': "Total Execution Time (Predicted → Actual)",
                     'Total Download Time': "Total Download Time (Predicted → Actual)",
                     'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                 },
@@ -721,7 +721,7 @@ def main():
                     'Planner',
                     'Master DAG ID',
                     'Makespan', 
-                    'Execution Time', 
+                    'Total Execution Time', 
                     'Total Download Time', 
                     'Total Upload Time'
                 ]
