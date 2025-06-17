@@ -90,15 +90,16 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 if tasks_to_fetch:
                     for utask in tasks_to_fetch:
-                        result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if result is None: raise Exception(f"[ERROR] Task {utask.id.get_full_id_in_dag(subdag)}'s data is not available")
-                        serialized_data = cloudpickle.loads(result)
                         _timer = Timer()
-                        task_dependencies[utask.id.get_full_id()] = serialized_data
+                        serialized_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
+                        if serialized_result is None: raise Exception(f"[ERROR] Task {utask.id.get_full_id_in_dag(subdag)}'s data is not available")
                         current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            size_bytes=calculate_data_structure_size(serialized_data), 
+                            size_bytes=calculate_data_structure_size(serialized_result), 
                             time_ms=_timer.stop()
                         )
+
+                        deserialized_result = cloudpickle.loads(serialized_result)
+                        task_dependencies[utask.id.get_full_id()] = deserialized_result
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
