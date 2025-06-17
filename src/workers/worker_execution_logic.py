@@ -39,7 +39,7 @@ class WorkerExecutionLogic():
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         _task: DAGTaskNode = task
         
-        task_result_output_time_ms = 0
+        task_result_output_time_ms = -1
         # only upload if necessary
         if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
             output_upload_timer = Timer()
@@ -54,13 +54,13 @@ class WorkerExecutionLogic():
         return task_result_output_time_ms
 
     @staticmethod
-    async def override_handle_downstream(this_worker, downstream_tasks_ready, subdag: SubDAG) -> tuple[list, int, float]:
+    async def override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG) -> list:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
         _downstream_tasks_ready: list[DAGTaskNode] = downstream_tasks_ready
-
+        _current_task: DAGTaskNode = current_task
         _this_worker: Worker = this_worker
         my_continuation_tasks: list[DAGTaskNode] = []
         other_continuation_tasks: list[DAGTaskNode] = []
@@ -102,5 +102,6 @@ class WorkerExecutionLogic():
         for my_task in my_continuation_tasks:
             logger.info(f"Worker({_this_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
 
-        total_invocation_time_ms = total_invocation_time_timer.stop()
-        return (my_continuation_tasks, total_invocations_count, total_invocation_time_ms)
+        _current_task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else -1
+        _current_task.metrics.total_invocations_count = total_invocations_count
+        return my_continuation_tasks

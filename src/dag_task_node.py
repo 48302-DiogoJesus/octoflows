@@ -41,6 +41,9 @@ class _CachedResultWrapper(Generic[R]):
     result: R
 
 class DAGTaskNode(Generic[R]):
+    from src.storage.metrics.metrics_types import TaskMetrics
+    metrics: TaskMetrics # just defining it
+
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__

@@ -3,16 +3,17 @@ from dataclasses import dataclass, field
 from types import CoroutineType
 from typing import Any
 import cloudpickle
-
 from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_annotation import TaskAnnotation
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.storage import Storage
+from src.workers.worker_execution_logic import WorkerExecutionLogic
+from src.storage.metrics.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
-from src.workers.worker_execution_logic import WorkerExecutionLogic
+from src.utils.timer import Timer
 
 logger = create_logger(__name__)
 
@@ -34,18 +35,23 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
         # Only executes once, even if there are multiple tasks with this annotation
-        def _on_preload_task_completed_builder(upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, dag: FullDAG):
+        def _on_preload_task_completed_builder(dependent_task: DAGTaskNode, upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, dag: FullDAG):
             async def _callback(_: dict):
                 async with annotation._lock:
                     await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}")
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
-                
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
-
-                task_output = cloudpickle.loads(await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag)))
+                
+                _timer = Timer()
+                serialized_data = await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag))
+                dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
+                    size_bytes=calculate_data_structure_size(serialized_data),
+                    time_ms=_timer.stop()
+                )
+                deserialized_task_output = cloudpickle.loads(serialized_data)
                 # Store the result so that its visible to other coroutines
-                dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(task_output)
+                dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(deserialized_task_output)
                 
                 async with annotation._lock:
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()].set()
@@ -72,7 +78,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                    _on_preload_task_completed_builder(unode, preload_annotation, intermediate_storage, dag)
+                    _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag)
                 )
 
     @staticmethod
@@ -103,16 +109,12 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
                 upstream_tasks_to_fetch.append(t)
 
-        async def _wait_all_preloads_coroutine() -> int:
-            total_input_size_bytes = 0
+        async def _wait_all_preloads_coroutine():
             await asyncio.gather(*__tasks_preloading_coroutines.values()) # Wait for all preloading to finish for this task
             # Grab preloaded data results
             for t in task.upstream_nodes:
                 if t.id.get_full_id() not in __tasks_preloading_coroutines: continue
                 if not t.cached_result: raise Exception(f"ERROR: Task {t.id.get_full_id()} was preloading. After preload, it doesn't have a cached result!!")
                 task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                total_input_size_bytes += calculate_data_structure_size(t.cached_result.result)
-                
-            return total_input_size_bytes
 
         return (upstream_tasks_to_fetch, _wait_all_preloads_coroutine())

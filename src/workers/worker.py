@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics, TaskInputMetrics
+from src.storage.metrics.metrics_types import TaskMetrics, TaskOutputMetrics, TaskInputMetrics, TaskInputDownloadMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -41,7 +41,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> tuple[list[str], bool]:
+    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> tuple[list[dag_task_node.DAGTaskNode], bool]:
         """
         Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
         """
@@ -52,25 +52,21 @@ class Worker(ABC, WorkerExecutionLogic):
         _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
         _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
         
-        tasks_executed_by_this_coroutine = []
+        tasks_executed_by_this_coroutine: list[dag_task_node.DAGTaskNode] = []
         other_coroutines_i_launched = []
-        task_metrics: dict[str, TaskMetrics] = {}
         sink_task_executed = False
 
         try:
             while True:
-                current_task_metrics = TaskMetrics(
-                    worker_resource_configuration=_my_resource_configuration_with_flexible_worker_id,
-                    started_at_timestamp_s=time.time(),
-                    input_metrics=TaskInputMetrics(),
-                    execution_time_ms=0,
-                    execution_time_per_input_byte_ms=0,
-                    update_dependency_counters_time_ms=0,
-                    output_metrics=None,  # type: ignore
-                    total_invocations_count=0,
-                    total_invocation_time_ms=0
-                )
-                task_metrics[current_task.id.get_full_id_in_dag(subdag)] = current_task_metrics
+                current_task.metrics.worker_resource_configuration=_my_resource_configuration_with_flexible_worker_id
+                current_task.metrics.started_at_timestamp_s=time.time()
+                current_task.metrics.input_metrics = TaskInputMetrics()
+                # current_task.metrics.execution_time_ms=0
+                # current_task.metrics.execution_time_per_input_byte_ms=0
+                # current_task.metrics.update_dependency_counters_time_ms=0
+                # current_task.metrics.output_metrics=None
+                # current_task.metrics.total_invocations_count=0
+                # current_task.metrics.total_invocation_time_ms=0
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -79,7 +75,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 for t in current_task.upstream_nodes:
                     if t.cached_result:
                         task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                        current_task_metrics.input_metrics.downloadable_input_size_bytes += calculate_data_structure_size(t.cached_result.result)
+                        current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
+                            size_bytes=calculate_data_structure_size(t.cached_result.result), 
+                            time_ms=-1
+                        )
                 
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
                 for t in current_task.upstream_nodes:
@@ -115,24 +114,26 @@ class Worker(ABC, WorkerExecutionLogic):
                         
                         serialized_data = cloudpickle.loads(task_output)
                         task_dependencies[dependency_task.id.get_full_id()] = serialized_data
-                        current_task_metrics.input_metrics.downloadable_input_size_bytes += calculate_data_structure_size(serialized_data)
+                        current_task.metrics.input_metrics.input_download_metrics[dependency_task.id.get_full_id()] = TaskInputDownloadMetrics(
+                            size_bytes=calculate_data_structure_size(serialized_data), 
+                            time_ms=-1
+                        )
 
                 # Handle wait_until_coroutine if present
-                if wait_until_coroutine:
-                    wait_result = await wait_until_coroutine
-                    current_task_metrics.input_metrics.downloadable_input_size_bytes += wait_result
+                if wait_until_coroutine: await wait_until_coroutine
 
-                current_task_metrics.input_metrics.tp_download_inputs_time_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and current_task_metrics.input_metrics.downloadable_input_size_bytes > 0 else 0
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.get_annotation(TaskWorkerResourceConfiguration).worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else -1
+
                 # Store raw values, normalization will be done during prediction
 
                 # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in current_task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    current_task_metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_arg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_arg)
 
                 for func_kwarg in current_task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
-                    current_task_metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
                     
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
@@ -143,13 +144,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
                     task_result, task_execution_time_ms = await WorkerExecutionLogic.override_handle_execution(current_task, task_dependencies)
 
-                tasks_executed_by_this_coroutine.append(current_task.id.get_full_id())
+                tasks_executed_by_this_coroutine.append(current_task)
 
-                current_task_metrics.execution_time_ms = task_execution_time_ms
+                current_task.metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
-                total_input_size = current_task_metrics.input_metrics.downloadable_input_size_bytes + current_task_metrics.input_metrics.hardcoded_input_size_bytes
-                current_task_metrics.execution_time_per_input_byte_ms = current_task_metrics.execution_time_ms / total_input_size \
-                    if total_input_size > 0 else 0  # 0, not to influence predictions, using current_task_metrics.execution_time_ms would be incorrect
+                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([current_task.metrics.input_metrics.input_download_metrics[tid].size_bytes for tid in current_task.metrics.input_metrics.input_download_metrics])
+                current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.execution_time_ms / total_input_size \
+                    if total_input_size > 0 else 0  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
@@ -160,7 +161,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
                     output_upload_time_ms = await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
                 
-                current_task_metrics.output_metrics = TaskOutputMetrics(
+                current_task.metrics.output_metrics = TaskOutputMetrics(
                     size_bytes=calculate_data_structure_size(task_result),
                     time_ms=output_upload_time_ms
                 )
@@ -184,7 +185,8 @@ class Worker(ABC, WorkerExecutionLogic):
                     if dependencies_met == downstream_task_total_dependencies:
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         downstream_tasks_ready.append(downstream_task)
-                current_task_metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
+                
+                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else -1
 
                 self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
 
@@ -197,13 +199,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await self.planner.override_handle_downstream(self, downstream_tasks_ready, subdag)
+                    my_continuation_tasks = await self.planner.override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks, total_invocations_count, total_invocation_time_ms = await WorkerExecutionLogic.override_handle_downstream(self, downstream_tasks_ready, subdag)
-
-                current_task_metrics.total_invocations_count = total_invocations_count
-                current_task_metrics.total_invocation_time_ms = total_invocation_time_ms
+                    my_continuation_tasks = await WorkerExecutionLogic.override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
@@ -227,8 +226,8 @@ class Worker(ABC, WorkerExecutionLogic):
             await asyncio.gather(*other_coroutines_i_launched)
 
         if self.metrics_storage:
-            for tid, tm in task_metrics.items(): 
-                self.metrics_storage.store_task_metrics(tid, tm)
+            for task_executed in tasks_executed_by_this_coroutine: 
+                self.metrics_storage.store_task_metrics(task_executed.id.get_full_id(), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
 

@@ -34,7 +34,12 @@
         - ensure that taskmetrics fields are assigned -1 when adequate
         - ensure code that reads taskmetrics fields are prepared for -1
             - predictions
+            - planner logic
             - dashboards (dont worry as much)
+        - check planner types are good
+        - store the **size of**
+            serialized data (for download/upload prediction)
+            deserialized data (for i/o prediction)
 
         - [BUG] On the raw table, predicted download time is always 0
             - Check if adding total_download_time makes it work

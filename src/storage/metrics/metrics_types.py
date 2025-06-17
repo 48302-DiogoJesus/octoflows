@@ -18,10 +18,10 @@ class TaskInputDownloadMetrics:
 @dataclass
 class TaskInputMetrics:
     hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
-    # downloadable_input_size_bytes: int = 0  # size of inputs that need to be downloaded
 
-    tp_download_inputs_time_ms: float = 0  # task-path time to download all inputs (can be 0 if was preloaded)
-    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download (won't include inputs that were already available, but will include preloaded inputs since they required downloading)
+    tp_total_time_waiting_for_inputs_ms: float = -1  # task-path time to download ALL inputs (can be -1 if was preloaded or if it won't download any inputs). This time includes time waiting for preload to finish
+
+    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download (only inputs that were already available will have time_ms=-1)
 
 @dataclass
 class TaskOutputMetrics:
