@@ -36,7 +36,7 @@ class TaskMetrics:
     input_metrics: TaskInputMetrics
 
     execution_time_ms: float
-    execution_time_per_input_byte_ms: float
+    execution_time_per_input_byte_ms: float | Literal[-1]
 
     update_dependency_counters_time_ms: float | Literal[-1]
     

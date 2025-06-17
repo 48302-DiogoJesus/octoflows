@@ -42,7 +42,7 @@ class MetadataAccess:
             # Store upload/download speeds with resource configuration
             if metrics.worker_resource_configuration:
                 # UPLOAD SPEEDS
-                if metrics.output_metrics.time_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                if metrics.output_metrics.time_ms != -1: # it can be -1 if the output was present at the worker
                     # Normalize the upload speed based on memory
                     normalized_time_ms = metrics.output_metrics.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
                     upload_speed = metrics.output_metrics.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
@@ -53,10 +53,11 @@ class MetadataAccess:
                             metrics.worker_resource_configuration.memory_mb
                         ))
                 # DOWNLOAD SPEEDS
-                if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms > 0: # it can be 0 if the input was present at the worker (locality)
+                for input_metric in metrics.input_metrics.input_download_metrics.values():
+                    if input_metric.time_ms == -1:  continue # it can be -1 if the input was present at the worker
                     # Normalize the download speed based on memory
-                    normalized_time_ms = metrics.input_metrics.tp_total_time_waiting_for_inputs_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
-                    download_speed = metrics.input_metrics.downloadable_input_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
+                    normalized_time_ms = input_metric.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                    download_speed = input_metric.size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
                     if download_speed > 0:
                         self.cached_download_speeds.append((
                             download_speed,
@@ -67,20 +68,19 @@ class MetadataAccess:
         # Doesn't go to Redis
         for task_id, metrics in task_specific_metrics.items():
             function_name = self._split_task_id(task_id)[0]
-            if metrics.worker_resource_configuration:
-                if metrics.execution_time_per_input_byte_ms == 0: continue
-                if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
-                # Store tuple of (normalized_time, cpus, memory_mb)
-                self.cached_execution_time_per_byte[function_name].append((
-                    metrics.execution_time_per_input_byte_ms,
-                    metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb
-                ))
+            if metrics.execution_time_per_input_byte_ms == -1: continue
+            
+            if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
+            self.cached_execution_time_per_byte[function_name].append((
+                metrics.execution_time_per_input_byte_ms,
+                metrics.worker_resource_configuration.cpus,
+                metrics.worker_resource_configuration.memory_mb
+            ))
 
             # I/O RATIO
             if function_name not in self.cached_io_ratios:
                 self.cached_io_ratios[function_name] = []
-            input_size = metrics.input_metrics.downloadable_input_size_bytes + metrics.input_metrics.hardcoded_input_size_bytes
+            input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             output = metrics.output_metrics.size_bytes
             self.cached_io_ratios[function_name].append(output / input_size if input_size > 0 else 0)
 

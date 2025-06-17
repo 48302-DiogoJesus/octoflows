@@ -15,15 +15,15 @@
     [TODO]
         - refactor/rethink:
             predictions:
-                - [TODO] function i/o | requires:
+                - [DONE] function i/o | requires:
                     ALL input size (hardcoded + sum(input_metrics.values().size_bytes)) 
                     + 
                     output_metrics.size
                 - [DONE] function execution time | requires:
                     - measure exec. time
-                - [TODO] data download | requires:
+                - [DONE] data download | requires:
                     - store download time for each download made instead of grouped
-                - [TODO] data upload time (*!!ignore samples where time = -1)
+                - [DONE] data upload time (*!!ignore samples where time = -1)
             task-path stuff, for display requires:
                 - [NOT_IMPLEMENTED] time spent waiting for worker to load
                 - time spent downloading data (*doesn't include pre-load)

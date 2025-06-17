@@ -58,15 +58,9 @@ class Worker(ABC, WorkerExecutionLogic):
 
         try:
             while True:
-                current_task.metrics.worker_resource_configuration=_my_resource_configuration_with_flexible_worker_id
-                current_task.metrics.started_at_timestamp_s=time.time()
+                current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id
+                current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.input_metrics = TaskInputMetrics()
-                # current_task.metrics.execution_time_ms=0
-                # current_task.metrics.execution_time_per_input_byte_ms=0
-                # current_task.metrics.update_dependency_counters_time_ms=0
-                # current_task.metrics.output_metrics=None
-                # current_task.metrics.total_invocations_count=0
-                # current_task.metrics.total_invocation_time_ms=0
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -148,9 +142,9 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 current_task.metrics.execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
-                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([current_task.metrics.input_metrics.input_download_metrics[tid].size_bytes for tid in current_task.metrics.input_metrics.input_download_metrics])
+                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.execution_time_ms / total_input_size \
-                    if total_input_size > 0 else 0  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
+                    if total_input_size > 0 else -1  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
