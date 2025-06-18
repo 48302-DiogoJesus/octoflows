@@ -13,8 +13,6 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
 
-- Add to instance comparison table:
-    [NOT_PLANNED_BUT_RECORDED] total time spent downloading dag from storage
 - Add comment regions to organize dashboard
 
 - Create a simple dag with only 1 branch and 1 task type that increases input/output size (4 tasks)

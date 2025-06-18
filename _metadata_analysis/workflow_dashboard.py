@@ -361,12 +361,8 @@ def main():
                         sla_value = f'p{instance.plan.sla.value}'
                 
                 # Calculate total DAG download time across all downloads
-                dag_download_time = 'N/A'
-                if instance.dag_download_stats:
-                    valid_stats = [stat for stat in instance.dag_download_stats if hasattr(stat, 'download_time_ms') and stat.download_time_ms is not None]
-                    if valid_stats:
-                        total_download_time = sum(stat.download_time_ms for stat in valid_stats)
-                        dag_download_time = f"{total_download_time / 1000:.3f}s ({len(valid_stats)} downloads)"
+                total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
+                dag_download_time = f"{total_download_time / 1000:.3f}s"
                 
                 instance_data.append({
                     'Workflow Type': selected_workflow,
@@ -387,7 +383,7 @@ def main():
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
-                    'DAG Download Time': dag_download_time,
+                    'Total DAG Download Time': dag_download_time,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
                     '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
@@ -422,9 +418,9 @@ def main():
                         'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                         'Total Input Size': "Total Input Size (Predicted → Actual)",
                         'Total Output Size': "Total Output Size (Predicted → Actual)",
-                        'Total Task Invocation Time': "Total Task Invocation Time (s)",
-                        'Total Dependency Counter Update Time': "Total Dependency Counter Update Time (s)",
-                        'DAG Download Time': "DAG Download Time (s)",
+                        'Total Task Invocation Time': "Total Task Invocation Time",
+                        'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
+                        'Total DAG Download Time': "Total DAG Download Time",
                     },
                     use_container_width=True,
                     height=min(400, 35 * (len(df_instances) + 1)),
@@ -438,11 +434,11 @@ def main():
                         'Total Execution Time', 
                         'Total Download Time',
                         'Total Upload Time',
-                        'DAG Download Time',
                         'Total Input Size',
                         'Total Output Size',
                         'Total Task Invocation Time',
                         'Total Dependency Counter Update Time',
+                        'Total DAG Download Time',
                     ]
                 )
                 
