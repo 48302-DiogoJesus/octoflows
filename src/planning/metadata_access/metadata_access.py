@@ -41,7 +41,7 @@ class MetadataAccess:
             
             # Store upload/download speeds with resource configuration
             # UPLOAD SPEEDS
-            if metrics.output_metrics.tp_time_ms != -1: # it can be -1 if the output was present at the worker
+            if metrics.output_metrics.tp_time_ms is not None: # it can be None if the output was present at the worker
                 # Normalize the upload speed based on memory
                 normalized_time_ms = metrics.output_metrics.tp_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
                 upload_speed = metrics.output_metrics.serialized_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
@@ -54,7 +54,7 @@ class MetadataAccess:
 
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics.input_download_metrics.values():
-                if input_metric.time_ms == -1: continue # it can be -1 if the input was present at the worker
+                if input_metric.time_ms is None: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
                 normalized_time_ms = input_metric.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
                 download_speed = input_metric.serialized_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
@@ -69,7 +69,7 @@ class MetadataAccess:
         print("zezorro", len(task_specific_metrics))
         for task_id, metrics in task_specific_metrics.items():
             function_name = self._split_task_id(task_id)[0]
-            if metrics.execution_time_per_input_byte_ms == -1: continue
+            if metrics.execution_time_per_input_byte_ms is None: continue
             
             if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
             self.cached_execution_time_per_byte[function_name].append((

@@ -55,14 +55,13 @@ class DAGTaskNode(Generic[R]):
             started_at_timestamp_s=0,
             input_metrics=TaskInputMetrics(input_download_metrics={}),
             tp_execution_time_ms=0,
-            execution_time_per_input_byte_ms=-1,
-            update_dependency_counters_time_ms=-1,
-            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, tp_time_ms=-1),
+            execution_time_per_input_byte_ms=None,
+            update_dependency_counters_time_ms=None,
+            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, tp_time_ms=None),
             total_invocations_count=0,
-            total_invocation_time_ms=-1
+            total_invocation_time_ms=None
         )
         # Initialized with a dummy worker config annotation for local worker
-        from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None

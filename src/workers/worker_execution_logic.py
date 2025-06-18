@@ -45,7 +45,7 @@ class WorkerExecutionLogic():
         _task.metrics.output_metrics = TaskOutputMetrics(
             serialized_size_bytes=calculate_data_structure_size(task_result), 
             deserialized_size_bytes=calculate_data_structure_size(task_result), # accurate
-            tp_time_ms=-1
+            tp_time_ms=None
         )
         # only upload if necessary
         if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
@@ -109,6 +109,6 @@ class WorkerExecutionLogic():
         for my_task in my_continuation_tasks:
             logger.info(f"Worker({_this_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
 
-        _current_task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else -1
+        _current_task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
         _current_task.metrics.total_invocations_count = total_invocations_count
         return my_continuation_tasks

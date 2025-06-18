@@ -71,7 +71,7 @@ class Worker(ABC, WorkerExecutionLogic):
                         current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
                             serialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
                             deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
-                            time_ms=-1
+                            time_ms=None
                         )
                 
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
@@ -105,7 +105,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
 
-                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.get_annotation(TaskWorkerResourceConfiguration).worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else -1
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.get_annotation(TaskWorkerResourceConfiguration).worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
 
                 # Store raw values, normalization will be done during prediction
 
@@ -133,7 +133,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 # normalize based on the memory used. Calculate "per input size byte"
                 total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
-                    if total_input_size > 0 else -1  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
+                    if total_input_size > 0 else None  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
@@ -163,7 +163,7 @@ class Worker(ABC, WorkerExecutionLogic):
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         downstream_tasks_ready.append(downstream_task)
                 
-                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else -1
+                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
 
                 self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
 

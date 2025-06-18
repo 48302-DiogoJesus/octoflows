@@ -117,19 +117,20 @@ def main():
         if _task_with_earliest_start_time is None or metrics.started_at_timestamp_s < _task_with_earliest_start_time.started_at_timestamp_s:
             _task_with_earliest_start_time = metrics
 
-        total_time_invoking_tasks_ms += metrics.total_invocation_time_ms
-        total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms
+        total_time_invoking_tasks_ms += metrics.total_invocation_time_ms if metrics.total_invocation_time_ms is not None else 0
+        total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms if metrics.update_dependency_counters_time_ms is not None else 0
 
         # Calculate data transferred
         task_data = 0
-        total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms
+        total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
         if metrics.output_metrics:
             task_data += metrics.output_metrics.serialized_size_bytes
-            total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms
+            total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms is not None else 0
         
         total_data_transferred += task_data
-        total_time_executing_tasks_ms += metrics.tp_execution_time_ms
+        total_time_executing_tasks_ms += metrics.tp_execution_time_ms if metrics.tp_execution_time_ms is not None else 0
 
+        downloadable_input_size_bytes = sum([input_metrics.serialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
         # Prepare data for visualization
         task_metrics_data.append({
             'task_id': task_id,
@@ -139,15 +140,16 @@ def main():
             'worker_id': metrics.worker_resource_configuration.worker_id,
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
-            'input_size': metrics.input_metrics.downloadable_input_size_bytes,
+            'input_size': downloadable_input_size_bytes,
             'output_size': metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0,
             'downstream_calls': metrics.total_invocations_count
         })
     
     assert _sink_task_metrics
+    assert _task_with_earliest_start_time is not None
 
-    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + _sink_task_metrics.tp_execution_time_ms + _sink_task_metrics.output_metrics.tp_time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
-    makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
+    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
+    makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000)
 
     keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
     total_time_downloading_dag_ms = 0
@@ -178,11 +180,13 @@ def main():
         if min_start_time is None or task_start_time < min_start_time:
             min_start_time = task_start_time
     
+    assert min_start_time is not None
+
     # Second pass: calculate end times relative to min_start_time
     for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
         relative_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-        end_time = relative_start_time + metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + metrics.tp_execution_time_ms + metrics.total_invocation_time_ms
-        if metrics.output_metrics: end_time += metrics.output_metrics.tp_time_ms
+        end_time = relative_start_time + metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms else 0 + metrics.tp_execution_time_ms if metrics.tp_execution_time_ms else 0 + metrics.total_invocation_time_ms if metrics.total_invocation_time_ms else 0
+        if metrics.output_metrics: end_time += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms else 0
         task_timings[task_id]['end_time'] = end_time
     
     # Update task_metrics_data with the calculated timing information
@@ -194,7 +198,7 @@ def main():
         })
     
     # Make timing information available for the rest of the code
-    min_start_time_ms = min_start_time * 1000  # Convert to ms for consistency
+    min_start_time_ms = min_start_time * 1000 if min_start_time else None  # Convert to ms for consistency
     task_end_times = {task_id: timing['end_time'] for task_id, timing in task_timings.items()}
     task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
 
@@ -225,7 +229,6 @@ def main():
 
             # Convert HSL to RGB (values between 0-1)
             r, g, b = colorsys.hls_to_rgb(hue / 360, lightness, saturation)
-
 
             # Scale to 0-255 and format as RGB
             return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
@@ -400,16 +403,16 @@ def main():
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.serialized_size_bytes
                 with col1:
-                    total_task_handling_time = max(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms, 0) + max(metrics.tp_execution_time_ms, 0) + max(metrics.update_dependency_counters_time_ms, 0) + max(metrics.output_metrics.tp_time_ms, 0) + max(metrics.total_invocation_time_ms, 0)
+                    total_task_handling_time = (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
-                    st.metric("Dependencies Download Time", f"{metrics.input_metrics.tp_total_time_waiting_for_inputs_ms:.2f} ms")
-                    st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
-                    st.metric("Output Upload Time", f"{max(metrics.output_metrics.tp_time_ms, 0):.2f} ms")
+                    st.metric("Dependencies Download Time", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
+                    st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
+                    st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                 with col2:
                     st.metric("", "")
                     st.metric("", "")
-                    st.metric("Task Execution Time", f"{metrics.tp_execution_time_ms:.2f} ms")
-                    st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
+                    st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
+                    st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
                 
                 # Add planned vs observed metrics if available
@@ -450,7 +453,7 @@ def main():
                                 
                                 # Comparison fields
                                 numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', metrics.input_metrics.downloadable_input_size_bytes),
+                                    ('Input Size (bytes)', 'input_size', sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])),
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.tp_execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
@@ -961,32 +964,34 @@ def main():
     with tab_data:
         if dag_metrics:
             # Collect all individual transfer metrics
-            download_throughputs = []
-            upload_throughputs = []
-            all_transfer_speeds = []  # In bytes/ms
+            download_throughputs_mb_s = []
+            upload_throughputs_mb_s = []
+            all_transfer_speeds_b_ms = []  # In bytes/ms
             total_data_downloaded = 0
             total_data_uploaded = 0
 
             for task_metrics in dag_metrics:
-                # Calculate download throughputs for each input
-                if task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms > 0:
-                    throughput_mb = (task_metrics.input_metrics.downloadable_input_size_bytes / (task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.input_metrics.downloadable_input_size_bytes / task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms  # bytes/ms
-                    download_throughputs.append(throughput_mb)
-                    all_transfer_speeds.append(speed_bytes_ms)
-                total_data_downloaded += task_metrics.input_metrics.downloadable_input_size_bytes
+                for input_metrics in task_metrics.input_metrics.input_download_metrics.values():
+                    # Calculate download throughputs for each input
+                    if input_metrics.time_ms is not None:
+                        downloadable_input_size_bytes = sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()])
+                        throughput_mb = (downloadable_input_size_bytes / (input_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        speed_bytes_ms = downloadable_input_size_bytes / input_metrics.time_ms  # bytes/ms
+                        download_throughputs_mb_s.append(throughput_mb)
+                        all_transfer_speeds_b_ms.append(speed_bytes_ms)
+                        total_data_downloaded += downloadable_input_size_bytes
 
-                # Calculate upload throughput for output if available
-                if task_metrics.output_metrics and task_metrics.output_metrics.tp_time_ms > 0:
-                    throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
-                    upload_throughputs.append(throughput_mb)
-                    all_transfer_speeds.append(speed_bytes_ms)
-                    total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes
+                    # Calculate upload throughput for output if available
+                    if task_metrics.output_metrics.tp_time_ms is not None:
+                        throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
+                        upload_throughputs_mb_s.append(throughput_mb)
+                        all_transfer_speeds_b_ms.append(speed_bytes_ms)
+                        total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes
 
             # Calculate average throughputs
-            avg_download_throughput = sum(download_throughputs) / len(download_throughputs) if download_throughputs else 0
-            avg_upload_throughput = sum(upload_throughputs) / len(upload_throughputs) if upload_throughputs else 0
+            avg_download_throughput = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0
+            avg_upload_throughput = sum(upload_throughputs_mb_s) / len(upload_throughputs_mb_s) if upload_throughputs_mb_s else 0
 
             # Display metrics in columns
             col1, col2, col3, col4 = st.columns(4)
@@ -997,8 +1002,8 @@ def main():
                 st.metric("Download Throughput (avg)", f"{avg_download_throughput:.2f} MB/s")
                 st.metric("Upload Throughput (avg)", f"{avg_upload_throughput:.2f} MB/s")
             with col3:
-                st.metric("Number of Downloads", len(download_throughputs))
-                st.metric("Number of Uploads", len(upload_throughputs))
+                st.metric("Number of Downloads", len(download_throughputs_mb_s))
+                st.metric("Number of Uploads", len(upload_throughputs_mb_s))
             with col4:
                 st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
                 st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
@@ -1006,10 +1011,10 @@ def main():
             # Add transfer speeds distribution visualization
             st.subheader("Transfer Speeds Distribution")
             
-            if all_transfer_speeds:
+            if all_transfer_speeds_b_ms:
                 # Calculate percentiles
                 percentiles = [5, 25, 50, 75, 95]
-                percentile_values = np.percentile(all_transfer_speeds, percentiles)
+                percentile_values = np.percentile(all_transfer_speeds_b_ms, percentiles)
                 
                 # Create figure with smaller size and custom background
                 fig, ax = plt.subplots(figsize=(8, 4))  # Reduced from (10, 6)
@@ -1018,7 +1023,7 @@ def main():
                 ax.set_facecolor('none')  # Same for axis background
                 
                 # Plot histogram with KDE
-                sns.histplot(all_transfer_speeds, bins=30, kde=True, ax=ax, color='#1f77b4')  # Added specific color
+                sns.histplot(all_transfer_speeds_b_ms, bins=30, kde=True, ax=ax, color='#1f77b4')  # Added specific color
                 
                 # Add percentile lines
                 colors = ['red', 'orange', 'green', 'blue', 'purple']

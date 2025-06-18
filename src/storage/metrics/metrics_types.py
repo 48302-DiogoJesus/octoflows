@@ -16,21 +16,21 @@ class FullDAGPrepareTime:
 class TaskInputDownloadMetrics:
     serialized_size_bytes: int # for download time prediction
     deserialized_size_bytes: int # for i/o prediction
-    time_ms: float
+    time_ms: float | None
 
 @dataclass
 class TaskInputMetrics:
     hardcoded_input_size_bytes: int = 0  # known ahead of time (not "lazy", not DAGTasks)
 
-    tp_total_time_waiting_for_inputs_ms: float = -1  # task-path time to download ALL inputs (can be -1 if was preloaded or if it won't download any inputs). This time includes time waiting for preload to finish
+    tp_total_time_waiting_for_inputs_ms: float | None = None  # task-path time to download ALL inputs (can be None if was preloaded or if it won't download any inputs). This time includes time waiting for preload to finish
 
-    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download (only inputs that were already available will have time_ms=-1)
+    input_download_metrics: dict[str, TaskInputDownloadMetrics] = field(default_factory=dict) # how much time each input took to download (only inputs that were already available will have time_ms=None)
 
 @dataclass
 class TaskOutputMetrics:
     serialized_size_bytes: int # for upload time prediction
     deserialized_size_bytes: int # for i/o prediction
-    tp_time_ms: float | Literal[-1]
+    tp_time_ms: float | None
 
 @dataclass
 class TaskMetrics:
@@ -40,11 +40,11 @@ class TaskMetrics:
     input_metrics: TaskInputMetrics
 
     tp_execution_time_ms: float
-    execution_time_per_input_byte_ms: float | Literal[-1]
+    execution_time_per_input_byte_ms: float | None
 
-    update_dependency_counters_time_ms: float | Literal[-1]
+    update_dependency_counters_time_ms: float | None
     
     output_metrics: TaskOutputMetrics
     
     total_invocations_count: int
-    total_invocation_time_ms: float | Literal[-1]
+    total_invocation_time_ms: float | None
