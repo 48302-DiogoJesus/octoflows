@@ -14,12 +14,10 @@
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
 
 - Add to instance comparison table:
-    [NOT_PLANNED_BUT_RECORDED] total time spent updating dependency counters
-    [NOT_PLANNED_BUT_RECORDED] total time spent invoking tasks
-    [DONE] tp execution time (total tp execution time)
-    tp download time (total tp download time)
-    [DONE?] tp upload time (total tp upload time)
     [NOT_PLANNED_BUT_RECORDED] total time spent downloading dag from storage
+
+- Create a simple dag with only 1 branch and 1 task type that increases input/output size (4 tasks)
+    test on that only
 
 - Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
     - Is it using the prediction functions?

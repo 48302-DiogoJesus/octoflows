@@ -274,7 +274,7 @@ def main():
                     continue
                     
                 # Calculate actual metrics
-                actual_download = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for task in instance.tasks if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None)  # in seconds
+                actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks]) 
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
                 actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)  # in seconds
@@ -300,11 +300,10 @@ def main():
                     actual_makespan = (max_end - min_start) / 1000  # Convert to seconds
                 
                 # Get predicted metrics if available
-                predicted_download = predicted_execution = predicted_upload = predicted_makespan = 0
+                predicted_total_download = predicted_execution = predicted_upload = predicted_makespan = 0
                 predicted_input_size = predicted_output_size = 0
                 if instance.plan and instance.plan.nodes_info:
-                    predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
-                    print("predicted_download", predicted_download)
+                    predicted_total_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))  # in bytes
@@ -369,7 +368,7 @@ def main():
                                         sample_counts.for_execution_time if sample_counts else None),
                     'Total Execution Time': format_metric(actual_execution, predicted_execution, 
                                                 sample_counts.for_execution_time if sample_counts else None),
-                    'Total Download Time': format_metric(actual_download, predicted_download, 
+                    'Total Download Time': format_metric(actual_total_download, predicted_total_download, 
                                             sample_counts.for_download_speed if sample_counts else None),
                     'Total Upload Time': format_metric(actual_upload, predicted_upload, 
                                             sample_counts.for_upload_speed if sample_counts else None),
@@ -426,12 +425,12 @@ def main():
                         'Master DAG ID',
                         'Makespan', 
                         'Total Execution Time', 
-                        'Total Download Time', 
+                        'Total Download Time',
                         'Total Upload Time',
                         'Total Input Size',
                         'Total Output Size',
                         'Total Task Invocation Time',
-                        'Total Dependency Counter Update Time'
+                        'Total Dependency Counter Update Time',
                     ]
                 )
                 
@@ -645,7 +644,7 @@ def main():
                     continue
                 
                 # Calculate actual vs predicted metrics
-                actual_download = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for task in instance.tasks if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None)  # in seconds
+                actual_tp_download = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for task in instance.tasks if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None)  # in seconds
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
                 actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics)  # in bytes
@@ -669,7 +668,7 @@ def main():
                 
                 if instance.plan and instance.plan.nodes_info:
                     # Calculate total metrics for non-makespan related stats
-                    predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_total_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())  # in bytes
@@ -699,14 +698,14 @@ def main():
                     predicted_makespan = max(earliest_finish.values()) if earliest_finish else 0.0
                     
                     # Calculate prediction errors
-                    download_error = calculate_prediction_error(actual_download, predicted_download)
+                    download_error = calculate_prediction_error(actual_tp_download, predicted_total_download)
                     execution_error = calculate_prediction_error(actual_execution, predicted_execution)
                     upload_error = calculate_prediction_error(actual_upload, predicted_upload)
                     output_size_error = calculate_prediction_error(actual_output_size, predicted_output_size)
                     makespan_error = calculate_prediction_error(actual_makespan, predicted_makespan)
                     
                     # Time differences (actual - predicted)
-                    download_diff = actual_download - predicted_download
+                    download_diff = actual_tp_download - predicted_total_download
                     execution_diff = actual_execution - predicted_execution
                     upload_diff = actual_upload - predicted_upload
                     makespan_diff = actual_makespan - predicted_makespan
