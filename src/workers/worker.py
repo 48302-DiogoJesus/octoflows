@@ -129,10 +129,10 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 tasks_executed_by_this_coroutine.append(current_task)
 
-                current_task.metrics.execution_time_ms = task_execution_time_ms
+                current_task.metrics.tp_execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
                 total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
-                current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.execution_time_ms / total_input_size \
+                current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
                     if total_input_size > 0 else -1  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
                 
                 #* 3) HANDLE TASK OUTPUT

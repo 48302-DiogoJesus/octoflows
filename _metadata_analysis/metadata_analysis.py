@@ -125,17 +125,17 @@ def main():
         total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms
         if metrics.output_metrics:
             task_data += metrics.output_metrics.serialized_size_bytes
-            total_time_uploading_data_ms += metrics.output_metrics.time_ms
+            total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms
         
         total_data_transferred += task_data
-        total_time_executing_tasks_ms += metrics.execution_time_ms
+        total_time_executing_tasks_ms += metrics.tp_execution_time_ms
 
         # Prepare data for visualization
         task_metrics_data.append({
             'task_id': task_id,
             'task_started_at': datetime.fromtimestamp(metrics.started_at_timestamp_s).strftime("%Y-%m-%d %H:%M:%S:%f"),
             'function_name': func_name,
-            'execution_time_ms': metrics.execution_time_ms,
+            'execution_time_ms': metrics.tp_execution_time_ms,
             'worker_id': metrics.worker_resource_configuration.worker_id,
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
@@ -146,7 +146,7 @@ def main():
     
     assert _sink_task_metrics
 
-    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + _sink_task_metrics.execution_time_ms + _sink_task_metrics.output_metrics.time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
+    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + _sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + _sink_task_metrics.tp_execution_time_ms + _sink_task_metrics.output_metrics.tp_time_ms + _sink_task_metrics.total_invocation_time_ms # type: ignore
     makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000) # type: ignore
 
     keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
@@ -181,8 +181,8 @@ def main():
     # Second pass: calculate end times relative to min_start_time
     for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
         relative_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-        end_time = relative_start_time + metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + metrics.execution_time_ms + metrics.total_invocation_time_ms
-        if metrics.output_metrics: end_time += metrics.output_metrics.time_ms
+        end_time = relative_start_time + metrics.input_metrics.tp_total_time_waiting_for_inputs_ms + metrics.tp_execution_time_ms + metrics.total_invocation_time_ms
+        if metrics.output_metrics: end_time += metrics.output_metrics.tp_time_ms
         task_timings[task_id]['end_time'] = end_time
     
     # Update task_metrics_data with the calculated timing information
@@ -400,15 +400,15 @@ def main():
                 col1, col2 = st.columns(2)
                 output_data = metrics.output_metrics.serialized_size_bytes
                 with col1:
-                    total_task_handling_time = max(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms, 0) + max(metrics.execution_time_ms, 0) + max(metrics.update_dependency_counters_time_ms, 0) + max(metrics.output_metrics.time_ms, 0) + max(metrics.total_invocation_time_ms, 0)
+                    total_task_handling_time = max(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms, 0) + max(metrics.tp_execution_time_ms, 0) + max(metrics.update_dependency_counters_time_ms, 0) + max(metrics.output_metrics.tp_time_ms, 0) + max(metrics.total_invocation_time_ms, 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
                     st.metric("Dependencies Download Time", f"{metrics.input_metrics.tp_total_time_waiting_for_inputs_ms:.2f} ms")
                     st.metric("DC Updates Time", f"{metrics.update_dependency_counters_time_ms:.2f} ms")
-                    st.metric("Output Upload Time", f"{max(metrics.output_metrics.time_ms, 0):.2f} ms")
+                    st.metric("Output Upload Time", f"{max(metrics.output_metrics.tp_time_ms, 0):.2f} ms")
                 with col2:
                     st.metric("", "")
                     st.metric("", "")
-                    st.metric("Task Execution Time", f"{metrics.execution_time_ms:.2f} ms")
+                    st.metric("Task Execution Time", f"{metrics.tp_execution_time_ms:.2f} ms")
                     st.metric("Downstream Invocations Time", f"{metrics.total_invocation_time_ms:.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
                 
@@ -452,7 +452,7 @@ def main():
                                 numeric_fields = [
                                     ('Input Size (bytes)', 'input_size', metrics.input_metrics.downloadable_input_size_bytes),
                                     ('Output Size (bytes)', 'output_size', output_size),
-                                    ('Execution Time (ms)', 'exec_time', metrics.execution_time_ms),
+                                    ('Execution Time (ms)', 'exec_time', metrics.tp_execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
                                     ('End Time (ms)', 'end_time', end_time_ms)
                                 ]
@@ -977,9 +977,9 @@ def main():
                 total_data_downloaded += task_metrics.input_metrics.downloadable_input_size_bytes
 
                 # Calculate upload throughput for output if available
-                if task_metrics.output_metrics and task_metrics.output_metrics.time_ms > 0:
-                    throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.time_ms  # bytes/ms
+                if task_metrics.output_metrics and task_metrics.output_metrics.tp_time_ms > 0:
+                    throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
                     upload_throughputs.append(throughput_mb)
                     all_transfer_speeds.append(speed_bytes_ms)
                     total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes

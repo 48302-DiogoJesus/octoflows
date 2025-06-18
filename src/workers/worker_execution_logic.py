@@ -45,7 +45,7 @@ class WorkerExecutionLogic():
         _task.metrics.output_metrics = TaskOutputMetrics(
             serialized_size_bytes=calculate_data_structure_size(task_result), 
             deserialized_size_bytes=calculate_data_structure_size(task_result), # accurate
-            time_ms=-1
+            tp_time_ms=-1
         )
         # only upload if necessary
         if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
@@ -53,7 +53,7 @@ class WorkerExecutionLogic():
             task_result_serialized = cloudpickle.dumps(task_result)
             _task.metrics.output_metrics.serialized_size_bytes = calculate_data_structure_size(task_result_serialized)
             await intermediate_storage.set(_task.id.get_full_id_in_dag(subdag), task_result_serialized)
-            _task.metrics.output_metrics.time_ms = output_upload_timer.stop()
+            _task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
         else:
             logger.info(f"Worker({this_worker_id}) Task({task.id.get_full_id_in_dag(subdag)}) WON'T upload task result. Not needed...")
         #! Can be optimized, don't need to always be sending this

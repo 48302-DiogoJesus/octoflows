@@ -41,9 +41,9 @@ class MetadataAccess:
             
             # Store upload/download speeds with resource configuration
             # UPLOAD SPEEDS
-            if metrics.output_metrics.time_ms != -1: # it can be -1 if the output was present at the worker
+            if metrics.output_metrics.tp_time_ms != -1: # it can be -1 if the output was present at the worker
                 # Normalize the upload speed based on memory
-                normalized_time_ms = metrics.output_metrics.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
+                normalized_time_ms = metrics.output_metrics.tp_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.7
                 upload_speed = metrics.output_metrics.serialized_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
                 if upload_speed > 0:
                     self.cached_upload_speeds.append((

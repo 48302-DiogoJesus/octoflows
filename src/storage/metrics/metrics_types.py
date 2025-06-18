@@ -3,6 +3,8 @@ from typing import Literal
 
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
+# NOTE: Prefix "tp" means "task-path", which indicates time spent doing something while handling a task (SYNC)
+    # pre-load isn't included in this time, but waiting for pending preloads is
 
 @dataclass
 class FullDAGPrepareTime:
@@ -28,7 +30,7 @@ class TaskInputMetrics:
 class TaskOutputMetrics:
     serialized_size_bytes: int # for upload time prediction
     deserialized_size_bytes: int # for i/o prediction
-    time_ms: float | Literal[-1]
+    tp_time_ms: float | Literal[-1]
 
 @dataclass
 class TaskMetrics:
@@ -37,7 +39,7 @@ class TaskMetrics:
     
     input_metrics: TaskInputMetrics
 
-    execution_time_ms: float
+    tp_execution_time_ms: float
     execution_time_per_input_byte_ms: float | Literal[-1]
 
     update_dependency_counters_time_ms: float | Literal[-1]

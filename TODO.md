@@ -13,13 +13,12 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - add to table:
-            predicted input size vs real input size and predicted output size vs real output size
+        - Total download time is negative
+        change from literal -1 to None
+        - Add to table:
             tp download time
             tp execution time
             tp upload time
-            total download time
-            total upload time
         - ensure code that reads taskmetrics fields are prepared for -1:
             - dashboards
 

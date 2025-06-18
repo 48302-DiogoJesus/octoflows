@@ -54,10 +54,10 @@ class DAGTaskNode(Generic[R]):
             worker_resource_configuration=TaskWorkerResourceConfiguration(-1, -1),
             started_at_timestamp_s=0,
             input_metrics=TaskInputMetrics(input_download_metrics={}),
-            execution_time_ms=0,
+            tp_execution_time_ms=0,
             execution_time_per_input_byte_ms=-1,
             update_dependency_counters_time_ms=-1,
-            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, time_ms=-1),
+            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, tp_time_ms=-1),
             total_invocations_count=0,
             total_invocation_time_ms=-1
         )
