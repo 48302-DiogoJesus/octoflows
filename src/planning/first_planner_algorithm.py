@@ -83,7 +83,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 
                 if node.try_get_annotation(PreLoadOptimization): continue # Skip if node already has PreLoad annotation
                 
-                resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+                resource_config: TaskWorkerResourceConfiguration = node.get_annotation(TaskWorkerResourceConfiguration)
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
                 # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker id
@@ -175,8 +175,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
 
         return AbstractDAGPlanner.PlanOutput(
             self.__class__.__name__, 
-            final_nodes_info, 
-            final_critical_path_node_ids, 
+            self.config.sla,
+            final_nodes_info,
+            final_critical_path_node_ids,
             prediction_samples_used
         )
 

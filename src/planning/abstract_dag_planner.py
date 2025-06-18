@@ -52,6 +52,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     @dataclass
     class PlanOutput:
         planner_name: str
+        sla: SLA
         nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
         critical_path_node_ids: set[str]
         prediction_sample_counts: "AbstractDAGPlanner.PlanPredictionSampleCounts"

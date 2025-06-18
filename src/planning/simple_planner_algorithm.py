@@ -91,6 +91,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
 
         return AbstractDAGPlanner.PlanOutput(
             self.__class__.__name__, 
+            self.config.sla,
             final_nodes_info, 
             final_critical_path_node_ids, 
             prediction_samples_used
