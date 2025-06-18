@@ -1,3 +1,4 @@
+import uuid
 import asyncio
 from dataclasses import dataclass
 import time
@@ -36,12 +37,11 @@ class MetricsStorage():
         return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
-        # logger.info(f"Caching metrics for task {task_id}: {len(metrics.input_metrics)}")
         self.cached_metrics[f"{self.TASK_METRICS_KEY_PREFIX}{task_id}"] = metrics
 
-    def store_dag_download_time(self, id: str, dag_download_metrics: FullDAGPrepareTime):
-        # logger.info(f"Caching download time for root node {self.DAG_METRICS_KEY_PREFIX}{id}: {dag_download_metrics.download_time_ms} ms, {dag_download_metrics.size_bytes} bytes")
-        self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{id}"] = dag_download_metrics
+    def store_dag_download_time(self, master_dag_id: str, dag_download_metrics: FullDAGPrepareTime):
+        unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
+        self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
     
     def store_plan(self, id: str, plan):
         self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{id}"] = plan

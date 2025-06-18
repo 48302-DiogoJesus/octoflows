@@ -153,7 +153,7 @@ async def main():
         #* 6) Upload metrics collected during task execution
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
-                immediate_task_ids[0].get_full_id_in_dag(fulldag),
+                fulldag.master_dag_id,
                 FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
             )
             await wk.metrics_storage.flush()

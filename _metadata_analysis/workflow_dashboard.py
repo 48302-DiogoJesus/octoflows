@@ -35,7 +35,7 @@ class WorkflowInstanceTaskInfo:
 class WorkflowInstanceInfo:
     master_dag_id: str
     plan: AbstractDAGPlanner.PlanOutput | None
-    download_time: FullDAGPrepareTime | None
+    dag_download_stats: List[FullDAGPrepareTime]
     tasks: List[WorkflowInstanceTaskInfo]
 
 @dataclass
@@ -58,14 +58,15 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 plan_data = metrics_storage_conn.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None # type: ignore
 
-                download_time_data = metrics_storage_conn.get(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}")
-                download_time: FullDAGPrepareTime | None = cloudpickle.loads(download_time_data) if download_time_data else None # type: ignore
+                download_time_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*")
+                download_time_data = metrics_storage_conn.mget(download_time_data_keys)
+                dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
 
                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
                 tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
 
                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, download_time, tasks))
+                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag_download_stats, tasks))
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
     except Exception as e:
@@ -359,6 +360,14 @@ def main():
                     else:
                         sla_value = f'p{instance.plan.sla.value}'
                 
+                # Calculate total DAG download time across all downloads
+                dag_download_time = 'N/A'
+                if instance.dag_download_stats:
+                    valid_stats = [stat for stat in instance.dag_download_stats if hasattr(stat, 'download_time_ms') and stat.download_time_ms is not None]
+                    if valid_stats:
+                        total_download_time = sum(stat.download_time_ms for stat in valid_stats)
+                        dag_download_time = f"{total_download_time / 1000:.3f}s ({len(valid_stats)} downloads)"
+                
                 instance_data.append({
                     'Workflow Type': selected_workflow,
                     'Planner': instance.plan.planner_name if instance.plan else 'N/A',
@@ -378,6 +387,7 @@ def main():
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
+                    'DAG Download Time': dag_download_time,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
                     '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
@@ -414,6 +424,7 @@ def main():
                         'Total Output Size': "Total Output Size (Predicted → Actual)",
                         'Total Task Invocation Time': "Total Task Invocation Time (s)",
                         'Total Dependency Counter Update Time': "Total Dependency Counter Update Time (s)",
+                        'DAG Download Time': "DAG Download Time (s)",
                     },
                     use_container_width=True,
                     height=min(400, 35 * (len(df_instances) + 1)),
@@ -427,6 +438,7 @@ def main():
                         'Total Execution Time', 
                         'Total Download Time',
                         'Total Upload Time',
+                        'DAG Download Time',
                         'Total Input Size',
                         'Total Output Size',
                         'Total Task Invocation Time',
