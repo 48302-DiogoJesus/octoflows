@@ -5,6 +5,7 @@ import cloudpickle
 import redis
 from typing import List, Dict, Any
 import pandas as pd
+import json
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.storage.metrics.metrics_storage import MetricsStorage
@@ -28,32 +29,13 @@ def deserialize_data(serialized_value: bytes) -> Any:
     """Deserialize data using cloudpickle"""
     return cloudpickle.loads(serialized_value)
 
-def flatten_object(obj: Any, prefix: str = '') -> Dict[str, Any]:
-    """
-    Recursively flatten an object into a dictionary.
-    Handles nested objects, lists, and dictionaries.
-    """
-    flat_dict = {}
-    
-    if hasattr(obj, '__dict__'):
-        items = vars(obj).items()
-    elif isinstance(obj, dict):
-        items = obj.items()
-    else:
-        return {prefix[:-1]: obj} if prefix else {str(obj): None}
-    
-    for k, v in items:
-        full_key = f"{prefix}{k}"
-        
-        if hasattr(v, '__dict__') or isinstance(v, dict):
-            flat_dict.update(flatten_object(v, f"{full_key}_"))
-        elif isinstance(v, (list, tuple)) and v and (hasattr(v[0], '__dict__') or isinstance(v[0], dict)):
-            for i, item in enumerate(v):
-                flat_dict.update(flatten_object(item, f"{full_key}_{i}_"))
-        else:
-            flat_dict[full_key] = v
-    
-    return flat_dict
+def stringify_complex_types(value: Any) -> str:
+    """Convert complex objects to string representation"""
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, indent=2, default=str)
+    elif hasattr(value, '__dict__'):
+        return json.dumps(vars(value), indent=2, default=str)
+    return str(value)
 
 def display_metrics_table(pattern: str, title: str) -> None:
     """Display metrics for a given key pattern in a table"""
@@ -70,9 +52,17 @@ def display_metrics_table(pattern: str, title: str) -> None:
         if serialized_value:
             try:
                 deserialized = deserialize_data(serialized_value)
-                flat_data = flatten_object(deserialized)
-                flat_data['key'] = key.decode('utf-8')  # Add the key as a column
-                data.append(flat_data)
+                
+                # Handle the deserialized object
+                if isinstance(deserialized, dict):
+                    row = {k: stringify_complex_types(v) for k, v in deserialized.items()}
+                elif hasattr(deserialized, '__dict__'):
+                    row = {k: stringify_complex_types(v) for k, v in vars(deserialized).items()}
+                else:
+                    row = {'value': stringify_complex_types(deserialized)}
+                
+                row['key'] = key.decode('utf-8')  # Add the key as a column
+                data.append(row)
             except Exception as e:
                 st.error(f"Error deserializing {key}: {e}")
     
