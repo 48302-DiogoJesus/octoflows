@@ -1,10 +1,9 @@
 import streamlit as st
 import redis
 import cloudpickle
-from typing import Dict, List, Set, Optional, Tuple, Union
+from typing import Dict, List
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
 import hashlib
 import colorsys
 from dataclasses import dataclass
@@ -353,9 +352,18 @@ def main():
                         return f"{base}\n(samples: {samples})"
                     return base
                     
+                # Format SLA for display
+                sla_value = 'N/A'
+                if instance.plan:
+                    if instance.plan.sla == 'avg':
+                        sla_value = 'avg'
+                    else:
+                        sla_value = f'p{instance.plan.sla.value}'
+                
                 instance_data.append({
                     'Workflow Type': selected_workflow,
                     'Planner': instance.plan.planner_name if instance.plan else 'N/A',
+                    'SLA': sla_value,
                     'Master DAG ID': instance.master_dag_id,
                     'Makespan': format_metric(actual_makespan, predicted_makespan, 
                                         sample_counts.for_execution_time if sample_counts else None),
@@ -398,6 +406,7 @@ def main():
                     df_instances,
                     column_config={
                         'Workflow Type': "Workflow Type",
+                        'SLA': "SLA",
                         'Makespan': "Makespan (Predicted → Actual)",
                         'Total Execution Time': "Total Execution Time (Predicted → Actual)",
                         'Total Download Time': "Total Download Time (Predicted → Actual)",
@@ -413,6 +422,7 @@ def main():
                     column_order=[
                         'Workflow Type', 
                         'Planner',
+                        'SLA',
                         'Master DAG ID',
                         'Makespan', 
                         'Total Execution Time', 
