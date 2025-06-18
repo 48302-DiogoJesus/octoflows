@@ -141,7 +141,7 @@ def main():
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
             'input_size': downloadable_input_size_bytes,
-            'output_size': metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0,
+            'output_size': metrics.output_metrics.serialized_size_bytes,
             'downstream_calls': metrics.total_invocations_count
         })
     

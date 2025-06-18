@@ -13,9 +13,7 @@
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
     [TODO]
-        - change from literal -1 to None
-        - fix metadata_analysis dashboard errors (`downloadable_input_size_bytes`)
-        - refactor metadata_analysis to grab initial structure for all task metrics, similar to workflow_dashboard (BKP before)
+        - Refactor `metadata_analysis` to grab initial structure for all task metrics, similar to `workflow_dashboard` (BKP before)
         - Add to table:
             tp download time (avg tp download time)
             tp execution time (avg tp execution time)
