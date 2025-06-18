@@ -366,6 +366,162 @@ def main():
                     """)
                 
                 st.markdown("---")
+
+                st.markdown("### View Task Metrics by DAG ID")
+                
+                # Create a text input for DAG ID
+                dag_id = st.text_input("Enter DAG ID to view task metrics:", "")
+                
+                # Initialize variables
+                selected_instance_info = None
+                workflow_name = ""
+                planner_name = ""
+                
+                # Process the entered DAG ID
+                if dag_id and 'Master DAG ID' in df_instances.columns:
+                    # Find rows with matching DAG ID
+                    matching_rows = df_instances[df_instances['Master DAG ID'].astype(str) == dag_id]
+                    
+                    if len(matching_rows) > 0:
+                        # Get the first matching row
+                        row = matching_rows.iloc[0]  # type: ignore
+                        workflow_name = str(row['Workflow Type']) if pd.notna(row['Workflow Type']) else ""
+                        planner_name = str(row['Planner']) if pd.notna(row['Planner']) else ""
+                        
+                        # Show success message
+                        st.success(f"Found matching workflow: {workflow_name} - {planner_name}")
+                        
+                        # Find the selected instance
+                        if workflow_name and planner_name and workflow_name in workflow_types:
+                            for instance in workflow_types[workflow_name].instances:
+                                if (instance.plan and 
+                                    instance.plan.planner_name == planner_name and
+                                    instance.master_dag_id == dag_id):
+                                    selected_instance_info = instance
+                                    break
+                    else:
+                        st.warning(f"No workflow found with DAG ID: {dag_id}")
+                    
+                    if selected_instance_info and selected_instance_info.tasks:
+                        st.markdown("---")
+                        st.markdown(f"### Task Metrics for {workflow_name} - {planner_name}")
+                        
+                        # Prepare task metrics data
+                        task_metrics_data = []
+                        for task in selected_instance_info.tasks:
+                            task_metrics = task.metrics
+                            task_metrics_data.append({
+                                'Task ID': task.task_id,
+                                'Worker Config': str(task_metrics.worker_resource_configuration),
+                                'Start Time (s)': task_metrics.started_at_timestamp_s,
+                                'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
+                                'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
+                                'Execution Time (ms)': task_metrics.tp_execution_time_ms,
+                                'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
+                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
+                            })
+                        
+                        # Display task metrics table
+                        if task_metrics_data:
+                            df_task_metrics = pd.DataFrame(task_metrics_data)
+                            st.dataframe(
+                                df_task_metrics,
+                                column_config={
+                                    'Task ID': "Task ID",
+                                    'Worker Config': "Worker Configuration",
+                                    'Start Time (s)': st.column_config.NumberColumn("Start Time (s)", format="%.2f"),
+                                    'Input Size (bytes)': st.column_config.NumberColumn("Input Size (bytes)", format="%d"),
+                                    'Download Time (ms)': st.column_config.NumberColumn("Download Time (ms)", format="%.2f"),
+                                    'Execution Time (ms)': st.column_config.NumberColumn("Execution Time (ms)", format="%.2f"),
+                                    'Output Size (bytes)': st.column_config.NumberColumn("Output Size (bytes)", format="%d"),
+                                    'Output Time (ms)': st.column_config.NumberColumn("Output Time (ms)", format="%.2f"),
+                                },
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+                
+                # Add a download button for the data
+                csv = df_instances.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download as CSV",
+                    data=csv,
+                    file_name=f"{selected_workflow}_comparison.csv",
+                    mime='text/csv',
+                )
+
+                # Add pie chart for time breakdown
+                st.markdown("### Time Breakdown Analysis")
+
+                # Calculate averages for time-based metrics
+                time_metrics = []
+                for instance in matching_workflow_instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                    
+                    # Calculate actual metrics in seconds
+                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                    actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                    actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                    actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)
+                    actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)
+                    total_dag_download = sum(stat.download_time_ms / 1000 for stat in instance.dag_download_stats)
+                    
+                    time_metrics.append({
+                        'execution': actual_execution,
+                        'download': actual_total_download,
+                        'upload': actual_upload,
+                        'invocation': actual_invocation,
+                        'dependency_update': actual_dependency_update,
+                        'dag_download': total_dag_download
+                    })
+
+                if time_metrics:
+                    # Calculate averages
+                    avg_metrics = {
+                        'Total Execution Time': sum(m['execution'] for m in time_metrics) / len(time_metrics),
+                        'Total Download Time': sum(m['download'] for m in time_metrics) / len(time_metrics),
+                        'Total Upload Time': sum(m['upload'] for m in time_metrics) / len(time_metrics),
+                        'Total Task Invocation Time': sum(m['invocation'] for m in time_metrics) / len(time_metrics),
+                        'Total Dependency Counter Update Time': sum(m['dependency_update'] for m in time_metrics) / len(time_metrics),
+                        'Total DAG Download Time': sum(m['dag_download'] for m in time_metrics) / len(time_metrics)
+                    }
+                    
+                    # Filter out zero values for cleaner visualization
+                    filtered_metrics = {k: v for k, v in avg_metrics.items() if v > 0}
+                    
+                    if filtered_metrics:
+                        # Create pie chart
+                        fig_pie = px.pie(
+                            values=list(filtered_metrics.values()),
+                            names=list(filtered_metrics.keys()),
+                            title=f"Average Time Breakdown for {selected_workflow}",
+                            hover_data=[list(filtered_metrics.values())],
+                            labels={'value': 'Time (seconds)'}
+                        )
+                        
+                        # Customize the pie chart
+                        fig_pie.update_traces(
+                            textposition='inside',
+                            textinfo='percent+label',
+                            hovertemplate='<b>%{label}</b><br>Time: %{value:.3f}s<br>Percentage: %{percent}<extra></extra>'
+                        )
+                        
+                        fig_pie.update_layout(
+                            showlegend=True,
+                            legend=dict(
+                                orientation="v",
+                                yanchor="middle",
+                                y=0.5,
+                                xanchor="left",
+                                x=1.02
+                            )
+                        )
+                        
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                    else:
+                        st.info("No time metrics available for pie chart visualization.")
+
+                st.markdown("---")
                 
                 # Add planner comparison section
                 if len(instance_data) > 0 and 'Planner' in instance_data[0]:
@@ -636,90 +792,6 @@ def main():
                                     st.plotly_chart(fig, use_container_width=True)
                                 else:
                                     st.warning(f"No data available for {metric}")
-                
-                st.markdown("---")
-
-                st.markdown("### View Task Metrics by DAG ID")
-                
-                # Create a text input for DAG ID
-                dag_id = st.text_input("Enter DAG ID to view task metrics:", "")
-                
-                # Initialize variables
-                selected_instance_info = None
-                workflow_name = ""
-                planner_name = ""
-                
-                # Process the entered DAG ID
-                if dag_id and 'Master DAG ID' in df_instances.columns:
-                    # Find rows with matching DAG ID
-                    matching_rows = df_instances[df_instances['Master DAG ID'].astype(str) == dag_id]
-                    
-                    if len(matching_rows) > 0:
-                        # Get the first matching row
-                        row = matching_rows.iloc[0]  # type: ignore
-                        workflow_name = str(row['Workflow Type']) if pd.notna(row['Workflow Type']) else ""
-                        planner_name = str(row['Planner']) if pd.notna(row['Planner']) else ""
-                        
-                        # Show success message
-                        st.success(f"Found matching workflow: {workflow_name} - {planner_name}")
-                        
-                        # Find the selected instance
-                        if workflow_name and planner_name and workflow_name in workflow_types:
-                            for instance in workflow_types[workflow_name].instances:
-                                if (instance.plan and 
-                                    instance.plan.planner_name == planner_name and
-                                    instance.master_dag_id == dag_id):
-                                    selected_instance_info = instance
-                                    break
-                    else:
-                        st.warning(f"No workflow found with DAG ID: {dag_id}")
-                    
-                    if selected_instance_info and selected_instance_info.tasks:
-                        st.markdown("---")
-                        st.markdown(f"### Task Metrics for {workflow_name} - {planner_name}")
-                        
-                        # Prepare task metrics data
-                        task_metrics_data = []
-                        for task in selected_instance_info.tasks:
-                            task_metrics = task.metrics
-                            task_metrics_data.append({
-                                'Task ID': task.task_id,
-                                'Worker Config': str(task_metrics.worker_resource_configuration),
-                                'Start Time (s)': task_metrics.started_at_timestamp_s,
-                                'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
-                                'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
-                                'Execution Time (ms)': task_metrics.tp_execution_time_ms,
-                                'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
-                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
-                            })
-                        
-                        # Display task metrics table
-                        if task_metrics_data:
-                            df_task_metrics = pd.DataFrame(task_metrics_data)
-                            st.dataframe(
-                                df_task_metrics,
-                                column_config={
-                                    'Task ID': "Task ID",
-                                    'Worker Config': "Worker Configuration",
-                                    'Start Time (s)': st.column_config.NumberColumn("Start Time (s)", format="%.2f"),
-                                    'Input Size (bytes)': st.column_config.NumberColumn("Input Size (bytes)", format="%d"),
-                                    'Download Time (ms)': st.column_config.NumberColumn("Download Time (ms)", format="%.2f"),
-                                    'Execution Time (ms)': st.column_config.NumberColumn("Execution Time (ms)", format="%.2f"),
-                                    'Output Size (bytes)': st.column_config.NumberColumn("Output Size (bytes)", format="%d"),
-                                    'Output Time (ms)': st.column_config.NumberColumn("Output Time (ms)", format="%.2f"),
-                                },
-                                use_container_width=True,
-                                hide_index=True,
-                            )
-                
-                # Add a download button for the data
-                csv = df_instances.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download as CSV",
-                    data=csv,
-                    file_name=f"{selected_workflow}_comparison.csv",
-                    mime='text/csv',
-                )
             else:
                 st.warning("No instance data available for the selected filters.")
 

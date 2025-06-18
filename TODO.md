@@ -1,10 +1,6 @@
-- Add comment regions to organize dashboard (claude)
-- Pie chart of AVG of totals (dag download time, exec time, download time, upload time, update dc time, invoke time)
-
-- Bar chart to compare all metrics from diff planners, when a "workflow type" is selected
-
-- Create a simple dag with only 1 branch and 1 task type that increases input/output size (4 tasks)
-    test on that only
+- Do 3 executions of NEW "simple dag" and use that for checking dashboards
+    metadata_access
+    workflow_dashboard
 
 - Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
     - Is it using the prediction functions?
