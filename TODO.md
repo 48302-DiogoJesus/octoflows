@@ -1,19 +1,5 @@
-[VISUALIZATION:DASHBOARD]
-- For each workflow type (already ran), show:
-    - Dimensões
-        tamanho total do/das histórico/samples (traz mais precisão/consistência nas previsões?)
-        algoritmo de planeamento usado
-    - Valores a comparar:
-        makespan
-        time spent executing tasks
-        time spent downloading data
-        time spent uploading data
-    - Mostrar:
-        confidence level
-        standard deviation (between real and predicted)
-    - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
-
 - Add comment regions to organize dashboard
+- Bar chart to compare all metrics from diff planners, when a "workflow type" is selected
 
 - Create a simple dag with only 1 branch and 1 task type that increases input/output size (4 tasks)
     test on that only

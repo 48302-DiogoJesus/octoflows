@@ -59,7 +59,7 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None # type: ignore
 
                 download_time_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*")
-                download_time_data = metrics_storage_conn.mget(download_time_data_keys)
+                download_time_data = metrics_storage_conn.mget(download_time_data_keys) # type: ignore
                 dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
 
                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
@@ -142,35 +142,13 @@ def main():
         index=0
     )
     
-    # Get all unique planner names from the selected workflow instances
-    all_planners = set()
-    if selected_workflow == "All":
-        for workflow in workflow_types.values():
-            for instance in workflow.instances:
-                if instance.plan and instance.plan.planner_name:
-                    all_planners.add(instance.plan.planner_name)
-    else:
-        for instance in workflow_types[selected_workflow].instances:
-            if instance.plan and instance.plan.planner_name:
-                all_planners.add(instance.plan.planner_name)
-    
-    selected_planner = st.sidebar.selectbox(
-        "Select Planner",
-        options=["All"] + sorted(list(all_planners)),
-        index=0
-    )
-    
-    # Filter workflow instances based on selection (workflow type + planner)
+    # Filter workflow instances based on selected workflow type
     matching_workflow_instances: list[WorkflowInstanceInfo] = []
     if selected_workflow == "All":
         for workflow in workflow_types.values():
-            for instance in workflow.instances:
-                if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
-                    matching_workflow_instances.append(instance)
+            matching_workflow_instances.extend(workflow.instances)
     else:
-        for instance in workflow_types[selected_workflow].instances:
-            if selected_planner == "All" or (instance.plan and instance.plan.planner_name == selected_planner):
-                matching_workflow_instances.append(instance)
+        matching_workflow_instances.extend(workflow_types[selected_workflow].instances)
     
     st.sidebar.subheader("Workflow Statistics")
     workflow_stats = []
@@ -206,68 +184,6 @@ def main():
     
     # Show metrics based on selection
     if selected_workflow != 'All' and matching_workflow_instances:
-        if selected_planner != 'All':
-            # Show average times for specific planner
-            st.subheader("Average Times")
-            
-            # Initialize metrics
-            total_execution_time = 0.0
-            total_download_time = 0.0
-            total_upload_time = 0.0
-            total_makespan = 0.0
-            valid_instances = 0
-            
-            # Calculate totals
-            for instance in matching_workflow_instances:
-                if not instance.plan or not instance.tasks:
-                    continue
-                    
-                valid_instances += 1
-                
-                # Calculate per-task metrics
-                instance_execution_time = sum(task.metrics.tp_execution_time_ms for task in instance.tasks)
-                instance_download_time = sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms for task in instance.tasks if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None)
-                instance_upload_time = sum(task.metrics.output_metrics.tp_time_ms for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                
-                # Calculate makespan for this instance
-                task_timings = []
-                for task in instance.tasks:
-                    task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
-                    task_end = task_start
-                    task_end += task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
-                    task_end += task.metrics.tp_execution_time_ms
-                    task_end += task.metrics.total_invocation_time_ms if task.metrics.total_invocation_time_ms is not None else 0
-                    task_end += task.metrics.output_metrics.tp_time_ms if task.metrics.output_metrics.tp_time_ms is not None else 0
-                    task_timings.append((task_start, task_end))
-                
-                if task_timings:
-                    min_start = min(start for start, _ in task_timings)
-                    max_end = max(end for _, end in task_timings)
-                    instance_makespan = max_end - min_start
-                    total_makespan += instance_makespan
-                
-                total_execution_time += instance_execution_time
-                total_download_time += instance_download_time
-                total_upload_time += instance_upload_time
-            
-            # Calculate averages if we have valid instances
-            if valid_instances > 0:
-                avg_execution = total_execution_time / (valid_instances * 1000)  # Convert to seconds
-                avg_download = total_download_time / (valid_instances * 1000)     # Convert to seconds
-                avg_upload = total_upload_time / (valid_instances * 1000)         # Convert to seconds
-                avg_makespan = total_makespan / (valid_instances * 1000)          # Convert to seconds
-                
-                # Display metrics in columns
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Avg Time Executing Tasks", f"{avg_execution:.2f}s")
-                with col2:
-                    st.metric("Avg Download Time", f"{avg_download:.2f}s")
-                with col3:
-                    st.metric("Avg Upload Time", f"{avg_upload:.2f}s")
-                with col4:
-                    st.metric("Avg Makespan", f"{avg_makespan:.2f}s")
-        else:
             # Prepare data for the instance comparison table
             instance_data = []
             for idx, instance in enumerate(matching_workflow_instances):
@@ -529,7 +445,7 @@ def main():
                 st.download_button(
                     label="Download as CSV",
                     data=csv,
-                    file_name=f"{selected_workflow}_{selected_planner}_comparison.csv",
+                    file_name=f"{selected_workflow}_comparison.csv",
                     mime='text/csv',
                 )
             else:
