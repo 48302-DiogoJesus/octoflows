@@ -12,23 +12,25 @@
         confidence level
         standard deviation (between real and predicted)
     - [??] Show the impact of PRE-LOAD vs no PRE-LOAD
-    [TODO]
-        - Refactor `metadata_analysis` to grab initial structure for all task metrics, similar to `workflow_dashboard` (BKP before)
-        - Add to table:
-            tp download time (avg tp download time)
-            tp execution time (avg tp execution time)
-            tp upload time (avg tp upload time)
-            [NOT_PLANNED_BUT_RECORDED] time spent updating dependency counters
-            [NOT_PLANNED_BUT_RECORDED] time spent invoking tasks
-        - Ensure code that reads taskmetrics fields are prepared for -1:
-            - dashboards
 
-- [BUG] `metadata_analysis` dashboard. Is the shown "Observed" value well calculated, under "Planned vs Observed Metrics"?
+- Add to instance comparison table:
+    [NOT_PLANNED_BUT_RECORDED] total time spent updating dependency counters
+    [NOT_PLANNED_BUT_RECORDED] total time spent invoking tasks
+    [DONE] tp execution time (total tp execution time)
+    tp download time (total tp download time)
+    [DONE?] tp upload time (total tp upload time)
+    [NOT_PLANNED_BUT_RECORDED] total time spent downloading dag from storage
+
+- Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
+    - Is it using the prediction functions?
+    - Am I storing/using the correct values (serialized vs deserialized?)
+- Show the `PlanOutput.SLA` on workflow dashboard
 
 - Try to find where the gap is (after showing TPs on the table)
+    - Check if the offset in output + input size is always the same (would indicate miscalculations on predicted or real values)
+    - ?Add the planned values to the bar chart for easier comparison?
 
-- On PlanOutput, also store the `SLA` the user specified + show on dashboard
-
+[PLANNER_PREDICTIONS:EXPANSION]
 - Add “downstream invocation times” to the prediction logic?
     Use the `metadata_analysis` dashboard to see if invocation time is relevant
 - Add cold-start/warm-start to the predictions?
