@@ -1,4 +1,6 @@
-- Add comment regions to organize dashboard
+- Add comment regions to organize dashboard (claude)
+- Pie chart of AVG of totals (dag download time, exec time, download time, upload time, update dc time, invoke time)
+
 - Bar chart to compare all metrics from diff planners, when a "workflow type" is selected
 
 - Create a simple dag with only 1 branch and 1 task type that increases input/output size (4 tasks)
@@ -7,7 +9,6 @@
 - Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
     - Is it using the prediction functions?
     - Am I storing/using the correct values (serialized vs deserialized?)
-- Show the `PlanOutput.SLA` on workflow dashboard
 
 - Try to find where the gap is (after showing TPs on the table)
     - Check if the offset in output + input size is always the same (would indicate miscalculations on predicted or real values)

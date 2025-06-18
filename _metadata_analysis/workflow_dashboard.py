@@ -366,6 +366,278 @@ def main():
                     """)
                 
                 st.markdown("---")
+                
+                # Add planner comparison section
+                if len(instance_data) > 0 and 'Planner' in instance_data[0]:
+                    st.markdown("### Planner Comparison")
+                    
+                    # Create a DataFrame with the instance data
+                    df_planner = pd.DataFrame(instance_data)
+                    
+                    # Filter out instances without a planner
+                    df_planner = df_planner[df_planner['Planner'] != 'N/A']
+                    
+                    # Define metrics we want to track
+                    metrics_info = [
+                        ('Makespan', 'Makespan (seconds)', 's'),
+                        ('Total Execution Time', 'Total Execution Time (seconds)', 's'),
+                        ('Total Download Time', 'Total Download Time (seconds)', 's'),
+                        ('Total Upload Time', 'Total Upload Time (seconds)', 's'),
+                        ('Total Input Size', 'Total Input Size (bytes)', 'B'),
+                        ('Total Output Size', 'Total Output Size (bytes)', 'B'),
+                        ('Total Task Invocation Time', 'Total Task Invocation Time (seconds)', 's'),
+                        ('Total Dependency Counter Update Time', 'Total Dependency Counter Update Time (seconds)', 's'),
+                        ('Total DAG Download Time', 'Total DAG Download Time (seconds)', 's')
+                    ]
+                    
+                    # Helper function to get metrics from workflow instance
+                    def get_metrics_from_instance(instance):
+                        metrics = {}
+                        
+                        # Calculate makespan from task timings
+                        task_timings = []
+                        for task in instance.tasks:
+                            task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
+                            task_end = task_start
+                            if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None:
+                                task_end += task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms
+                            task_end += task.metrics.tp_execution_time_ms
+                            if task.metrics.total_invocation_time_ms is not None:
+                                task_end += task.metrics.total_invocation_time_ms
+                            if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics.tp_time_ms is not None:
+                                task_end += task.metrics.output_metrics.tp_time_ms
+                            task_timings.append((task_start, task_end))
+                        
+                        if task_timings:
+                            min_start = min(start for start, _ in task_timings)
+                            max_end = max(end for _, end in task_timings)
+                            metrics['Makespan'] = (max_end - min_start) / 1000  # Convert to seconds
+                        
+                        # Calculate other metrics
+                        metrics['Total Execution Time'] = sum(t.metrics.tp_execution_time_ms for t in instance.tasks) / 1000  # Convert to seconds
+                        metrics['Total Download Time'] = sum(
+                            sum(input_metric.time_ms for input_metric in t.metrics.input_metrics.input_download_metrics.values() 
+                                if input_metric.time_ms is not None)
+                            for t in instance.tasks
+                        ) / 1000  # Convert to seconds
+                        metrics['Total Upload Time'] = sum(
+                            t.metrics.output_metrics.tp_time_ms / 1000 
+                            for t in instance.tasks 
+                            if hasattr(t.metrics, 'output_metrics') and t.metrics.output_metrics.tp_time_ms is not None
+                        )
+                        metrics['Total Input Size'] = sum(
+                            sum(input_metric.serialized_size_bytes 
+                                for input_metric in t.metrics.input_metrics.input_download_metrics.values())
+                            for t in instance.tasks
+                        )
+                        metrics['Total Output Size'] = sum(
+                            t.metrics.output_metrics.serialized_size_bytes 
+                            for t in instance.tasks 
+                            if hasattr(t.metrics, 'output_metrics')
+                        )
+                        metrics['Total Task Invocation Time'] = sum(
+                            t.metrics.total_invocation_time_ms / 1000 
+                            for t in instance.tasks 
+                            if t.metrics.total_invocation_time_ms is not None
+                        )
+                        metrics['Total Dependency Counter Update Time'] = sum(
+                            t.metrics.update_dependency_counters_time_ms / 1000 
+                            for t in instance.tasks 
+                            if hasattr(t.metrics, 'update_dependency_counters_time_ms') and t.metrics.update_dependency_counters_time_ms is not None
+                        )
+                        metrics['Total DAG Download Time'] = sum(
+                            stat.download_time_ms / 1000 
+                            for stat in instance.dag_download_stats
+                            if hasattr(stat, 'download_time_ms') and stat.download_time_ms is not None
+                        )
+                        
+                        return metrics
+                    
+                    if not df_planner.empty and len(df_planner) > 0:
+                        # Create a clean DataFrame for plotting
+                        plot_data = []
+                        
+                        # Group instances by planner and workflow type
+        
+                        # Create tabs for each metric
+                        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+                            'Makespan (s)', 'Execution Time (s)', 'Download Time (s)',
+                            'Upload Time (s)', 'Input Size (B)', 'Output Size (B)',
+                            'Invocation Time (s)', 'Dependency Update (s)', 'DAG Download (s)'
+                        ])
+                        
+                        # Create a chart for each metric
+                        tabs = [tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9]
+                        
+                        # Get all instances for the selected workflow type
+                        workflow_instances = []
+                        for instance in workflow_types[selected_workflow].instances:
+                            if instance.plan:
+                                workflow_instances.append({
+                                    'planner': instance.plan.planner_name,
+                                    'metrics': get_metrics_from_instance(instance)
+                                })
+                        
+                        # Group by planner and calculate averages
+                        planner_metrics = {}
+                        for instance in workflow_instances:
+                            planner = instance['planner']
+                            if planner not in planner_metrics:
+                                planner_metrics[planner] = {
+                                    'count': 0,
+                                    'metrics': {k: 0 for k, _, _ in metrics_info}
+                                }
+                            
+                            planner_metrics[planner]['count'] += 1
+                            for metric, _, _ in metrics_info:
+                                if metric in instance['metrics']:
+                                    planner_metrics[planner]['metrics'][metric] += instance['metrics'][metric]
+                        
+                        # Calculate averages
+                        for planner in planner_metrics.values():
+                            count = planner['count']
+                            if count > 0:
+                                for metric in planner['metrics']:
+                                    planner['metrics'][metric] /= count
+                        
+                        # Prepare data for plotting
+                        plot_data = []
+                        for planner, data in planner_metrics.items():
+                            plot_data.append({
+                                'Planner': planner,
+                                'Count': data['count'],
+                                **data['metrics']
+                            })
+                        
+                        df_plot = pd.DataFrame(plot_data)
+                        
+                        # Create charts
+                        for (metric, title, unit), tab in zip(metrics_info, tabs):
+                            with tab:
+                                if metric in df_plot.columns:
+                                    # Sort by metric value
+                                    df_sorted = df_plot.sort_values(metric, ascending=False)
+                                    
+                                    # Format tooltips
+                                    df_sorted['Tooltip'] = df_sorted.apply(
+                                        lambda x: f"{x['Planner']}<br>"
+                                                f"{title}: {x[metric]:.2f}{unit}<br>"
+                                                f"Instances: {x['Count']}",
+                                        axis=1
+                                    )
+                                    
+                                    # Create bar chart
+                                    fig = px.bar(
+                                        df_sorted,
+                                        x='Planner',
+                                        y=metric,
+                                        title=title,
+                                        text_auto='.2f',
+                                        color='Planner',
+                                        hover_data={'Tooltip': True, 'Planner': False, metric: False},
+                                        labels={'Tooltip': 'Details', metric: unit}
+                                    )
+                                    
+                                    # Customize layout
+                                    fig.update_layout(
+                                        showlegend=False,
+                                        xaxis_title="Planner",
+                                        yaxis_title=unit,
+                                        hoverlabel=dict(
+                                            bgcolor="white",
+                                            font_size=12,
+                                            font_family="Arial"
+                                        )
+                                    )
+                                    
+                                    # Add value labels on top of bars
+                                    fig.update_traces(
+                                        texttemplate='%{y:.2f}',
+                                        textposition='outside',
+                                        hovertemplate='%{customdata[0]}<extra></extra>',
+                                        customdata=df_sorted[['Tooltip']].values
+                                    )
+                                    
+                                    st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.warning(f"No data available for {metric}")
+                    else:
+                        st.info("Only one planner found. Showing metrics for this planner.")
+                        
+                        # Get metrics for all instances of this workflow type
+                        all_metrics = []
+                        for instance in workflow_types[selected_workflow].instances:
+                            if instance.plan:
+                                metrics = get_metrics_from_instance(instance)
+                                all_metrics.append(metrics)
+                        
+                        if not all_metrics:
+                            st.warning("No metrics available for this planner.")
+                            return
+                        
+                        # Calculate averages for all metrics
+                        avg_metrics = {}
+                        for metric, _, _ in metrics_info:
+                            values = [m.get(metric, 0) for m in all_metrics if metric in m]
+                            avg_metrics[metric] = sum(values) / len(values) if values else 0
+                        
+                        # Create a single row DataFrame
+                        planner_name = workflow_types[selected_workflow].instances[0].plan.planner_name if \
+                                     workflow_types[selected_workflow].instances and \
+                                     workflow_types[selected_workflow].instances[0].plan else "Unknown"
+                        
+                        df_plot = pd.DataFrame([{
+                            'Planner': planner_name,
+                            'Count': len(all_metrics),
+                            **avg_metrics
+                        }])
+                        
+                        # Create tabs for each metric
+                        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+                            'Makespan (s)', 'Execution Time (s)', 'Download Time (s)',
+                            'Upload Time (s)', 'Input Size (B)', 'Output Size (B)',
+                            'Invocation Time (s)', 'Dependency Update (s)', 'DAG Download (s)'
+                        ])
+                        
+                        # Create a chart for each metric
+                        tabs = [tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9]
+                        for (metric, title, unit), tab in zip(metrics, tabs):
+                            with tab:
+                                if metric in df_plot.columns:
+                                    # Create a single bar chart
+                                    fig = px.bar(
+                                        df_plot,
+                                        x='Planner',
+                                        y=metric,
+                                        title=f"{title} by Planner",
+                                        text_auto=True,
+                                        labels={metric: f"{title} ({unit})"},
+                                        hover_data={'Count': True}
+                                    )
+                                    
+                                    # Customize layout
+                                    fig.update_layout(
+                                        showlegend=False,
+                                        xaxis_title="",
+                                        yaxis_title=unit,
+                                        hoverlabel=dict(
+                                            bgcolor="white",
+                                            font_size=12,
+                                            font_family="Arial"
+                                        )
+                                    )
+                                    
+                                    # Add value label on top of the bar
+                                    fig.update_traces(
+                                        texttemplate='%{y:.3f}',
+                                        textposition='outside'
+                                    )
+                                    
+                                    st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.warning(f"No data available for {metric}")
+                
+                st.markdown("---")
 
                 st.markdown("### View Task Metrics by DAG ID")
                 
