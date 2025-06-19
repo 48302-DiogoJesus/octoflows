@@ -11,19 +11,19 @@ from src.workers.local_worker import LocalWorker
 from src.storage.in_memory_storage import InMemoryStorage
 from src.storage.redis_storage import RedisStorage
 from src.dag_task_node import DAGTask
+import numpy as np
 
 @DAGTask
-def task(input: int) -> int:
+def task(_) -> np.ndarray:
     """
     perform an expensive memory computation
     return input string + ~ 10 bytes
     """
-    import numpy as np
     size = 2500
     a = np.random.rand(size, size)
     b = np.random.rand(size, size)
-    _ = np.matmul(a, b)
-    return 2
+    res = np.matmul(a, b)
+    return res
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
 inmemory_intermediate_storage_config = InMemoryStorage.Config()
@@ -47,7 +47,7 @@ dockerWorkerConfig = DockerWorker.Config(
 )
 
 # Define the workflow
-a1 = task(1)
+a1 = task(0)
 a2 = task(a1)
 a3 = task(a2)
 a4 = task(a3)

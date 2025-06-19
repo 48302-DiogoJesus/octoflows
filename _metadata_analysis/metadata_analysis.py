@@ -408,6 +408,7 @@ def main():
                     st.metric("Dependencies Download Time", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
                     st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
                     st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                    st.metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                 with col2:
                     st.metric("", "")
                     st.metric("", "")
@@ -453,7 +454,7 @@ def main():
                                 
                                 # Comparison fields
                                 numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])),
+                                    ('Input Size (bytes)', 'input_size', sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes),
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.tp_execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
