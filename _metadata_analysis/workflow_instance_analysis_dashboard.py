@@ -51,7 +51,7 @@ def get_function_group(task_id: str, func_name: str) -> str:
 def main():
     # Configure page layout for wider usage
     st.set_page_config(layout="wide")
-    st.title("DAG Metrics Dashboard")
+    st.title("Workflow Instance Analysis Dashboard")
     
     # Connect to Redis
     dag_redis = get_redis_connection(6379)

@@ -110,7 +110,7 @@ def calculate_prediction_error(actual, predicted):
 def main():
     # Configure page layout for better visualization
     st.set_page_config(layout="wide")
-    st.title("Workflow Execution Analysis Dashboard")
+    st.title("Planning Analysis Dashboard")
     
     # Connect to both Redis instances
     intermediate_storage_conn = get_redis_connection(6379)
@@ -125,12 +125,6 @@ def main():
     if not workflow_types:
         st.warning("No DAGs found in Redis")
         st.stop()
-    
-    # Add a refresh button to force reload workflow types
-    if st.sidebar.button("🔄 Refresh Workflow Types"):
-        # Clear the session state and reload
-        st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
-        st.rerun()
     
     # Sidebar for workflow type selection
     st.sidebar.title("Workflow Filter")

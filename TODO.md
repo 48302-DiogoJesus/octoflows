@@ -1,12 +1,8 @@
-- Fix planned vs observed i/o sizes on `metadata_analysis.py`
-
-- Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
-    - Is it using the prediction functions?
-    - Am I storing/using the correct values (serialized vs deserialized?)
-
-- Try to find where the gap is (after showing TPs on the table)
-    - Check if the offset in output + input size is always the same (would indicate miscalculations on predicted or real values)
-    - ?Add the planned values to the bar chart for easier comparison?
+- Experiment simpledag.py on 1st algorithm but with diff. resource configs from the BASELINE
+    - run 3 times and check "global planning analysis dashboard"
+- Change structure of simpledag to have a fanout and a fanin
+    - run 3 times and check "global planning analysis dashboard"
+    - preload will happen, check if there is any anomaly there
 
 [PLANNER_PREDICTIONS:EXPANSION]
 - Add “downstream invocation times” to the prediction logic?
