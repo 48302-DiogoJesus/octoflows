@@ -449,6 +449,117 @@ def main():
                     mime='text/csv',
                 )
 
+                # Add comparison bar chart for predicted vs actual metrics
+                st.markdown("### Reality vs Predictions (avg of all runs)")
+                
+                # Calculate averages for the comparison
+                metrics_data = []
+                for instance in matching_workflow_instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                        
+                    # Calculate actual metrics
+                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                    actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                    actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                    actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) for task in instance.tasks])
+                    actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
+                    
+                    # Get predicted metrics if available
+                    predicted_execution = predicted_download = predicted_upload = 0
+                    predicted_input_size = predicted_output_size = 0
+                    if instance.plan and instance.plan.nodes_info:
+                        predicted_download = sum(info.total_download_time / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_execution = sum(info.exec_time / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_upload = sum(info.upload_time / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))
+                        predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))
+                    
+                    metrics_data.append({
+                        'execution_actual': actual_execution,
+                        'execution_predicted': predicted_execution,
+                        'download_actual': actual_download,
+                        'download_predicted': predicted_download,
+                        'upload_actual': actual_upload,
+                        'upload_predicted': predicted_upload,
+                        'input_size_actual': actual_input_size,
+                        'input_size_predicted': predicted_input_size,
+                        'output_size_actual': actual_output_size,
+                        'output_size_predicted': predicted_output_size,
+                    })
+                
+                if metrics_data:
+                    # Calculate averages
+                    avg_metrics = {
+                        'Total Execution Time (s)': {
+                            'actual': sum(m['execution_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['execution_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                        'Total Download Time (s)': {
+                            'actual': sum(m['download_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['download_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                        'Total Upload Time (s)': {
+                            'actual': sum(m['upload_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['upload_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                        'Total Input Size (bytes)': {
+                            'actual': sum(m['input_size_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['input_size_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                        'Total Output Size (bytes)': {
+                            'actual': sum(m['output_size_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['output_size_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                    }
+                    
+                    # Prepare data for plotting
+                    plot_data = []
+                    for metric_name, values in avg_metrics.items():
+                        plot_data.append({
+                            'Metric': metric_name,
+                            'Value': values['actual'],
+                            'Type': 'Actual'
+                        })
+                        plot_data.append({
+                            'Metric': metric_name,
+                            'Value': values['predicted'],
+                            'Type': 'Predicted'
+                        })
+                    
+                    df_plot = pd.DataFrame(plot_data)
+                    
+                    # Create bar chart
+                    fig = px.bar(
+                        df_plot, 
+                        x='Metric', 
+                        y='Value', 
+                        color='Type',
+                        barmode='group',
+                        title='Predicted vs Actual Metrics (Averages)',
+                        labels={'Value': 'Time (seconds) | Size (bytes)'},
+                        color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
+                    )
+                    
+                    # Update layout for better visualization
+                    fig.update_layout(
+                        xaxis_title='Metric',
+                        yaxis_title='Value',
+                        legend_title='',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        yaxis_type='log',  # Use log scale for better visualization of different magnitudes
+                        height=500
+                    )
+                    
+                    # Add value labels on top of bars
+                    fig.update_traces(
+                        texttemplate='%{y:.2f}',
+                        textposition='outside',
+                        textfont_size=10
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
                 # Add pie chart for time breakdown
                 st.markdown("### Time Breakdown Analysis")
 
@@ -522,276 +633,6 @@ def main():
                         st.info("No time metrics available for pie chart visualization.")
 
                 st.markdown("---")
-                
-                # Add planner comparison section
-                if len(instance_data) > 0 and 'Planner' in instance_data[0]:
-                    st.markdown("### Planner Comparison")
-                    
-                    # Create a DataFrame with the instance data
-                    df_planner = pd.DataFrame(instance_data)
-                    
-                    # Filter out instances without a planner
-                    df_planner = df_planner[df_planner['Planner'] != 'N/A']
-                    
-                    # Define metrics we want to track
-                    metrics_info = [
-                        ('Makespan', 'Makespan (seconds)', 's'),
-                        ('Total Execution Time', 'Total Execution Time (seconds)', 's'),
-                        ('Total Download Time', 'Total Download Time (seconds)', 's'),
-                        ('Total Upload Time', 'Total Upload Time (seconds)', 's'),
-                        ('Total Input Size', 'Total Input Size (bytes)', 'B'),
-                        ('Total Output Size', 'Total Output Size (bytes)', 'B'),
-                        ('Total Task Invocation Time', 'Total Task Invocation Time (seconds)', 's'),
-                        ('Total Dependency Counter Update Time', 'Total Dependency Counter Update Time (seconds)', 's'),
-                        ('Total DAG Download Time', 'Total DAG Download Time (seconds)', 's')
-                    ]
-                    
-                    # Helper function to get metrics from workflow instance
-                    def get_metrics_from_instance(instance):
-                        metrics = {}
-                        
-                        # Calculate makespan from task timings
-                        task_timings = []
-                        for task in instance.tasks:
-                            task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
-                            task_end = task_start
-                            if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None:
-                                task_end += task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms
-                            task_end += task.metrics.tp_execution_time_ms
-                            if task.metrics.total_invocation_time_ms is not None:
-                                task_end += task.metrics.total_invocation_time_ms
-                            if hasattr(task.metrics, 'output_metrics') and task.metrics.output_metrics.tp_time_ms is not None:
-                                task_end += task.metrics.output_metrics.tp_time_ms
-                            task_timings.append((task_start, task_end))
-                        
-                        if task_timings:
-                            min_start = min(start for start, _ in task_timings)
-                            max_end = max(end for _, end in task_timings)
-                            metrics['Makespan'] = (max_end - min_start) / 1000  # Convert to seconds
-                        
-                        # Calculate other metrics
-                        metrics['Total Execution Time'] = sum(t.metrics.tp_execution_time_ms for t in instance.tasks) / 1000  # Convert to seconds
-                        metrics['Total Download Time'] = sum(
-                            sum(input_metric.time_ms for input_metric in t.metrics.input_metrics.input_download_metrics.values() 
-                                if input_metric.time_ms is not None)
-                            for t in instance.tasks
-                        ) / 1000  # Convert to seconds
-                        metrics['Total Upload Time'] = sum(
-                            t.metrics.output_metrics.tp_time_ms / 1000 
-                            for t in instance.tasks 
-                            if hasattr(t.metrics, 'output_metrics') and t.metrics.output_metrics.tp_time_ms is not None
-                        )
-                        metrics['Total Input Size'] = sum(
-                            sum(input_metric.serialized_size_bytes 
-                                for input_metric in t.metrics.input_metrics.input_download_metrics.values())
-                            for t in instance.tasks
-                        )
-                        metrics['Total Output Size'] = sum(
-                            t.metrics.output_metrics.serialized_size_bytes 
-                            for t in instance.tasks 
-                            if hasattr(t.metrics, 'output_metrics')
-                        )
-                        metrics['Total Task Invocation Time'] = sum(
-                            t.metrics.total_invocation_time_ms / 1000 
-                            for t in instance.tasks 
-                            if t.metrics.total_invocation_time_ms is not None
-                        )
-                        metrics['Total Dependency Counter Update Time'] = sum(
-                            t.metrics.update_dependency_counters_time_ms / 1000 
-                            for t in instance.tasks 
-                            if hasattr(t.metrics, 'update_dependency_counters_time_ms') and t.metrics.update_dependency_counters_time_ms is not None
-                        )
-                        metrics['Total DAG Download Time'] = sum(
-                            stat.download_time_ms / 1000 
-                            for stat in instance.dag_download_stats
-                            if hasattr(stat, 'download_time_ms') and stat.download_time_ms is not None
-                        )
-                        
-                        return metrics
-                    
-                    if not df_planner.empty and len(df_planner) > 0:
-                        # Create a clean DataFrame for plotting
-                        plot_data = []
-                        
-                        # Group instances by planner and workflow type
-        
-                        # Create tabs for each metric
-                        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-                            'Makespan (s)', 'Execution Time (s)', 'Download Time (s)',
-                            'Upload Time (s)', 'Input Size (B)', 'Output Size (B)',
-                            'Invocation Time (s)', 'Dependency Update (s)', 'DAG Download (s)'
-                        ])
-                        
-                        # Create a chart for each metric
-                        tabs = [tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9]
-                        
-                        # Get all instances for the selected workflow type
-                        workflow_instances = []
-                        for instance in workflow_types[selected_workflow].instances:
-                            if instance.plan:
-                                workflow_instances.append({
-                                    'planner': instance.plan.planner_name,
-                                    'metrics': get_metrics_from_instance(instance)
-                                })
-                        
-                        # Group by planner and calculate averages
-                        planner_metrics = {}
-                        for instance in workflow_instances:
-                            planner = instance['planner']
-                            if planner not in planner_metrics:
-                                planner_metrics[planner] = {
-                                    'count': 0,
-                                    'metrics': {k: 0 for k, _, _ in metrics_info}
-                                }
-                            
-                            planner_metrics[planner]['count'] += 1
-                            for metric, _, _ in metrics_info:
-                                if metric in instance['metrics']:
-                                    planner_metrics[planner]['metrics'][metric] += instance['metrics'][metric]
-                        
-                        # Calculate averages
-                        for planner in planner_metrics.values():
-                            count = planner['count']
-                            if count > 0:
-                                for metric in planner['metrics']:
-                                    planner['metrics'][metric] /= count
-                        
-                        # Prepare data for plotting
-                        plot_data = []
-                        for planner, data in planner_metrics.items():
-                            plot_data.append({
-                                'Planner': planner,
-                                'Count': data['count'],
-                                **data['metrics']
-                            })
-                        
-                        df_plot = pd.DataFrame(plot_data)
-                        
-                        # Create charts
-                        for (metric, title, unit), tab in zip(metrics_info, tabs):
-                            with tab:
-                                if metric in df_plot.columns:
-                                    # Sort by metric value
-                                    df_sorted = df_plot.sort_values(metric, ascending=False)
-                                    
-                                    # Format tooltips
-                                    df_sorted['Tooltip'] = df_sorted.apply(
-                                        lambda x: f"{x['Planner']}<br>"
-                                                f"{title}: {x[metric]:.2f}{unit}<br>"
-                                                f"Instances: {x['Count']}",
-                                        axis=1
-                                    )
-                                    
-                                    # Create bar chart
-                                    fig = px.bar(
-                                        df_sorted,
-                                        x='Planner',
-                                        y=metric,
-                                        title=title,
-                                        text_auto='.2f',
-                                        color='Planner',
-                                        hover_data={'Tooltip': True, 'Planner': False, metric: False},
-                                        labels={'Tooltip': 'Details', metric: unit}
-                                    )
-                                    
-                                    # Customize layout
-                                    fig.update_layout(
-                                        showlegend=False,
-                                        xaxis_title="Planner",
-                                        yaxis_title=unit,
-                                        hoverlabel=dict(
-                                            bgcolor="white",
-                                            font_size=12,
-                                            font_family="Arial"
-                                        )
-                                    )
-                                    
-                                    # Add value labels on top of bars
-                                    fig.update_traces(
-                                        texttemplate='%{y:.2f}',
-                                        textposition='outside',
-                                        hovertemplate='%{customdata[0]}<extra></extra>',
-                                        customdata=df_sorted[['Tooltip']].values
-                                    )
-                                    
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.warning(f"No data available for {metric}")
-                    else:
-                        st.info("Only one planner found. Showing metrics for this planner.")
-                        
-                        # Get metrics for all instances of this workflow type
-                        all_metrics = []
-                        for instance in workflow_types[selected_workflow].instances:
-                            if instance.plan:
-                                metrics = get_metrics_from_instance(instance)
-                                all_metrics.append(metrics)
-                        
-                        if not all_metrics:
-                            st.warning("No metrics available for this planner.")
-                            return
-                        
-                        # Calculate averages for all metrics
-                        avg_metrics = {}
-                        for metric, _, _ in metrics_info:
-                            values = [m.get(metric, 0) for m in all_metrics if metric in m]
-                            avg_metrics[metric] = sum(values) / len(values) if values else 0
-                        
-                        # Create a single row DataFrame
-                        planner_name = workflow_types[selected_workflow].instances[0].plan.planner_name if \
-                                     workflow_types[selected_workflow].instances and \
-                                     workflow_types[selected_workflow].instances[0].plan else "Unknown"
-                        
-                        df_plot = pd.DataFrame([{
-                            'Planner': planner_name,
-                            'Count': len(all_metrics),
-                            **avg_metrics
-                        }])
-                        
-                        # Create tabs for each metric
-                        tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
-                            'Makespan (s)', 'Execution Time (s)', 'Download Time (s)',
-                            'Upload Time (s)', 'Input Size (B)', 'Output Size (B)',
-                            'Invocation Time (s)', 'Dependency Update (s)', 'DAG Download (s)'
-                        ])
-                        
-                        # Create a chart for each metric
-                        tabs = [tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9]
-                        for (metric, title, unit), tab in zip(metrics, tabs):
-                            with tab:
-                                if metric in df_plot.columns:
-                                    # Create a single bar chart
-                                    fig = px.bar(
-                                        df_plot,
-                                        x='Planner',
-                                        y=metric,
-                                        title=f"{title} by Planner",
-                                        text_auto=True,
-                                        labels={metric: f"{title} ({unit})"},
-                                        hover_data={'Count': True}
-                                    )
-                                    
-                                    # Customize layout
-                                    fig.update_layout(
-                                        showlegend=False,
-                                        xaxis_title="",
-                                        yaxis_title=unit,
-                                        hoverlabel=dict(
-                                            bgcolor="white",
-                                            font_size=12,
-                                            font_family="Arial"
-                                        )
-                                    )
-                                    
-                                    # Add value label on top of the bar
-                                    fig.update_traces(
-                                        texttemplate='%{y:.3f}',
-                                        textposition='outside'
-                                    )
-                                    
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.warning(f"No data available for {metric}")
             else:
                 st.warning("No instance data available for the selected filters.")
 
