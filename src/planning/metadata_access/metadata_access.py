@@ -32,14 +32,14 @@ class MetadataAccess:
         generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
         timer = Timer()
-        task_specific_metrics: dict[str, TaskMetrics] = {}
+        same_workflow_type_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
         generic_metrics_values = await self.metrics_storage.mget(generic_metrics_keys)
         for key, metrics in zip(generic_metrics_keys, generic_metrics_values): # type: ignore
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
-            if self.dag_structure_hash in task_id: task_specific_metrics[task_id] = metrics
+            if self.dag_structure_hash in task_id: same_workflow_type_metrics[task_id] = metrics
             
             # Store upload/download speeds with resource configuration
             # UPLOAD SPEEDS
@@ -68,7 +68,7 @@ class MetadataAccess:
                     ))
 
         # Doesn't go to Redis
-        for task_id, metrics in task_specific_metrics.items():
+        for task_id, metrics in same_workflow_type_metrics.items():
             function_name = self._split_task_id(task_id)[0]
             if metrics.execution_time_per_input_byte_ms is None: continue
             
@@ -94,7 +94,8 @@ class MetadataAccess:
         # # change cached io ratios to count the number of ratios for all function_names
         # print("cached io ratios len: ", sum(len(ratios) for ratios in self.cached_io_ratios.values()))
         # print("cached execution time per byte len: ", sum(len(ratios) for ratios in self.cached_execution_time_per_byte.values()))
-        return len(self.cached_upload_speeds) > 0 or len(self.cached_download_speeds) > 0 or len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
+        #* Needs to have at least SOME history for the same type of workflow
+        return len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:
         """
