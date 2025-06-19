@@ -124,13 +124,13 @@ def main():
         task_data = 0
         total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
         if metrics.output_metrics:
-            task_data += metrics.output_metrics.serialized_size_bytes
+            task_data += metrics.output_metrics.deserialized_size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms is not None else 0
         
         total_data_transferred += task_data
         total_time_executing_tasks_ms += metrics.tp_execution_time_ms if metrics.tp_execution_time_ms is not None else 0
 
-        downloadable_input_size_bytes = sum([input_metrics.serialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
+        downloadable_input_size_bytes = sum([input_metrics.deserialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
         # Prepare data for visualization
         task_metrics_data.append({
             'task_id': task_id,
@@ -141,7 +141,7 @@ def main():
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
             'input_size': downloadable_input_size_bytes,
-            'output_size': metrics.output_metrics.serialized_size_bytes,
+            'output_size': metrics.output_metrics.deserialized_size_bytes,
             'downstream_calls': metrics.total_invocations_count
         })
     
@@ -401,7 +401,7 @@ def main():
                 st.metric("Worker", metrics.worker_resource_configuration.worker_id)
                 st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus} CPUs + {metrics.worker_resource_configuration.memory_mb} MB")
                 col1, col2 = st.columns(2)
-                output_data = metrics.output_metrics.serialized_size_bytes
+                output_data = metrics.output_metrics.deserialized_size_bytes
                 with col1:
                     total_task_handling_time = (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
@@ -434,7 +434,7 @@ def main():
                             
                             if current_task_metrics:
                                 # Calculate all the metrics we want to compare
-                                output_size = metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0
+                                output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
                                 actual_start_time = current_task_metrics['relative_start_time_ms']
                                 end_time_ms = current_task_metrics['end_time_ms']
                                 
@@ -453,7 +453,7 @@ def main():
                                 
                                 # Comparison fields
                                 numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])),
+                                    ('Input Size (bytes)', 'input_size', sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])),
                                     ('Output Size (bytes)', 'output_size', output_size),
                                     ('Execution Time (ms)', 'exec_time', metrics.tp_execution_time_ms),
                                     ('Earliest Start (ms)', 'earliest_start', actual_start_time),
@@ -974,7 +974,7 @@ def main():
                 for input_metrics in task_metrics.input_metrics.input_download_metrics.values():
                     # Calculate download throughputs for each input
                     if input_metrics.time_ms is not None:
-                        downloadable_input_size_bytes = sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()])
+                        downloadable_input_size_bytes = sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()])
                         throughput_mb = (downloadable_input_size_bytes / (input_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
                         speed_bytes_ms = downloadable_input_size_bytes / input_metrics.time_ms  # bytes/ms
                         download_throughputs_mb_s.append(throughput_mb)
@@ -983,11 +983,11 @@ def main():
 
                     # Calculate upload throughput for output if available
                     if task_metrics.output_metrics.tp_time_ms is not None:
-                        throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
-                        speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
+                        throughput_mb = (task_metrics.output_metrics.deserialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                        speed_bytes_ms = task_metrics.output_metrics.deserialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
                         upload_throughputs_mb_s.append(throughput_mb)
                         all_transfer_speeds_b_ms.append(speed_bytes_ms)
-                        total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes
+                        total_data_uploaded += task_metrics.output_metrics.deserialized_size_bytes
 
             # Calculate average throughputs
             avg_download_throughput = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0

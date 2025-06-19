@@ -196,8 +196,8 @@ def main():
                 actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
                 actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)  # in seconds
                 actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)  # in seconds
-                actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) for task in instance.tasks])  # in bytes
-                actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])  # in bytes
+                actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])  # in bytes
+                actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])  # in bytes
                 
                 # Calculate actual makespan
                 task_timings = []
@@ -294,9 +294,9 @@ def main():
                     'Total Upload Time': format_metric(actual_upload, predicted_upload, 
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Input Size': format_size_metric(actual_input_size, predicted_input_size,
-                                            sample_counts.for_download_speed if sample_counts else None),
+                                            sample_counts.for_output_size if sample_counts else None),
                     'Total Output Size': format_size_metric(actual_output_size, predicted_output_size,
-                                            sample_counts.for_upload_speed if sample_counts else None),
+                                            sample_counts.for_output_size if sample_counts else None),
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
@@ -414,10 +414,10 @@ def main():
                                 'Task ID': task.task_id,
                                 'Worker Config': str(task_metrics.worker_resource_configuration),
                                 'Start Time (s)': task_metrics.started_at_timestamp_s,
-                                'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
+                                'Input Size (bytes)': sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
                                 'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
                                 'Execution Time (ms)': task_metrics.tp_execution_time_ms,
-                                'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
+                                'Output Size (bytes)': task_metrics.output_metrics.deserialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
                                 'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
                             })
                         
@@ -462,8 +462,8 @@ def main():
                     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                     actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
                     actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                    actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) for task in instance.tasks])
-                    actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
+                    actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
+                    actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
                     
                     # Get predicted metrics if available
                     predicted_execution = predicted_download = predicted_upload = 0
@@ -600,12 +600,12 @@ def main():
                         if task.metrics.output_metrics.tp_time_ms is not None
                     )
                     metrics['input_size'] += sum(
-                        sum(input_metric.serialized_size_bytes 
+                        sum(input_metric.deserialized_size_bytes 
                             for input_metric in task.metrics.input_metrics.input_download_metrics.values())
                         for task in instance.tasks
                     )
                     metrics['output_size'] += sum(
-                        task.metrics.output_metrics.serialized_size_bytes 
+                        task.metrics.output_metrics.deserialized_size_bytes 
                         for task in instance.tasks
                     )
                     metrics['invocation'] += sum(
