@@ -203,13 +203,12 @@ def main():
     task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
-    tab_viz, tab_summary, tab_exec, tab_data, tab_workers, tab_planning = st.tabs([
+    tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
         "Visualization", 
         "Summary", 
         "Execution Times", 
         "Data Transfer", 
-        "Worker Distribution",
-        "Planning"
+        "Worker Distribution"
     ])
     
     # Visualization tab
@@ -508,154 +507,6 @@ def main():
                     except Exception as e:
                         st.error(f"Error loading plan data: {str(e)}")
                 
-    # Planning tab
-    with tab_planning:
-        st.header("Planned vs Actual Execution Metrics")
-        
-        # Get plan data if available
-        plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
-        plan_data = metrics_redis.get(plan_key)
-        
-        if not plan_data:
-            st.warning("No planning data available for this DAG")
-        else:
-            try:
-                plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data)  # type: ignore
-                
-                # Calculate planned metrics from nodes_info
-                nodes_info = plan.nodes_info
-                planned_makespan = max((node.path_completion_time for node in nodes_info.values()), default=0)
-                planned_execution_time = sum(node.exec_time for node in nodes_info.values())
-                
-                # Calculate actual metrics
-                actual_makespan = makespan_ms
-                actual_execution_time = total_time_executing_tasks_ms
-                
-                # Create comparison data
-                metrics_data = [
-                    {
-                        'Metric': 'Makespan',
-                        'Planned (ms)': planned_makespan,
-                        'Actual (ms)': actual_makespan,
-                        'Difference (ms)': actual_makespan - planned_makespan,
-                        'Difference (%)': ((actual_makespan - planned_makespan) / planned_makespan * 100) if planned_makespan > 0 else 0
-                    },
-                    {
-                        'Metric': 'Total Execution Time',
-                        'Planned (ms)': planned_execution_time,
-                        'Actual (ms)': actual_execution_time,
-                        'Difference (ms)': actual_execution_time - planned_execution_time,
-                        'Difference (%)': ((actual_execution_time - planned_execution_time) / planned_execution_time * 100) if planned_execution_time > 0 else 0
-                    }
-                ]
-                
-                # Create a dataframe
-                df = pd.DataFrame(metrics_data)
-                
-                # Display the comparison table
-                st.subheader("Planned vs Actual Metrics")
-                
-                # Format the dataframe for display
-                display_df = df.copy()
-                for col in ['Planned (ms)', 'Actual (ms)']:
-                    if col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"{x:,.2f}" if pd.notna(x) else "N/A")
-                
-                for col in ['Difference (ms)']:
-                    if col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"{x:+,.2f}" if pd.notna(x) else "N/A")
-                
-                for col in ['Difference (%)']:
-                    if col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
-                
-                # Display the table with custom styling
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        'Metric': st.column_config.TextColumn("Metric"),
-                        'Planned (ms)': st.column_config.TextColumn("Planned (ms)"),
-                        'Actual (ms)': st.column_config.TextColumn("Actual (ms)"),
-                        'Difference (ms)': st.column_config.TextColumn("Difference (ms)"),
-                        'Difference (%)': st.column_config.TextColumn("Difference (%)")
-                    }
-                )
-                
-                # Create a bar chart for visual comparison
-                st.subheader("Planned vs Actual Comparison")
-                
-                # Prepare data for the bar chart
-                chart_data = pd.melt(
-                    df, 
-                    id_vars=['Metric'], 
-                    value_vars=['Planned (ms)', 'Actual (ms)'],
-                    var_name='Type',
-                    value_name='Time (ms)'
-                )
-                
-                # Create a grouped bar chart
-                fig = px.bar(
-                    chart_data,
-                    x='Metric',
-                    y='Time (ms)',
-                    color='Type',
-                    barmode='group',
-                    title='Planned vs Actual Execution Metrics',
-                    color_discrete_map={
-                        'Planned (ms)': '#636EFA',
-                        'Actual (ms)': '#EF553B'
-                    }
-                )
-                
-                # Add text to bars with 2 significant digits
-                fig.update_traces(
-                    texttemplate='%{y:.2f}',
-                    textposition='outside'
-                )
-                
-                # Update layout for better readability
-                fig.update_layout(
-                    xaxis_title='Metric',
-                    yaxis_title='Time (ms)',
-                    legend_title='',
-                    hovermode='x unified',
-                    showlegend=True,
-                    height=500,
-                    uniformtext_minsize=8,
-                    uniformtext_mode='hide'
-                )
-                
-                # Add difference annotations
-                for _, row in df.iterrows():
-                    try:
-                        planned = float(row['Planned (ms)'])
-                        actual = float(row['Actual (ms)'])
-                        diff = float(row['Difference (ms)'])
-                        diff_pct = float(row['Difference (%)'])
-                        max_val = max(planned, actual)
-                        if not pd.isna(max_val):
-                            fig.add_annotation(
-                                x=row['Metric'],
-                                y=max_val * 1.1,
-                                text=f"{diff:+,.2f} ms ({diff_pct:+.1f}%)",
-                                showarrow=False,
-                                font=dict(
-                                    color='red' if diff > 0 else 'green',
-                                    size=10
-                                )
-                            )
-                    except (ValueError, TypeError):
-                        continue
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-            except Exception as e:
-                st.error(f"Error loading planning data: {str(e)}")
-                import traceback
-                st.text(traceback.format_exc())
-    
     # Metrics tabs (unchanged from original)
     with tab_summary:
         # Create dataframe for visualizations
