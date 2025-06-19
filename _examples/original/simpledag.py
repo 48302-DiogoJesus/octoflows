@@ -15,8 +15,14 @@ from src.dag_task_node import DAGTask
 @DAGTask
 def task(input: str) -> str:
     """
-    appends 10 bytes to the input string
+    perform an expensive memory computation
+    return input string + ~ 10 bytes
     """
+    import numpy as np
+    size = 2500
+    a = np.random.rand(size, size)
+    b = np.random.rand(size, size)
+    _ = np.matmul(a, b)
     return input + 'A' * 10
 
 redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
@@ -46,8 +52,11 @@ a2 = task(a1)
 a3 = task(a2)
 a4 = task(a3)
 a5 = task(a4)
+a6 = task(a5)
+a7 = task(a6)
+a8 = task(a7)
 
 for i in range(1):
     start_time = time.time()
-    result = a5.compute(dag_name="simple dag", config=dockerWorkerConfig)
+    result = a8.compute(dag_name="simple dag", config=dockerWorkerConfig)
     print(f"[{i} Result: {result} | Makespan: {time.time() - start_time}s")

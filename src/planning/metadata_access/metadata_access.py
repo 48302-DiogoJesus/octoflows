@@ -11,6 +11,8 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 logger = create_logger(__name__)
 
 class MetadataAccess:
+    MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 20
+
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
     cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
@@ -66,7 +68,6 @@ class MetadataAccess:
                     ))
 
         # Doesn't go to Redis
-        print("zezorro", len(task_specific_metrics))
         for task_id, metrics in task_specific_metrics.items():
             function_name = self._split_task_id(task_id)[0]
             if metrics.execution_time_per_input_byte_ms is None: continue
@@ -93,7 +94,7 @@ class MetadataAccess:
         # # change cached io ratios to count the number of ratios for all function_names
         # print("cached io ratios len: ", sum(len(ratios) for ratios in self.cached_io_ratios.values()))
         # print("cached execution time per byte len: ", sum(len(ratios) for ratios in self.cached_execution_time_per_byte.values()))
-        return len(self.cached_upload_speeds) > 0 and len(self.cached_download_speeds) > 0 and len(self.cached_io_ratios) > 0 and len(self.cached_execution_time_per_byte) > 0
+        return len(self.cached_upload_speeds) > 0 or len(self.cached_download_speeds) > 0 or len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:
         """
@@ -148,7 +149,7 @@ class MetadataAccess:
 
         logger.info(f"Found {len(matching_samples)} exact resource matches for {type}")
         
-        if len(matching_samples) >= 2:
+        if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
             if sla == "avg": normalized_speed_bytes_per_ms = np.mean(matching_samples)
             else: normalized_speed_bytes_per_ms = np.percentile(matching_samples, 100 - sla.value)
@@ -209,7 +210,7 @@ class MetadataAccess:
 
         logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
         
-        if len(matching_samples) >= 2:
+        if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
             if sla == "avg": ms_per_byte = np.mean(matching_samples)
             else: ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
