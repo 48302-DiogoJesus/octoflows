@@ -560,6 +560,126 @@ def main():
                     
                     st.plotly_chart(fig, use_container_width=True)
                 
+                # Add bar chart for actual metrics by planner type
+                st.markdown("### Actual Metrics by Planner Type (Averages)")
+                
+                # Calculate metrics by planner type
+                planner_metrics = {}
+                
+                for instance in matching_workflow_instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                        
+                    planner = instance.plan.planner_name if instance.plan else 'Unknown'
+                    if planner not in planner_metrics:
+                        planner_metrics[planner] = {
+                            'count': 0,
+                            'execution': 0,
+                            'download': 0,
+                            'upload': 0,
+                            'input_size': 0,
+                            'output_size': 0,
+                            'invocation': 0,
+                            'dependency_update': 0,
+                            'dag_download': 0
+                        }
+                    
+                    # Calculate metrics for this instance
+                    metrics = planner_metrics[planner]
+                    metrics['count'] += 1
+                    metrics['execution'] += sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                    metrics['download'] += sum(
+                        sum(input_metric.time_ms / 1000 
+                            for input_metric in task.metrics.input_metrics.input_download_metrics.values() 
+                            if input_metric.time_ms is not None)
+                        for task in instance.tasks
+                    )
+                    metrics['upload'] += sum(
+                        task.metrics.output_metrics.tp_time_ms / 1000 
+                        for task in instance.tasks 
+                        if task.metrics.output_metrics.tp_time_ms is not None
+                    )
+                    metrics['input_size'] += sum(
+                        sum(input_metric.serialized_size_bytes 
+                            for input_metric in task.metrics.input_metrics.input_download_metrics.values())
+                        for task in instance.tasks
+                    )
+                    metrics['output_size'] += sum(
+                        task.metrics.output_metrics.serialized_size_bytes 
+                        for task in instance.tasks
+                    )
+                    metrics['invocation'] += sum(
+                        task.metrics.total_invocation_time_ms / 1000 
+                        for task in instance.tasks 
+                        if task.metrics.total_invocation_time_ms is not None
+                    )
+                    metrics['dependency_update'] += sum(
+                        task.metrics.update_dependency_counters_time_ms / 1000 
+                        for task in instance.tasks 
+                        if hasattr(task.metrics, 'update_dependency_counters_time_ms') and 
+                           task.metrics.update_dependency_counters_time_ms is not None
+                    )
+                    metrics['dag_download'] += sum(
+                        stat.download_time_ms / 1000 
+                        for stat in instance.dag_download_stats
+                    )
+                
+                if planner_metrics:
+                    # Calculate averages
+                    for planner in planner_metrics.values():
+                        count = planner['count']
+                        if count > 0:
+                            for key in ['execution', 'download', 'upload', 'input_size', 
+                                      'output_size', 'invocation', 'dependency_update', 'dag_download']:
+                                planner[key] /= count
+                    
+                    # Prepare data for plotting
+                    plot_data = []
+                    for planner_name, metrics in planner_metrics.items():
+                        plot_data.extend([
+                            {'Planner': planner_name, 'Metric': 'Total Execution Time (s)', 'Value': metrics['execution']},
+                            {'Planner': planner_name, 'Metric': 'Total Download Time (s)', 'Value': metrics['download']},
+                            {'Planner': planner_name, 'Metric': 'Total Upload Time (s)', 'Value': metrics['upload']},
+                            {'Planner': planner_name, 'Metric': 'Total Input Size (bytes)', 'Value': metrics['input_size']},
+                            {'Planner': planner_name, 'Metric': 'Total Output Size (bytes)', 'Value': metrics['output_size']},
+                            {'Planner': planner_name, 'Metric': 'Total Task Invocation Time (s)', 'Value': metrics['invocation']},
+                            {'Planner': planner_name, 'Metric': 'Total Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
+                            {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']}
+                        ])
+                    
+                    df_planner_metrics = pd.DataFrame(plot_data)
+                    
+                    # Create bar chart
+                    fig = px.bar(
+                        df_planner_metrics,
+                        x='Metric',
+                        y='Value',
+                        color='Planner',
+                        barmode='group',
+                        title='Average Actual Metrics by Planner Type',
+                        labels={'Value': 'Value (seconds | bytes)', 'Metric': 'Metric'}
+                    )
+                    
+                    # Update layout for better visualization
+                    fig.update_layout(
+                        xaxis_title='Metric',
+                        yaxis_title='Value',
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        yaxis_type='log',
+                        height=600,
+                        xaxis={'categoryorder':'total descending'}
+                    )
+                    
+                    # Add value labels on top of bars
+                    fig.update_traces(
+                        texttemplate='%{y:.2f}',
+                        textposition='outside',
+                        textfont_size=8
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
                 # Add pie chart for time breakdown
                 st.markdown("### Time Breakdown Analysis")
 

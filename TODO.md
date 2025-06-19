@@ -1,7 +1,3 @@
-- Do 3 executions of NEW "simple dag" and use that for checking dashboards
-    metadata_analysis
-    workflow_dashboard
-
 - Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
     - Is it using the prediction functions?
     - Am I storing/using the correct values (serialized vs deserialized?)
