@@ -1,6 +1,3 @@
-- Fix astronomical planned I/O sizes
-    Debug on `metadata_analysis.py`
-
 - Fix planned vs observed i/o sizes on `metadata_analysis.py`
 
 - Strange => predicted input size and output size are always the same check `abstract_dag_planner` logic, 
