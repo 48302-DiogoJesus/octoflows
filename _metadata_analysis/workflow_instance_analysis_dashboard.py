@@ -404,13 +404,14 @@ def main():
                 with col1:
                     total_task_handling_time = (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
                     st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
-                    st.metric("Dependencies Download Time", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
+                    st.metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
                     st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
                     st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                     st.metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                 with col2:
                     st.metric("", "")
                     st.metric("", "")
+                    st.metric("Total Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
                     st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
                     st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
@@ -455,27 +456,102 @@ def main():
                                 with col_metric:
                                     st.text('Input Size (bytes)')
                                     st.text('Output Size (bytes)')
+                                    st.text('Downloading Deps. (ms)')
                                     st.text('Execution Time (ms)')
+                                    st.text('Upload Time (ms)')
                                     st.text('Earliest Start (ms)')
                                     st.text('End Time (ms)')
                                 with col_planned:
                                     st.text(format_bytes(task_plan.input_size))
                                     st.text(format_bytes(task_plan.output_size))
-                                    st.text(f"{float(task_plan.exec_time):.2f} ms" if isinstance(task_plan.exec_time, (int, float)) else str(task_plan.exec_time))
-                                    st.text(f"{float(task_plan.earliest_start):.2f} ms" if isinstance(task_plan.earliest_start, (int, float)) else str(task_plan.earliest_start))
-                                    st.text(f"{float(task_plan.path_completion_time):.2f} ms" if isinstance(task_plan.path_completion_time, (int, float)) else str(task_plan.path_completion_time))
+                                    st.text(f"{float(task_plan.total_download_time):.2f} ms")
+                                    st.text(f"{float(task_plan.exec_time):.2f} ms")
+                                    st.text(f"{float(task_plan.upload_time):.2f} ms")
+                                    st.text(f"{float(task_plan.earliest_start):.2f} ms")
+                                    st.text(f"{float(task_plan.path_completion_time):.2f} ms")
                                 
                                 with col_observed:
                                     st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                                     st.text(format_bytes(output_size))
-                                    st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms" if isinstance(metrics.tp_execution_time_ms, (int, float)) else str(metrics.tp_execution_time_ms))
-                                    st.text(f"{float(actual_start_time):.2f} ms" if isinstance(actual_start_time, (int, float)) else str(actual_start_time))
-                                    st.text(f"{float(end_time_ms):.2f} ms" if isinstance(end_time_ms, (int, float)) else str(end_time_ms))
+                                    time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
+                                    st.text(f"{float(time_downloading_inputs):.2f} ms")
+                                    st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
+                                    st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                                    st.text(f"{float(actual_start_time):.2f} ms")
+                                    st.text(f"{float(end_time_ms):.2f} ms")
                                 
                                 # Calculate and display difference
+                                def get_diff_style(percentage):
+                                    """Returns appropriate color style based on percentage difference"""
+                                    if percentage is None:
+                                        return ""
+                                    if abs(percentage) > 70:
+                                        return "color: red;"
+                                    return "color: green;"
+
+                                def format_percentage(diff, total):
+                                    """Calculate and format percentage difference"""
+                                    if total == 0:
+                                        return None, "N/A"
+                                    percentage = (diff / total) * 100
+                                    return percentage, f"{percentage:+.2f}%"
+
                                 with col_diff:
-                                    # TODO
-                                    pass
+                                    # Input Size difference
+                                    planned_input = task_plan.input_size
+                                    observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
+                                    pct, pct_str = format_percentage(observed_input - planned_input, planned_input)
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
+                                    
+                                    # Output Size difference
+                                    planned_output = task_plan.output_size
+                                    pct, pct_str = format_percentage(output_size - planned_output, planned_output)
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
+
+                                    # Time Downloading Dependencies difference
+                                    planned_download = float(task_plan.total_download_time)
+                                    observed_download = float(time_downloading_inputs)
+                                    if planned_download is not None and observed_download is not None and planned_download != 0:
+                                        pct = ((observed_download - planned_download) / planned_download) * 100
+                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.text("N/A")
+                                    
+                                    # Execution Time difference
+                                    planned_exec = float(task_plan.exec_time)
+                                    observed_exec = float(metrics.tp_execution_time_ms)
+                                    if planned_exec is not None and observed_exec is not None and planned_exec != 0:
+                                        pct = ((observed_exec - planned_exec) / planned_exec) * 100
+                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.text("N/A")
+
+                                    # Upload Time difference
+                                    planned_upload = float(task_plan.upload_time)
+                                    observed_upload = float(metrics.output_metrics.tp_time_ms or 0)
+                                    if planned_upload is not None and observed_upload is not None and planned_upload != 0:
+                                        pct = ((observed_upload - planned_upload) / planned_upload) * 100
+                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.text("N/A")
+                                    
+                                    # Earliest Start difference
+                                    planned_start = float(task_plan.earliest_start)
+                                    observed_start = float(actual_start_time)
+                                    if planned_start is not None and observed_start is not None and planned_start != 0:
+                                        pct = ((observed_start - planned_start) / planned_start) * 100
+                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.text("N/A")
+                                    
+                                    # End Time difference
+                                    planned_end = float(task_plan.path_completion_time)
+                                    observed_end = float(end_time_ms)
+                                    if planned_end is not None and observed_end is not None and planned_end != 0:
+                                        pct = ((observed_end - planned_end) / planned_end) * 100
+                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.text("N/A")
                         else:
                             st.warning("No planning data available for selected task")
                     except Exception as e:
