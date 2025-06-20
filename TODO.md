@@ -1,27 +1,18 @@
-- Experiment with diff planners for `dag_expensive_computations`
+- Measure cold-starts and warm-starts
+- Update metadata_access to make predictions about cold and warm starts
+- Update abstract dag planner to understand when to add cold/warm starts
 
-[PLANNER_PREDICTIONS:EXPANSION]
-- Add “downstream invocation times” to the prediction logic?
-    Use the `metadata_analysis` dashboard to see if invocation time is relevant
-- Add cold-start/warm-start to the predictions?
+- [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
 ---
+
+- [!!] Add support for final result to be None, store a wrapper in storage instead
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
     + optimizations
         - Task Clustering (fan-ins + fan-outs)
         - Delayed I/O
-
-- [!!] Add support for final result to be None, store a wrapper in storage instead
-
-[OPTIMIZATION:WORKER_STARTUP_SPEED]
-- Storing the full dag on redis is costly (DAG retrieval time adds up)
-    - If below a certain bytes threshold, pass the subDAG in the invocation itself
-    - Worker first checks if the invocation contains the subDAG and if so, doesn't download it from storage
-    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
-    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
-    [EXTRA_SAME_SPIRIT] DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
 
 [THINK:PLANNER_OPTIMIZATIONS]
 - `pre-warm` (Just make an "empty" invocation (special message that the `Worker Handler` must be ready for?) to a container with a given **resource config**)
@@ -34,6 +25,10 @@
     Possible benefits: - makespan ; - data download time.
 - Create a planner that uses them + make the prediction calculations take it into account
 
+[PREDICTIONS:IMPROVEMENTS]
+- Give more importance to the most recent predictions
+- Discard outliers (is this on the users' side? selecting `percentile` instead of `avg`?)
+- Trying to progressively understand the I/O relationship of the functions instead of using `exponential` function
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
@@ -49,17 +44,28 @@
             how:
                 - Check if the result of the first task of the receiver worker already **exists** in storage
 
+[OPTIMIZATION:WORKER_STARTUP_SPEED]
+- Storing the full dag on redis is costly (DAG retrieval time adds up)
+    - If below a certain bytes threshold, pass the subDAG in the invocation itself
+    - Worker first checks if the invocation contains the subDAG and if so, doesn't download it from storage
+    - Functions with the same name have same code => use a dict[function_name, self.func_code] to save space
+    - Also, DAG size is too big for small code and tasks (35kb for image_transform)
+    [EXTRA_SAME_SPIRIT] DAGTaskNode.clone() should clone cached_result if below a threshold => then worker checks the DAG received for cached results before downloading from storage
+
+[EVALUATION:AWS_LAMBDA]
+Implement Lambda worker and create an automated deployment process
+
+---
+
+- Add decorator for user to provide information about specific functions
+    - I/O Relationship (linear or exponential (what exponent) or None)
+
 [VISUALIZATION]
 - Update the realtime dashboard to use the same "agrapgh" configuration as the metrics Dashboard
     then, allow clicking on individual tasks to see details (task_id, worker_id, resource config, individual logs)??
     [BUG] (could use the individual task logs to debug this)
     - Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
         check if the final result is even produced or if the worker is exiting too early
-
-[EVALUATION:AWS_LAMBDA]
-Implement Lambda worker and create an automated deployment process
-
----
 
 [VERSATILITY]
 - Allow user to specify requirements.txt dependencies so that they don't need to be downloaded at runtime
