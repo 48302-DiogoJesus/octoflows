@@ -576,6 +576,26 @@ def main():
         worker_df = worker_df.rename(columns={'task_id': 'task_count'})
         
         # DAG Summary Stats in columns
+        # Calculate predicted makespan
+        plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+        plan_data = metrics_redis.get(plan_key)
+        task_plan: AbstractDAGPlanner.PlanOutput | None = None
+        if plan_data:
+            task_plan = cloudpickle.loads(plan_data) # type: ignore
+
+        predicted_makespan = 0.0
+        if task_plan:
+            earliest_finish = {node_id: 0.0 for node_id in task_plan.nodes_info}
+            for node_id, info in task_plan.nodes_info.items():
+                node_duration = (info.download_time + info.exec_time + info.upload_time) / 1000  # Convert to seconds
+                max_upstream_finish = 0.0
+                for upstream_node in info.node_ref.upstream_nodes:
+                    upstream_id = upstream_node.id.get_full_id()
+                    if upstream_id in earliest_finish:
+                        max_upstream_finish = max(max_upstream_finish, earliest_finish[upstream_id])
+                earliest_finish[node_id] = max_upstream_finish + node_duration
+            predicted_makespan = max(earliest_finish.values()) * 1000 if earliest_finish else 0.0  # Convert back to ms
+
         col1, col2, col3, col4, col5 = st.columns(5)
         task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
         avg_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
@@ -587,7 +607,16 @@ def main():
             st.metric("Total Data Transferred", format_bytes(total_data_transferred))
             st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
         with col2:
-            st.metric("Makespan", f"{makespan_ms:.2f} ms")
+            if predicted_makespan > 0:
+                percentage_diff = ((makespan_ms - predicted_makespan) / predicted_makespan) * 100
+                st.metric(
+                    "Makespan", 
+                    f"{makespan_ms:.2f} ms",
+                    delta=f"{percentage_diff:+.1f}% vs predicted",
+                    help=f"Predicted: {predicted_makespan:.2f} ms"
+                )
+            else:
+                st.metric("Makespan", f"{makespan_ms:.2f} ms")
             st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
             avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
             st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
