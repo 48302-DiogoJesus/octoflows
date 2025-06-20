@@ -1,9 +1,9 @@
-- On "workflow_instance_analysis", planned vs observed, add (DO I HAVE PLANNED VALUES FOR ALL OF THEM?):
-    - makespan
+- Run and check simpledag against secondplanner
+    - 2 resource types
 
 - Change structure of simpledag to have a fanout and a fanin
-    - run 3 times and check "global planning analysis dashboard"
-    - preload will happen, check if there is any anomaly there
+    - Run and check simpledag against secondplanner
+    - 2 resource types
 
 [PLANNER_PREDICTIONS:EXPANSION]
 - Add “downstream invocation times” to the prediction logic?
@@ -39,10 +39,6 @@
     Possible benefits: - makespan ; - data download time.
 - Create a planner that uses them + make the prediction calculations take it into account
 
-[REFACTOR]
-- Should the faas worker handler logic (`docker_worker_handler/worker.py`) be encapsulated in a class (e.g., on existing `Worker` class ?)
-    ! only if it's generic enough that it would also work on `AWS Lambda` workers for example. Otherwise keep it separate.
-    - new function would be called `Worker.start_worker_lifecycle`
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
@@ -54,7 +50,7 @@
     - BENEFITS
         - Using pubsub to avoid storing intermediate outputs (when applicable) permanently and save download time (would be same as upload time because as 1 byte gets uploaded, it gets downloaded immediatelly)
     - DRAWBACKS
-        - Would have to know if the receiver was already active (SYNC point?)
+        - Would have to know if the receiver was already active (SYNC required?)
             how:
                 - Check if the result of the first task of the receiver worker already **exists** in storage
 
@@ -65,8 +61,8 @@
     - Sometimes, on some workflows, ALL workers exit and the client doesn't receive the `sink_task_finished_completed` notification
         check if the final result is even produced or if the worker is exiting too early
 
-[OPTIMIZATION:PLANNING]
-- When predicting normalized stuff, and we don't have enough samples yet, try to use the samples of the closest resource config  (up or odnw)
+[EVALUATION:AWS_LAMBDA]
+Implement Lambda worker and create an automated deployment process
 
 ---
 
@@ -75,6 +71,3 @@
 - At the "workflow language", support more levels: e.g., list[list[DAGTaskNode]]
     Find examples where this makes sense (arg: dict[str, DAGTaskNode])
     Find a better way to iterate through them to avoid repetition
-- Support for dynamic fan-outs w/ special nodes (re-think implementation to allow chains of dynamic fan-out nodes)
-
-[ROBUSTNESS] Create more tests for more complex and edge case DAG structures + DAG compute tests

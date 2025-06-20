@@ -5,7 +5,6 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from src.planning.sla import Percentile
-from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
 from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
 from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
 from src.workers.docker_worker import DockerWorker
@@ -34,22 +33,13 @@ dockerWorkerConfig = DockerWorker.Config(
     planner_config=FirstPlannerAlgorithm.Config(
         sla="avg",
         worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-        # worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-        # available_worker_resource_configurations=[
-        #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-        #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-        #     TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-        # ],
-    )
-    # planner_config=SimplePlannerAlgorithm.Config(
-    #     sla=Percentile(value=80),
-    #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-    #     all_flexible_workers=True
-    #     # available_worker_resource_configurations=[
-    #     #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-    #     #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    #     #     TaskWorkerResourceConfiguration(cpus=4, memory_mb=1024)
-    #     # ],
+    ),
+    # planner_config=SecondPlannerAlgorithm.Config(
+    #     sla="avg",
+    #     available_worker_resource_configurations=[
+    #         TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+    #         TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
+    #     ],
     # )
 )
 

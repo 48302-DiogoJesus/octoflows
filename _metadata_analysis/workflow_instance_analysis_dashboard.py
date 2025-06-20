@@ -64,13 +64,16 @@ def main():
         st.warning("No DAGs found in Redis")
         return
     
+    # Sort DAG keys for consistent display
+    dag_keys_sorted = sorted(dag_keys, key=lambda x: x.decode('utf-8'))
+    
     # Select DAG - use session state to track changes
     if 'prev_dag_key' not in st.session_state:
         st.session_state.prev_dag_key = None
     
     selected_dag_key = st.selectbox(
         "Current DAG",
-        options=dag_keys,
+        options=dag_keys_sorted,
         format_func=lambda x: x.decode('utf-8')
     )
     
