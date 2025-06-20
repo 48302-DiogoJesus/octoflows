@@ -195,7 +195,12 @@ def main():
                 
                 # Calculate actual makespan
                 task_timings = []
+                from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+                common_resources: TaskWorkerResourceConfiguration | None = None
                 for task in instance.tasks:
+                    if common_resources is None: common_resources = task.metrics.worker_resource_configuration
+                    elif common_resources != task.metrics.worker_resource_configuration: common_resources = None
+                    
                     task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
                     task_end = task_start
                     task_end += task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
@@ -277,6 +282,7 @@ def main():
                 instance_data.append({
                     'Workflow Type': selected_workflow,
                     'Planner': instance.plan.planner_name if instance.plan else 'N/A',
+                    'Resources': f"{common_resources.cpus} CPUs {common_resources.memory_mb} MB" if common_resources else 'Non-Uniform',
                     'SLA': sla_value,
                     'Master DAG ID': instance.master_dag_id,
                     'Makespan': format_metric(actual_makespan, predicted_makespan, 
@@ -321,6 +327,7 @@ def main():
                     df_instances,
                     column_config={
                         'Workflow Type': "Workflow Type",
+                        'Resources': "Resources",
                         'SLA': "SLA",
                         'Makespan': "Makespan (Predicted → Actual)",
                         'Total Execution Time': "Total Execution Time (Predicted → Actual)",
@@ -338,6 +345,7 @@ def main():
                     column_order=[
                         'Workflow Type', 
                         'Planner',
+                        'Resources',
                         'SLA',
                         'Master DAG ID',
                         'Makespan', 

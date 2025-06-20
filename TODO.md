@@ -1,5 +1,6 @@
 - Experiment simpledag.py on 1st algorithm but with diff. resource configs from the BASELINE
     - run 3 times and check "global planning analysis dashboard"
+- On "workflow_instance_analysis", show the planned vs observed time downloading data and time uploading data
 - Change structure of simpledag to have a fanout and a fanin
     - run 3 times and check "global planning analysis dashboard"
     - preload will happen, check if there is any anomaly there
