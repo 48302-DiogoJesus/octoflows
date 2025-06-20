@@ -1,9 +1,4 @@
-- Run and check simpledag against secondplanner
-    - 2 resource types
-
-- Change structure of simpledag to have a fanout and a fanin
-    - Run and check simpledag against secondplanner
-    - 2 resource types
+- Experiment with diff planners for `dag_expensive_computations`
 
 [PLANNER_PREDICTIONS:EXPANSION]
 - Add “downstream invocation times” to the prediction logic?

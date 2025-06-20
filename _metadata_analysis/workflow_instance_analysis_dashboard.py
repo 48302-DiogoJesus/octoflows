@@ -217,7 +217,7 @@ def main():
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
-        graph_col, details_col = st.columns([2, 1])
+        graph_col, details_col, planned_vs_observed_col = st.columns([2, 1, 1])
         
         def get_color_for_worker(worker_id):
             # Create a hash of the worker_id
@@ -380,6 +380,17 @@ def main():
             if selected_node and selected_node in dag._all_nodes:
                 st.session_state.selected_task_id = selected_node
         
+        # Get the task node
+        metrics: TaskMetrics | None = None
+        task_node: DAGTaskNode | None = None
+        if hasattr(st.session_state, 'selected_task_id'):
+            task_node = dag._all_nodes[st.session_state.selected_task_id]
+            # Try to find metrics for this task
+            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
+            metrics_data = metrics_redis.get(metrics_key)
+            if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
+            metrics = cloudpickle.loads(metrics_data) # type: ignore
+
         with details_col:
             st.subheader("Selected Task Details")
             
@@ -387,17 +398,7 @@ def main():
             if 'selected_task_id' not in st.session_state:
                 st.session_state.selected_task_id = list(dag._all_nodes.keys())[0] if dag._all_nodes else None
             
-            if st.session_state.selected_task_id:
-                # Get the task node
-                task_node = dag._all_nodes[st.session_state.selected_task_id]
-                
-                # Try to find metrics for this task
-                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
-                metrics_data = metrics_redis.get(metrics_key)
-                if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
-                
-                metrics = cloudpickle.loads(metrics_data) # type: ignore
-                
+            if metrics and task_node:
                 # Basic task info
                 st.metric("Function", task_node.func_name)
                 st.metric("Worker", metrics.worker_resource_configuration.worker_id)
@@ -418,148 +419,149 @@ def main():
                     st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
                     st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
-                
-                # Add planned vs observed metrics if available
-                st.subheader("Planned vs Observed Metrics")
-                plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
-                plan_data = metrics_redis.get(plan_key)
 
-                if plan_data:
-                    try:
-                        plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
-                        tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id)
+        with planned_vs_observed_col:
+            # Add planned vs observed metrics if available
+            st.subheader("Planned vs Observed Metrics")
+            plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+            plan_data = metrics_redis.get(plan_key)
+
+            if metrics and plan_data:
+                try:
+                    plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
+                    tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id)
+                    
+                    if tp:
+                        # Get the current task's timing metrics
+                        current_task_metrics = next(
+                            (t for t in task_metrics_data if t['task_id'] == st.session_state.selected_task_id),
+                            None
+                        )
                         
-                        if tp:
-                            # Get the current task's timing metrics
-                            current_task_metrics = next(
-                                (t for t in task_metrics_data if t['task_id'] == st.session_state.selected_task_id),
-                                None
-                            )
+                        if current_task_metrics:
+                            # Calculate all the metrics we want to compare
+                            output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
+                            actual_start_time = current_task_metrics['relative_start_time_ms']
+                            end_time_ms = current_task_metrics['end_time_ms']
                             
-                            if current_task_metrics:
-                                # Calculate all the metrics we want to compare
-                                output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
-                                actual_start_time = current_task_metrics['relative_start_time_ms']
-                                end_time_ms = current_task_metrics['end_time_ms']
+                            # Create columns for comparison
+                            col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
+
+                            # Add header
+                            with col_metric:
+                                st.markdown("**Metric**")
+                            with col_planned:
+                                st.markdown("**Planned**")
+                            with col_observed:
+                                st.markdown("**Observed**")
+                            with col_diff:
+                                st.markdown("**Difference**")
+                            
+                            # Comparison fields
+                            with col_metric:
+                                st.text('Input Size (bytes)')
+                                st.text('Output Size (bytes)')
+                                st.text('Downloading Deps. (ms)')
+                                st.text('Execution Time (ms)')
+                                st.text('Upload Time (ms)')
+                                st.text('Earliest Start (ms)')
+                                st.text('End Time (ms)')
+                            with col_planned:
+                                st.text(format_bytes(tp.input_size))
+                                st.text(format_bytes(tp.output_size))
+                                st.text(f"{float(tp.total_download_time):.2f} ms")
+                                st.text(f"{float(tp.exec_time):.2f} ms")
+                                st.text(f"{float(tp.upload_time):.2f} ms")
+                                st.text(f"{float(tp.earliest_start):.2f} ms")
+                                st.text(f"{float(tp.path_completion_time):.2f} ms")
+                            
+                            with col_observed:
+                                st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                                st.text(format_bytes(output_size))
+                                time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
+                                st.text(f"{float(time_downloading_inputs):.2f} ms")
+                                st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
+                                st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                                st.text(f"{float(actual_start_time):.2f} ms")
+                                st.text(f"{float(end_time_ms):.2f} ms")
+                            
+                            # Calculate and display difference
+                            def get_diff_style(percentage):
+                                """Returns appropriate color style based on percentage difference"""
+                                if percentage is None:
+                                    return ""
+                                if abs(percentage) > 70:
+                                    return "color: red;"
+                                return "color: green;"
+
+                            def format_percentage(diff, total):
+                                """Calculate and format percentage difference"""
+                                if total == 0:
+                                    return None, "N/A"
+                                percentage = (diff / total) * 100
+                                return percentage, f"{percentage:+.2f}%"
+
+                            with col_diff:
+                                # Input Size difference
+                                planned_input = tp.input_size
+                                observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
+                                pct, pct_str = format_percentage(observed_input - planned_input, planned_input)
+                                st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
                                 
-                                # Create columns for comparison
-                                col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
+                                # Output Size difference
+                                planned_output = tp.output_size
+                                pct, pct_str = format_percentage(output_size - planned_output, planned_output)
+                                st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
 
-                                # Add header
-                                with col_metric:
-                                    st.markdown("**Metric**")
-                                with col_planned:
-                                    st.markdown("**Planned**")
-                                with col_observed:
-                                    st.markdown("**Observed**")
-                                with col_diff:
-                                    st.markdown("**Difference**")
+                                # Time Downloading Dependencies difference
+                                planned_download = float(tp.total_download_time)
+                                observed_download = float(time_downloading_inputs)
+                                if planned_download is not None and observed_download is not None and planned_download != 0:
+                                    pct = ((observed_download - planned_download) / planned_download) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
                                 
-                                # Comparison fields
-                                with col_metric:
-                                    st.text('Input Size (bytes)')
-                                    st.text('Output Size (bytes)')
-                                    st.text('Downloading Deps. (ms)')
-                                    st.text('Execution Time (ms)')
-                                    st.text('Upload Time (ms)')
-                                    st.text('Earliest Start (ms)')
-                                    st.text('End Time (ms)')
-                                with col_planned:
-                                    st.text(format_bytes(tp.input_size))
-                                    st.text(format_bytes(tp.output_size))
-                                    st.text(f"{float(tp.total_download_time):.2f} ms")
-                                    st.text(f"{float(tp.exec_time):.2f} ms")
-                                    st.text(f"{float(tp.upload_time):.2f} ms")
-                                    st.text(f"{float(tp.earliest_start):.2f} ms")
-                                    st.text(f"{float(tp.path_completion_time):.2f} ms")
+                                # Execution Time difference
+                                planned_exec = float(tp.exec_time)
+                                observed_exec = float(metrics.tp_execution_time_ms)
+                                if planned_exec is not None and observed_exec is not None and planned_exec != 0:
+                                    pct = ((observed_exec - planned_exec) / planned_exec) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
+
+                                # Upload Time difference
+                                planned_upload = float(tp.upload_time)
+                                observed_upload = float(metrics.output_metrics.tp_time_ms or 0)
+                                if planned_upload is not None and observed_upload is not None and planned_upload != 0:
+                                    pct = ((observed_upload - planned_upload) / planned_upload) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
                                 
-                                with col_observed:
-                                    st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
-                                    st.text(format_bytes(output_size))
-                                    time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
-                                    st.text(f"{float(time_downloading_inputs):.2f} ms")
-                                    st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
-                                    st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
-                                    st.text(f"{float(actual_start_time):.2f} ms")
-                                    st.text(f"{float(end_time_ms):.2f} ms")
+                                # Earliest Start difference
+                                planned_start = float(tp.earliest_start)
+                                observed_start = float(actual_start_time)
+                                if planned_start is not None and observed_start is not None and planned_start != 0:
+                                    pct = ((observed_start - planned_start) / planned_start) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
                                 
-                                # Calculate and display difference
-                                def get_diff_style(percentage):
-                                    """Returns appropriate color style based on percentage difference"""
-                                    if percentage is None:
-                                        return ""
-                                    if abs(percentage) > 70:
-                                        return "color: red;"
-                                    return "color: green;"
-
-                                def format_percentage(diff, total):
-                                    """Calculate and format percentage difference"""
-                                    if total == 0:
-                                        return None, "N/A"
-                                    percentage = (diff / total) * 100
-                                    return percentage, f"{percentage:+.2f}%"
-
-                                with col_diff:
-                                    # Input Size difference
-                                    planned_input = tp.input_size
-                                    observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
-                                    pct, pct_str = format_percentage(observed_input - planned_input, planned_input)
-                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
-                                    
-                                    # Output Size difference
-                                    planned_output = tp.output_size
-                                    pct, pct_str = format_percentage(output_size - planned_output, planned_output)
-                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
-
-                                    # Time Downloading Dependencies difference
-                                    planned_download = float(tp.total_download_time)
-                                    observed_download = float(time_downloading_inputs)
-                                    if planned_download is not None and observed_download is not None and planned_download != 0:
-                                        pct = ((observed_download - planned_download) / planned_download) * 100
-                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.text("N/A")
-                                    
-                                    # Execution Time difference
-                                    planned_exec = float(tp.exec_time)
-                                    observed_exec = float(metrics.tp_execution_time_ms)
-                                    if planned_exec is not None and observed_exec is not None and planned_exec != 0:
-                                        pct = ((observed_exec - planned_exec) / planned_exec) * 100
-                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.text("N/A")
-
-                                    # Upload Time difference
-                                    planned_upload = float(tp.upload_time)
-                                    observed_upload = float(metrics.output_metrics.tp_time_ms or 0)
-                                    if planned_upload is not None and observed_upload is not None and planned_upload != 0:
-                                        pct = ((observed_upload - planned_upload) / planned_upload) * 100
-                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.text("N/A")
-                                    
-                                    # Earliest Start difference
-                                    planned_start = float(tp.earliest_start)
-                                    observed_start = float(actual_start_time)
-                                    if planned_start is not None and observed_start is not None and planned_start != 0:
-                                        pct = ((observed_start - planned_start) / planned_start) * 100
-                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.text("N/A")
-                                    
-                                    # End Time difference
-                                    planned_end = float(tp.path_completion_time)
-                                    observed_end = float(end_time_ms)
-                                    if planned_end is not None and observed_end is not None and planned_end != 0:
-                                        pct = ((observed_end - planned_end) / planned_end) * 100
-                                        st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
-                                    else:
-                                        st.text("N/A")
-                        else:
-                            st.warning("No planning data available for selected task")
-                    except Exception as e:
-                        st.error(f"Error loading plan data: {str(e)}")
-                
+                                # End Time difference
+                                planned_end = float(tp.path_completion_time)
+                                observed_end = float(end_time_ms)
+                                if planned_end is not None and observed_end is not None and planned_end != 0:
+                                    pct = ((observed_end - planned_end) / planned_end) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
+                    else:
+                        st.warning("No planning data available for selected task")
+                except Exception as e:
+                    st.error(f"Error loading plan data: {str(e)}")
+                        
     # Metrics tabs (unchanged from original)
     with tab_summary:
         # Create dataframe for visualizations
