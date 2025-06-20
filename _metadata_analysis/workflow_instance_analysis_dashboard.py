@@ -452,56 +452,30 @@ def main():
                                     st.markdown("**Difference**")
                                 
                                 # Comparison fields
-                                numeric_fields = [
-                                    ('Input Size (bytes)', 'input_size', sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes),
-                                    ('Output Size (bytes)', 'output_size', output_size),
-                                    ('Execution Time (ms)', 'exec_time', metrics.tp_execution_time_ms),
-                                    ('Earliest Start (ms)', 'earliest_start', actual_start_time),
-                                    ('End Time (ms)', 'end_time', end_time_ms)
-                                ]
+                                with col_metric:
+                                    st.text('Input Size (bytes)')
+                                    st.text('Output Size (bytes)')
+                                    st.text('Execution Time (ms)')
+                                    st.text('Earliest Start (ms)')
+                                    st.text('End Time (ms)')
+                                with col_planned:
+                                    st.text(format_bytes(task_plan.input_size))
+                                    st.text(format_bytes(task_plan.output_size))
+                                    st.text(f"{float(task_plan.exec_time):.2f} ms" if isinstance(task_plan.exec_time, (int, float)) else str(task_plan.exec_time))
+                                    st.text(f"{float(task_plan.earliest_start):.2f} ms" if isinstance(task_plan.earliest_start, (int, float)) else str(task_plan.earliest_start))
+                                    st.text(f"{float(task_plan.path_completion_time):.2f} ms" if isinstance(task_plan.path_completion_time, (int, float)) else str(task_plan.path_completion_time))
                                 
-                                for label, field, observed_value in numeric_fields:
-                                    with col_metric:
-                                        st.text(label)
-                                    
-                                    # Get planned value if available
-                                    planned_value = getattr(task_plan, field, None)
-                                    
-                                    # Format values for display
-                                    if planned_value is not None:
-                                        with col_planned:
-                                            if 'Size' in label:
-                                                st.text(format_bytes(planned_value))
-                                            else:
-                                                st.text(f"{float(planned_value):.2f} ms" if isinstance(planned_value, (int, float)) else str(planned_value))
-                                        
-                                        with col_observed:
-                                            if 'Size' in label:
-                                                st.text(format_bytes(observed_value))
-                                            else:
-                                                st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
-                                        
-                                        # Calculate and display difference
-                                        with col_diff:
-                                            if isinstance(planned_value, (int, float)) and isinstance(observed_value, (int, float)) and planned_value != 0:
-                                                pct_diff = ((observed_value - planned_value) / planned_value) * 100
-                                                # For time metrics, higher is worse; for size metrics, higher is also worse
-                                                is_worse = (pct_diff > 0) if 'Time' in label or 'Size' in label else (pct_diff < 0)
-                                                color = 'red' if is_worse else 'green'
-                                                diff_text = f"<span style='color: {color}'>{pct_diff:+.1f}%</span>"
-                                                st.markdown(diff_text, unsafe_allow_html=True)
-                                            else:
-                                                st.text("-")
-                                    else:
-                                        with col_planned:
-                                            st.text(f"{float(task_plan.path_completion_time):.2f} ms" if isinstance(task_plan.path_completion_time, (int, float)) else str(task_plan.path_completion_time))
-                                        with col_observed:
-                                            if 'Size' in label:
-                                                st.text(format_bytes(observed_value))
-                                            else:
-                                                st.text(f"{float(observed_value):.2f} ms" if isinstance(observed_value, (int, float)) else str(observed_value))
-                                        with col_diff:
-                                            st.text("-")
+                                with col_observed:
+                                    st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                                    st.text(format_bytes(output_size))
+                                    st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms" if isinstance(metrics.tp_execution_time_ms, (int, float)) else str(metrics.tp_execution_time_ms))
+                                    st.text(f"{float(actual_start_time):.2f} ms" if isinstance(actual_start_time, (int, float)) else str(actual_start_time))
+                                    st.text(f"{float(end_time_ms):.2f} ms" if isinstance(end_time_ms, (int, float)) else str(end_time_ms))
+                                
+                                # Calculate and display difference
+                                with col_diff:
+                                    # TODO
+                                    pass
                         else:
                             st.warning("No planning data available for selected task")
                     except Exception as e:
