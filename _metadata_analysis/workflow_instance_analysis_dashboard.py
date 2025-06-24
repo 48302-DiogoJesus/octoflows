@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import MetricsStorage
@@ -102,6 +102,10 @@ def main():
     task_metrics_data = []
     function_groups = set()
     
+    worker_startup_keys = metrics_redis.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
+    worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
+    total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
+
     _task_with_earliest_start_time = None
     _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
@@ -109,6 +113,7 @@ def main():
         metrics_data = metrics_redis.get(metrics_key)
         if not metrics_data: raise Exception(f"Could not find metrics for key: {metrics_key}")
         metrics: TaskMetrics = cloudpickle.loads(metrics_data) # type: ignore
+        assert metrics
         dag_metrics.append(metrics)
         
         func_name = dag._all_nodes[task_id].func_name
@@ -602,6 +607,8 @@ def main():
             predicted_makespan = max(earliest_finish.values()) * 1000 if earliest_finish else 0.0  # Convert back to ms
 
         col1, col2, col3, col4, col5 = st.columns(5)
+        worker_startup_metrics_for_this_workflow = [m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id and m.end_time_ms is not None]
+        total_workflow_worker_startup_time_s = sum(worker_startup_metrics_for_this_workflow) / 1000
         task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
         avg_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
         avg_subdag_create_time = sum(m['create_subdag_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
@@ -639,7 +646,7 @@ def main():
             st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
         with col5:
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
-            st.metric(" ", " ", help="")
+            st.metric("Total Worker Startup Time", f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)")
             st.metric(" ", " ", help="")
 
         breakdown_data = {

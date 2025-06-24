@@ -8,9 +8,12 @@
         on lambda
         - static variable initialized at "cold" and set to "warm" when the first worker is invoked
 
+- Add worker_startup_time to pie chart on `workflow_analysis_dashboard`
+
 - Update metadata_access to make predictions about cold and warm starts
 - Update abstract dag planner to understand when to add cold/warm starts
 
+- Update worker_startup `workflow_analysis_dashboard`
 - Update global_predictions dashboard to show `cold-starts` and `warm-starts` too
 
 - [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?

@@ -70,6 +70,7 @@ class DockerWorker(Worker):
             if self.metrics_storage:
                 await self.metrics_storage.store_invoker_worker_startup_metrics(
                     WorkerStartupMetrics(
+                        master_dag_id=_worker_subdags[0].master_dag_id,
                         start_time_ms=time.time() * 1000,
                         resource_configuration=targetWorkerResourcesConfig,
                         state=None,

@@ -83,7 +83,8 @@ async def main():
             await wk.metrics_storage.update_invoked_worker_startup_metrics(
                 end_time_ms=time.time() * 1000,
                 worker_state="warm" if is_warm_start else "cold",
-                task_ids=[id.get_full_id() for id in immediate_task_ids]
+                task_ids=[id.get_full_id() for id in immediate_task_ids],
+                master_dag_id=dag_id
             )
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id

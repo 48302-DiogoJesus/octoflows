@@ -52,6 +52,7 @@ class TaskMetrics:
 
 @dataclass
 class WorkerStartupMetrics:
+    master_dag_id: str
     resource_configuration: TaskWorkerResourceConfiguration
     start_time_ms: float
     end_time_ms: float | None = None

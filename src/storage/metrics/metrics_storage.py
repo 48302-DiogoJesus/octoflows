@@ -53,14 +53,14 @@ class MetricsStorage():
     async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics, task_ids: list[str]):
         """ direct upload to storage so that the INVOKED can find it and complete the missing fields """
         task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
-        await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}", cloudpickle.dumps(metrics))
+        await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{metrics.master_dag_id}", cloudpickle.dumps(metrics))
 
-    async def update_invoked_worker_startup_metrics(self, end_time_ms: float, worker_state: Literal["warm", "cold"], task_ids: list[str]):
+    async def update_invoked_worker_startup_metrics(self, end_time_ms: float, worker_state: Literal["warm", "cold"], task_ids: list[str], master_dag_id: str):
         task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
-        wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}"))
+        wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{master_dag_id}"))
         wsm.end_time_ms = end_time_ms
         wsm.state = worker_state
-        self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}"] = wsm
+        self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{master_dag_id}"] = wsm
 
     async def flush(self):
         start = time.time()
