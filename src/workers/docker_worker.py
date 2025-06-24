@@ -63,27 +63,27 @@ class DockerWorker(Worker):
         
         # Define the async function for making individual HTTP requests
         async def make_worker_request(worker_id, worker_subdags):
-            targetWorkerResourcesConfig = worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
+            _worker_subdags: list[dag.SubDAG] = worker_subdags
+            targetWorkerResourcesConfig = _worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
             gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
-            logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in worker_subdags]}")
-            task_ids = [subdag.root_node.id for subdag in worker_subdags]
+            logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
             if self.metrics_storage:
                 await self.metrics_storage.store_invoker_worker_startup_metrics(
-                        WorkerStartupMetrics(
-                            start_time_ms=time.time() * 1000,
-                            resource_configuration=targetWorkerResourcesConfig,
-                            state=None,
-                            end_time_ms=None,
+                    WorkerStartupMetrics(
+                        start_time_ms=time.time() * 1000,
+                        resource_configuration=targetWorkerResourcesConfig,
+                        state=None,
+                        end_time_ms=None,
                     ),
-                    task_ids
+                    task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
                 )
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",
                     data=json.dumps({
                         "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
-                        "dag_id": worker_subdags[0].master_dag_id,
-                        "task_ids": base64.b64encode(cloudpickle.dumps(task_ids)).decode('utf-8'),
+                        "dag_id": _worker_subdags[0].master_dag_id,
+                        "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
                         "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                     }),
                     headers={'Content-Type': 'application/json'}

@@ -3,18 +3,10 @@
     - warm-start: time diff. between invoking UNEXISTING worker and worker starting it's execution
     - predictions
         - predict_worker_invocation_time(resource_config, "cold" | "warm")
-    - metrics required
-        - independent key: "metrics-storage-worker-startup-{task_ids_hash}" value: { "state": "warm" | "cold" | None, "resource_config", "start_time_ms", "end_time_ms" }
-            task_ids_hash is a hash of the JSON field "task_ids" passed to the worker upon invocation
-        - key is created by invoker (sets "start_time_ms" and leaves "end_time_ms" = None and "state" = None)
-        - worker sets "end_time_ms" AS SOON AS it starts it's execution and "state" to "warm" or "cold"
-            how to know if it's warm or cold?
-                on docker worker
-                - FS file created when the first worker is invoked (file name: "tmp/worker-warm")
-                    if file exists, it's warm
-                    if file doesn't exist, it's cold
-                on lambda
-                - static variable initialized at "cold" and set to "warm" when the first worker is invoked
+    - metrics required (invoke_time, start_time, state: cold | warm)
+        [DONE]
+        on lambda
+        - static variable initialized at "cold" and set to "warm" when the first worker is invoked
 
 - Update metadata_access to make predictions about cold and warm starts
 - Update abstract dag planner to understand when to add cold/warm starts

@@ -5,11 +5,13 @@ from uuid import uuid4
 import cloudpickle
 import os
 import platform
+import tempfile
+import time
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # Define a lock file path
-LOCK_FILE = "/tmp/script.lock" if platform.system() != "Windows" else "C:\\Windows\\Temp\\script.lock"
+LOCK_FILE = os.path.join(tempfile.gettempdir(), "script.lock")
 
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -22,6 +24,14 @@ from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 
 logger = create_logger(__name__)
+
+def create_if_not_exists(filename):
+    try:
+        fd = os.open(filename, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        return False  # File was created (didn't exist before)
+    except FileExistsError:
+        return True  # File already existed
 
 async def main():
     # Ensure only one instance of the script is running
@@ -48,7 +58,7 @@ async def main():
 
         if len(sys.argv) != 4:
             raise Exception("Usage: python script.py <b64_config> <dag_id> <task_id>")
-        
+
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
         dag_id = str(sys.argv[2])
@@ -56,7 +66,7 @@ async def main():
         
         if not isinstance(config, DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
-        
+    
         wk = DockerWorker(config)
 
         dag_download_time_ms = Timer()
@@ -65,6 +75,16 @@ async def main():
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
         logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
+
+        tmp_dir = tempfile.gettempdir()
+        filepath = os.path.join(tmp_dir, "worker_startup.atomic")
+        is_warm_start = create_if_not_exists(filepath)
+        if wk.metrics_storage:
+            await wk.metrics_storage.update_invoked_worker_startup_metrics(
+                end_time_ms=time.time() * 1000,
+                worker_state="warm" if is_warm_start else "cold",
+                task_ids=[id.get_full_id() for id in immediate_task_ids]
+            )
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).get_annotation(TaskWorkerResourceConfiguration).worker_id
         _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
