@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 from src.planning.sla import SLA
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStorage
-from src.storage.metrics.metrics_types import TaskMetrics
+from src.storage.metrics.metrics_types import TaskMetrics, WorkerStartupMetrics
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -19,10 +19,15 @@ class MetadataAccess:
     cached_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int]]] = {}
+    # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
+    cached_worker_cold_start_times: list[tuple[float, float, int]] = []
+    # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
+    cached_worker_warm_start_times: list[tuple[float, float, int]] = []
 
     _cached_prediction_data_transfer_times: dict[str, float] = {}
     _cached_prediction_execution_times: dict[str, float] = {}
     _cached_prediction_output_sizes: dict[str, int] = {}
+    _cached_prediction_startup_times: dict[str, float] = {}
 
     def __init__(self, dag_structure_hash: str, metrics_storage: MetricsStorage):
         self.dag_structure_hash = dag_structure_hash
@@ -31,6 +36,7 @@ class MetadataAccess:
     async def load_metrics_from_storage(self):
         generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
+        worker_startup_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
         timer = Timer()
         same_workflow_type_metrics: dict[str, TaskMetrics] = {}
 
@@ -67,6 +73,12 @@ class MetadataAccess:
                         metrics.worker_resource_configuration.memory_mb
                     ))
 
+        worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
+        for wsm in worker_startup_metrics:
+            if wsm.end_time_ms is None: continue
+            if wsm.state == "cold": self.cached_worker_cold_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
+            elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
+
         # Doesn't go to Redis
         for task_id, metrics in same_workflow_type_metrics.items():
             function_name = self._split_task_id(task_id)[0]
@@ -94,7 +106,9 @@ class MetadataAccess:
         # # change cached io ratios to count the number of ratios for all function_names
         # print("cached io ratios len: ", sum(len(ratios) for ratios in self.cached_io_ratios.values()))
         # print("cached execution time per byte len: ", sum(len(ratios) for ratios in self.cached_execution_time_per_byte.values()))
-        #* Needs to have at least SOME history for the same type of workflow
+        print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
+        print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
+        #* Needs to have at least SOME history for the SAME TYPE of workflow
         return len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:
@@ -170,6 +184,47 @@ class MetadataAccess:
             res = data_size_bytes / actual_speed
         
         self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
+        return res # type: ignore
+
+    def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = False) -> float:
+        """Predict worker startup time given resource configuration and state."""
+        samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
+        if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
+        
+        if len(samples) == 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+        
+        prediction_key = f"{state}-{resource_config}-{sla}"
+        if allow_cached and prediction_key in self._cached_prediction_startup_times: 
+            return self._cached_prediction_startup_times[prediction_key]
+        
+        # Filter samples by exact resource match
+        matching_samples = [
+            startup_time for startup_time, cpus, memory_mb in samples
+            if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
+        ]
+
+        logger.info(f"Found {len(matching_samples)} exact resource matches for {state}")
+        
+        if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
+            # Direct prediction using exact resource matches (no memory scaling needed)
+            if sla == "avg": startup_time = np.mean(matching_samples)
+            else: startup_time = np.percentile(matching_samples, 100 - sla.value)
+            if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+            res = startup_time
+        else:
+            # Insufficient exact matches - use memory scaling model with baseline normalization
+            # First, normalize all samples to baseline memory configuration
+            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.5 for startup_time, cpus, memory_mb in samples]
+            if sla == "avg":  startup_time = np.mean(baseline_normalized_samples)
+            else: startup_time = np.percentile(baseline_normalized_samples, 100 - sla.value)
+            
+            if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+            
+            # Scale from baseline to target resource configuration
+            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
+            res = actual_startup_time
+        
+        self._cached_prediction_startup_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
     def predict_execution_time(
