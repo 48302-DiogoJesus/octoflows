@@ -4,7 +4,7 @@
     - predictions
         - predict_worker_invocation_time(resource_config, "cold" | "warm")
     - metrics required
-        - independent key: "worker-start-{task_ids_hash}" value: { "state": "warm" | "cold" | None, "resource_config", "start_time_ms", "end_time_ms" }
+        - independent key: "metrics-storage-worker-startup-{task_ids_hash}" value: { "state": "warm" | "cold" | None, "resource_config", "start_time_ms", "end_time_ms" }
             task_ids_hash is a hash of the JSON field "task_ids" passed to the worker upon invocation
         - key is created by invoker (sets "start_time_ms" and leaves "end_time_ms" = None and "state" = None)
         - worker sets "end_time_ms" AS SOON AS it starts it's execution and "state" to "warm" or "cold"
@@ -18,6 +18,8 @@
 
 - Update metadata_access to make predictions about cold and warm starts
 - Update abstract dag planner to understand when to add cold/warm starts
+
+- Update global_predictions dashboard to show `cold-starts` and `warm-starts` too
 
 - [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 

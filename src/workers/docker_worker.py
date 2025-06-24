@@ -3,6 +3,7 @@ import base64
 from dataclasses import dataclass
 from itertools import groupby
 import json
+import time
 
 import aiohttp
 import cloudpickle
@@ -34,6 +35,7 @@ class DockerWorker(Worker):
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         All HTTP requests are executed in parallel, and the function only returns once all requests are completed
         '''
+        from src.storage.metrics.metrics_types import WorkerStartupMetrics
         if len(subdags) == 0: 
             raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
         
@@ -64,14 +66,24 @@ class DockerWorker(Worker):
             targetWorkerResourcesConfig = worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
             gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in worker_subdags]}")
-            
+            task_ids = [subdag.root_node.id for subdag in worker_subdags]
+            if self.metrics_storage:
+                await self.metrics_storage.store_invoker_worker_startup_metrics(
+                        WorkerStartupMetrics(
+                            start_time_ms=time.time() * 1000,
+                            resource_configuration=targetWorkerResourcesConfig,
+                            state=None,
+                            end_time_ms=None,
+                    ),
+                    task_ids
+                )
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",
                     data=json.dumps({
                         "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
                         "dag_id": worker_subdags[0].master_dag_id,
-                        "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in worker_subdags])).decode('utf-8'),
+                        "task_ids": base64.b64encode(cloudpickle.dumps(task_ids)).decode('utf-8'),
                         "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                     }),
                     headers={'Content-Type': 'application/json'}

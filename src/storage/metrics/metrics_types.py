@@ -48,3 +48,11 @@ class TaskMetrics:
     
     total_invocations_count: int
     total_invocation_time_ms: float | None
+
+
+@dataclass
+class WorkerStartupMetrics:
+    resource_configuration: TaskWorkerResourceConfiguration
+    start_time_ms: float
+    end_time_ms: float | None = None
+    state: Literal["warm", "cold"] | None = None
