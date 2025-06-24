@@ -75,6 +75,7 @@ class DockerWorker(Worker):
                         resource_configuration=targetWorkerResourcesConfig,
                         state=None,
                         end_time_ms=None,
+                        initial_task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
                     ),
                     task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
                 )

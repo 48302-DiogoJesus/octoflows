@@ -98,6 +98,10 @@ def main():
         st.error(f"Failed to deserialize DAG submission metrics: {e}")
         return
 
+    worker_startup_keys = metrics_redis.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
+    worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
+    total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
+
     # Collect all metrics for this DAG
     dag_metrics: list[TaskMetrics] = []
     total_data_transferred = 0
@@ -108,10 +112,6 @@ def main():
     total_time_updating_dependency_counters_ms = 0
     task_metrics_data = []
     function_groups = set()
-    
-    worker_startup_keys = metrics_redis.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
-    worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
-    total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
 
     _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
@@ -752,160 +752,6 @@ def main():
                 fig.update_layout(showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
                 
-            # Add worker resource charts
-            st.subheader("Worker Resource Utilization")
-            
-            # Create columns for resource charts
-            res_col1, res_col2 = st.columns(2)
-            
-            with res_col1:
-                # CPU distribution by worker
-                if 'worker_resource_configuration_cpus' in metrics_df.columns:
-                    cpu_df = metrics_df[metrics_df['worker_resource_configuration_cpus'] > 0]  # Filter out invalid entries
-                    if not cpu_df.empty:
-                        fig = px.box(
-                            cpu_df,
-                            x='worker_id',
-                            y='worker_resource_configuration_cpus',
-                            color='worker_id',
-                            labels={
-                                'worker_id': 'Worker ID',
-                                'worker_resource_configuration_cpus': 'CPU Cores'
-                            },
-                            title="CPU Cores per Worker"
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("No valid CPU data available")
-            
-            with res_col2:
-                # RAM distribution by worker
-                if 'worker_resource_configuration_ram' in metrics_df.columns:
-                    ram_df = metrics_df[metrics_df['worker_resource_configuration_ram'] > 0]  # Filter out invalid entries
-                    if not ram_df.empty:
-                        fig = px.box(
-                            ram_df,
-                            x='worker_id',
-                            y='worker_resource_configuration_ram',
-                            color='worker_id',
-                            labels={
-                                'worker_id': 'Worker ID',
-                                'worker_resource_configuration_ram': 'RAM (MB)'
-                            },
-                            title="RAM Allocation per Worker (MB)"
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("No valid RAM data available")
-            
-            # Resource usage by function group
-            st.subheader("Resource Usage by Function Group")
-            
-            # Create columns for function group charts
-            func_col1, func_col2 = st.columns(2)
-            
-            with func_col1:
-                # CPU usage by function group
-                if 'worker_resource_configuration_cpus' in metrics_df.columns:
-                    cpu_func_df = metrics_df[metrics_df['worker_resource_configuration_cpus'] > 0]
-                    if not cpu_func_df.empty:
-                        fig = px.box(
-                            cpu_func_df,
-                            x='function_name',
-                            y='worker_resource_configuration_cpus',
-                            color='function_name',
-                            labels={
-                                'function_name': 'Function Group',
-                                'worker_resource_configuration_cpus': 'CPU Cores'
-                            },
-                            title="CPU Cores by Function Group"
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-            
-            with func_col2:
-                # RAM usage by function group
-                if 'worker_resource_configuration_ram' in metrics_df.columns:
-                    ram_func_df = metrics_df[metrics_df['worker_resource_configuration_ram'] > 0]
-                    if not ram_func_df.empty:
-                        fig = px.box(
-                            ram_func_df,
-                            x='function_name',
-                            y='worker_resource_configuration_ram',
-                            color='function_name',
-                            labels={
-                                'function_name': 'Function Group',
-                                'worker_resource_configuration_ram': 'RAM (MB)'
-                            },
-                            title="RAM Allocation by Function Group (MB)"
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-            
-            # Scatter plot of execution time vs resources
-            st.subheader("Execution Time vs Resource Allocation")
-            
-            if 'worker_resource_configuration_cpus' in metrics_df.columns and 'worker_resource_configuration_ram' in metrics_df.columns:
-                resource_df = metrics_df[
-                    (metrics_df['worker_resource_configuration_cpus'] > 0) & 
-                    (metrics_df['worker_resource_configuration_ram'] > 0)
-                ]
-                
-                if not resource_df.empty:
-                    # Create two columns for side-by-side plots
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Original CPU vs Execution Time plot
-                        fig_cpu = px.scatter(
-                            resource_df,
-                            x='worker_resource_configuration_cpus',
-                            y='execution_time_ms',
-                            color='function_name',
-                            hover_data=['task_id', 'worker_id'],
-                            labels={
-                                'worker_resource_configuration_cpus': 'CPU Cores',
-                                'execution_time_ms': 'Execution Time (ms)',
-                                'function_name': 'Function Group'
-                            },
-                            title="Execution Time vs CPU Cores"
-                        )
-                        st.plotly_chart(fig_cpu, use_container_width=True)
-                    
-                    with col2:
-                        # New RAM vs Execution Time plot
-                        fig_ram = px.scatter(
-                            resource_df,
-                            x='worker_resource_configuration_ram',
-                            y='execution_time_ms',
-                            color='function_name',
-                            hover_data=['task_id', 'worker_id'],
-                            labels={
-                                'worker_resource_configuration_ram': 'RAM Allocation (MB)',
-                                'execution_time_ms': 'Execution Time (ms)',
-                                'function_name': 'Function Group'
-                            },
-                            title="Execution Time vs RAM Allocation"
-                        )
-                        st.plotly_chart(fig_ram, use_container_width=True)
-                    
-                    # Combined plot showing both CPU and RAM impact
-                    st.subheader("Execution Time vs Resource Allocation (Combined View)")
-                    fig_combined = px.scatter(
-                        resource_df,
-                        x='worker_resource_configuration_cpus',
-                        y='execution_time_ms',
-                        size='worker_resource_configuration_ram',
-                        color='function_name',
-                        hover_data=['task_id', 'worker_id'],
-                        labels={
-                            'worker_resource_configuration_cpus': 'CPU Cores',
-                            'execution_time_ms': 'Execution Time (ms)',
-                            'worker_resource_configuration_ram': 'RAM (MB)',
-                            'function_name': 'Function Group'
-                        },
-                        title="Execution Time vs CPU Cores (Size=RAM Allocation)"
-                    )
-                    st.plotly_chart(fig_combined, use_container_width=True)
-                
     with tab_data:
         if dag_metrics:
             # Collect all individual transfer metrics
@@ -988,46 +834,6 @@ def main():
                     spine.set_color('white')
                 
                 st.pyplot(fig, use_container_width=False)
-                
-                # Add percentile predictions section
-                st.subheader("Transfer Time Predictions")
-                
-                # Create input for data size
-                data_size = st.number_input("Enter data size (bytes) for prediction:", min_value=1, value=1000000)
-                
-                # Calculate predictions for each percentile
-                predictions = []
-                for i, p in enumerate(percentiles):
-                    speed = percentile_values[i]
-                    if speed > 0:
-                        time_ms = data_size / speed
-                        predictions.append({
-                            "Percentile": f"{p}th",
-                            "Speed (bytes/ms)": f"{speed:.2f}",
-                            "Predicted Time (ms)": f"{time_ms:.2f}",
-                            "Description": [
-                                "Very conservative estimate (95% confidence)",
-                                "Conservative estimate (75% confidence)",
-                                "Median speed (typical case)",
-                                "Optimistic estimate (25% confidence)",
-                                "Very optimistic estimate (5% confidence)"
-                            ][i]
-                        })
-                
-                # Display predictions as a table
-                if predictions:
-                    predictions_df = pd.DataFrame(predictions)
-                    st.dataframe(
-                        predictions_df,
-                        use_container_width=True,
-                        column_config={
-                            "Percentile": st.column_config.TextColumn(width="small"),
-                            "Speed (bytes/ms)": st.column_config.NumberColumn(width="medium"),
-                            "Predicted Time (ms)": st.column_config.NumberColumn(width="medium"),
-                            "Description": st.column_config.TextColumn(width="large")
-                        },
-                        hide_index=True
-                    )
             else:
                 st.warning("No transfer metrics available for visualization")
 
@@ -1045,7 +851,8 @@ def main():
             total_uploading = 0
             total_invoking = 0
             total_updating = 0
-            
+            total_worker_startup = 0
+
             # Calculate total times across all critical path tasks
             for task_id in critical_nodes:
                 metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
@@ -1054,6 +861,10 @@ def main():
                     continue
                     
                 metrics: TaskMetrics = cloudpickle.loads(metrics_data)  # type: ignore
+
+                for wsm in worker_startup_metrics:
+                    if task_id in wsm.initial_task_ids:
+                        total_worker_startup += (wsm.end_time_ms - wsm.start_time_ms) if wsm.end_time_ms is not None else 0
                 
                 # Accumulate times
                 total_waiting += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0
@@ -1064,8 +875,8 @@ def main():
             
             # Create a single bar showing the total time breakdown
             breakdown_data = {
-                'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters'],
-                'Time (ms)': [total_waiting, total_executing, total_uploading, total_invoking, total_updating]
+                'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters', 'Worker Startup'],
+                'Time (ms)': [total_waiting, total_executing, total_uploading, total_invoking, total_updating, total_worker_startup]
             }
             
             # Calculate percentages
@@ -1087,10 +898,11 @@ def main():
                     'Executing': '#00CC96',
                     'Uploading Outputs': '#636EFA',
                     'Invoking Downstream': '#EF553B',
-                    'Updating Counters': '#AB63FA'
+                    'Updating Counters': '#AB63FA',
+                    'Worker Startup': '#FF69B4'
                 },
                 category_orders={
-                    'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters']
+                    'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters', 'Worker Startup']
                 }
             )
             
