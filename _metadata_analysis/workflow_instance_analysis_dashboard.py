@@ -213,7 +213,7 @@ def main():
     task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
-    tab_viz, tab_summary, tab_exec, tab_data, tab_workers, tab_critical_path = st.tabs([
+    tab_viz, tab_summary, tab_exec, tab_data_transfer, tab_workers, tab_critical_path = st.tabs([
         "Visualization", 
         "Summary", 
         "Execution Times", 
@@ -752,7 +752,7 @@ def main():
                 fig.update_layout(showlegend=False)
                 st.plotly_chart(fig, use_container_width=True)
                 
-    with tab_data:
+    with tab_data_transfer:
         if dag_metrics:
             # Collect all individual transfer metrics
             download_throughputs_mb_s = []
@@ -837,6 +837,32 @@ def main():
             else:
                 st.warning("No transfer metrics available for visualization")
 
+    with tab_workers:
+        if dag_metrics:
+            col1, col2 = st.columns(2)
+            with col1:
+                fig = px.bar(
+                    worker_df,
+                    x='function_name',
+                    y='task_count',
+                    color='worker_id',
+                    title="Task Distribution by Worker and Function Group",
+                    labels={
+                        'function_name': 'Function Group',
+                        'task_count': 'Number of Tasks',
+                        'worker_id': 'Worker ID'
+                    }
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            with col2:
+                fig = px.sunburst(
+                    worker_df,
+                    path=['worker_id', 'function_name'],
+                    values='task_count',
+                    title="Worker-Function Group Task Distribution"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
     with tab_critical_path:
         st.header("Critical Path Analysis")
 
@@ -873,100 +899,66 @@ def main():
                 total_invoking += metrics.total_invocation_time_ms or 0
                 total_updating += metrics.update_dependency_counters_time_ms or 0   
             
-            # Create a single bar showing the total time breakdown
-            breakdown_data = {
-                'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters', 'Worker Startup'],
-                'Time (ms)': [total_waiting, total_executing, total_uploading, total_invoking, total_updating, total_worker_startup]
-            }
+            # Create a summary table
+            breakdown_data = [
+                ('Waiting for Inputs', total_waiting, 'Time spent waiting for input data to be available'),
+                ('Executing', total_executing, 'Time spent executing the task function'),
+                ('Uploading Outputs', total_uploading, 'Time spent uploading task outputs to storage'),
+                ('Invoking Downstream', total_invoking, 'Time spent notifying and invoking downstream tasks'),
+                ('Updating Counters', total_updating, 'Time spent updating dependency counters'),
+                ('Worker Startup', total_worker_startup, 'Time spent initializing worker containers')
+            ]
             
-            # Calculate percentages
-            total_time = sum(breakdown_data['Time (ms)'])
-            if total_time > 0:
-                percentages = [f"{t/total_time*100:.1f}%" for t in breakdown_data['Time (ms)']]
-                breakdown_data['Percentage'] = percentages
+            # Calculate total and percentages
+            total_time = sum(time for _, time, _ in breakdown_data)
             
-            # Create a single stacked bar chart
-            fig = px.bar(
-                breakdown_data,
-                x='Activity',
-                y='Time (ms)',
-                color='Activity',
-                text='Percentage' if total_time > 0 else None,
-                title="Total Time Breakdown for Critical Path Tasks",
-                color_discrete_map={
-                    'Waiting for Inputs': '#FFA15A',
-                    'Executing': '#00CC96',
-                    'Uploading Outputs': '#636EFA',
-                    'Invoking Downstream': '#EF553B',
-                    'Updating Counters': '#AB63FA',
-                    'Worker Startup': '#FF69B4'
-                },
-                category_orders={
-                    'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters', 'Worker Startup']
-                }
-            )
+            # Create a DataFrame for the table
+            table_data = []
+            for activity, time, description in breakdown_data:
+                if time > 0:  # Only include activities with non-zero time
+                    table_data.append({
+                        'Activity': activity,
+                        'Time (ms)': f"{time:,.0f}",
+                        'Percentage': f"{(time/total_time*100):.1f}%" if total_time > 0 else "0.0%",
+                        'Description': description
+                    })
             
-            # Update layout
-            fig.update_layout(
-                showlegend=False,
-                xaxis_title="",
-                yaxis_title="Time (ms)",
-                height=500,
-                margin=dict(l=50, r=50, t=80, b=50),
-                hovermode='x'
-            )
+            # Add total row
+            if table_data:
+                table_data.append({
+                    'Activity': 'TOTAL',
+                    'Time (ms)': f"{total_time:,.0f}",
+                    'Percentage': '100.0%',
+                    'Description': 'Sum of all time components'
+                })
             
-            # Add total time as annotation
-            fig.add_annotation(
-                x=0.5,
-                y=1.1,
-                xref='paper',
-                yref='paper',
-                text=f"Total Time: {total_time:,.2f} ms",
-                showarrow=False,
-                font=dict(size=14, color='white')
-            )
-            
-            # Customize hover template
-            if total_time > 0:
-                fig.update_traces(
-                    hovertemplate='<b>%{x}</b><br>Time: %{y:,.2f} ms<br>Percentage: %{text}' +
-                                '<extra></extra>',
-                    texttemplate='%{text}'
+            # Display the table
+            if table_data:
+                # Separate the total row if it exists
+                total_row = None
+                if table_data and table_data[-1]['Activity'] == 'TOTAL':
+                    total_row = table_data.pop()
+                
+                # Create DataFrame and sort by percentage (descending)
+                df = pd.DataFrame(table_data)
+                df['percentage_value'] = df['Percentage'].str.rstrip('%').astype(float)
+                df = df.sort_values('percentage_value', ascending=False).drop('percentage_value', axis=1)
+                
+                # Add total row back if it existed
+                if total_row:
+                    df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
+                
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    column_config={
+                        'Activity': st.column_config.TextColumn(width='medium'),
+                        'Time (ms)': st.column_config.TextColumn(width='small'),
+                        'Percentage': st.column_config.TextColumn(width='small'),
+                        'Description': st.column_config.TextColumn(width='large')
+                    },
+                    hide_index=True
                 )
-            else:
-                fig.update_traces(
-                    hovertemplate='<b>%{x}</b><br>Time: %{y:,.2f} ms<extra></extra>'
-                )
-            
-            # Display the chart
-            st.plotly_chart(fig, use_container_width=True)
     
-    with tab_workers:
-        if dag_metrics:
-            col1, col2 = st.columns(2)
-            with col1:
-                fig = px.bar(
-                    worker_df,
-                    x='function_name',
-                    y='task_count',
-                    color='worker_id',
-                    title="Task Distribution by Worker and Function Group",
-                    labels={
-                        'function_name': 'Function Group',
-                        'task_count': 'Number of Tasks',
-                        'worker_id': 'Worker ID'
-                    }
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            with col2:
-                fig = px.sunburst(
-                    worker_df,
-                    path=['worker_id', 'function_name'],
-                    values='task_count',
-                    title="Worker-Function Group Task Distribution"
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
 if __name__ == "__main__":
     main()
