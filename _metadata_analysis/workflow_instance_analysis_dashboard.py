@@ -213,14 +213,57 @@ def main():
     task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
 
     # Create tabs for visualization and metrics
-    tab_viz, tab_summary, tab_exec, tab_data, tab_workers = st.tabs([
+    tab_viz, tab_summary, tab_exec, tab_data, tab_workers, tab_critical_path = st.tabs([
         "Visualization", 
         "Summary", 
         "Execution Times", 
         "Data Transfer", 
-        "Worker Distribution"
+        "Worker Distribution",
+        "Critical Path Breakdown"
     ])
     
+    # Find critical path (longest path from source to sink)
+    def find_critical_path():
+        # Perform DFS to find the longest path from source to sink
+        max_path = []
+        max_length = -1
+        
+        def dfs(node, path, current_length):
+            nonlocal max_path, max_length
+            node_id = node.id.get_full_id()
+            
+            task_metrics = next((t for t in task_metrics_data if t['task_id'] == node_id), None)
+            if not task_metrics:
+                return
+                
+            task_time = task_metrics.get('end_time_ms', 0)
+            
+            # Update path and length
+            new_path = path + [node_id]
+            new_length = current_length + task_time
+            
+            # If this is the sink node, check if it's the longest path
+            if node_id == dag.sink_node.id.get_full_id():
+                if new_length > max_length:
+                    max_length = new_length
+                    max_path = new_path
+                return
+            
+            # Continue DFS to downstream nodes
+            for downstream in node.downstream_nodes:
+                dfs(downstream, new_path, new_length)
+        
+        # Start DFS from all root nodes
+        for root in dag.root_nodes:
+            dfs(root, [], 0)
+        
+        # Convert the critical path to a set for O(1) lookups
+        critical_nodes = set(max_path)
+        critical_edges = set(zip(max_path[:-1], max_path[1:]))
+        return critical_nodes, critical_edges
+            
+    critical_nodes, critical_edges = find_critical_path()
+
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
@@ -247,49 +290,6 @@ def main():
             edges = []
             node_levels = {}  # Tracks hierarchy levels
             visited = set()
-            
-            # Find critical path (longest path from source to sink)
-            def find_critical_path():
-                # Perform DFS to find the longest path from source to sink
-                max_path = []
-                max_length = -1
-                
-                def dfs(node, path, current_length):
-                    nonlocal max_path, max_length
-                    node_id = node.id.get_full_id()
-                    
-                    task_metrics = next((t for t in task_metrics_data if t['task_id'] == node_id), None)
-                    if not task_metrics:
-                        return
-                        
-                    task_time = task_metrics.get('end_time_ms', 0)
-                    
-                    # Update path and length
-                    new_path = path + [node_id]
-                    new_length = current_length + task_time
-                    
-                    # If this is the sink node, check if it's the longest path
-                    if node_id == dag.sink_node.id.get_full_id():
-                        if new_length > max_length:
-                            max_length = new_length
-                            max_path = new_path
-                        return
-                    
-                    # Continue DFS to downstream nodes
-                    for downstream in node.downstream_nodes:
-                        dfs(downstream, new_path, new_length)
-                
-                # Start DFS from all root nodes
-                for root in dag.root_nodes:
-                    dfs(root, [], 0)
-                
-                # Convert the critical path to a set for O(1) lookups
-                critical_nodes = set(max_path)
-                critical_edges = set(zip(max_path[:-1], max_path[1:]))
-                return critical_nodes, critical_edges
-            
-            # Get actual critical path
-            critical_nodes, critical_edges = find_critical_path()
             
             # Get planned critical path if available
             planned_critical_edges = set()
@@ -333,7 +333,7 @@ def main():
                     font={"color": "white", "size": 10, "face": "Arial"},
                     level=level
                 ))
-
+            
                 # Process downstream nodes - highlight actual and planned critical paths
                 for downstream in node.downstream_nodes:
                     downstream_id = downstream.id.get_full_id()
@@ -436,7 +436,7 @@ def main():
             if metrics and plan_data:
                 try:
                     plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
-                    tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id)
+                    tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id) # type: ignore
                     
                     if tp:
                         # Get the current task's timing metrics
@@ -1031,6 +1031,105 @@ def main():
             else:
                 st.warning("No transfer metrics available for visualization")
 
+    with tab_critical_path:
+        st.header("Critical Path Analysis")
+
+        if not critical_nodes:
+            st.warning("Could not determine critical path")
+        else:
+            st.subheader(f"Critical Path ({len(critical_nodes)} tasks)")
+            
+            # Initialize accumulated time counters
+            total_waiting = 0
+            total_executing = 0
+            total_uploading = 0
+            total_invoking = 0
+            total_updating = 0
+            
+            # Calculate total times across all critical path tasks
+            for task_id in critical_nodes:
+                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
+                metrics_data = metrics_redis.get(metrics_key)
+                if not metrics_data:
+                    continue
+                    
+                metrics: TaskMetrics = cloudpickle.loads(metrics_data)  # type: ignore
+                
+                # Accumulate times
+                total_waiting += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0
+                total_executing += metrics.tp_execution_time_ms or 0
+                total_uploading += metrics.output_metrics.tp_time_ms if metrics.output_metrics and metrics.output_metrics.tp_time_ms else 0
+                total_invoking += metrics.total_invocation_time_ms or 0
+                total_updating += metrics.update_dependency_counters_time_ms or 0   
+            
+            # Create a single bar showing the total time breakdown
+            breakdown_data = {
+                'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters'],
+                'Time (ms)': [total_waiting, total_executing, total_uploading, total_invoking, total_updating]
+            }
+            
+            # Calculate percentages
+            total_time = sum(breakdown_data['Time (ms)'])
+            if total_time > 0:
+                percentages = [f"{t/total_time*100:.1f}%" for t in breakdown_data['Time (ms)']]
+                breakdown_data['Percentage'] = percentages
+            
+            # Create a single stacked bar chart
+            fig = px.bar(
+                breakdown_data,
+                x='Activity',
+                y='Time (ms)',
+                color='Activity',
+                text='Percentage' if total_time > 0 else None,
+                title="Total Time Breakdown for Critical Path Tasks",
+                color_discrete_map={
+                    'Waiting for Inputs': '#FFA15A',
+                    'Executing': '#00CC96',
+                    'Uploading Outputs': '#636EFA',
+                    'Invoking Downstream': '#EF553B',
+                    'Updating Counters': '#AB63FA'
+                },
+                category_orders={
+                    'Activity': ['Waiting for Inputs', 'Executing', 'Uploading Outputs', 'Invoking Downstream', 'Updating Counters']
+                }
+            )
+            
+            # Update layout
+            fig.update_layout(
+                showlegend=False,
+                xaxis_title="",
+                yaxis_title="Time (ms)",
+                height=500,
+                margin=dict(l=50, r=50, t=80, b=50),
+                hovermode='x'
+            )
+            
+            # Add total time as annotation
+            fig.add_annotation(
+                x=0.5,
+                y=1.1,
+                xref='paper',
+                yref='paper',
+                text=f"Total Time: {total_time:,.2f} ms",
+                showarrow=False,
+                font=dict(size=14, color='white')
+            )
+            
+            # Customize hover template
+            if total_time > 0:
+                fig.update_traces(
+                    hovertemplate='<b>%{x}</b><br>Time: %{y:,.2f} ms<br>Percentage: %{text}' +
+                                '<extra></extra>',
+                    texttemplate='%{text}'
+                )
+            else:
+                fig.update_traces(
+                    hovertemplate='<b>%{x}</b><br>Time: %{y:,.2f} ms<extra></extra>'
+                )
+            
+            # Display the chart
+            st.plotly_chart(fig, use_container_width=True)
+    
     with tab_workers:
         if dag_metrics:
             col1, col2 = st.columns(2)

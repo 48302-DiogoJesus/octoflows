@@ -1,6 +1,6 @@
-- Show a critical path time breakdown
-    makespan is the total
-    then make the calculations of only the REAL CP
+- Show a critical path time breakdown (on `workflow_instance` dashboard)
+    - Add `WorkerStartupMetrics.initial_task_ids` field
+    - then I would be able to know if critical path tasks were affected by worker startup times
 
 - Update metadata_access to make predictions about cold and warm starts
 - Update abstract dag planner to understand when to add cold/warm starts
