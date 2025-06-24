@@ -11,12 +11,12 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.storage.metrics.metrics_types import TaskMetrics
+from src.storage.metrics.metrics_types import TaskMetrics, UserDAGSubmissionMetrics
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.prefixes import DAG_PREFIX
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.dag.dag import FullDAG
-from src.storage.metrics.metrics_types import FullDAGPrepareTime
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics
 
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
@@ -36,6 +36,9 @@ class WorkflowInstanceInfo:
     master_dag_id: str
     plan: AbstractDAGPlanner.PlanOutput | None
     dag_download_stats: List[FullDAGPrepareTime]
+    start_time_ms: float
+    total_worker_startup_time_ms: float
+    total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
 
 @dataclass
@@ -65,8 +68,17 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
                 tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
 
+                dag_data = metrics_storage_conn.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
+                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
+
+                worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
+                worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
+                worker_startup_metrics: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
+                total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in worker_startup_metrics if metric.end_time_ms is not None]) if worker_startup_metrics else 0
+                total_workers = len(worker_startup_metrics)
+
                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag_download_stats, tasks))
+                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
     except Exception as e:
@@ -192,6 +204,7 @@ def main():
                 actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)  # in seconds
                 actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])  # in bytes
                 actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])  # in bytes
+                actual_total_worker_startup_time_s = instance.total_worker_startup_time_ms / 1000  # in seconds
                 
                 # Calculate actual makespan
                 task_timings = []
@@ -211,9 +224,8 @@ def main():
                 
                 actual_makespan = 0
                 if task_timings:
-                    min_start = min(start for start, _ in task_timings)
-                    max_end = max(end for _, end in task_timings)
-                    actual_makespan = (max_end - min_start) / 1000  # Convert to seconds
+                    max_end_ms = max(end for _, end in task_timings)
+                    actual_makespan = (max_end_ms - instance.start_time_ms) / 1000  # Convert to seconds
                 
                 # Get predicted metrics if available
                 predicted_total_download = predicted_execution = predicted_upload = predicted_makespan = 0
@@ -300,6 +312,7 @@ def main():
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
+                    'Total Worker Startup Time': f"{actual_total_worker_startup_time_s:.3f}s",
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
                     '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
@@ -338,6 +351,7 @@ def main():
                         'Total Task Invocation Time': "Total Task Invocation Time",
                         'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
                         'Total DAG Download Time': "Total DAG Download Time",
+                        'Total Worker Startup Time': "Total Worker Startup Time",
                     },
                     use_container_width=True,
                     height=min(400, 35 * (len(df_instances) + 1)),
@@ -357,6 +371,7 @@ def main():
                         'Total Task Invocation Time',
                         'Total Dependency Counter Update Time',
                         'Total DAG Download Time',
+                        'Total Worker Startup Time',
                     ]
                 )
                 
@@ -420,7 +435,7 @@ def main():
                                 'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
                                 'Execution Time (ms)': task_metrics.tp_execution_time_ms,
                                 'Output Size (bytes)': task_metrics.output_metrics.deserialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
-                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
+                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0
                             })
                         
                         # Display task metrics table
@@ -487,7 +502,7 @@ def main():
                         'input_size_actual': actual_input_size,
                         'input_size_predicted': predicted_input_size,
                         'output_size_actual': actual_output_size,
-                        'output_size_predicted': predicted_output_size,
+                        'output_size_predicted': predicted_output_size
                     })
                 
                 if metrics_data:
@@ -583,7 +598,8 @@ def main():
                             'output_size': 0,
                             'invocation': 0,
                             'dependency_update': 0,
-                            'dag_download': 0
+                            'dag_download': 0,
+                            'worker_startup': 0
                         }
                     
                     # Calculate metrics for this instance
@@ -625,6 +641,7 @@ def main():
                         stat.download_time_ms / 1000 
                         for stat in instance.dag_download_stats
                     )
+                    metrics['worker_startup'] += instance.total_worker_startup_time_ms / 1000
                 
                 if planner_metrics:
                     # Calculate averages
@@ -632,7 +649,7 @@ def main():
                         count = planner['count']
                         if count > 0:
                             for key in ['execution', 'download', 'upload', 'input_size', 
-                                      'output_size', 'invocation', 'dependency_update', 'dag_download']:
+                                      'output_size', 'invocation', 'dependency_update', 'dag_download', 'worker_startup']:
                                 planner[key] /= count
                     
                     # Prepare data for plotting
@@ -646,7 +663,8 @@ def main():
                             {'Planner': planner_name, 'Metric': 'Total Output Size (bytes)', 'Value': metrics['output_size']},
                             {'Planner': planner_name, 'Metric': 'Total Task Invocation Time (s)', 'Value': metrics['invocation']},
                             {'Planner': planner_name, 'Metric': 'Total Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
-                            {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']}
+                            {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']},
+                            {'Planner': planner_name, 'Metric': 'Total Worker Startup Time (s)', 'Value': metrics['worker_startup']},
                         ])
                     
                     df_planner_metrics = pd.DataFrame(plot_data)
@@ -698,6 +716,7 @@ def main():
                     actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)
                     actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)
                     total_dag_download = sum(stat.download_time_ms / 1000 for stat in instance.dag_download_stats)
+                    actual_worker_startup = instance.total_worker_startup_time_ms / instance.total_workers
                     
                     time_metrics.append({
                         'execution': actual_execution,
@@ -705,7 +724,8 @@ def main():
                         'upload': actual_upload,
                         'invocation': actual_invocation,
                         'dependency_update': actual_dependency_update,
-                        'dag_download': total_dag_download
+                        'dag_download': total_dag_download,
+                        'worker_startup': actual_worker_startup
                     })
 
                 if time_metrics:
@@ -716,7 +736,8 @@ def main():
                         'Total Upload Time': sum(m['upload'] for m in time_metrics) / len(time_metrics),
                         'Total Task Invocation Time': sum(m['invocation'] for m in time_metrics) / len(time_metrics),
                         'Total Dependency Counter Update Time': sum(m['dependency_update'] for m in time_metrics) / len(time_metrics),
-                        'Total DAG Download Time': sum(m['dag_download'] for m in time_metrics) / len(time_metrics)
+                        'Total DAG Download Time': sum(m['dag_download'] for m in time_metrics) / len(time_metrics),
+                        'Total Worker Startup Time': sum(m['worker_startup'] for m in time_metrics) / len(time_metrics)
                     }
                     
                     # Filter out zero values for cleaner visualization

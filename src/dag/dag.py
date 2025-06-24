@@ -73,6 +73,7 @@ class FullDAG(GenericDAG):
         from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.metadata_access.metadata_access import MetadataAccess
+        from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics
         
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
@@ -98,6 +99,7 @@ class FullDAG(GenericDAG):
         
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], called_by_worker=False), name="delegate_initial_workers")
+        if wk.metrics_storage: wk.metrics_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(
@@ -107,8 +109,7 @@ class FullDAG(GenericDAG):
             self
         )
 
-        if wk.metrics_storage:
-            await wk.metrics_storage.flush()
+        if wk.metrics_storage: await wk.metrics_storage.flush()
 
         return res
 

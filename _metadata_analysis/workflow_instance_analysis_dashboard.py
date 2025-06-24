@@ -16,7 +16,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
+from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metrics.metrics_storage import MetricsStorage
@@ -91,6 +91,13 @@ def main():
         st.error(f"Failed to deserialize DAG: {e}")
         return
     
+    try:
+        dag_data = metrics_redis.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
+        dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
+    except Exception as e:
+        st.error(f"Failed to deserialize DAG submission metrics: {e}")
+        return
+
     # Collect all metrics for this DAG
     dag_metrics: list[TaskMetrics] = []
     total_data_transferred = 0
@@ -106,7 +113,6 @@ def main():
     worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
     total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
 
-    _task_with_earliest_start_time = None
     _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
         metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
@@ -121,9 +127,6 @@ def main():
 
         if task_id == dag.sink_node.id.get_full_id():
             _sink_task_metrics = metrics
-
-        if _task_with_earliest_start_time is None or metrics.started_at_timestamp_s < _task_with_earliest_start_time.started_at_timestamp_s:
-            _task_with_earliest_start_time = metrics
 
         total_time_invoking_tasks_ms += metrics.total_invocation_time_ms if metrics.total_invocation_time_ms is not None else 0
         total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms if metrics.update_dependency_counters_time_ms is not None else 0
@@ -154,10 +157,9 @@ def main():
         })
     
     assert _sink_task_metrics
-    assert _task_with_earliest_start_time is not None
 
     sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
-    makespan_ms = sink_task_ended_timestamp_ms - (_task_with_earliest_start_time.started_at_timestamp_s * 1000)
+    makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_time_ms
 
     keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
     total_time_downloading_dag_ms = 0

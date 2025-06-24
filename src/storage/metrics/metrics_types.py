@@ -7,6 +7,10 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
     # pre-load isn't included in this time, but waiting for pending preloads is
 
 @dataclass
+class UserDAGSubmissionMetrics:
+    dag_submission_time_ms: float
+
+@dataclass
 class FullDAGPrepareTime:
     download_time_ms: float
     create_subdags_time_ms: float # time to create a subdag

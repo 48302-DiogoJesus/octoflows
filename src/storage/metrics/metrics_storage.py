@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import time
 
 import cloudpickle
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
+from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics, FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
@@ -18,6 +18,7 @@ class MetricsStorage():
     DAG_METRICS_KEY_PREFIX = "metrics-storage-dag-"
     PLAN_KEY_PREFIX = "metrics-storage-plan-"
     WORKER_STARTUP_PREFIX = "metrics-storage-worker-startup-"
+    USER_DAG_SUBMISSION_PREFIX = "metrics-storage-user-dag-submission-"
 
     @dataclass
     class Config:
@@ -29,7 +30,7 @@ class MetricsStorage():
     def __init__(self, storage_config: Storage.Config) -> None:
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.storage = storage_config.create_instance()
-        self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime | AbstractDAGPlanner.PlanOutput | WorkerStartupMetrics] = {}
+        self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime | AbstractDAGPlanner.PlanOutput | WorkerStartupMetrics | UserDAGSubmissionMetrics] = {}
 
     async def keys(self, pattern: str) -> list:
         return await self.storage.keys(pattern)
@@ -39,6 +40,9 @@ class MetricsStorage():
     
     async def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
         return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
+
+    def store_dag_submission_time(self, master_dag_id: str, user_dag_submission_metrics: UserDAGSubmissionMetrics):
+        self.cached_metrics[f"{self.USER_DAG_SUBMISSION_PREFIX}{master_dag_id}"] = user_dag_submission_metrics
 
     def store_task_metrics(self, task_id: str, metrics: TaskMetrics):
         self.cached_metrics[f"{self.TASK_METRICS_KEY_PREFIX}{task_id}"] = metrics
@@ -53,14 +57,14 @@ class MetricsStorage():
     async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics, task_ids: list[str]):
         """ direct upload to storage so that the INVOKED can find it and complete the missing fields """
         task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
-        await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{metrics.master_dag_id}", cloudpickle.dumps(metrics))
+        await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{metrics.master_dag_id}_{task_ids_hash}", cloudpickle.dumps(metrics))
 
     async def update_invoked_worker_startup_metrics(self, end_time_ms: float, worker_state: Literal["warm", "cold"], task_ids: list[str], master_dag_id: str):
         task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
-        wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{master_dag_id}"))
+        wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"))
         wsm.end_time_ms = end_time_ms
         wsm.state = worker_state
-        self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{task_ids_hash}_{master_dag_id}"] = wsm
+        self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"] = wsm
 
     async def flush(self):
         start = time.time()

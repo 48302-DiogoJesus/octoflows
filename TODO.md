@@ -1,17 +1,11 @@
-- Measure cold-starts and warm-starts
-    - cold-start: time diff. between invoking EXISTING worker and worker starting it's execution
-    - warm-start: time diff. between invoking UNEXISTING worker and worker starting it's execution
-    - predictions
-        - predict_worker_invocation_time(resource_config, "cold" | "warm")
-    - metrics required (invoke_time, start_time, state: cold | warm)
-        [DONE]
-        on lambda
-        - static variable initialized at "cold" and set to "warm" when the first worker is invoked
-
-- Add worker_startup_time to pie chart on `workflow_analysis_dashboard`
+- Show a critical path time breakdown
+    makespan is the total
+    then make the calculations of only the REAL CP
 
 - Update metadata_access to make predictions about cold and warm starts
 - Update abstract dag planner to understand when to add cold/warm starts
+    - add it to `PlanOutput` + make the dashboards show it
+        total_worker_startup_time_ms
 
 - Update worker_startup `workflow_analysis_dashboard`
 - Update global_predictions dashboard to show `cold-starts` and `warm-starts` too
