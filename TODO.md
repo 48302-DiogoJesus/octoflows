@@ -1,22 +1,34 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
-- Update abstract dag planner to understand when to add cold/warm starts
-    - add it to `PlanOutput` + make the dashboards show it
-        total_worker_startup_time_ms
+- Rename planned fields to include time metric (ms)
+- Rename MetadataAcces to `PredictionsProvider`
 
 - On workflow_instance analysis show nr. of `warm-starts` vs `cold-starts`
 
-- Update worker_startup `workflow_analysis_dashboard`
-- Update global_predictions dashboard to show `cold-starts` and `warm-starts` too
+- `workflow_instance` dashboard
+    - for each task show the `worker_startup_time` (through `WorkerStartupMetrics.initial_task_ids`) VS predicted as well
+    - show nr. of `warm-starts` vs `cold-starts`
+
+- `global_predictions` dashboard
+    - compare `cold-starts` to `warm-starts`
+    - compare total `worker_startup_time`
+    - add total predicted `worker_startup_time`
 
 - See notion todo for "visualization todo"
-
-- [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
+
+[DIFF_IDEA]
+- Change the way simulations are made, to be more realistic and follow the scheduling logic defined by the planner to be used
+    - Run the actual `Worker.execute_branch` or a mock `Worker.mock_execute_branch` but with dummy stuff and don't actually execute the tasks nor upload metrics
+    - As it "executes" the simulation, keep track of metrics and then the planner can use them to make decisions
+    - REPLACES CURRENT FUNCTION: `__calculate_node_timings`
+    - Think if all predictions are possible (can we fill all fields of `PlanningTaskInfo`??)
+
+- [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
@@ -36,15 +48,8 @@
 - Create a planner that uses them + make the prediction calculations take it into account
 
 [PREDICTIONS:IMPROVEMENTS]
-- Give more importance to the most recent predictions
-- Discard outliers (is this on the users' side? selecting `percentile` instead of `avg`?)
+- Give more importance to most recent predictions
 - Trying to progressively understand the I/O relationship of the functions instead of using `exponential` function
-
-[DIFF_IDEA]
-- Change the way simulations are made, to be more realistic and follow the scheduling logic defined by the planner to be used
-    - Run the actual `Worker.execute_branch` or a mock `Worker.mock_execute_branch` but with dummy stuff and don't actually execute the tasks nor upload metrics
-    - As it "executes" the simulation, keep track of metrics and then the planner can use them to make decisions
-    - REPLACES CURRENT FUNCTION: `__calculate_node_timings`
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 

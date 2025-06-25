@@ -111,7 +111,7 @@ class MetadataAccess:
         #* Needs to have at least SOME history for the SAME TYPE of workflow
         return len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = False) -> int:
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = True) -> int:
         """
         Returns:
             Predicted output size in bytes
@@ -134,7 +134,7 @@ class MetadataAccess:
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
-    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = False) -> float:
+    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = True) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
         Args:
@@ -186,7 +186,7 @@ class MetadataAccess:
         self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = False) -> float:
+    def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
         samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
@@ -233,7 +233,7 @@ class MetadataAccess:
         input_size: int,
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
-        allow_cached: bool = False
+        allow_cached: bool = True
     ) -> float:
         """Predict execution time for a function given input size and resources.
         

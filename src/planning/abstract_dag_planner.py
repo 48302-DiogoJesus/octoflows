@@ -32,16 +32,16 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         input_size: int
         output_size: int
 
-        worker_startup_time: float # 0 if no need to invoke new worker
-        download_time: float  # task-path download time (can be 0 if data was "preloaded")
-        exec_time: float
-        upload_time: float
+        worker_startup_time_ms: float # 0 if no need to invoke new worker
+        download_time_ms: float  # task-path download time (can be 0 if data was "preloaded")
+        exec_time_ms: float
+        upload_time_ms: float
         
-        total_download_time: float # time spent downloading data for the task (can't be 0 if data was "preloaded")
+        total_download_time_ms: float # time spent downloading data for the task (can't be 0 if data was "preloaded")
         
-        total_time: float
-        earliest_start: float
-        path_completion_time: float
+        total_time_ms: float
+        earliest_start_ms: float
+        path_completion_time_ms: float
 
     @dataclass
     class PlanPredictionSampleCounts:
@@ -57,6 +57,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         nodes_info: dict[str, "AbstractDAGPlanner.PlanningTaskInfo"]
         critical_path_node_ids: set[str]
         prediction_sample_counts: "AbstractDAGPlanner.PlanPredictionSampleCounts"
+        
+        total_time_waiting_for_worker_startup_ms: float = -1
+
+        def __post_init__(self):
+            self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.worker_startup_time_ms, self.nodes_info.values()))
 
     def plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
         """
@@ -149,7 +154,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         # 1. Calculate earliest start time (max of upstream completions)
         earliest_start = 0.0
         for unode in node.upstream_nodes:
-            earliest_start = max(earliest_start, nodes_info[unode.id.get_full_id()].path_completion_time)
+            earliest_start = max(earliest_start, nodes_info[unode.id.get_full_id()].path_completion_time_ms)
         
         # 2. Calculate download finish time (considering parallel downloads)
         download_finish_time = 0.0
@@ -158,12 +163,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
-            predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla, allow_cached=True)
+            predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla)
             downloadable_input_size += unode_info.output_size
             
             if node.try_get_annotation(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
-                download_start = unode_info.path_completion_time # Data available time
+                download_start = unode_info.path_completion_time_ms # Data available time
             else:
                 # Non-preload: Downloads start AFTER all upstreams complete
                 download_start = earliest_start 
@@ -172,18 +177,18 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
-        total_download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla, allow_cached=True)
+        total_download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...
-        exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla, allow_cached=True)
-        output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla, allow_cached=True)
+        exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla)
+        output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla)
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
             all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla, allow_cached=True)
+            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla)
 
         # 6. Total timing
         total_time = tp_download_time + exec_time + upload_time
@@ -223,26 +228,28 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             ):
                 # won't cause a worker launch, it will execute on already running worker
                 #   note: checking cpus and memory is done to prevent against "flexible" workers (worker_id = None)
-                my_node_info.worker_startup_time = 0
+                my_node_info.worker_startup_time_ms = 0
                 continue
 
             any_node_w_same_resources_starting_before_me = any([n for n in topo_sorted_nodes if \
                 n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
                 n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
-                nodes_info[n.id.get_full_id()].earliest_start < my_node_info.earliest_start and \
-                nodes_info[n.id.get_full_id()].path_completion_time + MAX_TIME_UNTIL_COLD_MS > my_node_info.earliest_start
+                # Filter for tasks whose workers started before me
+                nodes_info[n.id.get_full_id()].earliest_start_ms < my_node_info.earliest_start_ms and \
+                # Filter for tasks whose workers are expected to be WARM until I start (at least)
+                nodes_info[n.id.get_full_id()].path_completion_time_ms + MAX_TIME_UNTIL_COLD_MS >= my_node_info.earliest_start_ms
             ])
 
             if any_node_w_same_resources_starting_before_me:
                 # WARM START
                 worker_startup_prediction = metadata_access.predict_worker_startup_time(my_resource_config, "warm", sla)
-                my_node_info.worker_startup_time = worker_startup_prediction
-                my_node_info.total_time += worker_startup_prediction
+                my_node_info.worker_startup_time_ms = worker_startup_prediction
+                my_node_info.total_time_ms += worker_startup_prediction
             else:
                 # COLD START
                 worker_startup_prediction = metadata_access.predict_worker_startup_time(my_resource_config, "cold", sla)
-                my_node_info.worker_startup_time = worker_startup_prediction
-                my_node_info.total_time += worker_startup_prediction
+                my_node_info.worker_startup_time_ms = worker_startup_prediction
+                my_node_info.total_time_ms += worker_startup_prediction
 
     def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """
@@ -253,7 +260,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # note: modifies `nodes_info`
             self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
             
-        # Needs to run after earliest_start and path_completion_time are calculated
+        # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
         self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, metadata_access, sla)
 
         return nodes_info
@@ -268,6 +275,9 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             # note: modifies `nodes_info`
             self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
+
+        # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
+        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, metadata_access, sla)
 
         return nodes_info
     
@@ -289,7 +299,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             
             for pred in current_node.upstream_nodes:
                 pred_id = pred.id.get_full_id()
-                pred_completion = nodes_info[pred_id].path_completion_time
+                pred_completion = nodes_info[pred_id].path_completion_time_ms
                 
                 if pred_completion > max_completion_time:
                     max_completion_time = pred_completion
@@ -298,7 +308,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # Move to predecessor on critical path
             current_node = critical_predecessor
         
-        critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time
+        critical_path_time = nodes_info[dag.sink_node.id.get_full_id()].path_completion_time_ms
         return critical_path, critical_path_time
     
     def validate_plan(self, root_nodes: list[DAGTaskNode]):
@@ -427,7 +437,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.input_size if node_info else 0} - {node_info.output_size if node_info else 0} bytes</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start if node_info else 0:.2f} - {node_info.path_completion_time if node_info else 0:.2f}ms</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start_ms if node_info else 0:.2f} - {node_info.path_completion_time_ms if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoadOptimization) is not None}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'}</FONT></TD></TR>" \

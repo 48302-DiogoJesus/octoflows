@@ -476,11 +476,11 @@ def main():
                             with col_planned:
                                 st.text(format_bytes(tp.input_size))
                                 st.text(format_bytes(tp.output_size))
-                                st.text(f"{float(tp.total_download_time):.2f} ms")
-                                st.text(f"{float(tp.exec_time):.2f} ms")
-                                st.text(f"{float(tp.upload_time):.2f} ms")
-                                st.text(f"{float(tp.earliest_start):.2f} ms")
-                                st.text(f"{float(tp.path_completion_time):.2f} ms")
+                                st.text(f"{float(tp.total_download_time_ms):.2f} ms")
+                                st.text(f"{float(tp.exec_time_ms):.2f} ms")
+                                st.text(f"{float(tp.upload_time_ms):.2f} ms")
+                                st.text(f"{float(tp.earliest_start_ms):.2f} ms")
+                                st.text(f"{float(tp.path_completion_time_ms):.2f} ms")
                             
                             with col_observed:
                                 st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
@@ -521,7 +521,7 @@ def main():
                                 st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
 
                                 # Time Downloading Dependencies difference
-                                planned_download = float(tp.total_download_time)
+                                planned_download = float(tp.total_download_time_ms)
                                 observed_download = float(time_downloading_inputs)
                                 if planned_download is not None and observed_download is not None and planned_download != 0:
                                     pct = ((observed_download - planned_download) / planned_download) * 100
@@ -530,7 +530,7 @@ def main():
                                     st.text("N/A")
                                 
                                 # Execution Time difference
-                                planned_exec = float(tp.exec_time)
+                                planned_exec = float(tp.exec_time_ms)
                                 observed_exec = float(metrics.tp_execution_time_ms)
                                 if planned_exec is not None and observed_exec is not None and planned_exec != 0:
                                     pct = ((observed_exec - planned_exec) / planned_exec) * 100
@@ -539,7 +539,7 @@ def main():
                                     st.text("N/A")
 
                                 # Upload Time difference
-                                planned_upload = float(tp.upload_time)
+                                planned_upload = float(tp.upload_time_ms)
                                 observed_upload = float(metrics.output_metrics.tp_time_ms or 0)
                                 if planned_upload is not None and observed_upload is not None and planned_upload != 0:
                                     pct = ((observed_upload - planned_upload) / planned_upload) * 100
@@ -548,7 +548,7 @@ def main():
                                     st.text("N/A")
                                 
                                 # Earliest Start difference
-                                planned_start = float(tp.earliest_start)
+                                planned_start = float(tp.earliest_start_ms)
                                 observed_start = float(actual_start_time)
                                 if planned_start is not None and observed_start is not None and planned_start != 0:
                                     pct = ((observed_start - planned_start) / planned_start) * 100
@@ -557,7 +557,7 @@ def main():
                                     st.text("N/A")
                                 
                                 # End Time difference
-                                planned_end = float(tp.path_completion_time)
+                                planned_end = float(tp.path_completion_time_ms)
                                 observed_end = float(end_time_ms)
                                 if planned_end is not None and observed_end is not None and planned_end != 0:
                                     pct = ((observed_end - planned_end) / planned_end) * 100
@@ -599,7 +599,7 @@ def main():
         if plan_output:
             earliest_finish = {node_id: 0.0 for node_id in plan_output.nodes_info}
             for node_id, info in plan_output.nodes_info.items():
-                node_duration = (info.download_time + info.exec_time + info.upload_time) / 1000  # Convert to seconds
+                node_duration = (info.download_time_ms + info.exec_time_ms + info.upload_time_ms) / 1000  # Convert to seconds
                 max_upstream_finish = 0.0
                 for upstream_node in info.node_ref.upstream_nodes:
                     upstream_id = upstream_node.id.get_full_id()
