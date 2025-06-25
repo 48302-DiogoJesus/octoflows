@@ -267,7 +267,7 @@ def main():
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
-        graph_col, details_col, planned_vs_observed_col = st.columns([2, 1, 1])
+        graph_col, details_col, planned_vs_observed_col = st.columns([1, 1, 1])
         
         def get_color_for_worker(worker_id):
             # Create a hash of the worker_id
@@ -409,23 +409,27 @@ def main():
                 # Basic task info
                 st.metric("Function", task_node.func_name)
                 st.metric("Worker", metrics.worker_resource_configuration.worker_id)
-                st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus} CPUs + {metrics.worker_resource_configuration.memory_mb} MB")
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 output_data = metrics.output_metrics.deserialized_size_bytes
+                worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
+                worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
+                worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                 with col1:
                     total_task_handling_time = (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
-                    st.metric("Total Task Handling Time", f"{total_task_handling_time:.2f} ms")
+                    st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="CPUs, Memory (MB)")
                     st.metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
-                    st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
-                    st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                    st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
                     st.metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                 with col2:
-                    st.metric("", "")
-                    st.metric("", "")
-                    st.metric("Total Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
-                    st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
-                    st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
+                    st.metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
+                    st.metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
+                    st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
+                with col3:
+                    st.metric(f"Worker Startup Time ({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'})", f"{worker_startup_time_ms:.2f} ms")
+                    st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
+                    st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
+                    
 
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available
@@ -609,8 +613,11 @@ def main():
             predicted_makespan = max(earliest_finish.values()) * 1000 if earliest_finish else 0.0  # Convert back to ms
 
         col1, col2, col3, col4, col5 = st.columns(5)
-        worker_startup_metrics_for_this_workflow = [m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id and m.end_time_ms is not None]
-        total_workflow_worker_startup_time_s = sum(worker_startup_metrics_for_this_workflow) / 1000
+        worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
+        worker_startup_times_for_this_workflow = [m.end_time_ms - m.start_time_ms for m in worker_startup_metrics_for_this_workflow if m.end_time_ms is not None]
+        total_workflow_worker_startup_time_s = sum(worker_startup_times_for_this_workflow) / 1000
+        warm_starts_count = len([m for m in worker_startup_metrics_for_this_workflow if m.state == "warm"])
+        cold_starts_count = len([m for m in worker_startup_metrics_for_this_workflow if m.state == "cold"])
         task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
         avg_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
         avg_subdag_create_time = sum(m['create_subdag_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
@@ -648,7 +655,7 @@ def main():
             st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
         with col5:
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
-            st.metric("Total Worker Startup Time", f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)")
+            st.metric("Total Worker Startup Time", f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)", help=f"warm: {warm_starts_count}, cold: {cold_starts_count}")
             st.metric(" ", " ", help="")
 
         breakdown_data = {
@@ -666,7 +673,7 @@ def main():
             "Time (ms)": breakdown_data.values()
         })
        
-        st.subheader("Times Breakdown")
+        st.subheader("Breakdown")
         fig = px.pie(
             breakdown_df,
             names="Component",

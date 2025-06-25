@@ -3,7 +3,6 @@
 
 - `workflow_instance` dashboard
     - for each task show the `worker_startup_time` (through `WorkerStartupMetrics.initial_task_ids`) VS predicted as well
-    - show nr. of `warm-starts` vs `cold-starts`
 
 - `global_predictions` dashboard
     - compare `cold-starts` to `warm-starts`
