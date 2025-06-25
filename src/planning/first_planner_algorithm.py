@@ -7,7 +7,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.planning.metadata_access.metadata_access import MetadataAccess
+from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
@@ -34,13 +34,13 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             until we can't optimize the critical path any further.
             """
 
-    def internal_plan(self, dag, metadata_access: MetadataAccess):
+    def internal_plan(self, dag, predictions_provider: PredictionsProvider):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
         topo_sorted_nodes = self._topological_sort(dag)
 
-        if not metadata_access.has_required_predictions():
+        if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({self.config.worker_resource_configuration}) to all nodes")
             # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
             # Assign worker resources and ids
@@ -68,7 +68,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             iteration += 1
             
             # Calculate current node timings and find critical path
-            nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
+            nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
             critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
             critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
             
@@ -96,7 +96,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 node.add_annotation(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
-                new_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
+                new_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
                 new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
                 new_critical_path_node_ids = { node.id.get_full_id() for node in new_critical_path_nodes }
 
@@ -132,7 +132,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
             # (this happens when we've optimized all optimizable nodes in the current critical path)
-            current_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
+            current_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
             current_critical_path_nodes, _ = self._find_critical_path(dag, current_nodes_info)
             current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
             
@@ -146,7 +146,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 break
 
         # Final statistics
-        final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, self.config.worker_resource_configuration, self.config.sla)
+        final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, final_nodes_info)
         final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
             
@@ -159,11 +159,11 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
             # note: data from ALL workflow instances
-            for_download_speed=len(metadata_access.cached_download_speeds),
-            for_upload_speed=len(metadata_access.cached_upload_speeds),
+            for_download_speed=len(predictions_provider.cached_download_speeds),
+            for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type
-            for_execution_time=sum(map(len, metadata_access.cached_execution_time_per_byte.values())),
-            for_output_size=sum(map(len, metadata_access.cached_io_ratios.values()))
+            for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
+            for_output_size=sum(map(len, predictions_provider.cached_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")

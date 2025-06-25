@@ -72,7 +72,7 @@ class FullDAG(GenericDAG):
         from src.workers.worker import Worker
         from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
-        from src.planning.metadata_access.metadata_access import MetadataAccess
+        from src.planning.predictions.predictions_provider import PredictionsProvider
         from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics
         
         _wk_config: Worker.Config = config
@@ -82,10 +82,10 @@ class FullDAG(GenericDAG):
         # Only do PLANNING if `metrics_storage` is specified
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
-            metadata_access = MetadataAccess(self.master_dag_structure_hash, wk.metrics_storage)
-            await metadata_access.load_metrics_from_storage()
+            predictions_provider = PredictionsProvider(self.master_dag_structure_hash, wk.metrics_storage)
+            await predictions_provider.load_metrics_from_storage()
             logger.info(f"[PLANNING] Planner Selected: {wk.planner.__class__.__name__}")
-            plan_result = wk.planner.plan(self, metadata_access)
+            plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result: wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 
         if not isinstance(wk, LocalWorker):

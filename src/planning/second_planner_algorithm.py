@@ -7,7 +7,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.planning.metadata_access.metadata_access import MetadataAccess
+from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
@@ -44,7 +44,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             - Simulate using optimizations (preload)
             """
 
-    def internal_plan(self, dag, metadata_access: MetadataAccess):
+    def internal_plan(self, dag, predictions_provider: PredictionsProvider):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
@@ -64,7 +64,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
 
         middle_resource_config = self.config.available_worker_resource_configurations[len(self.config.available_worker_resource_configurations) // 2]
         
-        if not metadata_access.has_required_predictions():
+        if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
             for node in topo_sorted_nodes: 
                 unique_resources = middle_resource_config.clone()
@@ -86,7 +86,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
         # Calculate initial critical path with best resources
-        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, metadata_access, best_resource_config, self.config.sla)
+        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, best_resource_config, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
         
@@ -125,7 +125,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 node.add_annotation(test_resource_config)
                 
                 # Recalculate timings with this configuration
-                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
                 new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
                 
                 # Check if this downgrade introduces a new critical path or increases makespan
@@ -155,7 +155,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # logger.info(f"=== Preload Optimization Iteration {iteration} ===")
             
             # Recalculate current critical path with current resource assignments
-            current_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+            current_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
             current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, current_nodes_info)
             current_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
             
@@ -188,7 +188,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 node.add_annotation(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
-                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
                 new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
                 new_critical_path_node_ids = {node.id.get_full_id() for node in new_critical_path_nodes}
 
@@ -223,7 +223,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 break
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
-            final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+            final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
             final_critical_path_nodes, _ = self._find_critical_path(dag, final_nodes_info)
             final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
             
@@ -237,7 +237,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 break
 
         # Final statistics and logging
-        final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, metadata_access, self.config.sla)
+        final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, final_nodes_info)
         final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
         
@@ -263,11 +263,11 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
             # note: data from ALL workflow instances
-            for_download_speed=len(metadata_access.cached_download_speeds),
-            for_upload_speed=len(metadata_access.cached_upload_speeds),
+            for_download_speed=len(predictions_provider.cached_download_speeds),
+            for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type
-            for_execution_time=sum(map(len, metadata_access.cached_execution_time_per_byte.values())),
-            for_output_size=sum(map(len, metadata_access.cached_io_ratios.values()))
+            for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
+            for_output_size=sum(map(len, predictions_provider.cached_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")

@@ -5,7 +5,7 @@ from graphviz import Digraph
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.annotations.preload import PreLoadOptimization
-from src.planning.metadata_access.metadata_access import MetadataAccess
+from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
@@ -63,10 +63,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         def __post_init__(self):
             self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.worker_startup_time_ms, self.nodes_info.values()))
 
-    def plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
+    def plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
         dag: dag.DAG
-        metadata_access: MetadataAccess
+        predictions_provider: PredictionsProvider
         
         Adds annotations to the given DAG tasks (mutates the tasks)
         """
@@ -75,7 +75,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         logger.info(f"Planner: {self.__class__.__name__}")
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
-        plan_result = self.internal_plan(_dag, metadata_access)
+        plan_result = self.internal_plan(_dag, predictions_provider)
         if not plan_result: return None # no plan was made
         self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
         self.validate_plan(_dag.root_nodes)
@@ -83,10 +83,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         return plan_result
 
     @abstractmethod
-    def internal_plan(self, dag, metadata_access: MetadataAccess) -> PlanOutput | None:
+    def internal_plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
         dag: dag.DAG
-        metadata_access: MetadataAccess
+        predictions_provider: PredictionsProvider
         
         To be implemented by the Planners
         """
@@ -145,7 +145,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         return total_input_size
     
-    def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, metadata_access: MetadataAccess, sla: SLA):
+    def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, predictions_provider: PredictionsProvider, sla: SLA):
         node_id = node.id.get_full_id()
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         total_input_size = self._calculate_total_input_size(node, nodes_info)
@@ -163,7 +163,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
-            predicted_download_time = metadata_access.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla)
+            predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla)
             downloadable_input_size += unode_info.output_size
             
             if node.try_get_annotation(PreLoadOptimization):
@@ -177,18 +177,18 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
-        total_download_time = metadata_access.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
+        total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...
-        exec_time = metadata_access.predict_execution_time(node.func_name, total_input_size, resource_config, sla)
-        output_size = metadata_access.predict_output_size(node.func_name, total_input_size, sla)
+        exec_time = predictions_provider.predict_execution_time(node.func_name, total_input_size, resource_config, sla)
+        output_size = predictions_provider.predict_output_size(node.func_name, total_input_size, sla)
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
             all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
-            upload_time = metadata_access.predict_data_transfer_time('upload', output_size, resource_config, sla)
+            upload_time = predictions_provider.predict_data_transfer_time('upload', output_size, resource_config, sla)
 
         # 6. Total timing
         total_time = tp_download_time + exec_time + upload_time
@@ -208,7 +208,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             path_completion_time
         )
 
-    def __update_node_timings_with_worker_startup(self, topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo], metadata_access: MetadataAccess, sla: SLA):
+    def __update_node_timings_with_worker_startup(self, topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo], predictions_provider: PredictionsProvider, sla: SLA):
         MAX_TIME_UNTIL_COLD_MS = 10_000
         # create a new sorted list from topo_sorted_nodes where nodes with earlisest earliest start appear first
         for node in topo_sorted_nodes:
@@ -242,30 +242,30 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
             if any_node_w_same_resources_starting_before_me:
                 # WARM START
-                worker_startup_prediction = metadata_access.predict_worker_startup_time(my_resource_config, "warm", sla)
+                worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
                 my_node_info.worker_startup_time_ms = worker_startup_prediction
                 my_node_info.total_time_ms += worker_startup_prediction
             else:
                 # COLD START
-                worker_startup_prediction = metadata_access.predict_worker_startup_time(my_resource_config, "cold", sla)
+                worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "cold", sla)
                 my_node_info.worker_startup_time_ms = worker_startup_prediction
                 my_node_info.total_time_ms += worker_startup_prediction
 
-    def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
+    def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """
         Calculate timing information for all nodes using the same resource configuration
         """
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
-            self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
+            self.__calculate_node_timings(nodes_info, node, resource_config, predictions_provider, sla)
             
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
-        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, metadata_access, sla)
+        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
 
         return nodes_info
     
-    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], metadata_access: MetadataAccess, sla: SLA):
+    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, sla: SLA):
         """
         Calculate timing information for all nodes using custom resource configurations
         """
@@ -274,10 +274,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for node in topo_sorted_nodes:
             resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             # note: modifies `nodes_info`
-            self.__calculate_node_timings(nodes_info, node, resource_config, metadata_access, sla)
+            self.__calculate_node_timings(nodes_info, node, resource_config, predictions_provider, sla)
 
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
-        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, metadata_access, sla)
+        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
 
         return nodes_info
     

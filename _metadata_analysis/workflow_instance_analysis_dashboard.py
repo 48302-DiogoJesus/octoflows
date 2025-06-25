@@ -58,7 +58,7 @@ def main():
     metrics_redis = get_redis_connection(6380)
     
     # Get all DAG keys
-    dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)]
+    dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
     
     if not dag_keys:
         st.warning("No DAGs found in Redis")

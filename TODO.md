@@ -1,11 +1,6 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
-- Rename planned fields to include time metric (ms)
-- Rename MetadataAcces to `PredictionsProvider`
-
-- On workflow_instance analysis show nr. of `warm-starts` vs `cold-starts`
-
 - `workflow_instance` dashboard
     - for each task show the `worker_startup_time` (through `WorkerStartupMetrics.initial_task_ids`) VS predicted as well
     - show nr. of `warm-starts` vs `cold-starts`

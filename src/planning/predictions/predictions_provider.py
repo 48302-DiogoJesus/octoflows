@@ -10,7 +10,7 @@ from src.planning.annotations.task_worker_resource_configuration import TaskWork
 
 logger = create_logger(__name__)
 
-class MetadataAccess:
+class PredictionsProvider:
     MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 20
 
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
@@ -106,8 +106,8 @@ class MetadataAccess:
         # # change cached io ratios to count the number of ratios for all function_names
         # print("cached io ratios len: ", sum(len(ratios) for ratios in self.cached_io_ratios.values()))
         # print("cached execution time per byte len: ", sum(len(ratios) for ratios in self.cached_execution_time_per_byte.values()))
-        print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
-        print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
+        # print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
+        # print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
         #* Needs to have at least SOME history for the SAME TYPE of workflow
         return len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
