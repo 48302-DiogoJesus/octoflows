@@ -1,13 +1,13 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
-- `workflow_instance` dashboard
-    - for each task show the `worker_startup_time` (through `WorkerStartupMetrics.initial_task_ids`) VS predicted as well
-
 - `global_predictions` dashboard
     - compare `cold-starts` to `warm-starts`
     - compare total `worker_startup_time`
     - add total predicted `worker_startup_time`
+
+- `workflow_instance` dashboard
+    - refactor to make data access easier and non-repetitive/unnecessary double access
 
 - See notion todo for "visualization todo"
 

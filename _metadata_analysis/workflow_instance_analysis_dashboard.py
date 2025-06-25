@@ -430,18 +430,16 @@ def main():
                     st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
                     st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     
-
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available
             st.subheader("Planned vs Observed Metrics")
             plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
             plan_data = metrics_redis.get(plan_key)
 
-            if metrics and plan_data:
+            if metrics and plan_data and task_node:
                 try:
                     plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
                     tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id) # type: ignore
-                    
                     if tp:
                         # Get the current task's timing metrics
                         current_task_metrics = next(
@@ -477,6 +475,7 @@ def main():
                                 st.text('Upload Time (ms)')
                                 st.text('Earliest Start (ms)')
                                 st.text('End Time (ms)')
+                                st.text('Worker Startup Time (ms)')
                             with col_planned:
                                 st.text(format_bytes(tp.input_size))
                                 st.text(format_bytes(tp.output_size))
@@ -485,6 +484,7 @@ def main():
                                 st.text(f"{float(tp.upload_time_ms):.2f} ms")
                                 st.text(f"{float(tp.earliest_start_ms):.2f} ms")
                                 st.text(f"{float(tp.path_completion_time_ms):.2f} ms")
+                                st.text(f"{float(tp.worker_startup_time_ms):.2f} ms")
                             
                             with col_observed:
                                 st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
@@ -495,6 +495,10 @@ def main():
                                 st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                                 st.text(f"{float(actual_start_time):.2f} ms")
                                 st.text(f"{float(end_time_ms):.2f} ms")
+                                worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
+                                worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
+                                actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
+                                st.text(f"{float(actual_worker_startup_time_ms):.2f} ms")
                             
                             # Calculate and display difference
                             def get_diff_style(percentage):
@@ -568,6 +572,15 @@ def main():
                                     st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
                                 else:
                                     st.text("N/A")
+
+                                # Worker Startup Time difference
+                                planned_startup = float(tp.worker_startup_time_ms)
+                                observed_startup = float(actual_worker_startup_time_ms)
+                                if planned_startup is not None and observed_startup is not None and planned_startup != 0:
+                                    pct = ((observed_startup - planned_startup) / planned_startup) * 100
+                                    st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
+                                else:
+                                    st.text("N/A")
                     else:
                         st.warning("No planning data available for selected task")
                 except Exception as e:
@@ -633,8 +646,7 @@ def main():
                 st.metric(
                     "Makespan", 
                     f"{makespan_ms:.2f} ms",
-                    delta=f"{percentage_diff:+.1f}% vs predicted",
-                    help=f"Predicted: {predicted_makespan:.2f} ms"
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({predicted_makespan:.2f} ms)"
                 )
             else:
                 st.metric("Makespan", f"{makespan_ms:.2f} ms")
@@ -655,7 +667,16 @@ def main():
             st.metric("Avg. SubDAG Create Time", f"{avg_subdag_create_time:.2f} ms")
         with col5:
             st.metric("Total DC Update Time", f"{total_time_updating_dependency_counters_ms:.2f} ms")
-            st.metric("Total Worker Startup Time", f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)", help=f"warm: {warm_starts_count}, cold: {cold_starts_count}")
+            if plan_output and plan_output.total_time_waiting_for_worker_startup_ms > 0:
+                percentage_diff = ((total_workflow_worker_startup_time_s - (plan_output.total_time_waiting_for_worker_startup_ms / 1000)) / (plan_output.total_time_waiting_for_worker_startup_ms / 1000)) * 100
+                st.metric(
+                    "Total Worker Startup Time", 
+                    f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)",
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({plan_output.total_time_waiting_for_worker_startup_ms / 1000:.2f} s)",
+                    help=f"warm: {warm_starts_count}, cold: {cold_starts_count}"
+                )
+            else:
+                st.metric("Total Worker Startup Time", f"{total_workflow_worker_startup_time_s:.2f} s ({len(worker_startup_metrics_for_this_workflow)} workers)", help=f"warm: {warm_starts_count}, cold: {cold_starts_count}")
             st.metric(" ", " ", help="")
 
         breakdown_data = {
