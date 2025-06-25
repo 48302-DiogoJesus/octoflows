@@ -1,10 +1,16 @@
-- Update metadata_access to make predictions about cold and warm starts
+- WARM/COLD starts ASSUMPTION:
+    - using resource_config (memory + cpus) instead of worker_id
+
 - Update abstract dag planner to understand when to add cold/warm starts
     - add it to `PlanOutput` + make the dashboards show it
         total_worker_startup_time_ms
 
+- On workflow_instance analysis show nr. of `warm-starts` vs `cold-starts`
+
 - Update worker_startup `workflow_analysis_dashboard`
 - Update global_predictions dashboard to show `cold-starts` and `warm-starts` too
+
+- See notion todo for "visualization todo"
 
 - [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
@@ -33,6 +39,12 @@
 - Give more importance to the most recent predictions
 - Discard outliers (is this on the users' side? selecting `percentile` instead of `avg`?)
 - Trying to progressively understand the I/O relationship of the functions instead of using `exponential` function
+
+[DIFF_IDEA]
+- Change the way simulations are made, to be more realistic and follow the scheduling logic defined by the planner to be used
+    - Run the actual `Worker.execute_branch` or a mock `Worker.mock_execute_branch` but with dummy stuff and don't actually execute the tasks nor upload metrics
+    - As it "executes" the simulation, keep track of metrics and then the planner can use them to make decisions
+    - REPLACES CURRENT FUNCTION: `__calculate_node_timings`
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
