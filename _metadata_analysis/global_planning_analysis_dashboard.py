@@ -28,7 +28,8 @@ def get_redis_connection(port: int = 6379):
 
 @dataclass
 class WorkflowInstanceTaskInfo:
-    task_id: str
+    global_task_id: str
+    internal_task_id: str
     metrics: TaskMetrics
 
 @dataclass
@@ -47,8 +48,9 @@ class WorkflowInfo:
     dag: FullDAG
     instances: List[WorkflowInstanceInfo]
 
-def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> Dict[str, WorkflowInfo]:
+def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {}
+    worker_startup_metrics: List[WorkerStartupMetrics] = []
     
     try:
         all_dag_keys = [key for key in intermediate_storage_conn.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
@@ -66,14 +68,14 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
 
                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
-                tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
+                tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
 
                 dag_data = metrics_storage_conn.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
 
                 worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
                 worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
-                worker_startup_metrics: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
+                worker_startup_metrics.extend([cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else []) # type: ignore
                 total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in worker_startup_metrics if metric.end_time_ms is not None]) if worker_startup_metrics else 0
                 total_workers = len(worker_startup_metrics)
 
@@ -84,7 +86,7 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
     except Exception as e:
         print(f"Error accessing Redis: {e}")
     
-    return workflow_types
+    return worker_startup_metrics, workflow_types
 
 def format_bytes(size: float) -> str:
     """Convert bytes to human-readable format"""
@@ -130,7 +132,7 @@ def main():
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
-        st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
+        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
     
     workflow_types = st.session_state.workflow_types
     
@@ -426,16 +428,19 @@ def main():
                         # Prepare task metrics data
                         task_metrics_data = []
                         for task in selected_instance_info.tasks:
+                            worker_startup_metrics_for_task = [n for n in st.session_state.worker_startup_metrics if task.internal_task_id in n.initial_task_ids]
+                            worker_startup_metrics_for_task = worker_startup_metrics_for_task[0] if worker_startup_metrics_for_task else None
                             task_metrics = task.metrics
                             task_metrics_data.append({
-                                'Task ID': task.task_id,
+                                'Task ID': task.global_task_id,
                                 'Worker Config': str(task_metrics.worker_resource_configuration),
                                 'Start Time (s)': task_metrics.started_at_timestamp_s,
                                 'Input Size (bytes)': sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
                                 'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
                                 'Execution Time (ms)': task_metrics.tp_execution_time_ms,
                                 'Output Size (bytes)': task_metrics.output_metrics.deserialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
-                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0
+                                'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
+                                'Worker Startup Time (ms)': (worker_startup_metrics_for_task.end_time_ms - worker_startup_metrics_for_task.start_time_ms) if worker_startup_metrics_for_task and worker_startup_metrics_for_task.end_time_ms else 0,
                             })
                         
                         # Display task metrics table
@@ -452,6 +457,7 @@ def main():
                                     'Execution Time (ms)': st.column_config.NumberColumn("Execution Time (ms)", format="%.2f"),
                                     'Output Size (bytes)': st.column_config.NumberColumn("Output Size (bytes)", format="%d"),
                                     'Output Time (ms)': st.column_config.NumberColumn("Output Time (ms)", format="%.2f"),
+                                    'Worker Startup Time (ms)': st.column_config.NumberColumn("Worker Startup Time (ms)", format="%.2f"),
                                 },
                                 use_container_width=True,
                                 hide_index=True,
@@ -481,16 +487,17 @@ def main():
                     actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                     actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
+                    actual_worker_startup_time = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
                     
                     # Get predicted metrics if available
-                    predicted_execution = predicted_download = predicted_upload = 0
-                    predicted_input_size = predicted_output_size = 0
+                    predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0 # initialize them outside
                     if instance.plan and instance.plan.nodes_info:
                         predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_execution = sum(info.exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_upload = sum(info.upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                        predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))
-                        predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))
+                        predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values())
+                        predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())
+                        predicted_worker_startup_time = sum([info.worker_startup_time_ms for info in instance.plan.nodes_info.values()])
                     
                     metrics_data.append({
                         'execution_actual': actual_execution,
@@ -502,7 +509,9 @@ def main():
                         'input_size_actual': actual_input_size,
                         'input_size_predicted': predicted_input_size,
                         'output_size_actual': actual_output_size,
-                        'output_size_predicted': predicted_output_size
+                        'output_size_predicted': predicted_output_size,
+                        'worker_startup_time_actual': actual_worker_startup_time,
+                        'worker_startup_time_predicted': predicted_worker_startup_time,
                     })
                 
                 if metrics_data:
@@ -527,6 +536,10 @@ def main():
                         'Total Output Size (bytes)': {
                             'actual': sum(m['output_size_actual'] for m in metrics_data) / len(metrics_data),
                             'predicted': sum(m['output_size_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
+                        'Total Worker Startup Time (s)': {
+                            'actual': sum(m['worker_startup_time_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['worker_startup_time_predicted'] for m in metrics_data) / len(metrics_data)
                         },
                     }
                     
@@ -554,7 +567,7 @@ def main():
                         color='Type',
                         barmode='group',
                         title='Predicted vs Actual Metrics (Averages)',
-                        labels={'Value': 'Time (seconds) | Size (bytes)'},
+                        labels={'Value': 'Value'},
                         color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
                     )
                     
@@ -699,83 +712,6 @@ def main():
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
-                
-                # Add pie chart for time breakdown
-                st.markdown("### Time Breakdown Analysis")
-
-                # Calculate averages for time-based metrics
-                time_metrics = []
-                for instance in matching_workflow_instances:
-                    if not instance.plan or not instance.tasks:
-                        continue
-                    
-                    # Calculate actual metrics in seconds
-                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                    actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                    actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)
-                    actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)
-                    total_dag_download = sum(stat.download_time_ms / 1000 for stat in instance.dag_download_stats)
-                    actual_worker_startup = instance.total_worker_startup_time_ms / instance.total_workers
-                    
-                    time_metrics.append({
-                        'execution': actual_execution,
-                        'download': actual_total_download,
-                        'upload': actual_upload,
-                        'invocation': actual_invocation,
-                        'dependency_update': actual_dependency_update,
-                        'dag_download': total_dag_download,
-                        'worker_startup': actual_worker_startup
-                    })
-
-                if time_metrics:
-                    # Calculate averages
-                    avg_metrics = {
-                        'Total Execution Time': sum(m['execution'] for m in time_metrics) / len(time_metrics),
-                        'Total Download Time': sum(m['download'] for m in time_metrics) / len(time_metrics),
-                        'Total Upload Time': sum(m['upload'] for m in time_metrics) / len(time_metrics),
-                        'Total Task Invocation Time': sum(m['invocation'] for m in time_metrics) / len(time_metrics),
-                        'Total Dependency Counter Update Time': sum(m['dependency_update'] for m in time_metrics) / len(time_metrics),
-                        'Total DAG Download Time': sum(m['dag_download'] for m in time_metrics) / len(time_metrics),
-                        'Total Worker Startup Time': sum(m['worker_startup'] for m in time_metrics) / len(time_metrics)
-                    }
-                    
-                    # Filter out zero values for cleaner visualization
-                    filtered_metrics = {k: v for k, v in avg_metrics.items() if v > 0}
-                    
-                    if filtered_metrics:
-                        # Create pie chart
-                        fig_pie = px.pie(
-                            values=list(filtered_metrics.values()),
-                            names=list(filtered_metrics.keys()),
-                            title=f"Average Time Breakdown for {selected_workflow}",
-                            hover_data=[list(filtered_metrics.values())],
-                            labels={'value': 'Time (seconds)'}
-                        )
-                        
-                        # Customize the pie chart
-                        fig_pie.update_traces(
-                            textposition='inside',
-                            textinfo='percent+label',
-                            hovertemplate='<b>%{label}</b><br>Time: %{value:.3f}s<br>Percentage: %{percent}<extra></extra>'
-                        )
-                        
-                        fig_pie.update_layout(
-                            showlegend=True,
-                            legend=dict(
-                                orientation="v",
-                                yanchor="middle",
-                                y=0.5,
-                                xanchor="left",
-                                x=1.02
-                            )
-                        )
-                        
-                        st.plotly_chart(fig_pie, use_container_width=True)
-                    else:
-                        st.info("No time metrics available for pie chart visualization.")
-
-                st.markdown("---")
             else:
                 st.warning("No instance data available for the selected filters.")
 

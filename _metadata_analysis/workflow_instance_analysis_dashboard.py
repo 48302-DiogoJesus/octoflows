@@ -943,21 +943,20 @@ def main():
             # Create a DataFrame for the table
             table_data = []
             for activity, time, description in breakdown_data:
-                if time > 0:  # Only include activities with non-zero time
-                    table_data.append({
-                        'Activity': activity,
-                        'Time (ms)': f"{time:,.0f}",
-                        'Percentage': f"{(time/total_time*100):.1f}%" if total_time > 0 else "0.0%",
-                        'Description': description
-                    })
+                table_data.append({
+                    'Activity': activity,
+                    'Time (ms)': f"{time:,.0f}",
+                    'Percentage': f"{(time/total_time*100):.1f}%" if total_time > 0 else "0.0%",
+                    'Description': description
+                })
             
             # Add total row
             if table_data:
                 table_data.append({
                     'Activity': 'TOTAL',
-                    'Time (ms)': f"{total_time:,.0f}",
+                    'Time (ms)': f"{total_time:,.0f} (makespan: {makespan_ms:,.0f})",
                     'Percentage': '100.0%',
-                    'Description': 'Sum of all time components'
+                    'Description': 'Sum of all measured components'
                 })
             
             # Display the table
