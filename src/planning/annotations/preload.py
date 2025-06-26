@@ -85,7 +85,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 )
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
@@ -120,4 +120,6 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 if not t.cached_result: raise Exception(f"ERROR: Task {t.id.get_full_id()} was preloading. After preload, it doesn't have a cached result!!")
                 task_dependencies[t.id.get_full_id()] = t.cached_result.result
 
-        return (upstream_tasks_to_fetch, _wait_all_preloads_coroutine())
+        upstream_tasks_i_fetch = list(__tasks_preloading_coroutines.keys())
+
+        return (upstream_tasks_to_fetch, upstream_tasks_i_fetch, _wait_all_preloads_coroutine())

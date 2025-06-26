@@ -59,21 +59,11 @@ class Worker(ABC, WorkerExecutionLogic):
             while True:
                 current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id
                 current_task.metrics.started_at_timestamp_s = time.time()
-                current_task.metrics.input_metrics = TaskInputMetrics()
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 task_dependencies: dict[str, Any] = {}
-                # Grab outputs that are already cached locally
-                for t in current_task.upstream_nodes:
-                    if t.cached_result:
-                        task_dependencies[t.id.get_full_id()] = t.cached_result.result
-                        current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
-                            deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
-                            time_ms=None
-                        )
-                
+
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
                 for t in current_task.upstream_nodes:
                     if t.cached_result is None:
@@ -83,10 +73,28 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
-                    tasks_to_fetch, wait_until_coroutine = await self.planner.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await self.planner.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
-                    tasks_to_fetch, wait_until_coroutine = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+
+                tasks_with_cached_results = list(
+                    set([un.id.get_full_id() for un in current_task.upstream_nodes]) - 
+                    set([t.id.get_full_id() for t in tasks_to_fetch]) - 
+                    set(tasks_fetched_by_handler)
+                )
+
+                # Grab outputs that are already cached locally
+                for t in current_task.upstream_nodes:
+                    if t.id.get_full_id() not in tasks_with_cached_results: continue
+                    if not t.cached_result: continue
+                    
+                    task_dependencies[t.id.get_full_id()] = t.cached_result.result
+                    current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
+                        serialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
+                        deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
+                        time_ms=None
+                    )
 
                 if tasks_to_fetch:
                     for utask in tasks_to_fetch:

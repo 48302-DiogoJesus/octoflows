@@ -200,7 +200,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             output_size, 
             None,
             0,
-            tp_download_time, 
+            tp_download_time,
             exec_time, 
             upload_time,
             total_download_time,

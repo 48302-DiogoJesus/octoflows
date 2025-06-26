@@ -200,7 +200,7 @@ def main():
                     continue
                     
                 # Calculate actual metrics
-                actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks]) 
+                actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)  # in seconds
                 actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
                 actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)  # in seconds
@@ -597,6 +597,7 @@ def main():
                     if planner not in planner_metrics:
                         planner_metrics[planner] = {
                             'count': 0,
+                            'makespan': 0,
                             'execution': 0,
                             'download': 0,
                             'upload': 0,
@@ -611,6 +612,10 @@ def main():
                     # Calculate metrics for this instance
                     metrics = planner_metrics[planner]
                     metrics['count'] += 1
+                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                    sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
+                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                    metrics['makespan'] += actual_makespan_s
                     metrics['execution'] += sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                     metrics['download'] += sum(
                         sum(input_metric.time_ms / 1000 
@@ -654,7 +659,7 @@ def main():
                     for planner in planner_metrics.values():
                         count = planner['count']
                         if count > 0:
-                            for key in ['execution', 'download', 'upload', 'input_size', 
+                            for key in ['makespan', 'execution', 'download', 'upload', 'input_size', 
                                       'output_size', 'invocation', 'dependency_update', 'dag_download', 'worker_startup']:
                                 planner[key] /= count
                     
@@ -662,6 +667,7 @@ def main():
                     plot_data = []
                     for planner_name, metrics in planner_metrics.items():
                         plot_data.extend([
+                            {'Planner': planner_name, 'Metric': 'Total Makespan (s)', 'Value': metrics['makespan']},
                             {'Planner': planner_name, 'Metric': 'Total Execution Time (s)', 'Value': metrics['execution']},
                             {'Planner': planner_name, 'Metric': 'Total Download Time (s)', 'Value': metrics['download']},
                             {'Planner': planner_name, 'Metric': 'Total Upload Time (s)', 'Value': metrics['upload']},

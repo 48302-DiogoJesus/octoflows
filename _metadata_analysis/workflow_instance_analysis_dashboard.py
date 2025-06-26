@@ -410,7 +410,6 @@ def main():
                 with col2:
                     st.metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
                     st.metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
-                    print(sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]))
                     st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
                 with col3:
@@ -785,8 +784,8 @@ def main():
                     total_data_uploaded += task_metrics.output_metrics.deserialized_size_bytes
 
             # Calculate average throughputs
-            avg_download_throughput = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0
-            avg_upload_throughput = sum(upload_throughputs_mb_s) / len(upload_throughputs_mb_s) if upload_throughputs_mb_s else 0
+            avg_download_throughput_mb_s = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0
+            avg_upload_throughput_mb_s = sum(upload_throughputs_mb_s) / len(upload_throughputs_mb_s) if upload_throughputs_mb_s else 0
 
             # Display metrics in columns
             col1, col2, col3, col4 = st.columns(4)
@@ -794,8 +793,8 @@ def main():
                 st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
                 st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
             with col2:
-                st.metric("Download Throughput (avg)", f"{avg_download_throughput:.2f} MB/s")
-                st.metric("Upload Throughput (avg)", f"{avg_upload_throughput:.2f} MB/s")
+                st.metric("Download Throughput (avg)", f"{avg_download_throughput_mb_s:.2f} MB/s")
+                st.metric("Upload Throughput (avg)", f"{avg_upload_throughput_mb_s:.2f} MB/s")
             with col3:
                 st.metric("Number of Downloads", len(download_throughputs_mb_s))
                 st.metric("Number of Uploads", len(upload_throughputs_mb_s))

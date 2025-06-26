@@ -162,7 +162,7 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        logger.info(f"Found {len(matching_samples)} exact resource matches for {type}")
+        # logger.info(f"Found {len(matching_samples)} exact resource matches for {type}")
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
@@ -203,7 +203,7 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        logger.info(f"Found {len(matching_samples)} exact resource matches for {state}")
+        # logger.info(f"Found {len(matching_samples)} exact resource matches for {state}")
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
@@ -264,7 +264,7 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
+        # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)

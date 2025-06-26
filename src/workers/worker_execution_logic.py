@@ -19,7 +19,7 @@ class WorkerExecutionLogic():
         pass
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
@@ -27,7 +27,7 @@ class WorkerExecutionLogic():
             wait_until_coroutine (so that the caller can fetch the tasks in parallel)
         )
         """
-        return (upstream_tasks_without_cached_results, None)
+        return (upstream_tasks_without_cached_results, [], None)
     
     @staticmethod
     async def override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
@@ -43,7 +43,7 @@ class WorkerExecutionLogic():
         _task: DAGTaskNode = task
         
         _task.metrics.output_metrics = TaskOutputMetrics(
-            serialized_size_bytes=calculate_data_structure_size(task_result), 
+            serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(task_result)), 
             deserialized_size_bytes=calculate_data_structure_size(task_result), # accurate
             tp_time_ms=None
         )

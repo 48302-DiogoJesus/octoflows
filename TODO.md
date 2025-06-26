@@ -1,11 +1,6 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
-- BUG: When planning is done, the input_metrics time_ms is always 0
-
-- `global_planning` dashboard
-    - add makespan to the 2 visualizations
-
 - See notion todo for "visualization todo"
 
 ---
@@ -39,8 +34,9 @@
 - Create a planner that uses them + make the prediction calculations take it into account
 
 [PREDICTIONS:IMPROVEMENTS]
-- Give more importance to most recent predictions
-- Trying to progressively understand the I/O relationship of the functions instead of using `exponential` function
+- Outlier removal strategies (remove values that fall under/above a threshold/percentage of the mean)
+- Give more importance to most recent predictions (e.g., first instance takes 6 seconds but all others take 200 seconds for some reason (6 will be pulling down the predictions))
+- Trying to progressively understand the I/O relationship of each function of the workflows instead of using `exponential` function
 
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
