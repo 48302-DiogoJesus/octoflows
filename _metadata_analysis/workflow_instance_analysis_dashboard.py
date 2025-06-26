@@ -775,13 +775,13 @@ def main():
                         all_transfer_speeds_b_ms.append(speed_bytes_ms)
                         total_data_downloaded += downloadable_input_size_bytes
 
-                    # Calculate upload throughput for output if available
-                    if task_metrics.output_metrics.tp_time_ms is not None:
-                        throughput_mb = (task_metrics.output_metrics.deserialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
-                        speed_bytes_ms = task_metrics.output_metrics.deserialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
-                        upload_throughputs_mb_s.append(throughput_mb)
-                        all_transfer_speeds_b_ms.append(speed_bytes_ms)
-                        total_data_uploaded += task_metrics.output_metrics.deserialized_size_bytes
+                # Calculate upload throughput for output if available
+                if task_metrics.output_metrics.tp_time_ms is not None:
+                    throughput_mb = (task_metrics.output_metrics.deserialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.deserialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
+                    upload_throughputs_mb_s.append(throughput_mb)
+                    all_transfer_speeds_b_ms.append(speed_bytes_ms)
+                    total_data_uploaded += task_metrics.output_metrics.deserialized_size_bytes
 
             # Calculate average throughputs
             avg_download_throughput = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0
