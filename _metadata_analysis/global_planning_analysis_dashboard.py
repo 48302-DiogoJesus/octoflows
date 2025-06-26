@@ -36,6 +36,7 @@ class WorkflowInstanceTaskInfo:
 class WorkflowInstanceInfo:
     master_dag_id: str
     plan: AbstractDAGPlanner.PlanOutput | None
+    dag: FullDAG
     dag_download_stats: List[FullDAGPrepareTime]
     start_time_ms: float
     total_worker_startup_time_ms: float
@@ -45,7 +46,7 @@ class WorkflowInstanceInfo:
 @dataclass
 class WorkflowInfo:
     type: str
-    dag: FullDAG
+    representative_dag: FullDAG
     instances: List[WorkflowInstanceInfo]
 
 def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
@@ -80,7 +81,7 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 total_workers = len(worker_startup_metrics)
 
                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
+                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
     except Exception as e:
@@ -188,7 +189,7 @@ def main():
         st.metric("Workflow Instances", len(matching_workflow_instances))
     if selected_workflow != 'All':
         with col2:
-            st.metric("Workflow Tasks", len(workflow_types[selected_workflow].dag._all_nodes))
+            st.metric("Workflow Tasks", len(workflow_types[selected_workflow].representative_dag._all_nodes))
     
     # Show metrics based on selection
     if selected_workflow != 'All' and matching_workflow_instances:
@@ -209,28 +210,18 @@ def main():
                 actual_total_worker_startup_time_s = instance.total_worker_startup_time_ms / 1000  # in seconds
                 
                 # Calculate actual makespan
-                task_timings = []
                 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
                 common_resources: TaskWorkerResourceConfiguration | None = None
                 for task in instance.tasks:
                     if common_resources is None: common_resources = task.metrics.worker_resource_configuration
                     elif common_resources != task.metrics.worker_resource_configuration: common_resources = None
-                    
-                    task_start = task.metrics.started_at_timestamp_s * 1000  # Convert to ms
-                    task_end = task_start
-                    task_end += task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
-                    task_end += task.metrics.tp_execution_time_ms
-                    task_end += task.metrics.total_invocation_time_ms if task.metrics.total_invocation_time_ms is not None else 0
-                    task_end += task.metrics.output_metrics.tp_time_ms if task.metrics.output_metrics.tp_time_ms is not None else 0
-                    task_timings.append((task_start, task_end))
                 
-                actual_makespan = 0
-                if task_timings:
-                    max_end_ms = max(end for _, end in task_timings)
-                    actual_makespan = (max_end_ms - instance.start_time_ms) / 1000  # Convert to seconds
+                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + sink_task_metrics.tp_execution_time_ms + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
+                actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 
                 # Get predicted metrics if available
-                predicted_total_download = predicted_execution = predicted_upload = predicted_makespan = 0
+                predicted_total_download = predicted_execution = predicted_upload = predicted_makespan_s = 0
                 predicted_input_size = predicted_output_size = 0
                 if instance.plan and instance.plan.nodes_info:
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
@@ -238,18 +229,7 @@ def main():
                     predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))  # in bytes
                     predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))  # in bytes
-                    
-                    # Calculate predicted makespan using critical path analysis
-                    earliest_finish = {node_id: 0.0 for node_id in instance.plan.nodes_info}
-                    for node_id, info in instance.plan.nodes_info.items():
-                        node_duration = (info.tp_download_time_ms + info.tp_exec_time_ms + info.tp_upload_time_ms) / 1000
-                        max_upstream_finish = 0.0
-                        for upstream_node in info.node_ref.upstream_nodes:
-                            upstream_id = upstream_node.id.get_full_id()
-                            if upstream_id in earliest_finish:
-                                max_upstream_finish = max(max_upstream_finish, earliest_finish[upstream_id])
-                        earliest_finish[node_id] = max_upstream_finish + node_duration
-                    predicted_makespan = max(earliest_finish.values()) if earliest_finish else 0.0
+                    predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                 
                 # Calculate differences and percentages with sample counts
                 def format_metric(actual, predicted, samples=None):
@@ -299,7 +279,7 @@ def main():
                     'Resources': f"{common_resources.cpus} CPUs {common_resources.memory_mb} MB" if common_resources else 'Non-Uniform',
                     'SLA': sla_value,
                     'Master DAG ID': instance.master_dag_id,
-                    'Makespan': format_metric(actual_makespan, predicted_makespan, 
+                    'Makespan': format_metric(actual_makespan_s, predicted_makespan_s, 
                                         sample_counts.for_execution_time if sample_counts else None),
                     'Total Execution Time': format_metric(actual_execution, predicted_execution, 
                                                 sample_counts.for_execution_time if sample_counts else None),

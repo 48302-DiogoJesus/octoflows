@@ -1,12 +1,8 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
-- `workflow_instance` dashboard
-    - refactor to make data access easier and non-repetitive/unnecessary double access
-
 - `global_planning` dashboard
-    - is the table makespan (actual and predicted) including the `worker startup time`?
-        - NO. fix it
+    - add makespan to the 2 visualizations
 
 - See notion todo for "visualization todo"
 

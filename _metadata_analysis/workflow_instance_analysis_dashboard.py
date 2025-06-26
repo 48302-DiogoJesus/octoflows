@@ -470,7 +470,7 @@ def main():
                                 st.text(f"{float(tp.tp_exec_time_ms):.2f} ms")
                                 st.text(f"{float(tp.tp_upload_time_ms):.2f} ms")
                                 st.text(f"{float(tp.earliest_start_ms):.2f} ms")
-                                st.text(f"{float(tp.path_completion_time_ms):.2f} ms")
+                                st.text(f"{float(tp.task_completion_time_ms):.2f} ms")
                                 st.text(f"({tp.worker_startup_state or 'N/A'}) {float(tp.tp_worker_startup_time_ms):.2f} ms")
                         
                         with col_observed:
@@ -553,7 +553,7 @@ def main():
                                     st.text("N/A")
                                 
                                 # End Time difference
-                                planned_end = float(tp.path_completion_time_ms)
+                                planned_end = float(tp.task_completion_time_ms)
                                 observed_end = float(end_time_ms)
                                 if planned_end is not None and observed_end is not None and planned_end != 0:
                                     pct = ((observed_end - planned_end) / planned_end) * 100
@@ -598,7 +598,7 @@ def main():
         if plan_data:
             plan_output = cloudpickle.loads(plan_data) # type: ignore
 
-        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].path_completion_time_ms if plan_output else -1
+        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms if plan_output else -1
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
