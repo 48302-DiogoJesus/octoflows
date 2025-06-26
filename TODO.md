@@ -1,9 +1,16 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
+- planned vs observed => show observed even if prediction doesn't exist
+- predictions_provider bug: providing `warm` predictions when I only have `cold` predictions => shouldn't happen
+- fix: planned earliest start is 0 for root nodes
+
 - `workflow_instance` dashboard
-    - On `critical path` tab, show the Makespan
     - refactor to make data access easier and non-repetitive/unnecessary double access
+
+- `global_planning` dashboard
+    - is the table makespan (actual and predicted) including the `worker startup time`?
+        - NO. fix it
 
 - See notion todo for "visualization todo"
 

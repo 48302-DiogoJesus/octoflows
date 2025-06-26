@@ -39,8 +39,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         total_download_time_ms: float # time spent downloading data for the task (can't be 0 if data was "preloaded")
         
-        total_time_ms: float
-        earliest_start_ms: float
+        earliest_start_ms: float # includes the time waiting for worker startup
         path_completion_time_ms: float
 
     @dataclass
@@ -191,8 +190,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             upload_time = predictions_provider.predict_data_transfer_time('upload', output_size, resource_config, sla)
 
         # 6. Total timing
-        total_time = tp_download_time + exec_time + upload_time
-        path_completion_time = earliest_start + total_time
+        path_completion_time = earliest_start + tp_download_time + exec_time + upload_time
         
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
@@ -203,7 +201,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             exec_time, 
             upload_time,
             total_download_time,
-            total_time, 
             earliest_start,
             path_completion_time
         )
@@ -229,6 +226,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 # won't cause a worker launch, it will execute on already running worker
                 #   note: checking cpus and memory is done to prevent against "flexible" workers (worker_id = None)
                 my_node_info.worker_startup_time_ms = 0
+                my_node_info.earliest_start_ms += 0
                 continue
 
             any_node_w_same_resources_starting_before_me = any([n for n in topo_sorted_nodes if \
@@ -244,12 +242,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
                 my_node_info.worker_startup_time_ms = worker_startup_prediction
-                my_node_info.total_time_ms += worker_startup_prediction
+                my_node_info.earliest_start_ms += worker_startup_prediction
             else:
                 # COLD START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "cold", sla)
                 my_node_info.worker_startup_time_ms = worker_startup_prediction
-                my_node_info.total_time_ms += worker_startup_prediction
+                my_node_info.earliest_start_ms += worker_startup_prediction
 
     def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """

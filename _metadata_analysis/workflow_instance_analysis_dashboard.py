@@ -179,39 +179,26 @@ def main():
     task_timings = {}
     
     # First pass: collect all task metrics and find the minimum start time
-    min_start_time = None
-    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
-        task_start_time = metrics.started_at_timestamp_s
-        task_timings[task_id] = {
-            'start_time': task_start_time,
-            'end_time': None
-        }
-        
-        if min_start_time is None or task_start_time < min_start_time:
-            min_start_time = task_start_time
-    
-    assert min_start_time is not None
+    dag_start_timestamp_s = dag_submission_metrics.dag_submission_time_ms / 1000
 
     # Second pass: calculate end times relative to min_start_time
     for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
-        relative_start_time = (metrics.started_at_timestamp_s - min_start_time) * 1000  # Convert to ms
-        end_time = relative_start_time + metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms else 0 + metrics.tp_execution_time_ms if metrics.tp_execution_time_ms else 0 + metrics.total_invocation_time_ms if metrics.total_invocation_time_ms else 0
-        if metrics.output_metrics: end_time += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms else 0
-        task_timings[task_id]['end_time'] = end_time
+        # worker startup time is considered through the {metrics.started_at_timestamp_s}
+        relative_start_time_ms = (metrics.started_at_timestamp_s - dag_start_timestamp_s) * 1000  # Convert to ms
+        end_time = relative_start_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
+        task_timings[task_id] = {
+            'start_time': relative_start_time_ms,
+            'end_time': end_time
+        }
     
     # Update task_metrics_data with the calculated timing information
     for i, task_data in enumerate(task_metrics_data):
         task_id = task_data['task_id']
         task_metrics_data[i].update({
-            'relative_start_time_ms': (task_timings[task_id]['start_time'] - min_start_time) * 1000,
+            'relative_start_time_ms': task_timings[task_id]['start_time'],
             'end_time_ms': task_timings[task_id]['end_time']
         })
     
-    # Make timing information available for the rest of the code
-    min_start_time_ms = min_start_time * 1000 if min_start_time else None  # Convert to ms for consistency
-    task_end_times = {task_id: timing['end_time'] for task_id, timing in task_timings.items()}
-    task_start_times = {task_id: timing['start_time'] for task_id, timing in task_timings.items()}
-
     # Create tabs for visualization and metrics
     tab_viz, tab_summary, tab_exec, tab_data_transfer, tab_workers, tab_critical_path = st.tabs([
         "Visualization", 
@@ -407,7 +394,7 @@ def main():
             
             if metrics and task_node:
                 # Basic task info
-                st.metric("Function", task_node.func_name)
+                st.metric("Function", task_node.func_name, help=task_node.id.get_full_id())
                 st.metric("Worker", metrics.worker_resource_configuration.worker_id)
                 col1, col2, col3 = st.columns(3)
                 output_data = metrics.output_metrics.deserialized_size_bytes
@@ -415,7 +402,7 @@ def main():
                 worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                 worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                 with col1:
-                    total_task_handling_time = (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
+                    total_task_handling_time = worker_startup_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
                     st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="CPUs, Memory (MB)")
                     st.metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
                     st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
@@ -436,47 +423,47 @@ def main():
             plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
             plan_data = metrics_redis.get(plan_key)
 
-            if metrics and plan_data and task_node:
+            if metrics and task_node:
                 try:
-                    plan: AbstractDAGPlanner.PlanOutput = cloudpickle.loads(plan_data) # type: ignore
-                    tp: AbstractDAGPlanner.PlanningTaskInfo | None = plan.nodes_info.get(st.session_state.selected_task_id) # type: ignore
-                    if tp:
-                        # Get the current task's timing metrics
-                        current_task_metrics = next(
-                            (t for t in task_metrics_data if t['task_id'] == st.session_state.selected_task_id),
-                            None
-                        )
+                    plan: AbstractDAGPlanner.PlanOutput | None = None
+                    tp: AbstractDAGPlanner.PlanningTaskInfo | None = None
+                    if plan_data:
+                        plan = cloudpickle.loads(plan_data) # type: ignore
+                        tp = plan.nodes_info.get(st.session_state.selected_task_id) # type: ignore
+                    
+                    current_task_metrics = next((t for t in task_metrics_data if t['task_id'] == st.session_state.selected_task_id), None)
+                    
+                    if current_task_metrics:
+                        # Calculate all the metrics we want to compare
+                        output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
+                        actual_start_time = current_task_metrics['relative_start_time_ms']
+                        end_time_ms = current_task_metrics['end_time_ms']
                         
-                        if current_task_metrics:
-                            # Calculate all the metrics we want to compare
-                            output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
-                            actual_start_time = current_task_metrics['relative_start_time_ms']
-                            end_time_ms = current_task_metrics['end_time_ms']
-                            
-                            # Create columns for comparison
-                            col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
+                        # Create columns for comparison
+                        col_metric, col_planned, col_observed, col_diff = st.columns([2, 1, 1, 1])
 
-                            # Add header
-                            with col_metric:
-                                st.markdown("**Metric**")
-                            with col_planned:
-                                st.markdown("**Planned**")
-                            with col_observed:
-                                st.markdown("**Observed**")
-                            with col_diff:
-                                st.markdown("**Difference**")
-                            
-                            # Comparison fields
-                            with col_metric:
-                                st.text('Input Size (bytes)')
-                                st.text('Output Size (bytes)')
-                                st.text('Downloading Deps. (ms)')
-                                st.text('Execution Time (ms)')
-                                st.text('Upload Time (ms)')
-                                st.text('Earliest Start (ms)')
-                                st.text('End Time (ms)')
-                                st.text('Worker Startup Time (ms)')
-                            with col_planned:
+                        # Add header
+                        with col_metric:
+                            st.markdown("**Metric**")
+                        with col_planned:
+                            st.markdown("**Planned**")
+                        with col_observed:
+                            st.markdown("**Observed**")
+                        with col_diff:
+                            st.markdown("**Difference**")
+                        
+                        # Comparison fields
+                        with col_metric:
+                            st.text('Input Size (bytes)')
+                            st.text('Output Size (bytes)')
+                            st.text('Downloading Deps. (ms)')
+                            st.text('Execution Time (ms)')
+                            st.text('Upload Time (ms)')
+                            st.text('Earliest Start (ms)')
+                            st.text('End Time (ms)')
+                            st.text('Worker Startup Time (ms)')
+                        with col_planned:
+                            if tp:
                                 st.text(format_bytes(tp.input_size))
                                 st.text(format_bytes(tp.output_size))
                                 st.text(f"{float(tp.total_download_time_ms):.2f} ms")
@@ -485,38 +472,39 @@ def main():
                                 st.text(f"{float(tp.earliest_start_ms):.2f} ms")
                                 st.text(f"{float(tp.path_completion_time_ms):.2f} ms")
                                 st.text(f"{float(tp.worker_startup_time_ms):.2f} ms")
-                            
-                            with col_observed:
-                                st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
-                                st.text(format_bytes(output_size))
-                                time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
-                                st.text(f"{float(time_downloading_inputs):.2f} ms")
-                                st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
-                                st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
-                                st.text(f"{float(actual_start_time):.2f} ms")
-                                st.text(f"{float(end_time_ms):.2f} ms")
-                                worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
-                                worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
-                                actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
-                                st.text(f"{float(actual_worker_startup_time_ms):.2f} ms")
-                            
-                            # Calculate and display difference
-                            def get_diff_style(percentage):
-                                """Returns appropriate color style based on percentage difference"""
-                                if percentage is None:
-                                    return ""
-                                if abs(percentage) > 70:
-                                    return "color: red;"
-                                return "color: green;"
+                        
+                        with col_observed:
+                            st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                            st.text(format_bytes(output_size))
+                            time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
+                            st.text(f"{float(time_downloading_inputs):.2f} ms")
+                            st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
+                            st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                            st.text(f"{float(actual_start_time):.2f} ms")
+                            st.text(f"{float(end_time_ms):.2f} ms")
+                            worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
+                            worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
+                            actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
+                            st.text(f"{float(actual_worker_startup_time_ms):.2f} ms")
+                        
+                        # Calculate and display difference
+                        def get_diff_style(percentage):
+                            """Returns appropriate color style based on percentage difference"""
+                            if percentage is None:
+                                return ""
+                            if abs(percentage) > 70:
+                                return "color: red;"
+                            return "color: green;"
 
-                            def format_percentage(diff, total):
-                                """Calculate and format percentage difference"""
-                                if total == 0:
-                                    return None, "N/A"
-                                percentage = (diff / total) * 100
-                                return percentage, f"{percentage:+.2f}%"
+                        def format_percentage(diff, total):
+                            """Calculate and format percentage difference"""
+                            if total == 0:
+                                return None, "N/A"
+                            percentage = (diff / total) * 100
+                            return percentage, f"{percentage:+.2f}%"
 
-                            with col_diff:
+                        with col_diff:
+                            if tp:
                                 # Input Size difference
                                 planned_input = tp.input_size
                                 observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
@@ -581,8 +569,6 @@ def main():
                                     st.markdown(f"<span style='{get_diff_style(pct)}'>{pct:+.2f}%</span>", unsafe_allow_html=True)
                                 else:
                                     st.text("N/A")
-                    else:
-                        st.warning("No planning data available for selected task")
                 except Exception as e:
                     st.error(f"Error loading plan data: {str(e)}")
                         
