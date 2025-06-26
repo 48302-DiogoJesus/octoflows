@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from graphviz import Digraph
+from typing import Literal
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
@@ -32,10 +33,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         input_size: int
         output_size: int
 
-        worker_startup_time_ms: float # 0 if no need to invoke new worker
-        download_time_ms: float  # task-path download time (can be 0 if data was "preloaded")
-        exec_time_ms: float
-        upload_time_ms: float
+        worker_startup_state: Literal["cold", "warm"] | None # None if no need to invoke new worker
+        tp_worker_startup_time_ms: float # 0 if no need to invoke new worker
+        tp_download_time_ms: float  # task-path download time (can be 0 if data was "preloaded")
+        tp_exec_time_ms: float
+        tp_upload_time_ms: float
         
         total_download_time_ms: float # time spent downloading data for the task (can't be 0 if data was "preloaded")
         
@@ -60,7 +62,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         total_time_waiting_for_worker_startup_ms: float = -1
 
         def __post_init__(self):
-            self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.worker_startup_time_ms, self.nodes_info.values()))
+            self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.tp_worker_startup_time_ms, self.nodes_info.values()))
 
     def plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
@@ -196,6 +198,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             node, 
             total_input_size, 
             output_size, 
+            None,
             0,
             tp_download_time, 
             exec_time, 
@@ -206,7 +209,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         )
 
     def __update_node_timings_with_worker_startup(self, topo_sorted_nodes: list[DAGTaskNode], nodes_info: dict[str, PlanningTaskInfo], predictions_provider: PredictionsProvider, sla: SLA):
+        """
+        Note: Needs to run after {earliest_start} and {path_completion_time} are calculated so that it can predict if the startup will be WARM or COLD
+        """
+
         MAX_TIME_UNTIL_COLD_MS = 10_000
+
         # create a new sorted list from topo_sorted_nodes where nodes with earlisest earliest start appear first
         for node in topo_sorted_nodes:
             my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
@@ -225,29 +233,43 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             ):
                 # won't cause a worker launch, it will execute on already running worker
                 #   note: checking cpus and memory is done to prevent against "flexible" workers (worker_id = None)
-                my_node_info.worker_startup_time_ms = 0
+                my_node_info.tp_worker_startup_time_ms = 0
+                my_node_info.worker_startup_state = None
                 my_node_info.earliest_start_ms += 0
+                my_node_info.path_completion_time_ms += 0
                 continue
 
-            any_node_w_same_resources_starting_before_me = any([n for n in topo_sorted_nodes if \
-                n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
-                n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
-                # Filter for tasks whose workers started before me
-                nodes_info[n.id.get_full_id()].earliest_start_ms < my_node_info.earliest_start_ms and \
-                # Filter for tasks whose workers are expected to be WARM until I start (at least)
-                nodes_info[n.id.get_full_id()].path_completion_time_ms + MAX_TIME_UNTIL_COLD_MS >= my_node_info.earliest_start_ms
-            ])
+            any_node_w_same_resources_starting_before_me = len(node.upstream_nodes) > 0 and \
+                any([n for n in topo_sorted_nodes if \
+                    n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
+                    n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
+                    # Filter for tasks whose workers started before me
+                    nodes_info[n.id.get_full_id()].earliest_start_ms < my_node_info.earliest_start_ms and \
+                    # Filter for tasks whose workers are expected to be WARM until I start (at least)
+                    nodes_info[n.id.get_full_id()].path_completion_time_ms + MAX_TIME_UNTIL_COLD_MS >= my_node_info.earliest_start_ms
+                ])
 
             if any_node_w_same_resources_starting_before_me:
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
-                my_node_info.worker_startup_time_ms = worker_startup_prediction
+                my_node_info.worker_startup_state = "warm"
+                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
                 my_node_info.earliest_start_ms += worker_startup_prediction
+                my_node_info.path_completion_time_ms += worker_startup_prediction
             else:
                 # COLD START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "cold", sla)
-                my_node_info.worker_startup_time_ms = worker_startup_prediction
+                my_node_info.worker_startup_state = "cold"
+                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
                 my_node_info.earliest_start_ms += worker_startup_prediction
+                my_node_info.path_completion_time_ms += worker_startup_prediction
+
+        # Recalculate {earliest_start_ms} and {path_completion_times} after changing some {earliest_start_ms} to include {tp_worker_startup_time_ms}
+        for node in topo_sorted_nodes:
+            node_info = nodes_info[node.id.get_full_id()]
+            for unode in node.upstream_nodes:
+                node_info.earliest_start_ms = max(node_info.earliest_start_ms, nodes_info[unode.id.get_full_id()].path_completion_time_ms)
+            node_info.path_completion_time_ms = node_info.earliest_start_ms + node_info.tp_download_time_ms + node_info.tp_exec_time_ms + node_info.tp_upload_time_ms
 
     def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
         """

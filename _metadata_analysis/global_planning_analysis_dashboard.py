@@ -234,15 +234,15 @@ def main():
                 predicted_input_size = predicted_output_size = 0
                 if instance.plan and instance.plan.nodes_info:
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
-                    predicted_execution = sum(info.exec_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
-                    predicted_upload = sum(info.upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))  # in bytes
                     predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))  # in bytes
                     
                     # Calculate predicted makespan using critical path analysis
                     earliest_finish = {node_id: 0.0 for node_id in instance.plan.nodes_info}
                     for node_id, info in instance.plan.nodes_info.items():
-                        node_duration = (info.download_time_ms + info.exec_time_ms + info.upload_time_ms) / 1000
+                        node_duration = (info.tp_download_time_ms + info.tp_exec_time_ms + info.tp_upload_time_ms) / 1000
                         max_upstream_finish = 0.0
                         for upstream_node in info.node_ref.upstream_nodes:
                             upstream_id = upstream_node.id.get_full_id()
@@ -493,11 +493,11 @@ def main():
                     predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0 # initialize them outside
                     if instance.plan and instance.plan.nodes_info:
                         predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                        predicted_execution = sum(info.exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                        predicted_upload = sum(info.upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values())
                         predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())
-                        predicted_worker_startup_time = sum([info.worker_startup_time_ms for info in instance.plan.nodes_info.values()])
+                        predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
                     
                     metrics_data.append({
                         'execution_actual': actual_execution,

@@ -403,7 +403,7 @@ def main():
                 worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                 with col1:
                     total_task_handling_time = worker_startup_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
-                    st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="CPUs, Memory (MB)")
+                    st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="vCPUs, Memory (MB)")
                     st.metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
                     st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
                     st.metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
@@ -467,11 +467,11 @@ def main():
                                 st.text(format_bytes(tp.input_size))
                                 st.text(format_bytes(tp.output_size))
                                 st.text(f"{float(tp.total_download_time_ms):.2f} ms")
-                                st.text(f"{float(tp.exec_time_ms):.2f} ms")
-                                st.text(f"{float(tp.upload_time_ms):.2f} ms")
+                                st.text(f"{float(tp.tp_exec_time_ms):.2f} ms")
+                                st.text(f"{float(tp.tp_upload_time_ms):.2f} ms")
                                 st.text(f"{float(tp.earliest_start_ms):.2f} ms")
                                 st.text(f"{float(tp.path_completion_time_ms):.2f} ms")
-                                st.text(f"{float(tp.worker_startup_time_ms):.2f} ms")
+                                st.text(f"({tp.worker_startup_state or 'N/A'}) {float(tp.tp_worker_startup_time_ms):.2f} ms")
                         
                         with col_observed:
                             st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
@@ -485,7 +485,7 @@ def main():
                             worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
                             worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                             actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
-                            st.text(f"{float(actual_worker_startup_time_ms):.2f} ms")
+                            st.text(f"({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'}) {float(actual_worker_startup_time_ms):.2f} ms")
                         
                         # Calculate and display difference
                         def get_diff_style(percentage):
@@ -526,7 +526,7 @@ def main():
                                     st.text("N/A")
                                 
                                 # Execution Time difference
-                                planned_exec = float(tp.exec_time_ms)
+                                planned_exec = float(tp.tp_exec_time_ms)
                                 observed_exec = float(metrics.tp_execution_time_ms)
                                 if planned_exec is not None and observed_exec is not None and planned_exec != 0:
                                     pct = ((observed_exec - planned_exec) / planned_exec) * 100
@@ -535,7 +535,7 @@ def main():
                                     st.text("N/A")
 
                                 # Upload Time difference
-                                planned_upload = float(tp.upload_time_ms)
+                                planned_upload = float(tp.tp_upload_time_ms)
                                 observed_upload = float(metrics.output_metrics.tp_time_ms or 0)
                                 if planned_upload is not None and observed_upload is not None and planned_upload != 0:
                                     pct = ((observed_upload - planned_upload) / planned_upload) * 100
@@ -562,7 +562,7 @@ def main():
                                     st.text("N/A")
 
                                 # Worker Startup Time difference
-                                planned_startup = float(tp.worker_startup_time_ms)
+                                planned_startup = float(tp.tp_worker_startup_time_ms)
                                 observed_startup = float(actual_worker_startup_time_ms)
                                 if planned_startup is not None and observed_startup is not None and planned_startup != 0:
                                     pct = ((observed_startup - planned_startup) / planned_startup) * 100
@@ -598,18 +598,7 @@ def main():
         if plan_data:
             plan_output = cloudpickle.loads(plan_data) # type: ignore
 
-        predicted_makespan = 0.0
-        if plan_output:
-            earliest_finish = {node_id: 0.0 for node_id in plan_output.nodes_info}
-            for node_id, info in plan_output.nodes_info.items():
-                node_duration = (info.download_time_ms + info.exec_time_ms + info.upload_time_ms) / 1000  # Convert to seconds
-                max_upstream_finish = 0.0
-                for upstream_node in info.node_ref.upstream_nodes:
-                    upstream_id = upstream_node.id.get_full_id()
-                    if upstream_id in earliest_finish:
-                        max_upstream_finish = max(max_upstream_finish, earliest_finish[upstream_id])
-                earliest_finish[node_id] = max_upstream_finish + node_duration
-            predicted_makespan = max(earliest_finish.values()) * 1000 if earliest_finish else 0.0  # Convert back to ms
+        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].path_completion_time_ms if plan_output else -1
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
