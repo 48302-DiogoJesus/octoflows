@@ -217,7 +217,7 @@ def main():
                     elif common_resources != task.metrics.worker_resource_configuration: common_resources = None
                 
                 sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
-                sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + sink_task_metrics.tp_execution_time_ms + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
+                sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 
                 # Get predicted metrics if available
@@ -462,16 +462,23 @@ def main():
                         continue
                         
                     # Calculate actual metrics
+                    actual_makespan_s = (
+                            max([
+                                (task.metrics.started_at_timestamp_s * 1000) + (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (task.metrics.tp_execution_time_ms or 0) + (task.metrics.output_metrics.tp_time_ms or 0) + (task.metrics.total_invocation_time_ms or 0) for task in instance.tasks
+                            ]) - instance.start_time_ms
+                        ) / 1000
                     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                     actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                    print(actual_download)
                     actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                     actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
                     actual_worker_startup_time = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
-                    
+
                     # Get predicted metrics if available
-                    predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0 # initialize them outside
+                    predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0 # initialize them outside
                     if instance.plan and instance.plan.nodes_info:
+                        predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                         predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
@@ -480,6 +487,8 @@ def main():
                         predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
                     
                     metrics_data.append({
+                        'makespan_actual': actual_makespan_s,
+                        'makespan_predicted': predicted_makespan_s,
                         'execution_actual': actual_execution,
                         'execution_predicted': predicted_execution,
                         'download_actual': actual_download,
@@ -497,6 +506,10 @@ def main():
                 if metrics_data:
                     # Calculate averages
                     avg_metrics = {
+                        'Total Makespan (s)': {
+                            'actual': sum(m['makespan_actual'] for m in metrics_data) / len(metrics_data),
+                            'predicted': sum(m['makespan_predicted'] for m in metrics_data) / len(metrics_data)
+                        },
                         'Total Execution Time (s)': {
                             'actual': sum(m['execution_actual'] for m in metrics_data) / len(metrics_data),
                             'predicted': sum(m['execution_predicted'] for m in metrics_data) / len(metrics_data)

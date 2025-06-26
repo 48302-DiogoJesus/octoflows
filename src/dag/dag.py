@@ -9,6 +9,8 @@ from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
+from src.utils.utils import calculate_data_structure_size
+from src.utils.timer import Timer
 
 logger = create_logger(__name__)
 
@@ -97,6 +99,7 @@ class FullDAG(GenericDAG):
                 raise Exception("Can't use dashboard when using in-memory storage!")
             vis.DAGVisualizationDashboard.start(self, _wk_config)
         
+        _start_time = Timer()
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], called_by_worker=False), name="delegate_initial_workers")
         if wk.metrics_storage: wk.metrics_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
@@ -108,6 +111,7 @@ class FullDAG(GenericDAG):
             self.sink_node,
             self
         )
+        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
 
         if wk.metrics_storage: await wk.metrics_storage.flush()
 

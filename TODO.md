@@ -1,6 +1,8 @@
 - WARM/COLD starts ASSUMPTION:
     - using resource_config (memory + cpus) instead of worker_id
 
+- BUG: When planning is done, the input_metrics time_ms is always 0
+
 - `global_planning` dashboard
     - add makespan to the 2 visualizations
 

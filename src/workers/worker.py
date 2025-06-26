@@ -234,13 +234,10 @@ class Worker(ABC, WorkerExecutionLogic):
         # Use an event to signal when we've received our message
         message_received = asyncio.Event()
         result = None
-        start_time = Timer()
-        total_wait_time_ms = 0
         
         def callback(msg: dict):
-            nonlocal result, total_wait_time_ms
+            nonlocal result
             message_received.set()
-            total_wait_time_ms = start_time.stop()
         
         await metadata_storage.subscribe(channel, callback)
         
@@ -250,7 +247,6 @@ class Worker(ABC, WorkerExecutionLogic):
             final_result = await intermediate_storage.get(final_task_id)
             if final_result is not None:
                 final_result = cloudpickle.loads(final_result) # type: ignore
-                logger.info(f"Final Result Ready: ({final_task_id}) => Size: {calculate_data_structure_size(final_result)} | Type: ({type(final_result)}) | Time: {total_wait_time_ms} ms")
                 return final_result
         finally:
             await metadata_storage.unsubscribe(channel)

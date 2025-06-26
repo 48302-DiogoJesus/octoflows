@@ -410,6 +410,7 @@ def main():
                 with col2:
                     st.metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
                     st.metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
+                    print(sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]))
                     st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
                     st.metric("Output Size", format_bytes(output_data))
                 with col3:
