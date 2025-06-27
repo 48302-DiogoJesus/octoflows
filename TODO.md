@@ -1,8 +1,19 @@
-- WARM/COLD starts ASSUMPTION:
-    - using resource_config (memory + cpus) instead of worker_id
+- Understand gap in TOTAL download and upload time predictions vs reality
+    - Fix
 
-- See notion todo for "visualization todo"
-
+- Visualization
+    - whisker charts, mostra quartis (mediana no meio e faz plot de média e de outliers
+    - compare
+        - HISTORY (for a single planner)
+            - first run (0 history) VS (< 15 samples) VS (> 30 samples)
+            - goals:
+                - understand if more history means more prediction accuracy
+        - PLANNERS
+            - goals:
+                - understand the impact of preload on **predictions** + **real values** (shorter?)
+        - OPTIMIZATIONS (for a single planner, toggle `preload` on/off)
+            - goals:
+                - understand the impact of preload on **predictions** + **real values** (shorter?)
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
