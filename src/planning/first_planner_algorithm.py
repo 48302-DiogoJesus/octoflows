@@ -173,6 +173,8 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
         logger.info(f"Prediction samples used: {prediction_samples_used}")
 
+        exit()
+
         return AbstractDAGPlanner.PlanOutput(
             self.__class__.__name__, 
             self.config.sla,

@@ -48,30 +48,24 @@ class PredictionsProvider:
             if self.dag_structure_hash in task_id: same_workflow_type_metrics[task_id] = metrics
             
             # Store upload/download speeds with resource configuration
-            # UPLOAD SPEEDS
-            if metrics.output_metrics.tp_time_ms is not None: # it can be None if the output was present at the worker
-                # Normalize the upload speed based on memory
-                normalized_time_ms = metrics.output_metrics.tp_time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.5
-                upload_speed = metrics.output_metrics.serialized_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
-                if upload_speed > 0:
-                    self.cached_upload_speeds.append((
-                        upload_speed,
-                        metrics.worker_resource_configuration.cpus,
-                        metrics.worker_resource_configuration.memory_mb
-                    ))
-
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics.input_download_metrics.values():
                 if input_metric.time_ms is None: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
-                normalized_time_ms = input_metric.time_ms * (metrics.worker_resource_configuration.memory_mb / BASELINE_MEMORY_MB) ** 0.5
-                download_speed = input_metric.serialized_size_bytes / normalized_time_ms if normalized_time_ms > 0 else 0
-                if download_speed > 0:
-                    self.cached_download_speeds.append((
-                        download_speed,
-                        metrics.worker_resource_configuration.cpus,
-                        metrics.worker_resource_configuration.memory_mb
-                    ))
+                self.cached_download_speeds.append((
+                    input_metric.serialized_size_bytes / input_metric.time_ms,
+                    metrics.worker_resource_configuration.cpus,
+                    metrics.worker_resource_configuration.memory_mb
+                ))
+
+            # UPLOAD SPEEDS
+            if metrics.output_metrics.tp_time_ms: # it can be None if the output was present at the worker, for example
+                # Normalize the upload speed based on memory
+                self.cached_upload_speeds.append((
+                    metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
+                    metrics.worker_resource_configuration.cpus,
+                    metrics.worker_resource_configuration.memory_mb
+                ))
 
         worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
         for wsm in worker_startup_metrics:
@@ -174,6 +168,7 @@ class PredictionsProvider:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
             baseline_normalized_samples = [speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5 for speed, cpus, memory_mb in cached_data]
+            
             if sla == "avg":  baseline_speed_bytes_per_ms = np.mean(baseline_normalized_samples)
             else: baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, 100 - sla.value)
             
@@ -182,7 +177,7 @@ class PredictionsProvider:
             # Scale from baseline to target resource configuration
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
             res = data_size_bytes / actual_speed
-        
+            
         self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
         return res # type: ignore
 

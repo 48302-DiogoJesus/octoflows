@@ -149,7 +149,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, predictions_provider: PredictionsProvider, sla: SLA):
         node_id = node.id.get_full_id()
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
-        total_input_size = self._calculate_total_input_size(node, nodes_info)
+        total_deserialized_input_size = self._calculate_total_input_size(node, nodes_info)
         downloadable_input_size = 0
         
         # 1. Calculate earliest start time (max of upstream completions)
@@ -178,26 +178,27 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
+        print("downloadable: ", downloadable_input_size)
         total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...
-        exec_time = predictions_provider.predict_execution_time(node.func_name, total_input_size, resource_config, sla)
-        output_size = predictions_provider.predict_output_size(node.func_name, total_input_size, sla)
+        exec_time = predictions_provider.predict_execution_time(node.func_name, total_deserialized_input_size, resource_config, sla)
+        deserialized_output_size = predictions_provider.predict_output_size(node.func_name, total_deserialized_input_size, sla)
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
             all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
-            upload_time = predictions_provider.predict_data_transfer_time('upload', output_size, resource_config, sla)
+            upload_time = predictions_provider.predict_data_transfer_time('upload', deserialized_output_size, resource_config, sla)
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
         
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
-            total_input_size, 
-            output_size, 
+            total_deserialized_input_size, 
+            deserialized_output_size, 
             None,
             0,
             tp_download_time,
