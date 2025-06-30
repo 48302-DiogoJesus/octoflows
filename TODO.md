@@ -1,5 +1,5 @@
 - Understand gap in TOTAL download and upload time predictions vs reality
-    - Fix
+    - in workflow_instance dashboard, show the total 
 
 - Visualization
     - whisker charts, mostra quartis (mediana no meio e faz plot de média e de outliers

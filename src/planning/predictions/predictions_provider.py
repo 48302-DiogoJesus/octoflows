@@ -16,7 +16,8 @@ class PredictionsProvider:
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
     cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
-    cached_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
+    cached_deserialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
+    cached_serialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int]]] = {}
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
@@ -86,11 +87,17 @@ class PredictionsProvider:
             ))
 
             # I/O RATIO
-            if function_name not in self.cached_io_ratios:
-                self.cached_io_ratios[function_name] = []
+            if function_name not in self.cached_deserialized_io_ratios:
+                self.cached_deserialized_io_ratios[function_name] = []
             input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             output_size = metrics.output_metrics.deserialized_size_bytes
-            self.cached_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
+            self.cached_deserialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
+
+            if function_name not in self.cached_serialized_io_ratios:
+                self.cached_serialized_io_ratios[function_name] = []
+            input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
+            output_size = metrics.output_metrics.serialized_size_bytes
+            self.cached_serialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
 
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
@@ -103,19 +110,20 @@ class PredictionsProvider:
         # print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
         # print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
         #* Needs to have at least SOME history for the SAME TYPE of workflow
-        return len(self.cached_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
+        return len(self.cached_deserialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = True) -> int:
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, deserialized: bool = True, allow_cached: bool = True) -> int:
         """
         Returns:
             Predicted output size in bytes
         """
         if input_size < 0: raise ValueError("Input size cannot be negative")
-        if function_name not in self.cached_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
-        prediction_key = f"{function_name}-{input_size}-{sla}"
+        if deserialized and function_name not in self.cached_deserialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
+        if not deserialized and function_name not in self.cached_serialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
+        prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
-        function_io_ratios = self.cached_io_ratios[function_name]
+        function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: raise ValueError(f"No data available for function {function_name}")
 
         if sla == "avg":

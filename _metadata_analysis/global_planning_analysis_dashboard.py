@@ -227,8 +227,8 @@ def main():
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
-                    predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values() if hasattr(info, 'input_size'))  # in bytes
-                    predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values() if hasattr(info, 'output_size'))  # in bytes
+                    predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
+                    predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                 
                 # Calculate differences and percentages with sample counts
@@ -482,8 +482,8 @@ def main():
                         predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                        predicted_input_size = sum(info.input_size for info in instance.plan.nodes_info.values())
-                        predicted_output_size = sum(info.output_size for info in instance.plan.nodes_info.values())
+                        predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
+                        predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
                         predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
                     
                     metrics_data.append({

@@ -267,7 +267,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type
             for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
-            for_output_size=sum(map(len, predictions_provider.cached_io_ratios.values()))
+            for_output_size=sum(map(len, predictions_provider.cached_deserialized_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")

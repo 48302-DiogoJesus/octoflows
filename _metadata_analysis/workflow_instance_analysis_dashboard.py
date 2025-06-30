@@ -128,18 +128,18 @@ def main():
         if task_id == dag.sink_node.id.get_full_id():
             _sink_task_metrics = metrics
 
-        total_time_invoking_tasks_ms += metrics.total_invocation_time_ms if metrics.total_invocation_time_ms is not None else 0
-        total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms if metrics.update_dependency_counters_time_ms is not None else 0
+        total_time_invoking_tasks_ms += metrics.total_invocation_time_ms if metrics.total_invocation_time_ms else 0
+        total_time_updating_dependency_counters_ms += metrics.update_dependency_counters_time_ms if metrics.update_dependency_counters_time_ms else 0
 
         # Calculate data transferred
         task_data = 0
-        total_time_downloading_data_ms += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms if metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None else 0
+        total_time_downloading_data_ms += sum([input_metrics.time_ms for input_metrics in metrics.input_metrics.input_download_metrics.values() if input_metrics.time_ms])
         if metrics.output_metrics:
             task_data += metrics.output_metrics.deserialized_size_bytes
-            total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms is not None else 0
+            total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms else 0
         
         total_data_transferred += task_data
-        total_time_executing_tasks_ms += metrics.tp_execution_time_ms if metrics.tp_execution_time_ms is not None else 0
+        total_time_executing_tasks_ms += metrics.tp_execution_time_ms if metrics.tp_execution_time_ms else 0
 
         downloadable_input_size_bytes = sum([input_metrics.deserialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
         # Prepare data for visualization
@@ -464,8 +464,8 @@ def main():
                             st.text('Worker Startup Time (ms)')
                         with col_planned:
                             if tp:
-                                st.text(format_bytes(tp.input_size))
-                                st.text(format_bytes(tp.output_size))
+                                st.text(format_bytes(tp.deserialized_input_size))
+                                st.text(format_bytes(tp.deserialized_output_size))
                                 st.text(f"{float(tp.total_download_time_ms):.2f} ms")
                                 st.text(f"{float(tp.tp_exec_time_ms):.2f} ms")
                                 st.text(f"{float(tp.tp_upload_time_ms):.2f} ms")
@@ -506,13 +506,13 @@ def main():
                         with col_diff:
                             if tp:
                                 # Input Size difference
-                                planned_input = tp.input_size
+                                planned_input = tp.deserialized_input_size
                                 observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
                                 pct, pct_str = format_percentage(observed_input - planned_input, planned_input)
                                 st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
                                 
                                 # Output Size difference
-                                planned_output = tp.output_size
+                                planned_output = tp.deserialized_output_size
                                 pct, pct_str = format_percentage(output_size - planned_output, planned_output)
                                 st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
 

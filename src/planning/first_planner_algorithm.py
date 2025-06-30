@@ -163,7 +163,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type
             for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
-            for_output_size=sum(map(len, predictions_provider.cached_io_ratios.values()))
+            for_output_size=sum(map(len, predictions_provider.cached_deserialized_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")
@@ -172,8 +172,6 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
         logger.info(f"Prediction samples used: {prediction_samples_used}")
-
-        exit()
 
         return AbstractDAGPlanner.PlanOutput(
             self.__class__.__name__, 
@@ -189,7 +187,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),

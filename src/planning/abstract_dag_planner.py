@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import cloudpickle
 from graphviz import Digraph
 from typing import Literal
 
@@ -30,8 +31,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     @dataclass
     class PlanningTaskInfo:
         node_ref: DAGTaskNode
-        input_size: int
-        output_size: int
+        
+        deserialized_input_size: int
+        deserialized_output_size: int
+        
+        serialized_input_size: int
+        serialized_output_size: int
 
         worker_startup_state: Literal["cold", "warm"] | None # None if no need to invoke new worker
         tp_worker_startup_time_ms: float # 0 if no need to invoke new worker
@@ -119,7 +124,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         return topo_order
     
-    def _calculate_total_input_size(self, node, nodes_info: dict[str, PlanningTaskInfo]) -> int:
+    def _calculate_total_input_size(self, node, nodes_info: dict[str, PlanningTaskInfo], deserialized: bool) -> int:
         """
         Returns input sizes of upstream_nodes grouped by worker_id
         Returns total input size
@@ -130,26 +135,27 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
-                if upstream_node_id in nodes_info: 
-                    output_size = nodes_info[upstream_node_id].output_size
+                if upstream_node_id in nodes_info:
+                    output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
             else:
-                total_input_size += calculate_data_structure_size(func_arg)
+                total_input_size += calculate_data_structure_size(func_arg) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_arg))
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
                 if upstream_node_id in nodes_info: 
-                    output_size = nodes_info[upstream_node_id].output_size
+                    output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
             else:
-                total_input_size += calculate_data_structure_size(func_kwarg_val)
+                total_input_size += calculate_data_structure_size(func_kwarg_val) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_kwarg_val))
 
         return total_input_size
     
     def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, predictions_provider: PredictionsProvider, sla: SLA):
         node_id = node.id.get_full_id()
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
-        total_deserialized_input_size = self._calculate_total_input_size(node, nodes_info)
+        deserialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=True)
+        serialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=False)
         downloadable_input_size = 0
         
         # 1. Calculate earliest start time (max of upstream completions)
@@ -164,8 +170,8 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
-            predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.output_size, resource_config, sla)
-            downloadable_input_size += unode_info.output_size
+            predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.serialized_output_size, resource_config, sla)
+            downloadable_input_size += unode_info.serialized_output_size
             
             if node.try_get_annotation(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
@@ -178,12 +184,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
-        print("downloadable: ", downloadable_input_size)
         total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...
-        exec_time = predictions_provider.predict_execution_time(node.func_name, total_deserialized_input_size, resource_config, sla)
-        deserialized_output_size = predictions_provider.predict_output_size(node.func_name, total_deserialized_input_size, sla)
+        exec_time = predictions_provider.predict_execution_time(node.func_name, deserialized_input_size, resource_config, sla)
+        deserialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=True)
+        serialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=False)
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
@@ -197,8 +203,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
-            total_deserialized_input_size, 
-            deserialized_output_size, 
+            deserialized_input_size, 
+            deserialized_output_size,
+            serialized_input_size,
+            serialized_output_size,
             None,
             0,
             tp_download_time,
@@ -457,7 +465,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # Added extra <BR/> spacing between lines and smaller font for details
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.input_size if node_info else 0} - {node_info.output_size if node_info else 0} bytes</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.deserialized_input_size if node_info else 0} - {node_info.deserialized_output_size if node_info else 0} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start_ms if node_info else 0:.2f} - {node_info.task_completion_time_ms if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoadOptimization) is not None}</FONT></TD></TR>" \
