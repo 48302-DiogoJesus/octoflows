@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 from src.planning.sla import Percentile
 from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
 from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
+from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
 from src.storage.redis_storage import RedisStorage
@@ -30,10 +31,15 @@ dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
+    planner_config=SimplePlannerAlgorithm.Config(
         sla="avg",
         worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        all_flexible_workers=False,
     ),
+    # planner_config=FirstPlannerAlgorithm.Config(
+    #     sla="avg",
+    #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+    # ),
     # planner_config=SecondPlannerAlgorithm.Config(
     #     sla="avg",
     #     available_worker_resource_configurations=[

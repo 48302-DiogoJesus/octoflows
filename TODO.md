@@ -1,8 +1,5 @@
-- Understand gap in TOTAL download and upload time predictions vs reality
-    - in workflow_instance dashboard, show the total 
-
 - Visualization
-    - whisker charts, mostra quartis (mediana no meio e faz plot de média e de outliers
+    - whisker charts, mostra quartis (mediana no meio e faz plot de média e de outliers)
     - compare
         - HISTORY (for a single planner)
             - first run (0 history) VS (< 15 samples) VS (> 30 samples)

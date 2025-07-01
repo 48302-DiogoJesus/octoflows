@@ -91,7 +91,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     
                     task_dependencies[t.id.get_full_id()] = t.cached_result.result
                     current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
-                        serialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
+                        serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(t.cached_result.result)),
                         deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
                         time_ms=None
                     )

@@ -469,7 +469,6 @@ def main():
                         ) / 1000
                     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                     actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    print(actual_download)
                     actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                     actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
@@ -583,13 +582,69 @@ def main():
                     
                     st.plotly_chart(fig, use_container_width=True)
                 
+                # Add box plot for makespan comparison across workflow types and planners
+                st.markdown("### Makespan Comparison by Workflow Type and Planner")
+                
+                # Prepare data for makespan comparison
+                makespan_data = []
+                
+                for instance in workflow_types[selected_workflow].instances:
+                    if not instance.plan or not instance.tasks: continue
+                            
+                    # Calculate actual makespan (same as before)
+                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                    sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + \
+                                                (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + \
+                                                (sink_task_metrics.tp_execution_time_ms or 0) + \
+                                                (sink_task_metrics.output_metrics.tp_time_ms or 0) + \
+                                                (sink_task_metrics.total_invocation_time_ms or 0)
+                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                    
+                    makespan_data.append({
+                        'Workflow Type': selected_workflow,
+                        'Planner': instance.plan.planner_name if instance.plan else 'No Planner',
+                        'Makespan (s)': actual_makespan_s,
+                        'Instance ID': instance.master_dag_id.split('-')[0]  # Use first part of ID as a simple identifier
+                    })
+                
+                if makespan_data:
+                    df_makespan = pd.DataFrame(makespan_data)
+                    
+                    # Create box plot
+                    fig = px.box(
+                        df_makespan, 
+                        x='Workflow Type', 
+                        y='Makespan (s)',
+                        color='Planner',
+                        title='Makespan Distribution by Workflow Type and Planner',
+                        points="all",  # Show all points
+                        hover_data=['Instance ID'],  # Show instance ID on hover
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    
+                    # Update layout for better visualization
+                    fig.update_layout(
+                        xaxis_title='Workflow Type',
+                        yaxis_title='Makespan (seconds)',
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        boxmode='group',  # Group boxes by workflow type
+                        height=600,
+                        xaxis={'categoryorder': 'total descending'}  # Sort by total makespan
+                    )
+                    
+                    # Rotate x-axis labels for better readability
+                    fig.update_xaxes(tickangle=45)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
                 # Add bar chart for actual metrics by planner type
                 st.markdown("### Actual Metrics by Planner Type (Averages)")
                 
                 # Calculate metrics by planner type
                 planner_metrics = {}
                 
-                for instance in matching_workflow_instances:
+                for instance in workflow_types[selected_workflow].instances:
                     if not instance.plan or not instance.tasks:
                         continue
                         
@@ -689,7 +744,7 @@ def main():
                         color='Planner',
                         barmode='group',
                         title='Average Actual Metrics by Planner Type',
-                        labels={'Value': 'Value (seconds | bytes)', 'Metric': 'Metric'}
+                        labels={'Value': 'Value', 'Metric': 'Metric'}
                     )
                     
                     # Update layout for better visualization
