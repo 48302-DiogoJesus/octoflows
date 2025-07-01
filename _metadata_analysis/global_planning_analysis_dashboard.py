@@ -582,59 +582,104 @@ def main():
                     
                     st.plotly_chart(fig, use_container_width=True)
                 
-                # Add box plot for makespan comparison across workflow types and planners
-                st.markdown("### Makespan Comparison by Workflow Type and Planner")
-                
-                # Prepare data for makespan comparison
-                makespan_data = []
+                # Prepare data for all metrics comparison
+                metrics_data = []
                 
                 for instance in workflow_types[selected_workflow].instances:
-                    if not instance.plan or not instance.tasks: continue
-                            
-                    # Calculate actual makespan (same as before)
+                    if not instance.plan or not instance.tasks: 
+                        continue
+                    
+                    # Calculate all metrics for this instance
                     sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                    
+                    # Calculate makespan
                     sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + \
                                                 (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + \
                                                 (sink_task_metrics.tp_execution_time_ms or 0) + \
                                                 (sink_task_metrics.output_metrics.tp_time_ms or 0) + \
                                                 (sink_task_metrics.total_invocation_time_ms or 0)
-                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                     
-                    makespan_data.append({
-                        'Workflow Type': selected_workflow,
-                        'Planner': instance.plan.planner_name if instance.plan else 'No Planner',
-                        'Makespan (s)': actual_makespan_s,
-                        'Instance ID': instance.master_dag_id.split('-')[0]  # Use first part of ID as a simple identifier
-                    })
+                    # Calculate all metrics
+                    instance_metrics = {
+                        'Makespan (s)': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
+                        'Execution Time (s)': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
+                        'Download Time (s)': sum(
+                            sum(input_metric.time_ms / 1000 
+                                for input_metric in task.metrics.input_metrics.input_download_metrics.values() 
+                                if input_metric.time_ms is not None)
+                            for task in instance.tasks
+                        ),
+                        'Upload Time (s)': sum(
+                            task.metrics.output_metrics.tp_time_ms / 1000 
+                            for task in instance.tasks 
+                            if task.metrics.output_metrics.tp_time_ms is not None
+                        ),
+                        'Input Size (MB)': sum(
+                            sum(input_metric.deserialized_size_bytes 
+                                for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
+                            task.metrics.input_metrics.hardcoded_input_size_bytes
+                            for task in instance.tasks
+                        ) / (1024 * 1024),  # Convert to MB
+                        'Output Size (MB)': sum(
+                            task.metrics.output_metrics.deserialized_size_bytes 
+                            for task in instance.tasks
+                        ) / (1024 * 1024),  # Convert to MB
+                        'Worker Startup Time (s)': instance.total_worker_startup_time_ms / 1000
+                    }
+                    
+                    # Add all metrics to the data list
+                    for metric_name, value in instance_metrics.items():
+                        metrics_data.append({
+                            'Metric': metric_name,
+                            'Value': value,
+                            'Planner': instance.plan.planner_name if instance.plan else 'No Planner',
+                            'Instance ID': instance.master_dag_id.split('-')[0]
+                        })
                 
-                if makespan_data:
-                    df_makespan = pd.DataFrame(makespan_data)
+                if metrics_data:
+                    df_metrics = pd.DataFrame(metrics_data)
                     
-                    # Create box plot
+                    # Get unique metrics for the dropdown
+                    available_metrics = df_metrics['Metric'].unique().tolist()
+                    
+                    # Add metric selection dropdown
+                    st.markdown("### Performance Metrics Comparison")
+                    selected_metric = st.selectbox(
+                        'Select a metric to compare:',
+                        available_metrics,
+                        index=0,
+                        key='metric_selector'
+                    )
+                    
+                    # Filter data for the selected metric
+                    df_metric = df_metrics[df_metrics['Metric'] == selected_metric]
+                    
+                    # Create box plot for the selected metric
                     fig = px.box(
-                        df_makespan, 
-                        x='Workflow Type', 
-                        y='Makespan (s)',
+                        df_metric,
+                        x='Planner',
+                        y='Value',
                         color='Planner',
-                        title='Makespan Distribution by Workflow Type and Planner',
-                        points="all",  # Show all points
-                        hover_data=['Instance ID'],  # Show instance ID on hover
+                        title=f'{selected_metric} Distribution by Planner',
+                        points="all",
+                        hover_data=['Instance ID'],
                         color_discrete_sequence=px.colors.qualitative.Set2
                     )
                     
-                    # Update layout for better visualization
+                    # Update layout
                     fig.update_layout(
-                        xaxis_title='Workflow Type',
-                        yaxis_title='Makespan (seconds)',
+                        xaxis_title='Planner',
+                        yaxis_title=selected_metric.split('(')[0].strip(),
                         legend_title='Planner',
                         plot_bgcolor='rgba(0,0,0,0)',
-                        boxmode='group',  # Group boxes by workflow type
-                        height=600,
-                        xaxis={'categoryorder': 'total descending'}  # Sort by total makespan
+                        boxmode='group',
+                        height=500,
+                        showlegend=False  # Remove legend as it's redundant with x-axis
                     )
                     
-                    # Rotate x-axis labels for better readability
-                    fig.update_xaxes(tickangle=45)
+                    # Rotate x-axis labels if there are many planners
+                    if len(df_metric['Planner'].unique()) > 3:
+                        fig.update_xaxes(tickangle=45)
                     
                     st.plotly_chart(fig, use_container_width=True)
                 

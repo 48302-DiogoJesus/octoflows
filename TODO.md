@@ -1,16 +1,18 @@
 - Visualization
-    - whisker charts, mostra quartis (mediana no meio e faz plot de média e de outliers)
-    - compare
-        - HISTORY (for a single planner)
-            - first run (0 history) VS (< 15 samples) VS (> 30 samples)
-            - goals:
-                - understand if more history means more prediction accuracy
-        - PLANNERS
-            - goals:
-                - understand the impact of preload on **predictions** + **real values** (shorter?)
-        - OPTIMIZATIONS (for a single planner, toggle `preload` on/off)
-            - goals:
-                - understand the impact of preload on **predictions** + **real values** (shorter?)
+    - {most relevant metrics to compare}
+        - makespan
+        - tp download time
+        - total data downloaded
+        - resource configuration
+    - [dimensions]
+        - nr of samples
+        - planner algorithm
+        - prediction vs reality
+    - visualizations
+        - box plot comparing {relevant metrics} for diff [planners]
+        - bar chart comparing [predicted_vs_real] {relevant metrics}
+        - bar chart comparing [real] {relevant metrics} accross diff [planners]
+
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
