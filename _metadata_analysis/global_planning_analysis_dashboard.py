@@ -600,6 +600,13 @@ def main():
                                                 (sink_task_metrics.total_invocation_time_ms or 0)
                     
                     # Calculate all metrics
+                    # Calculate average memory allocation per task (in MB)
+                    total_memory_mb = sum(
+                        task.metrics.worker_resource_configuration.memory_mb 
+                        for task in instance.tasks
+                    )
+                    avg_memory_mb = total_memory_mb / len(instance.tasks) if instance.tasks else 0
+                    
                     instance_metrics = {
                         'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
                         'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
@@ -628,7 +635,8 @@ def main():
                             task.metrics.output_metrics.deserialized_size_bytes 
                             for task in instance.tasks
                         ) / (1024 * 1024),  # Convert to MB
-                        'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000
+                        'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
+                        'Avg Memory Allocation [MB]': avg_memory_mb
                     }
                     
                     # Add all metrics to the data list
@@ -671,8 +679,8 @@ def main():
                     )
                     
                     # Get the base metric name and unit for y-axis label
-                    base_metric = selected_metric.split('(')[0].strip()
-                    unit = ')' + selected_metric.split('(')[1] if '(' in selected_metric else ''
+                    base_metric = selected_metric.split('[')[0].strip()
+                    unit = ']' + selected_metric.split('[')[1] if '[' in selected_metric else ''
                     
                     # Update layout with proper units
                     fig.update_layout(
