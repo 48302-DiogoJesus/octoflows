@@ -601,30 +601,34 @@ def main():
                     
                     # Calculate all metrics
                     instance_metrics = {
-                        'Makespan (s)': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
-                        'Execution Time (s)': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
-                        'Download Time (s)': sum(
+                        'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
+                        'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
+                        'Total Time Waiting for Inputs [s]': sum(
+                            (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) / 1000 
+                            for task in instance.tasks
+                        ),
+                        'Download Time [s]': sum(
                             sum(input_metric.time_ms / 1000 
                                 for input_metric in task.metrics.input_metrics.input_download_metrics.values() 
                                 if input_metric.time_ms is not None)
                             for task in instance.tasks
                         ),
-                        'Upload Time (s)': sum(
+                        'Upload Time [s]': sum(
                             task.metrics.output_metrics.tp_time_ms / 1000 
                             for task in instance.tasks 
                             if task.metrics.output_metrics.tp_time_ms is not None
                         ),
-                        'Input Size (MB)': sum(
+                        'Input Size [MB]': sum(
                             sum(input_metric.deserialized_size_bytes 
                                 for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
                             task.metrics.input_metrics.hardcoded_input_size_bytes
                             for task in instance.tasks
                         ) / (1024 * 1024),  # Convert to MB
-                        'Output Size (MB)': sum(
+                        'Output Size [MB]': sum(
                             task.metrics.output_metrics.deserialized_size_bytes 
                             for task in instance.tasks
                         ) / (1024 * 1024),  # Convert to MB
-                        'Worker Startup Time (s)': instance.total_worker_startup_time_ms / 1000
+                        'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000
                     }
                     
                     # Add all metrics to the data list
@@ -666,15 +670,23 @@ def main():
                         color_discrete_sequence=px.colors.qualitative.Set2
                     )
                     
-                    # Update layout
+                    # Get the base metric name and unit for y-axis label
+                    base_metric = selected_metric.split('(')[0].strip()
+                    unit = ')' + selected_metric.split('(')[1] if '(' in selected_metric else ''
+                    
+                    # Update layout with proper units
                     fig.update_layout(
                         xaxis_title='Planner',
-                        yaxis_title=selected_metric.split('(')[0].strip(),
+                        yaxis_title=f"{base_metric} {unit}",
                         legend_title='Planner',
                         plot_bgcolor='rgba(0,0,0,0)',
                         boxmode='group',
                         height=500,
-                        showlegend=False  # Remove legend as it's redundant with x-axis
+                        showlegend=False,  # Remove legend as it's redundant with x-axis
+                        yaxis={
+                            'title': f"{base_metric} {unit}",
+                            'tickformat': '.2f' if 'Time' in base_metric or 'Makespan' in base_metric else None
+                        }
                     )
                     
                     # Rotate x-axis labels if there are many planners
