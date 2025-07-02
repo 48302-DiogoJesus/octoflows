@@ -304,18 +304,48 @@ def main():
                 # Create a DataFrame for the table
                 df_instances = pd.DataFrame(instance_data)
                 
-                # Sort by sample count in descending order
-                df_instances = df_instances.sort_values('_sample_count', ascending=False)
-                
-                # Remove the temporary columns before display
-                df_instances = df_instances.drop(columns=['_sample_count', '_actual_invocation', '_actual_dependency_update'])
-                
-                # Reorder columns to put Master DAG ID first
-                columns = ['Master DAG ID'] + [col for col in df_instances.columns if col != 'Master DAG ID']
-                df_instances = df_instances[columns]
-                
                 # Display the instance comparison table
                 st.markdown("### Instance Comparison")
+
+                # Ensure we're working with a pandas DataFrame
+                if not isinstance(df_instances, pd.DataFrame):
+                    df_instances = pd.DataFrame(df_instances)
+                
+                # Sort by sample count in descending order
+                if '_sample_count' in df_instances.columns:
+                    df_instances = df_instances.sort_values('_sample_count', ascending=False)
+                
+                # Remove the temporary columns before display
+                cols_to_drop = [col for col in ['_sample_count', '_actual_invocation', '_actual_dependency_update'] 
+                              if col in df_instances.columns]
+                if cols_to_drop:
+                    df_instances = df_instances.drop(columns=cols_to_drop)
+                
+                # Reorder columns to put Master DAG ID first
+                if 'Master DAG ID' in df_instances.columns:
+                    columns = ['Master DAG ID'] + [col for col in df_instances.columns if col != 'Master DAG ID']
+                    df_instances = df_instances[columns]
+
+                # Add planner filter dropdown
+                if isinstance(df_instances, pd.DataFrame) and 'Planner' in df_instances.columns:
+                    # Get unique planners using a method that works with both pandas and numpy arrays
+                    planner_values = df_instances['Planner'].values if hasattr(df_instances['Planner'], 'values') else df_instances['Planner']
+                    if hasattr(planner_values, 'tolist'):
+                        planner_values = planner_values.tolist()
+                    
+                    # Convert to a set to get unique values, then back to a list
+                    unique_planners = list(set(str(p) for p in planner_values if pd.notna(p) and p is not None))
+                    all_planners = ['All'] + sorted(unique_planners)
+                    
+                    selected_planner = st.selectbox(
+                        'Filter by Planner:',
+                        all_planners,
+                        index=0
+                    )
+                    
+                    # Filter by selected planner if not 'All'
+                    if selected_planner != 'All':
+                        df_instances = df_instances[df_instances['Planner'].astype(str) == selected_planner]
                 
                 # Display the table
                 st.dataframe(
@@ -356,15 +386,6 @@ def main():
                         'Total Worker Startup Time',
                     ]
                 )
-                
-                st.markdown("""
-                    **Legend:**
-                    - Predicted → Actual: Shows predicted value followed by actual value
-                    - Values in parentheses show the difference and percentage difference
-                    - Sample counts show how many samples were used for predictions
-                    """)
-                
-                st.markdown("---")
 
                 st.markdown("### View Task Metrics by DAG ID")
                 
@@ -442,16 +463,8 @@ def main():
                                 use_container_width=True,
                                 hide_index=True,
                             )
-                
-                # Add a download button for the data
-                csv = df_instances.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download as CSV",
-                    data=csv,
-                    file_name=f"{selected_workflow}_comparison.csv",
-                    mime='text/csv',
-                )
 
+                st.markdown("---")
                 # Add comparison bar chart for predicted vs actual metrics
                 st.markdown("### Reality vs Predictions (avg of all runs)")
                 
