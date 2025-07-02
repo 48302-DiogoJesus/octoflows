@@ -14,11 +14,11 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 class MetricsStorage():
-    TASK_METRICS_KEY_PREFIX = "metrics-storage-tasks-"
-    DAG_METRICS_KEY_PREFIX = "metrics-storage-dag-"
-    PLAN_KEY_PREFIX = "metrics-storage-plan-"
-    WORKER_STARTUP_PREFIX = "metrics-storage-worker-startup-"
-    USER_DAG_SUBMISSION_PREFIX = "metrics-storage-user-dag-submission-"
+    TASK_METRICS_KEY_PREFIX = "metrics-storage-tasks+"
+    DAG_METRICS_KEY_PREFIX = "metrics-storage-dag+"
+    PLAN_KEY_PREFIX = "metrics-storage-plan+"
+    WORKER_STARTUP_PREFIX = "metrics-storage-worker-startup+"
+    USER_DAG_SUBMISSION_PREFIX = "metrics-storage-user-dag-submission+"
 
     @dataclass
     class Config:
@@ -36,7 +36,9 @@ class MetricsStorage():
         return await self.storage.keys(pattern)
 
     async def get(self, key: str) -> TaskMetrics | FullDAGPrepareTime | None:
-        return cloudpickle.loads(await self.storage.get(key))
+        data = await self.storage.get(key)
+        if not data: return None
+        return cloudpickle.loads(data)
     
     async def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
         return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
@@ -51,8 +53,8 @@ class MetricsStorage():
         unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
         self.cached_metrics[f"{self.DAG_METRICS_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
     
-    def store_plan(self, id: str, plan):
-        self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{id}"] = plan
+    def store_plan(self, master_dag_id: str, plan):
+        self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{master_dag_id}"] = plan
 
     async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics, task_ids: list[str]):
         """ direct upload to storage so that the INVOKED can find it and complete the missing fields """

@@ -22,31 +22,50 @@ inmemory_intermediate_storage_config = InMemoryStorage.Config()
 # METRICS STORAGE
 redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
 
+def get_planner_config(planner_type):
+    if planner_type == "simple":
+        return SimplePlannerAlgorithm.Config(
+            sla="avg",
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            all_flexible_workers=False,
+        )
+    elif planner_type == "first":
+        return FirstPlannerAlgorithm.Config(
+            sla="avg",
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        )
+    elif planner_type == "second":
+        return SecondPlannerAlgorithm.Config(
+            sla="avg",
+            available_worker_resource_configurations=[
+                TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
+            ],
+        )
+    else:
+        raise ValueError(f"Unknown planner type: {planner_type}")
+
+# Get planner type from command line arguments
+planner_type = None
+if len(sys.argv) > 1:
+    planner_type = sys.argv[1].lower()
+    if planner_type not in ['simple', 'first', 'second']:
+        print("Error: Planner must be one of: simple, first, second")
+        sys.exit(1)
+else:
+    print("Error: Planner must be one of: simple, first, second")
+    sys.exit(1)
+
 localWorkerConfig = LocalWorker.Config(
     intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
+    metadata_storage_config=redis_intermediate_storage_config,
 )
 
 dockerWorkerConfig = DockerWorker.Config(
     docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=redis_intermediate_storage_config,
     metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    # planner_config=SimplePlannerAlgorithm.Config(
-    #     sla="avg",
-    #     worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-    #     all_flexible_workers=False,
-    # ),
-    planner_config=FirstPlannerAlgorithm.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-    ),
-    # planner_config=SecondPlannerAlgorithm.Config(
-    #     sla="avg",
-    #     available_worker_resource_configurations=[
-    #         TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-    #         TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
-    #     ],
-    # )
+    planner_config=get_planner_config(planner_type)
 )
 
 @DAGTask

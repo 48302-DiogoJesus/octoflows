@@ -68,7 +68,7 @@ class FullDAG(GenericDAG):
         self._optimize_task_metadata()
         
         self.master_dag_structure_hash = self.get_structure_hash()
-        self.master_dag_id = f"{(time.time() * 1000):.0f}_{sink_node.func_name}_{str(uuid.uuid4())}_{self.master_dag_structure_hash}" # type: ignore
+        self.master_dag_id = f"{(time.time() * 1000):.0f}.{sink_node.func_name}.{str(uuid.uuid4())}.{self.master_dag_structure_hash}" # type: ignore
 
     async def compute(self, config, dag_name: str, open_dashboard: bool = False):
         from src.workers.worker import Worker
@@ -85,8 +85,9 @@ class FullDAG(GenericDAG):
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             predictions_provider = PredictionsProvider(self.master_dag_structure_hash, wk.metrics_storage)
-            await predictions_provider.load_metrics_from_storage()
-            logger.info(f"[PLANNING] Planner Selected: {wk.planner.__class__.__name__}")
+            planner_name = wk.planner.__class__.__name__
+            await predictions_provider.load_metrics_from_storage(planner_name)
+            logger.info(f"[PLANNING] Planner Selected: {planner_name}")
             plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result: wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 

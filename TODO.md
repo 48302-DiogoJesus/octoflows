@@ -1,9 +1,14 @@
+- fix dashboards to be ready for "+" as key separator
+
 - Visualization
     - {most relevant metrics to compare}
         - makespan
+        - total execution time
         - tp download time
-        - total data downloaded
         - resource configuration
+        - total download/upload time
+        - output/input size
+        - worker startup time
     - [dimensions]
         - nr of samples
         - planner algorithm
@@ -12,6 +17,10 @@
         - box plot comparing {relevant metrics} for diff [planners]
         - bar chart comparing [predicted_vs_real] {relevant metrics}
         - bar chart comparing [real] {relevant metrics} accross diff [planners]
+
+- one instance comparison table for each planner type, with dropdown
+- make it so that all workflow examples are configurable (common config python file)
+- create .bat script to automate running workflows with diff planner types
 
 ---
 

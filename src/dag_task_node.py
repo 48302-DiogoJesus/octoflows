@@ -29,11 +29,11 @@ class DAGTaskNodeId:
         self.task_id = task_id or str(uuid.uuid4())
 
     def get_full_id(self) -> str:
-        return f"{self.function_name}-{self.task_id}"
+        return f"{self.function_name}+{self.task_id}"
     
     # can't be typed because of circular import error.......
     def get_full_id_in_dag(self, dag: Any) -> str:
-        return f"{self.function_name}-{self.task_id}_{dag.master_dag_id}"
+        return f"{self.function_name}+{self.task_id}+{dag.master_dag_id}"
 
 # Needed to distinguish a result=None (if R allows it) from "NO result yet"
 @dataclass

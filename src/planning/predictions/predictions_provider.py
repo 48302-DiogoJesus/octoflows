@@ -34,19 +34,26 @@ class PredictionsProvider:
         self.dag_structure_hash = dag_structure_hash
         self.metrics_storage = metrics_storage
 
-    async def load_metrics_from_storage(self):
+    async def load_metrics_from_storage(self, planner_name: str):
+        from src.planning.abstract_dag_planner import AbstractDAGPlanner
+
         generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
         worker_startup_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
         timer = Timer()
-        same_workflow_type_metrics: dict[str, TaskMetrics] = {}
+        same_workflow_same_planner_type_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
         generic_metrics_values = await self.metrics_storage.mget(generic_metrics_keys)
         for key, metrics in zip(generic_metrics_keys, generic_metrics_values): # type: ignore
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
-            if self.dag_structure_hash in task_id: same_workflow_type_metrics[task_id] = metrics
+            if self.dag_structure_hash in task_id:
+                _, _ , master_dag_id = self._split_task_id(task_id)
+                plan_output: AbstractDAGPlanner.PlanOutput | None = await self.metrics_storage.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{master_dag_id}") # type: ignore
+                if plan_output and plan_output.planner_name != planner_name:
+                    continue #! Note: it's not even collecting upload/download information (this is for easier planner comparison only)
+                same_workflow_same_planner_type_metrics[task_id] = metrics
             
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
@@ -68,6 +75,9 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
+
+        print("same_workflow_same_planner_type_metrics: ", len(same_workflow_same_planner_type_metrics))
+
         worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
         for wsm in worker_startup_metrics:
             if wsm.end_time_ms is None: continue
@@ -75,8 +85,8 @@ class PredictionsProvider:
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
 
         # Doesn't go to Redis
-        for task_id, metrics in same_workflow_type_metrics.items():
-            function_name = self._split_task_id(task_id)[0]
+        for task_id, metrics in same_workflow_same_planner_type_metrics.items():
+            function_name, _, _ = self._split_task_id(task_id)
             if metrics.execution_time_per_input_byte_ms is None: continue
             
             if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
@@ -110,7 +120,7 @@ class PredictionsProvider:
         # print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
         # print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
         #* Needs to have at least SOME history for the SAME TYPE of workflow
-        return len(self.cached_deserialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
+        return len(self.cached_deserialized_io_ratios) > 0 or len(self.cached_serialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, deserialized: bool = True, allow_cached: bool = True) -> int:
         """
@@ -289,11 +299,11 @@ class PredictionsProvider:
         return res # type: ignore
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
-        """ returns [function_name, task_id, dag_id] """
+        """ returns [function_name, task_id, master_dag_id] """
         task_id = task_id.removeprefix(MetricsStorage.TASK_METRICS_KEY_PREFIX)
-        splits = task_id.split("-", maxsplit=1)
+        splits = task_id.split("+", maxsplit=1)
         function_name = splits[0]
-        splits_2 = splits[1].split("_")
+        splits_2 = splits[1].split("+", maxsplit=1)
         task_id = splits_2[0]
-        dag_id = splits_2[1]
-        return function_name, task_id, dag_id
+        master_dag_id = splits_2[1]
+        return function_name, task_id, master_dag_id
