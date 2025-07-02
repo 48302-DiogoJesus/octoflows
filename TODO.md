@@ -18,7 +18,6 @@
         - bar chart comparing [predicted_vs_real] {relevant metrics}
         - bar chart comparing [real] {relevant metrics} accross diff [planners]
 
-- one instance comparison table for each planner type, with dropdown
 - make it so that all workflow examples are configurable (common config python file)
 - create .bat script to automate running workflows with diff planner types
 

@@ -2,15 +2,24 @@ import os
 import sys
 import time
 
+# Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.storage.metrics.metrics_storage import MetricsStorage
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
-from src.storage.in_memory_storage import InMemoryStorage
-from src.storage.redis_storage import RedisStorage
 from src.dag_task_node import DAGTask
+
+# Import centralized configuration
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.config import get_worker_config
+
+# Import common worker configurations
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.worker_config import (
+    get_local_worker_config,
+    get_docker_worker_config,
+    get_redis_storage_config,
+    IN_MEMORY_STORAGE_CONFIG,
+    REDIS_INTERMEDIATE_STORAGE_CONFIG,
+    REDIS_METRICS_STORAGE_CONFIG
+)
 
 @DAGTask
 def a(x: float, y: float) -> float:
@@ -24,25 +33,11 @@ def b(values: list[float]) -> float:
 def c(values: float) -> float:
     return values * values
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
-
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
-
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-)
-
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    )
+# Get worker configuration
+worker_config = get_worker_config(
+    worker_type="docker",
+    planner_type="first",
+    worker_resource_configuration={"cpus": 3, "memory_mb": 512}
 )
 
 # Define the workflow
@@ -61,5 +56,6 @@ c4 = c(b2)
 print(f"TPLIBS: {c4.third_party_libs}")
 for i in range(1):
     start_time = time.time()
-    result = c4.compute(dag_name="fanoutsfanins", config=dockerWorkerConfig)
+    # result = c4.compute(dag_name="fanoutsfanins", config=get_worker_config(worker_type="local"))
+    result = c4.compute(dag_name="fanoutsfanins", config=worker_config)
     print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

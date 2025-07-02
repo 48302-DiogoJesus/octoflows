@@ -7,40 +7,37 @@ import re
 from collections import Counter
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.storage.metrics.metrics_storage import MetricsStorage
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
-from src.storage.in_memory_storage import InMemoryStorage
-from src.storage.redis_storage import RedisStorage
 from src.dag_task_node import DAGTask
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
+# Import common worker configurations
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.worker_config import (
+    get_local_worker_config,
+    get_docker_worker_config,
+    get_redis_storage_config,
+    IN_MEMORY_STORAGE_CONFIG,
+    REDIS_INTERMEDIATE_STORAGE_CONFIG,
+    REDIS_METRICS_STORAGE_CONFIG
+)
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
+# Get storage configurations
+redis_intermediate_storage_config = get_redis_storage_config(port=6379)
+redis_metrics_storage_config = get_redis_storage_config(port=6380)
+inmemory_intermediate_storage_config = IN_MEMORY_STORAGE_CONFIG
 
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
+# Get worker configurations
+localWorkerConfig = get_local_worker_config(
+    intermediate_storage_config=redis_intermediate_storage_config
 )
 
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
+# Configure Docker worker with specific resource requirements
+dockerWorkerConfig = get_docker_worker_config(
+    planner_type="first",
     intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
-        # available_worker_resource_configurations=[
-        #     TaskWorkerResourceConfiguration(cpus=1, memory_mb=128),
-        #     TaskWorkerResourceConfiguration(cpus=2, memory_mb=256),
-        #     TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-        # ],
-    )
+    metrics_storage_config=redis_metrics_storage_config,
+    docker_gateway_address="http://localhost:5000",
+    worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
 )
 
 def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:

@@ -1,8 +1,11 @@
 import os
 import sys
 import time
+import numpy as np
 
+# Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from src.dag_task_node import DAGTask
 from src.planning.dummy_planner import DummyDAGPlanner
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
@@ -10,24 +13,16 @@ from src.storage.redis_storage import RedisStorage
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.storage.in_memory_storage import InMemoryStorage
-from src.dag_task_node import DAGTask
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
+# Import centralized configuration
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.config import get_worker_config
 
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
-
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-)
-
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=DummyDAGPlanner.Config(sla="avg")
+# Get worker configuration with dummy planner for validation test
+worker_config = get_worker_config(
+    worker_type="docker",
+    planner_type="dummy",  # Using dummy planner for validation test
+    worker_resource_configuration={"cpus": 3, "memory_mb": 512}
 )
 
 @DAGTask
@@ -75,6 +70,6 @@ wf1.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory_mb=1, worker_i
 
 for i in range(1):
     start_time = time.time()
-    # result = sink.compute(config=localWorkerConfig)
-    result = wf1.compute(config=dockerWorkerConfig)
+    # result = d.compute(config=get_worker_config(worker_type="local"))
+    result = wf1.compute(dag_name="test_worker_validation", config=worker_config)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

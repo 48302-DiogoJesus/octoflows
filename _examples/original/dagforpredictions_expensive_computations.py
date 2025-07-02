@@ -1,72 +1,32 @@
 import os
 import sys
 import time
+import argparse
 import numpy as np
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-from src.planning.sla import Percentile
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
-from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
-from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
-from src.storage.redis_storage import RedisStorage
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.storage.metrics.metrics_storage import MetricsStorage
-from src.storage.in_memory_storage import InMemoryStorage
+# Add parent directory to path to allow importing from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
+# Import centralized configuration
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.config import get_worker_config
 
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Run DAG with specified planner type')
+parser.add_argument('planner_type', nargs='?', default='first',
+                   choices=['simple', 'first', 'second'],
+                   help='Type of planner to use: simple, first, or second')
+args = parser.parse_args()
+planner_type = args.planner_type.lower()
 
-def get_planner_config(planner_type):
-    if planner_type == "simple":
-        return SimplePlannerAlgorithm.Config(
-            sla="avg",
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-            all_flexible_workers=False,
-        )
-    elif planner_type == "first":
-        return FirstPlannerAlgorithm.Config(
-            sla="avg",
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-        )
-    elif planner_type == "second":
-        return SecondPlannerAlgorithm.Config(
-            sla="avg",
-            available_worker_resource_configurations=[
-                TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
-            ],
-        )
-    else:
-        raise ValueError(f"Unknown planner type: {planner_type}")
-
-# Get planner type from command line arguments
-planner_type = None
-if len(sys.argv) > 1:
-    planner_type = sys.argv[1].lower()
-    if planner_type not in ['simple', 'first', 'second']:
-        print("Error: Planner must be one of: simple, first, second")
-        sys.exit(1)
-else:
-    print("Error: Planner must be one of: simple, first, second")
+if planner_type not in ['simple', 'first', 'second']:
+    print("Please specify a valid planner type: simple, first, or second")
+    print("Usage: python", sys.argv[0], "[simple|first|second]")
     sys.exit(1)
 
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,
-)
-
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=get_planner_config(planner_type)
-)
+# Get worker configuration
+worker_config = get_worker_config(worker_type="docker", planner_type=planner_type)
 
 @DAGTask
 def time_task_expensive(dummy_data: int) -> int:
@@ -128,5 +88,5 @@ sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 
 for i in range(1):
     start_time = time.time()
-    result = sink_task.compute(dag_name="memory_intensive_computations", config=dockerWorkerConfig, open_dashboard=False)
+    result = sink_task.compute(dag_name="memory_intensive_computations", config=worker_config, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

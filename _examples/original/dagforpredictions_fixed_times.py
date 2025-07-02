@@ -2,38 +2,16 @@ import os
 import sys
 import time
 
-# import numpy as np
+# Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
-from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.storage.metrics.metrics_storage import MetricsStorage
-from src.storage.in_memory_storage import InMemoryStorage
-from src.storage.redis_storage import RedisStorage
 from src.dag_task_node import DAGTask
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
+# Import centralized configuration
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.config import get_worker_config
 
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
-
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-)
-
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    )
-)
+# Get worker configuration
+worker_config = get_worker_config(worker_type="docker", planner_type="first")
 
 @DAGTask
 def time_task(dummy_data: int) -> int:
@@ -74,5 +52,5 @@ sink_task = last_task(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink_task.compute(dag_name="fixed_execution_times", config=dockerWorkerConfig)
+    result = sink_task.compute(dag_name="fixed_execution_times", config=worker_config)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")
