@@ -11,34 +11,7 @@ from src.dag_task_node import DAGTask
 
 # Import common worker configurations
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.worker_config import (
-    get_local_worker_config,
-    get_docker_worker_config,
-    get_redis_storage_config,
-    IN_MEMORY_STORAGE_CONFIG,
-    REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    REDIS_METRICS_STORAGE_CONFIG
-)
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-
-# Get storage configurations
-redis_intermediate_storage_config = get_redis_storage_config(port=6379)
-redis_metrics_storage_config = get_redis_storage_config(port=6380)
-inmemory_intermediate_storage_config = IN_MEMORY_STORAGE_CONFIG
-
-# Get worker configurations
-localWorkerConfig = get_local_worker_config(
-    intermediate_storage_config=redis_intermediate_storage_config
-)
-
-# Configure Docker worker with specific resource requirements
-dockerWorkerConfig = get_docker_worker_config(
-    planner_type="first",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=redis_metrics_storage_config,
-    docker_gateway_address="http://localhost:5000",
-    worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
-)
+from common.config import WORKER_CONFIG
 
 def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -107,7 +80,7 @@ if __name__ == "__main__":
     final_word_count = merge_word_counts(word_counts)
 
     start_time = time.time()
-    result = final_word_count.compute(dag_name="wordcount", config=dockerWorkerConfig, open_dashboard=False)
+    result = final_word_count.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
     
     # with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
     #     outfile.write(str(result))

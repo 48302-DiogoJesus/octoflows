@@ -8,18 +8,7 @@ from src.dag_task_node import DAGTask
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import get_worker_config
-
-# Import common worker configurations
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.worker_config import (
-    get_local_worker_config,
-    get_docker_worker_config,
-    get_redis_storage_config,
-    IN_MEMORY_STORAGE_CONFIG,
-    REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    REDIS_METRICS_STORAGE_CONFIG
-)
+from common.config import WORKER_CONFIG
 
 @DAGTask
 def a(x: float, y: float) -> float:
@@ -32,13 +21,6 @@ def b(values: list[float]) -> float:
 @DAGTask
 def c(values: float) -> float:
     return values * values
-
-# Get worker configuration
-worker_config = get_worker_config(
-    worker_type="docker",
-    planner_type="first",
-    worker_resource_configuration={"cpus": 3, "memory_mb": 512}
-)
 
 # Define the workflow
 a1 = a(2.0, 3.0)
@@ -57,5 +39,5 @@ print(f"TPLIBS: {c4.third_party_libs}")
 for i in range(1):
     start_time = time.time()
     # result = c4.compute(dag_name="fanoutsfanins", config=get_worker_config(worker_type="local"))
-    result = c4.compute(dag_name="fanoutsfanins", config=worker_config)
+    result = c4.compute(dag_name="fanoutsfanins", config=WORKER_CONFIG)
     print(f"[{i} Total Revenue: ${result} | Makespan: {time.time() - start_time}s")

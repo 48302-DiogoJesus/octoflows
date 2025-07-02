@@ -16,14 +16,7 @@ from src.storage.in_memory_storage import InMemoryStorage
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import get_worker_config
-
-# Get worker configuration with dummy planner for validation test
-worker_config = get_worker_config(
-    worker_type="docker",
-    planner_type="dummy",  # Using dummy planner for validation test
-    worker_resource_configuration={"cpus": 3, "memory_mb": 512}
-)
+from common.config import WORKER_CONFIG
 
 @DAGTask
 def dummy_task(dummy_data: int):
@@ -71,5 +64,5 @@ wf1.add_annotation(TaskWorkerResourceConfiguration(cpus=1, memory_mb=1, worker_i
 for i in range(1):
     start_time = time.time()
     # result = d.compute(config=get_worker_config(worker_type="local"))
-    result = wf1.compute(dag_name="test_worker_validation", config=worker_config)
+    result = wf1.compute(dag_name="test_worker_validation", config=WORKER_CONFIG)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

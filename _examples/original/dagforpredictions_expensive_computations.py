@@ -10,23 +10,7 @@ from src.dag_task_node import DAGTask
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import get_worker_config
-
-# Parse command line arguments
-parser = argparse.ArgumentParser(description='Run DAG with specified planner type')
-parser.add_argument('planner_type', nargs='?', default='first',
-                   choices=['simple', 'first', 'second'],
-                   help='Type of planner to use: simple, first, or second')
-args = parser.parse_args()
-planner_type = args.planner_type.lower()
-
-if planner_type not in ['simple', 'first', 'second']:
-    print("Please specify a valid planner type: simple, first, or second")
-    print("Usage: python", sys.argv[0], "[simple|first|second]")
-    sys.exit(1)
-
-# Get worker configuration
-worker_config = get_worker_config(worker_type="docker", planner_type=planner_type)
+from common.config import WORKER_CONFIG
 
 @DAGTask
 def time_task_expensive(dummy_data: int) -> int:
@@ -88,5 +72,5 @@ sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 
 for i in range(1):
     start_time = time.time()
-    result = sink_task.compute(dag_name="memory_intensive_computations", config=worker_config, open_dashboard=False)
+    result = sink_task.compute(dag_name="memory_intensive_computations", config=WORKER_CONFIG, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

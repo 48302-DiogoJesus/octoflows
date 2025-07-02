@@ -8,10 +8,7 @@ from src.dag_task_node import DAGTask
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import get_worker_config
-
-# Get worker configuration
-worker_config = get_worker_config(worker_type="docker", planner_type="first")
+from common.config import WORKER_CONFIG
 
 @DAGTask
 def time_task(dummy_data: int) -> int:
@@ -52,5 +49,5 @@ sink_task = last_task(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 for i in range(1):
     start_time = time.time()
     # result = sink.compute(config=localWorkerConfig)
-    result = sink_task.compute(dag_name="fixed_execution_times", config=worker_config)
+    result = sink_task.compute(dag_name="fixed_execution_times", config=WORKER_CONFIG)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

@@ -1,68 +1,79 @@
-"""
-Centralized configuration for all workflow examples.
-This module provides pre-configured worker and storage configurations
-that should be used by all workflow examples to maintain consistency.
-"""
-from typing import Optional, List
+from typing import Optional, List, Literal
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.storage.redis_storage import RedisStorage
+from src.storage.in_memory_storage import InMemoryStorage
+from src.workers.docker_worker import DockerWorker
+from src.workers.local_worker import LocalWorker
+from src.storage.metrics.metrics_storage import MetricsStorage
+from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
+from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
+from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
+import sys
 
-# Import worker config functions
-from .worker_config import (
-    get_local_worker_config,
-    get_docker_worker_config,
-    get_redis_storage_config,
-    IN_MEMORY_STORAGE_CONFIG,
-    REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    REDIS_METRICS_STORAGE_CONFIG
-)
-
-# Default storage configurations
-REDIS_INTERMEDIATE_CONFIG = get_redis_storage_config(port=6379)
-REDIS_METRICS_CONFIG = get_redis_storage_config(port=6380)
-IN_MEMORY_CONFIG = IN_MEMORY_STORAGE_CONFIG
-
-# Default worker configurations
-LOCAL_WORKER_CONFIG = get_local_worker_config(
-    intermediate_storage_config=REDIS_INTERMEDIATE_CONFIG
-)
-
-DOCKER_WORKER_CONFIG = get_docker_worker_config(
-    planner_type="first",
-    intermediate_storage_config=REDIS_INTERMEDIATE_CONFIG,
-    metrics_storage_config=REDIS_METRICS_CONFIG,
-    docker_gateway_address="http://localhost:5000",
-    worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)
-)
-
-def get_worker_config(
-    worker_type: str = "docker",
-    planner_type: Optional[str] = None,
-    **kwargs
-):
-    """
-    Get a worker configuration with the specified settings.
+def get_planner_from_sys_argv():
+    supported_planners = ["simple", "first", "second"]
     
-    Args:
-        worker_type: Type of worker ("docker" or "local")
-        planner_type: Type of planner to use ("first", "second", or "simple")
-        **kwargs: Additional arguments to pass to the worker configuration
+    if len(sys.argv) < 2:
+        print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
+        sys.exit(1)
         
-    Returns:
-        A worker configuration object
-    """
-    if worker_type.lower() == "local":
-        return LOCAL_WORKER_CONFIG
-    
-    # For Docker workers, allow overriding planner type and other settings
-    worker_config = DOCKER_WORKER_CONFIG
-    
-    if planner_type is not None:
-        worker_config = get_docker_worker_config(
-            planner_type=planner_type,
-            intermediate_storage_config=REDIS_INTERMEDIATE_CONFIG,
-            metrics_storage_config=REDIS_METRICS_CONFIG,
-            docker_gateway_address="http://localhost:5000",
-            **kwargs
+    planner_type = sys.argv[1]
+    if planner_type not in supported_planners:
+        print(f"Unknown planner type: {planner_type}")
+        sys.exit(1)
+
+    print(f"Using planner type: {planner_type}")
+
+    if planner_type == "simple":
+        return SimplePlannerAlgorithm.Config(
+            sla="avg",
+            all_flexible_workers=False,
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
-    
-    return worker_config
+    elif planner_type == "first":
+        return FirstPlannerAlgorithm.Config(
+            sla="avg",
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        )
+    elif planner_type == "second":
+        return SecondPlannerAlgorithm.Config(
+            sla="avg",
+            available_worker_resource_configurations=[
+                TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
+            ]
+        )
+    else:
+        raise ValueError(f"Unhandled planner type: {planner_type}")
+
+# STORAGE CONFIGS
+_REDIS_INTERMEDIATE_STORAGE_CONFIG = RedisStorage.Config(
+    host="localhost",
+    port=6379,
+    password="redisdevpwd123"
+)
+
+_REDIS_METRICS_STORAGE_CONFIG = RedisStorage.Config(
+    host="localhost",
+    port=6380,
+    password="redisdevpwd123"
+)
+
+_IN_MEMORY_STORAGE_CONFIG = InMemoryStorage.Config()
+
+_IN_MEMORY_CONFIG = _IN_MEMORY_STORAGE_CONFIG
+
+# WORKER CONFIGS
+_LOCAL_WORKER_CONFIG = LocalWorker.Config(
+    intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
+    metadata_storage_config=_REDIS_METRICS_STORAGE_CONFIG,
+)
+
+_DOCKER_WORKER_CONFIG = DockerWorker.Config(
+    docker_gateway_address="http://localhost:5000",
+    intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
+    metrics_storage_config=MetricsStorage.Config(storage_config=_REDIS_METRICS_STORAGE_CONFIG),
+    planner_config=get_planner_from_sys_argv()
+)
+
+WORKER_CONFIG = _DOCKER_WORKER_CONFIG

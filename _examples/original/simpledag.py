@@ -9,15 +9,7 @@ from src.dag_task_node import DAGTask
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import get_worker_config
-
-# Import common worker configurations
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.worker_config import (
-    IN_MEMORY_STORAGE_CONFIG,
-    REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    REDIS_METRICS_STORAGE_CONFIG
-)
+from common.config import WORKER_CONFIG
 
 @DAGTask
 def task(_: np.ndarray) -> np.ndarray:
@@ -31,17 +23,6 @@ def task(_: np.ndarray) -> np.ndarray:
     res = np.matmul(a, b)
     return res
 
-# Get worker configuration
-worker_config = get_worker_config(
-    worker_type="docker",
-    planner_type="first",
-    worker_resource_configuration={"cpus": 3, "memory_mb": 512},
-    available_worker_resource_configurations=[
-        {"cpus": 2, "memory_mb": 512},
-        {"cpus": 3, "memory_mb": 1024}
-    ]
-)
-
 # Define the workflow
 a1 = task(np.random.rand(2500, 2500))
 a2 = task(a1)
@@ -54,5 +35,5 @@ a8 = task(a7)
 
 for i in range(1):
     start_time = time.time()
-    result = a8.compute(dag_name="simpledag", config=worker_config)
+    result = a8.compute(dag_name="simpledag", config=WORKER_CONFIG)
     print(f"[{i} Result: {result} | Makespan: {time.time() - start_time}s")
