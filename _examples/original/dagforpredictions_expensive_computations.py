@@ -10,7 +10,7 @@ from src.dag_task_node import DAGTask
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from common.config import WORKER_CONFIG
+from _examples.common.config import WORKER_CONFIG
 
 @DAGTask
 def time_task_expensive(dummy_data: int) -> int:

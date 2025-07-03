@@ -67,7 +67,7 @@ class DAGTaskNode(Generic[R]):
         self.cached_result: _CachedResultWrapper[R] | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
         self._register_dependencies()
-        self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests"]))
+        self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests", "_examples"]))
 
     def _register_dependencies(self):
         for arg in self.func_args:
@@ -93,18 +93,18 @@ class DAGTaskNode(Generic[R]):
         with open(func_file_path, "r") as file:
             tree = ast.parse(file.read(), filename=func_file_path)
 
-        imports = set()
+        top_level_imports = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names: 
-                    imports.add(alias.name.split('.')[0])  # Only take top-level package
+                    top_level_imports.add(alias.name.split('.')[0])  # Only take top-level package
             elif isinstance(node, ast.ImportFrom):
                 module = node.module
                 if module: 
-                    imports.add(module.split('.')[0])  # Only take top-level package
+                    top_level_imports.add(module.split('.')[0])  # Only take top-level package
 
         return {
-            module for module in imports
+            module for module in top_level_imports
             if module not in exlude_libs and not (hasattr(sys, "stdlib_module_names") and module in sys.stdlib_module_names)
         }
 

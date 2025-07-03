@@ -485,10 +485,10 @@ def main():
                     actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                     actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
-                    actual_worker_startup_time = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                    actual_worker_startup_time_s = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
                     # Get predicted metrics if available
-                    predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0 # initialize them outside
+                    predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
                     if instance.plan and instance.plan.nodes_info:
                         predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                         predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
@@ -496,7 +496,7 @@ def main():
                         predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                         predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
-                        predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
+                        predicted_worker_startup_time_s = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
                     
                     metrics_data.append({
                         'makespan_actual': actual_makespan_s,
@@ -511,8 +511,8 @@ def main():
                         'input_size_predicted': predicted_input_size,
                         'output_size_actual': actual_output_size,
                         'output_size_predicted': predicted_output_size,
-                        'worker_startup_time_actual': actual_worker_startup_time,
-                        'worker_startup_time_predicted': predicted_worker_startup_time,
+                        'worker_startup_time_actual': actual_worker_startup_time_s,
+                        'worker_startup_time_predicted': predicted_worker_startup_time_s,
                     })
                 
                 if metrics_data:
@@ -543,10 +543,10 @@ def main():
                         actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                         actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                         actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
-                        actual_worker_startup_time = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                        actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
                         # Get predicted metrics
-                        predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0
+                        predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0
                         if instance.plan and instance.plan.nodes_info:
                             predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                             predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
@@ -554,7 +554,7 @@ def main():
                             predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                             predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                             predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
-                            predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
+                            predicted_worker_startup_time_s = sum([info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values()])
                             
                             planner_metrics[planner_name].append({
                                 'makespan_actual': actual_makespan_s,
@@ -569,8 +569,8 @@ def main():
                                 'input_size_predicted': predicted_input_size,
                                 'output_size_actual': actual_output_size,
                                 'output_size_predicted': predicted_output_size,
-                                'worker_startup_time_actual': actual_worker_startup_time,
-                                'worker_startup_time_predicted': predicted_worker_startup_time,
+                                'worker_startup_time_actual': actual_worker_startup_time_s,
+                                'worker_startup_time_predicted': predicted_worker_startup_time_s,
                             })
 
                     # Calculate averages for each planner
@@ -708,8 +708,7 @@ def main():
                             'Relative Error': relative_error,
                             'Absolute Error': abs(predicted_makespan - actual_makespan),
                             'Actual': actual_makespan,
-                            'Predicted': predicted_makespan,
-                            'Instance ID': instance.master_dag_id.split('-')[0]
+                            'Predicted': predicted_makespan
                         })
                 
                 # Create the accuracy evolution chart if we have data
@@ -727,7 +726,7 @@ def main():
                         color='Planner',
                         title='Prediction Error vs Number of Samples',
                         labels={'Relative Error': 'Relative Error (lower is better)', 'Samples': 'Number of Samples Used'},
-                        hover_data=['Instance ID', 'Actual', 'Predicted', 'Absolute Error']
+                        hover_data=['Actual', 'Predicted', 'Absolute Error']
                     )
                     
                     fig_error.update_layout(

@@ -17,18 +17,16 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
-- [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
-    store which libraries were installed **per worker startup** and how long each took
-        `dict[lib_name, time_ms]`
-
-- Find a way to make all invocations be cold starts (don't reuse containers)
-    Change the docker invocation (use a flag `ALLOW_REUSING_CONTAINERS=False`)
-    re-run experiments
-
-- BUG: avg. worker startup time planned vs real is in diff scale??
-    go to worklfow instance dashboard and compare predicted tp_worker_startup_time_ms with real worker_startup_time_ms
+- Not only show sample sizes, but also the number of workflow instances for each planner
+- + use dropdown to select specific metric to analyse prediction vs reality as sample size increases
 
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
+
+- [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
+    `self._try_install_third_party_libs()` executed upon task invocation, not worker startup!!
+    store which libraries were installed **per worker startup** and how long each took
+        `dict[lib_name, time_ms]`
+    would need to add an external library on purpose to test this
 
 ---
 

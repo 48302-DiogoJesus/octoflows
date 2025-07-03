@@ -1,9 +1,9 @@
 @echo off
 setlocal
-set ITERATIONS=10
+set ITERATIONS=5
 
 REM first run just to get some history
-python dagforpredictions_expensive_computations.py simple
+@REM python dagforpredictions_expensive_computations.py simple
 
 REM Actually run the loops
 for /L %%i in (1,1,%ITERATIONS%) do (
