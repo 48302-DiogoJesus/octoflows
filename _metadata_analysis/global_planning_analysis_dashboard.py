@@ -685,32 +685,53 @@ def main():
                         samples.for_output_size
                     ])
                     
-                    # Calculate actual and predicted makespan
-                    actual_makespan = (
-                        max([
-                            (task.metrics.started_at_timestamp_s * 1000) + 
-                            (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
-                            (task.metrics.tp_execution_time_ms or 0) + 
-                            (task.metrics.output_metrics.tp_time_ms or 0) + 
-                            (task.metrics.total_invocation_time_ms or 0) 
-                            for task in instance.tasks
-                        ]) - instance.start_time_ms
-                    ) / 1000  # Convert to seconds
+                    # Calculate all metrics for this instance
+                    actual_metrics = {
+                        'makespan_actual': (
+                            max([
+                                (task.metrics.started_at_timestamp_s * 1000) + 
+                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
+                                (task.metrics.tp_execution_time_ms or 0) + 
+                                (task.metrics.output_metrics.tp_time_ms or 0) + 
+                                (task.metrics.total_invocation_time_ms or 0) 
+                                for task in instance.tasks
+                            ]) - instance.start_time_ms
+                        ) / 1000,  # Convert to seconds
+                        'execution_actual': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
+                        'download_actual': sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0 for task in instance.tasks) / 1000,
+                        'upload_actual': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
+                        'input_size_actual': sum(sum(input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
+                                              (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
+                        'output_size_actual': sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                        'worker_startup_time_actual': sum(
+                            (metric.end_time_ms - metric.start_time_ms) / 1000 
+                            for metric in st.session_state.worker_startup_metrics 
+                            if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
+                        )
+                    }
                     
-                    predicted_makespan = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                    # Get predicted metrics if available
+                    predicted_metrics = {}
+                    if instance.plan and instance.plan.nodes_info:
+                        sink_node = instance.dag.sink_node.id.get_full_id()
+                        predicted_metrics = {
+                            'makespan_predicted': instance.plan.nodes_info[sink_node].task_completion_time_ms / 1000,
+                            'execution_predicted': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'download_predicted': sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'upload_predicted': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'input_size_predicted': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
+                            'output_size_predicted': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
+                            'worker_startup_time_predicted': sum(info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                        }
                     
-                    # Calculate relative error
-                    if actual_makespan > 0:  # Avoid division by zero
-                        relative_error = abs(predicted_makespan - actual_makespan) / actual_makespan
-                        accuracy_data.append({
-                            'Planner': instance.plan.planner_name,
-                            'Samples': total_samples,
-                            'Previous Instances': instance.plan.prediction_sample_counts.previous_instances,
-                            'Relative Error': relative_error,
-                            'Absolute Error': abs(predicted_makespan - actual_makespan),
-                            'Actual': actual_makespan,
-                            'Predicted': predicted_makespan,
-                        })
+                    # Add to accuracy data
+                    accuracy_data.append({
+                        'Planner': instance.plan.planner_name,
+                        'Samples': total_samples,
+                        'Previous Instances': instance.plan.prediction_sample_counts.previous_instances,
+                        **{k: v for k, v in actual_metrics.items() if v is not None},
+                        **{k: v for k, v in predicted_metrics.items() if v is not None}
+                    })
                 
                 # Create the accuracy evolution chart if we have data
                 if accuracy_data:
@@ -725,21 +746,66 @@ def main():
                         axis=1
                     )
                     
+                    # Define all possible metrics and their display names
+                    all_metric_options = [
+                        ('Makespan (s)', 'makespan_actual', 'makespan_predicted'),
+                        ('Execution Time (s)', 'execution_actual', 'execution_predicted'),
+                        ('Download Time (s)', 'download_actual', 'download_predicted'),
+                        ('Upload Time (s)', 'upload_actual', 'upload_predicted'),
+                        ('Input Size (bytes)', 'input_size_actual', 'input_size_predicted'),
+                        ('Output Size (bytes)', 'output_size_actual', 'output_size_predicted'),
+                        ('Worker Startup Time (s)', 'worker_startup_time_actual', 'worker_startup_time_predicted')
+                    ]
+                    
+                    # Only include metrics that have data
+                    available_columns = set(df_accuracy.columns)
+                    metric_options = {
+                        display_name: (actual_col, pred_col)
+                        for display_name, actual_col, pred_col in all_metric_options
+                        if actual_col in available_columns and pred_col in available_columns
+                    }
+                    
+                    selected_metric = st.selectbox(
+                        'Select Metric to Analyze',
+                        options=list(metric_options.keys()),
+                        index=0,  # Default to Makespan
+                        key='accuracy_metric_selector'
+                    )
+                    
+                    # Get the actual and predicted column names for the selected metric
+                    actual_col, predicted_col = metric_options[selected_metric]
+                    
+                    # Calculate relative error for the selected metric, handling missing or zero values
+                    df_accuracy['Relative Error'] = df_accuracy.apply(
+                        lambda x: (
+                            abs(x[actual_col] - x[predicted_col]) / x[actual_col] 
+                            if x[actual_col] > 0 and not pd.isna(x[actual_col]) and not pd.isna(x[predicted_col])
+                            else None
+                        ),
+                        axis=1
+                    )
+                    
+                    # Remove rows where relative error couldn't be calculated
+                    df_accuracy = df_accuracy.dropna(subset=['Relative Error'])
+                    
                     # Create line chart for relative error with visible markers
                     fig_error = px.line(
                         df_accuracy,
                         x='X_Label',
                         y='Relative Error',
                         color='Planner',
-                        title='Prediction Error vs Number of Samples',
-                        labels={'Relative Error': 'Relative Error (lower is better)', 'X_Label': 'Number of Instances (samples)'},
+                        title=f'Prediction Error vs Number of Samples - {selected_metric}',
+                        labels={
+                            'Relative Error': f'Relative Error (lower is better)', 
+                            'X_Label': 'Number of Instances (samples)'
+                        },
                         hover_data={
                             'X_Label': False,  # Hide from hover
                             'Samples': ':.0f',
                             'Previous Instances': ':.0f',
-                            'Actual': ':.2f', 
-                            'Predicted': ':.2f', 
-                            'Absolute Error': ':.2f'
+                            actual_col: ':.2f',
+                            predicted_col: ':.2f',
+                            'Relative Error': ':.2f'
                         },
                         markers=True
                     )
@@ -761,9 +827,10 @@ def main():
                     fig_error.update_layout(
                         xaxis={
                             'title': 'Number of Instances (samples)',
+                            'tickangle': 45,
                             'tickmode': 'array',
                             'tickvals': df_accuracy['X_Label'].unique(),
-                            'tickangle': 45,
+
                             'type': 'category'  # Treat x-axis as categories to show all labels
                         },
                         yaxis_title='Relative Error (Actual vs Predicted)',
