@@ -110,6 +110,7 @@ class PredictionsProvider:
             self.cached_serialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
 
         self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
+        print("nr_of_previous_instances: ", self.nr_of_previous_instances, "nr_of_dag_nodes: ", self.nr_of_dag_nodes, "same_workflow_same_planner_type_metrics: ", len(same_workflow_same_planner_type_metrics))
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
     def has_required_predictions(self) -> bool:

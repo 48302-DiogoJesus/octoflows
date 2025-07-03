@@ -719,15 +719,28 @@ def main():
                     # Sort by samples for each planner to get proper line connections
                     df_accuracy = df_accuracy.sort_values(['Planner', 'Samples'])
                     
+                    # Create a formatted label for X-axis with instances first, then samples
+                    df_accuracy['X_Label'] = df_accuracy.apply(
+                        lambda x: f"{int(x['Previous Instances'])} ({int(x['Samples'])} samples)", 
+                        axis=1
+                    )
+                    
                     # Create line chart for relative error with visible markers
                     fig_error = px.line(
                         df_accuracy,
-                        x='Samples',
+                        x='X_Label',
                         y='Relative Error',
                         color='Planner',
                         title='Prediction Error vs Number of Samples',
-                        labels={'Relative Error': 'Relative Error (lower is better)', 'Samples': 'Number of Samples Used'},
-                        hover_data={'Actual': ':.2f', 'Predicted': ':.2f', 'Absolute Error': ':.2f', 'Previous Instances': True},
+                        labels={'Relative Error': 'Relative Error (lower is better)', 'X_Label': 'Number of Instances (samples)'},
+                        hover_data={
+                            'X_Label': False,  # Hide from hover
+                            'Samples': ':.0f',
+                            'Previous Instances': ':.0f',
+                            'Actual': ':.2f', 
+                            'Predicted': ':.2f', 
+                            'Absolute Error': ':.2f'
+                        },
                         markers=True
                     )
                     
@@ -744,13 +757,21 @@ def main():
                         line=dict(width=2)     # Thinner lines to emphasize markers
                     )
                     
+                    # Update x-axis to show all tick labels and improve readability
                     fig_error.update_layout(
-                        xaxis_title='Number of Samples Used',
+                        xaxis={
+                            'title': 'Number of Instances (samples)',
+                            'tickmode': 'array',
+                            'tickvals': df_accuracy['X_Label'].unique(),
+                            'tickangle': 45,
+                            'type': 'category'  # Treat x-axis as categories to show all labels
+                        },
                         yaxis_title='Relative Error (Actual vs Predicted)',
                         legend_title='Planner',
                         plot_bgcolor='rgba(0,0,0,0)',
                         height=500,
-                        hovermode='x unified'
+                        hovermode='x unified',
+                        margin=dict(b=100)  # Add bottom margin for x-axis labels
                     )
                     
                     st.plotly_chart(fig_error, use_container_width=True)
