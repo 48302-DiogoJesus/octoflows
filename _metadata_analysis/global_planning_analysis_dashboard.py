@@ -516,84 +516,146 @@ def main():
                     })
                 
                 if metrics_data:
-                    # Calculate averages
-                    avg_metrics = {
-                        'Total Makespan (s)': {
-                            'actual': sum(m['makespan_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['makespan_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Execution Time (s)': {
-                            'actual': sum(m['execution_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['execution_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Download Time (s)': {
-                            'actual': sum(m['download_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['download_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Upload Time (s)': {
-                            'actual': sum(m['upload_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['upload_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Input Size (bytes)': {
-                            'actual': sum(m['input_size_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['input_size_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Output Size (bytes)': {
-                            'actual': sum(m['output_size_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['output_size_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                        'Total Worker Startup Time (s)': {
-                            'actual': sum(m['worker_startup_time_actual'] for m in metrics_data) / len(metrics_data),
-                            'predicted': sum(m['worker_startup_time_predicted'] for m in metrics_data) / len(metrics_data)
-                        },
-                    }
+                    # Group metrics by planner
+                    planner_metrics = {}
+                    for instance in workflow_types[selected_workflow].instances:
+                        if not instance.plan or not instance.tasks:
+                            continue
+                            
+                        planner_name = instance.plan.planner_name
+                        if planner_name not in planner_metrics:
+                            planner_metrics[planner_name] = []
+                            
+                        # Get metrics for this instance
+                        actual_makespan_s = (
+                            max([
+                                (task.metrics.started_at_timestamp_s * 1000) + 
+                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
+                                (task.metrics.tp_execution_time_ms or 0) + 
+                                (task.metrics.output_metrics.tp_time_ms or 0) + 
+                                (task.metrics.total_invocation_time_ms or 0) 
+                                for task in instance.tasks
+                            ]) - instance.start_time_ms
+                        ) / 1000
+                        
+                        actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                        actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                        actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                        actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
+                        actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
+                        actual_worker_startup_time = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+
+                        # Get predicted metrics
+                        predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time = 0
+                        if instance.plan and instance.plan.nodes_info:
+                            predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                            predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
+                            predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
+                            predicted_worker_startup_time = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
+                            
+                            planner_metrics[planner_name].append({
+                                'makespan_actual': actual_makespan_s,
+                                'makespan_predicted': predicted_makespan_s,
+                                'execution_actual': actual_execution,
+                                'execution_predicted': predicted_execution,
+                                'download_actual': actual_download,
+                                'download_predicted': predicted_download,
+                                'upload_actual': actual_upload,
+                                'upload_predicted': predicted_upload,
+                                'input_size_actual': actual_input_size,
+                                'input_size_predicted': predicted_input_size,
+                                'output_size_actual': actual_output_size,
+                                'output_size_predicted': predicted_output_size,
+                                'worker_startup_time_actual': actual_worker_startup_time,
+                                'worker_startup_time_predicted': predicted_worker_startup_time,
+                            })
                     
-                    # Prepare data for plotting
-                    plot_data = []
-                    for metric_name, values in avg_metrics.items():
-                        plot_data.append({
-                            'Metric': metric_name,
-                            'Value': values['actual'],
-                            'Type': 'Actual'
-                        })
-                        plot_data.append({
-                            'Metric': metric_name,
-                            'Value': values['predicted'],
-                            'Type': 'Predicted'
-                        })
-                    
-                    df_plot = pd.DataFrame(plot_data)
-                    
-                    # Create bar chart
-                    fig = px.bar(
-                        df_plot, 
-                        x='Metric', 
-                        y='Value', 
-                        color='Type',
-                        barmode='group',
-                        title='Predicted vs Actual Metrics (Averages)',
-                        labels={'Value': 'Value'},
-                        color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
-                    )
-                    
-                    # Update layout for better visualization
-                    fig.update_layout(
-                        xaxis_title='Metric',
-                        yaxis_title='Value',
-                        legend_title='',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        yaxis_type='log',  # Use log scale for better visualization of different magnitudes
-                        height=500
-                    )
-                    
-                    # Add value labels on top of bars
-                    fig.update_traces(
-                        texttemplate='%{y:.2f}',
-                        textposition='outside',
-                        textfont_size=10
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Create a chart for each planner
+                    for planner_name, planner_data in planner_metrics.items():
+                        if not planner_data:
+                            continue
+                            
+                        # Calculate averages for this planner
+                        avg_metrics = {
+                            'Total Makespan (s)': {
+                                'actual': sum(m['makespan_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['makespan_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Execution Time (s)': {
+                                'actual': sum(m['execution_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['execution_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Download Time (s)': {
+                                'actual': sum(m['download_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['download_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Upload Time (s)': {
+                                'actual': sum(m['upload_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['upload_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Input Size (bytes)': {
+                                'actual': sum(m['input_size_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['input_size_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Output Size (bytes)': {
+                                'actual': sum(m['output_size_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['output_size_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                            'Total Worker Startup Time (s)': {
+                                'actual': sum(m['worker_startup_time_actual'] for m in planner_data) / len(planner_data),
+                                'predicted': sum(m['worker_startup_time_predicted'] for m in planner_data) / len(planner_data)
+                            },
+                        }
+                        
+                        # Prepare data for plotting
+                        plot_data = []
+                        for metric_name, values in avg_metrics.items():
+                            plot_data.append({
+                                'Metric': metric_name,
+                                'Value': values['actual'],
+                                'Type': 'Actual'
+                            })
+                            plot_data.append({
+                                'Metric': metric_name,
+                                'Value': values['predicted'],
+                                'Type': 'Predicted'
+                            })
+                        
+                        df_plot = pd.DataFrame(plot_data)
+                        
+                        # Create bar chart for this planner
+                        fig = px.bar(
+                            df_plot, 
+                            x='Metric', 
+                            y='Value', 
+                            color='Type',
+                            barmode='group',
+                            title=f'Predicted vs Actual Metrics - {planner_name}',
+                            labels={'Value': 'Value'},
+                            color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
+                        )
+                        
+                        # Update layout for better visualization
+                        fig.update_layout(
+                            xaxis_title='Metric',
+                            yaxis_title='Value',
+                            legend_title='',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            yaxis_type='log',  # Use log scale for better visualization of different magnitudes
+                            height=500
+                        )
+                        
+                        # Add value labels on top of bars
+                        fig.update_traces(
+                            texttemplate='%{y:.2f}',
+                            textposition='outside',
+                            textfont_size=10
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
                 
                 # Prepare data for all metrics comparison
                 metrics_data = []

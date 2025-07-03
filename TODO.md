@@ -1,5 +1,3 @@
-- fix dashboards to be ready for "+" as key separator
-
 - Visualization
     - {most relevant metrics to compare}
         - makespan
@@ -15,11 +13,9 @@
         - prediction vs reality
     - visualizations
         - box plot comparing {relevant metrics} for diff [planners]
-        - bar chart comparing [predicted_vs_real] {relevant metrics}
         - bar chart comparing [real] {relevant metrics} accross diff [planners]
-
-- make it so that all workflow examples are configurable (common config python file)
-- create .bat script to automate running workflows with diff planner types
+        - todo: compare prediction errors accross diff. planners
+        - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
 ---
 
