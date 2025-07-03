@@ -810,6 +810,56 @@ def main():
                         markers=True
                     )
                     
+                    # Create a second chart for actual values evolution
+                    st.markdown("### Actual Metric Values Evolution")
+                    
+                    # Create line chart for actual values
+                    fig_actual = px.line(
+                        df_accuracy,
+                        x='X_Label',
+                        y=actual_col,
+                        color='Planner',
+                        title=f'Actual {selected_metric} vs Number of Samples',
+                        labels={
+                            actual_col: selected_metric,
+                            'X_Label': 'Number of Instances (samples)'
+                        },
+                        hover_data={
+                            'X_Label': False,  # Hide from hover
+                            'Samples': ':.0f',
+                            'Previous Instances': ':.0f',
+                            actual_col: ':.2f'
+                        },
+                        markers=True
+                    )
+                    
+                    # Update marker and line styles for better visibility
+                    fig_actual.update_traces(
+                        mode='lines+markers',
+                        marker=dict(
+                            size=8,
+                            line=dict(width=1, color='DarkSlateGrey')
+                        ),
+                        line=dict(width=2)
+                    )
+                    
+                    # Update layout for the actual values chart
+                    fig_actual.update_layout(
+                        xaxis={
+                            'title': 'Number of Instances (samples)',
+                            'tickangle': 45,
+                            'tickmode': 'array',
+                            'tickvals': df_accuracy['X_Label'].unique(),
+                            'type': 'category'
+                        },
+                        yaxis_title=selected_metric,
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=500,
+                        hovermode='x unified',
+                        margin=dict(b=100)
+                    )
+                    
                     # Update marker and line styles for better visibility
                     fig_error.update_traces(
                         mode='lines+markers',  # Show both lines and markers
@@ -841,7 +891,14 @@ def main():
                         margin=dict(b=100)  # Add bottom margin for x-axis labels
                     )
                     
-                    st.plotly_chart(fig_error, use_container_width=True)
+                    # Display both charts in tabs
+                    tab1, tab2 = st.tabs(["Prediction Error", "Actual Values"])
+                    
+                    with tab1:
+                        st.plotly_chart(fig_error, use_container_width=True)
+                    
+                    with tab2:
+                        st.plotly_chart(fig_actual, use_container_width=True)
                     
                     # Add a small explanation
                     st.caption("Shows how prediction accuracy improves as more samples are used for training. "
