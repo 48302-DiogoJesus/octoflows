@@ -466,7 +466,7 @@ def main():
 
                 st.markdown("---")
                 # Add comparison bar chart for predicted vs actual metrics
-                st.markdown("### Reality vs Predictions (avg of all runs)")
+                st.markdown("### Reality vs Predictions")
                 
                 # Calculate averages for the comparison
                 metrics_data = []
@@ -573,46 +573,55 @@ def main():
                                 'worker_startup_time_predicted': predicted_worker_startup_time,
                             })
                     
-                    # Create a chart for each planner
+                    # Calculate averages for each planner
+                    planner_avg_metrics = {}
                     for planner_name, planner_data in planner_metrics.items():
                         if not planner_data:
                             continue
                             
-                        # Calculate averages for this planner
-                        avg_metrics = {
-                            'Total Makespan (s)': {
+                        planner_avg_metrics[planner_name] = {
+                            'Avg. Makespan (s)': {
                                 'actual': sum(m['makespan_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['makespan_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Execution Time (s)': {
+                            'Avg. Total Execution Time (s)': {
                                 'actual': sum(m['execution_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['execution_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Download Time (s)': {
+                            'Avg. Total Download Time (s)': {
                                 'actual': sum(m['download_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['download_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Upload Time (s)': {
+                            'Avg. Total Upload Time (s)': {
                                 'actual': sum(m['upload_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['upload_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Input Size (bytes)': {
+                            'Avg. Input Size (bytes)': {
                                 'actual': sum(m['input_size_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['input_size_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Output Size (bytes)': {
+                            'Avg. Output Size (bytes)': {
                                 'actual': sum(m['output_size_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['output_size_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Total Worker Startup Time (s)': {
+                            'Avg. Worker Startup Time (s)': {
                                 'actual': sum(m['worker_startup_time_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['worker_startup_time_predicted'] for m in planner_data) / len(planner_data)
                             },
                         }
+                    
+                    # Create a dropdown to select planner
+                    if planner_avg_metrics:
+                        selected_planner = st.selectbox(
+                            'Select Planner:',
+                            options=list(planner_avg_metrics.keys()),
+                            index=0,
+                            key='planner_selector'
+                        )
                         
-                        # Prepare data for plotting
+                        # Prepare data for the selected planner
                         plot_data = []
-                        for metric_name, values in avg_metrics.items():
+                        for metric_name, values in planner_avg_metrics[selected_planner].items():
                             plot_data.append({
                                 'Metric': metric_name,
                                 'Value': values['actual'],
@@ -626,14 +635,14 @@ def main():
                         
                         df_plot = pd.DataFrame(plot_data)
                         
-                        # Create bar chart for this planner
+                        # Create bar chart for the selected planner
                         fig = px.bar(
                             df_plot, 
                             x='Metric', 
                             y='Value', 
                             color='Type',
                             barmode='group',
-                            title=f'Predicted vs Actual Metrics - {planner_name}',
+                            title=f'{selected_planner} (averages per instance)',
                             labels={'Value': 'Value'},
                             color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
                         )
@@ -645,7 +654,8 @@ def main():
                             legend_title='',
                             plot_bgcolor='rgba(0,0,0,0)',
                             yaxis_type='log',  # Use log scale for better visualization of different magnitudes
-                            height=500
+                            height=500,
+                            xaxis_tickangle=-45
                         )
                         
                         # Add value labels on top of bars
@@ -730,7 +740,7 @@ def main():
                     available_metrics = df_metrics['Metric'].unique().tolist()
                     
                     # Add metric selection dropdown
-                    st.markdown("### Performance Metrics Comparison")
+                    st.markdown("### Metrics Comparison (by Planner)")
                     selected_metric = st.selectbox(
                         'Select a metric to compare:',
                         available_metrics,
@@ -777,9 +787,6 @@ def main():
                         fig.update_xaxes(tickangle=45)
                     
                     st.plotly_chart(fig, use_container_width=True)
-                
-                # Add bar chart for actual metrics by planner type
-                st.markdown("### Actual Metrics by Planner Type (Averages)")
                 
                 # Calculate metrics by planner type
                 planner_metrics = {}

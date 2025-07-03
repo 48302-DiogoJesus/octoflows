@@ -17,6 +17,9 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
+- mostrar evolução com o nr samples
+- mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
+
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
