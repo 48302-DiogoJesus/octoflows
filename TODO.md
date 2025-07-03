@@ -17,9 +17,7 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
-- Show nr of previous instances used to make predictions
-    replace X axis sample size by previous instance count
-- + use dropdown to select specific metric to analyse prediction vs reality as sample size increases
+- use dropdown to select specific metric to analyse prediction vs reality as sample size increases
 
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
 - make the expensive workflow a little more complex with more fan-outs and fan-ins

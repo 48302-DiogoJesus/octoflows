@@ -150,7 +150,7 @@ async def main():
                 await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
                 logger.info(f"Worker({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
 
-        #* 5) Wait for remaining coroutines to finish. 
+        #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         logger.info(f"Worker({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
@@ -170,8 +170,7 @@ async def main():
                 # logger.info(f"Deleting intermediate result for task: {t.id.get_full_id()}")
                 await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)
             
-
-        #* 6) Upload metrics collected during task execution
+        #* 7) Upload metrics collected during task execution
         if wk.metrics_storage:
             wk.metrics_storage.store_dag_download_time(
                 fulldag.master_dag_id,
