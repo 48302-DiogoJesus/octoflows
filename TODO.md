@@ -14,14 +14,15 @@
     - visualizations
         - box plot comparing {relevant metrics} for diff [planners]
         - bar chart comparing [real] {relevant metrics} accross diff [planners]
-        - todo: compare prediction errors accross diff. planners
-        - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
+        - bar chart comparing [predicted_vs_real] for diff [planners]
+        - line chart comparing prediction errors accross diff. planners
+        - line chart comparing [predicted_vs_real] for diff [planners] as [nr_of_samples_increases]
 
-- use dropdown to select specific metric to analyse prediction vs reality as sample size increases
-
+- [NOT_BY_SAMPLE_SIZE] box plot with prediction offsets (percentages (a.k.a. relative))
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
+
 - make the expensive workflow a little more complex with more fan-outs and fan-ins
-- do I currently support map-reduce?
+- Do I currently support map-reduce?
 
 - [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
     `self._try_install_third_party_libs()` executed upon task invocation, not worker startup!!

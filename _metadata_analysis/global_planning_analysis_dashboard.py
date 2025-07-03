@@ -900,9 +900,73 @@ def main():
                     with tab2:
                         st.plotly_chart(fig_actual, use_container_width=True)
                     
-                    # Add a small explanation
-                    st.caption("Shows how prediction accuracy improves as more samples are used for training. "
-                             "Lower values indicate better prediction accuracy.")
+                    st.markdown("### Prediction Error Distribution by Planner")
+                    
+                    # Prepare data for box plots - calculate relative errors for all metrics
+                    box_plot_data = []
+                    for _, row in df_accuracy.iterrows():
+                        for metric_display, (actual_col, pred_col) in metric_options.items():
+                            if actual_col in row and pred_col in row and row[actual_col] > 0:
+                                relative_error = abs(row[actual_col] - row[pred_col]) / row[actual_col]
+                                box_plot_data.append({
+                                    'Planner': row['Planner'],
+                                    'Metric': metric_display,
+                                    'Relative Error': relative_error * 100  # Convert to percentage
+                                })
+                    
+                    if box_plot_data:
+                        df_box = pd.DataFrame(box_plot_data)
+                        
+                        # Create tabs for each metric
+                        metric_tabs = st.tabs([f"{metric}" for metric in df_box['Metric'].unique()])
+                        
+                        for idx, metric in enumerate(df_box['Metric'].unique()):
+                            with metric_tabs[idx]:
+                                metric_data = df_box[df_box['Metric'] == metric]
+                                
+                                # Create box plot
+                                fig_box = px.box(
+                                    metric_data,
+                                    x='Planner',
+                                    y='Relative Error',
+                                    color='Planner',
+                                    title=f'Distribution of {metric} Prediction Errors',
+                                    labels={
+                                        'Relative Error': 'Prediction Error (%)',
+                                        'Planner': ''
+                                    },
+                                    points="all",  # Show all points
+                                    hover_data=['Relative Error'],
+                                    color_discrete_sequence=px.colors.qualitative.Set1
+                                )
+                                
+                                # Customize layout
+                                fig_box.update_layout(
+                                    showlegend=False,
+                                    yaxis_title='Prediction Error (%)',
+                                    xaxis_title='',
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    height=500,
+                                    margin=dict(t=40, b=100, l=50, r=50)
+                                )
+                                
+                                # Add horizontal line at 0% error for reference
+                                fig_box.add_hline(y=0, line_dash="dash", line_color="gray")
+                                
+                                # Add annotations for median values
+                                for planner in metric_data['Planner'].unique():
+                                    median_val = metric_data[metric_data['Planner'] == planner]['Relative Error'].median()
+                                    fig_box.add_annotation(
+                                        x=planner,
+                                        y=median_val,
+                                        text=f"{median_val:.1f}%",
+                                        showarrow=False,
+                                        yshift=10
+                                    )
+                                
+                                st.plotly_chart(fig_box, use_container_width=True)
+                    else:
+                        st.warning("Not enough data to generate error distribution analysis.")
                 
                 # Prepare data for all metrics comparison
                 metrics_data = []
