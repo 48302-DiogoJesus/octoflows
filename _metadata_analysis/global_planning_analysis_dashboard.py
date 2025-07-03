@@ -719,7 +719,7 @@ def main():
                     # Sort by samples for each planner to get proper line connections
                     df_accuracy = df_accuracy.sort_values(['Planner', 'Samples'])
                     
-                    # Create line chart for relative error
+                    # Create line chart for relative error with visible markers
                     fig_error = px.line(
                         df_accuracy,
                         x='Samples',
@@ -727,7 +727,21 @@ def main():
                         color='Planner',
                         title='Prediction Error vs Number of Samples',
                         labels={'Relative Error': 'Relative Error (lower is better)', 'Samples': 'Number of Samples Used'},
-                        hover_data=['Actual', 'Predicted', 'Absolute Error', 'Previous Instances']
+                        hover_data={'Actual': ':.2f', 'Predicted': ':.2f', 'Absolute Error': ':.2f', 'Previous Instances': True},
+                        markers=True
+                    )
+                    
+                    # Update marker and line styles for better visibility
+                    fig_error.update_traces(
+                        mode='lines+markers',  # Show both lines and markers
+                        marker=dict(
+                            size=8,            # Larger markers
+                            line=dict(
+                                width=1,        # Border width
+                                color='DarkSlateGrey'  # Border color
+                            )
+                        ),
+                        line=dict(width=2)     # Thinner lines to emphasize markers
                     )
                     
                     fig_error.update_layout(

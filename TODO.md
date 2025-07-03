@@ -18,6 +18,7 @@
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
 - Show data points
+- Show nr of previous instances used to make predictions
 - + use dropdown to select specific metric to analyse prediction vs reality as sample size increases
 
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
