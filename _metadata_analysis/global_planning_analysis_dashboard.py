@@ -572,7 +572,7 @@ def main():
                                 'worker_startup_time_actual': actual_worker_startup_time,
                                 'worker_startup_time_predicted': predicted_worker_startup_time,
                             })
-                    
+
                     # Calculate averages for each planner
                     planner_avg_metrics = {}
                     for planner_name, planner_data in planner_metrics.items():
@@ -580,31 +580,31 @@ def main():
                             continue
                             
                         planner_avg_metrics[planner_name] = {
-                            'Avg. Makespan (s)': {
+                            'Makespan (s)': {
                                 'actual': sum(m['makespan_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['makespan_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Total Execution Time (s)': {
+                            'Execution Time (s)': {
                                 'actual': sum(m['execution_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['execution_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Total Download Time (s)': {
+                            'Download Time (s)': {
                                 'actual': sum(m['download_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['download_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Total Upload Time (s)': {
+                            'Upload Time (s)': {
                                 'actual': sum(m['upload_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['upload_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Input Size (bytes)': {
+                            'Input Size (bytes)': {
                                 'actual': sum(m['input_size_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['input_size_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Output Size (bytes)': {
+                            'Output Size (bytes)': {
                                 'actual': sum(m['output_size_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['output_size_predicted'] for m in planner_data) / len(planner_data)
                             },
-                            'Avg. Worker Startup Time (s)': {
+                            'Worker Startup Time (s)': {
                                 'actual': sum(m['worker_startup_time_actual'] for m in planner_data) / len(planner_data),
                                 'predicted': sum(m['worker_startup_time_predicted'] for m in planner_data) / len(planner_data)
                             },
@@ -642,7 +642,7 @@ def main():
                             y='Value', 
                             color='Type',
                             barmode='group',
-                            title=f'{selected_planner} (averages per instance)',
+                            title=f'{selected_planner} (averages per planner per instance)',
                             labels={'Value': 'Value'},
                             color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
                         )

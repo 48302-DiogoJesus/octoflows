@@ -115,7 +115,7 @@ def main():
 
     _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
-        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
+        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
         if not metrics_data: raise Exception(f"Could not find metrics for key: {metrics_key}")
         metrics: TaskMetrics = cloudpickle.loads(metrics_data) # type: ignore
@@ -254,7 +254,7 @@ def main():
     # Visualization tab
     with tab_viz:
         # Create columns for graph and task details
-        graph_col, details_col, planned_vs_observed_col = st.columns([1, 1, 1])
+        graph_col, details_col, planned_vs_observed_col = st.columns([0.9, 0.8, 1])
         
         def get_color_for_worker(worker_id):
             # Create a hash of the worker_id
@@ -380,7 +380,7 @@ def main():
         if hasattr(st.session_state, 'selected_task_id'):
             task_node = dag._all_nodes[st.session_state.selected_task_id]
             # Try to find metrics for this task
-            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}_{dag.master_dag_id}"
+            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}+{dag.master_dag_id}"
             metrics_data = metrics_redis.get(metrics_key)
             if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
             metrics = cloudpickle.loads(metrics_data) # type: ignore
@@ -392,10 +392,19 @@ def main():
             if 'selected_task_id' not in st.session_state:
                 st.session_state.selected_task_id = list(dag._all_nodes.keys())[0] if dag._all_nodes else None
             
+            def small_metric(label, value, help=None):
+                help_icon = f'<span title="{help}" style="cursor: help;">&#9432;</span>' if help else ''
+                st.markdown(f"""
+                    <div style="padding: 4px 0;">
+                        <div style="font-size: 12px; color: gray;">{label} {help_icon}</div>
+                        <div style="font-size: 18px; font-weight: bold;">{value}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
             if metrics and task_node:
                 # Basic task info
-                st.metric("Function", task_node.func_name, help=task_node.id.get_full_id())
-                st.metric("Worker", metrics.worker_resource_configuration.worker_id)
+                small_metric("Function", task_node.func_name, help=task_node.id.get_full_id())
+                small_metric("Worker", metrics.worker_resource_configuration.worker_id)
                 col1, col2, col3 = st.columns(3)
                 output_data = metrics.output_metrics.deserialized_size_bytes
                 worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
@@ -403,19 +412,19 @@ def main():
                 worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                 with col1:
                     total_task_handling_time = worker_startup_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
-                    st.metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="vCPUs, Memory (MB)")
-                    st.metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
-                    st.metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
-                    st.metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                    small_metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="vCPUs, Memory (MB)")
+                    small_metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
+                    small_metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
+                    small_metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                 with col2:
-                    st.metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
-                    st.metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
-                    st.metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
-                    st.metric("Output Size", format_bytes(output_data))
+                    small_metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
+                    small_metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
+                    small_metric("Output Upload Time", f"{(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
+                    small_metric("Output Size", format_bytes(output_data))
                 with col3:
-                    st.metric(f"Worker Startup Time ({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'})", f"{worker_startup_time_ms:.2f} ms")
-                    st.metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
-                    st.metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
+                    small_metric(f"Worker Startup Time ({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'})", f"{worker_startup_time_ms:.2f} ms")
+                    small_metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
+                    small_metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available
@@ -884,7 +893,7 @@ def main():
 
             # Calculate total times across all critical path tasks
             for task_id in critical_nodes:
-                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}_{dag.master_dag_id}"
+                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
                 metrics_data = metrics_redis.get(metrics_key)
                 if not metrics_data:
                     continue

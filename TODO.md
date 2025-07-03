@@ -17,7 +17,12 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
+- Find a way to make all invocations be cold starts (don't reuse containers)
+    Change the docker invocation (use a flag `ALLOW_REUSING_CONTAINERS=False`)
+    re-run experiments
+
 - BUG: avg. worker startup time planned vs real is in diff scale??
+    go to worklfow instance dashboard and compare predicted tp_worker_startup_time_ms with real worker_startup_time_ms
 
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
 
