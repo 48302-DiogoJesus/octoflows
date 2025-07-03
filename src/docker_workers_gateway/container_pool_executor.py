@@ -12,6 +12,8 @@ import uuid
 from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
+ALLOW_CONTAINER_REUSAGE = False
+
 @dataclass
 class Container:
     id: str
@@ -112,8 +114,11 @@ class ContainerPoolExecutor:
             sys.exit(0) # ! for easier debugging
         
         with self.lock: 
-            # to avoid killing container after it exits (if it takes longer than the container idle timeout)
-            self.containers[container_id].last_active_time = time.time()
+            if not ALLOW_CONTAINER_REUSAGE:
+                self._remove_container(container_id)
+            else:
+                # to avoid killing container after it exits (if it takes longer than the container idle timeout)
+                self.containers[container_id].last_active_time = time.time()
             
         return exit_code
 
@@ -203,7 +208,7 @@ class ContainerPoolExecutor:
                     if not self.containers[cid].is_busy
                 ]
                 
-                if available_containers:
+                if available_containers and ALLOW_CONTAINER_REUSAGE:
                     container_id = available_containers[0]
                     self.containers[container_id].is_busy = True
                     self.containers[container_id].last_active_time = time.time()  # Update last active time

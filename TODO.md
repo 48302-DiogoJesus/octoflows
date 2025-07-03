@@ -17,6 +17,10 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
+- [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
+    store which libraries were installed **per worker startup** and how long each took
+        `dict[lib_name, time_ms]`
+
 - Find a way to make all invocations be cold starts (don't reuse containers)
     Change the docker invocation (use a flag `ALLOW_REUSING_CONTAINERS=False`)
     re-run experiments
