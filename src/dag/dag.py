@@ -84,7 +84,7 @@ class FullDAG(GenericDAG):
         # Only do PLANNING if `metrics_storage` is specified
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
-            predictions_provider = PredictionsProvider(self.master_dag_structure_hash, wk.metrics_storage)
+            predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metrics_storage)
             planner_name = wk.planner.__class__.__name__
             await predictions_provider.load_metrics_from_storage(planner_name)
             logger.info(f"[PLANNING] Planner Selected: {planner_name}")

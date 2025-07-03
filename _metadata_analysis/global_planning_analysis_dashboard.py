@@ -705,10 +705,11 @@ def main():
                         accuracy_data.append({
                             'Planner': instance.plan.planner_name,
                             'Samples': total_samples,
+                            'Previous Instances': instance.plan.prediction_sample_counts.previous_instances,
                             'Relative Error': relative_error,
                             'Absolute Error': abs(predicted_makespan - actual_makespan),
                             'Actual': actual_makespan,
-                            'Predicted': predicted_makespan
+                            'Predicted': predicted_makespan,
                         })
                 
                 # Create the accuracy evolution chart if we have data
@@ -726,7 +727,7 @@ def main():
                         color='Planner',
                         title='Prediction Error vs Number of Samples',
                         labels={'Relative Error': 'Relative Error (lower is better)', 'Samples': 'Number of Samples Used'},
-                        hover_data=['Actual', 'Predicted', 'Absolute Error']
+                        hover_data=['Actual', 'Predicted', 'Absolute Error', 'Previous Instances']
                     )
                     
                     fig_error.update_layout(

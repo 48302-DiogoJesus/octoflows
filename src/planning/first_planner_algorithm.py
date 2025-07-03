@@ -159,6 +159,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
             # note: data from ALL workflow instances
+            previous_instances=predictions_provider.nr_of_previous_instances,
             for_download_speed=len(predictions_provider.cached_download_speeds),
             for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type

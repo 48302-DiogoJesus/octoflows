@@ -13,6 +13,8 @@ logger = create_logger(__name__)
 class PredictionsProvider:
     MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 20
 
+    nr_of_previous_instances: int = 0
+
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
     cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
@@ -30,7 +32,8 @@ class PredictionsProvider:
     _cached_prediction_output_sizes: dict[str, int] = {}
     _cached_prediction_startup_times: dict[str, float] = {}
 
-    def __init__(self, dag_structure_hash: str, metrics_storage: MetricsStorage):
+    def __init__(self, nr_of_dag_nodes: int, dag_structure_hash: str, metrics_storage: MetricsStorage):
+        self.nr_of_dag_nodes = nr_of_dag_nodes
         self.dag_structure_hash = dag_structure_hash
         self.metrics_storage = metrics_storage
 
@@ -75,9 +78,6 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-
-        print("same_workflow_same_planner_type_metrics: ", len(same_workflow_same_planner_type_metrics))
-
         worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
         for wsm in worker_startup_metrics:
             if wsm.end_time_ms is None: continue
@@ -109,6 +109,7 @@ class PredictionsProvider:
             output_size = metrics.output_metrics.serialized_size_bytes
             self.cached_serialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
 
+        self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
 
     def has_required_predictions(self) -> bool:

@@ -17,10 +17,12 @@
         - todo: compare prediction errors accross diff. planners
         - UPDATE: bar chart comparing [predicted_vs_real] for diff [planners]
 
-- Not only show sample sizes, but also the number of workflow instances for each planner
+- Show data points
 - + use dropdown to select specific metric to analyse prediction vs reality as sample size increases
 
 - mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
+- make the expensive workflow a little more complex with more fan-outs and fan-ins
+- do I currently support map-reduce?
 
 - [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
     `self._try_install_third_party_libs()` executed upon task invocation, not worker startup!!

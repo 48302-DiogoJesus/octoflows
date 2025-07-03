@@ -51,6 +51,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
     @dataclass
     class PlanPredictionSampleCounts:
+        previous_instances: int
         for_download_speed: int
         for_upload_speed: int
         for_execution_time: int

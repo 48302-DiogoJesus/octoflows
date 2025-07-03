@@ -262,6 +262,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 nodes_with_preload += 1
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
+            previous_instances=predictions_provider.nr_of_previous_instances,
             # note: data from ALL workflow instances
             for_download_speed=len(predictions_provider.cached_download_speeds),
             for_upload_speed=len(predictions_provider.cached_upload_speeds),
