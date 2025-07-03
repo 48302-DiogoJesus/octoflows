@@ -667,6 +667,84 @@ def main():
                         
                         st.plotly_chart(fig, use_container_width=True)
                 
+                # Add prediction accuracy evolution chart
+                st.markdown("### Prediction Accuracy Evolution")
+                
+                # Collect data for accuracy evolution
+                accuracy_data = []
+                for instance in workflow_types[selected_workflow].instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                    
+                    # Calculate total samples used for this prediction
+                    samples = instance.plan.prediction_sample_counts
+                    total_samples = sum([
+                        samples.for_download_speed,
+                        samples.for_upload_speed,
+                        samples.for_execution_time,
+                        samples.for_output_size
+                    ])
+                    
+                    # Calculate actual and predicted makespan
+                    actual_makespan = (
+                        max([
+                            (task.metrics.started_at_timestamp_s * 1000) + 
+                            (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
+                            (task.metrics.tp_execution_time_ms or 0) + 
+                            (task.metrics.output_metrics.tp_time_ms or 0) + 
+                            (task.metrics.total_invocation_time_ms or 0) 
+                            for task in instance.tasks
+                        ]) - instance.start_time_ms
+                    ) / 1000  # Convert to seconds
+                    
+                    predicted_makespan = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                    
+                    # Calculate relative error
+                    if actual_makespan > 0:  # Avoid division by zero
+                        relative_error = abs(predicted_makespan - actual_makespan) / actual_makespan
+                        accuracy_data.append({
+                            'Planner': instance.plan.planner_name,
+                            'Samples': total_samples,
+                            'Relative Error': relative_error,
+                            'Absolute Error': abs(predicted_makespan - actual_makespan),
+                            'Actual': actual_makespan,
+                            'Predicted': predicted_makespan,
+                            'Instance ID': instance.master_dag_id.split('-')[0]
+                        })
+                
+                # Create the accuracy evolution chart if we have data
+                if accuracy_data:
+                    df_accuracy = pd.DataFrame(accuracy_data)
+                    
+                    # Sort by samples for each planner to get proper line connections
+                    df_accuracy = df_accuracy.sort_values(['Planner', 'Samples'])
+                    
+                    # Create line chart for relative error
+                    fig_error = px.line(
+                        df_accuracy,
+                        x='Samples',
+                        y='Relative Error',
+                        color='Planner',
+                        title='Prediction Error vs Number of Samples',
+                        labels={'Relative Error': 'Relative Error (lower is better)', 'Samples': 'Number of Samples Used'},
+                        hover_data=['Instance ID', 'Actual', 'Predicted', 'Absolute Error']
+                    )
+                    
+                    fig_error.update_layout(
+                        xaxis_title='Number of Samples Used',
+                        yaxis_title='Relative Error (Actual vs Predicted)',
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=500,
+                        hovermode='x unified'
+                    )
+                    
+                    st.plotly_chart(fig_error, use_container_width=True)
+                    
+                    # Add a small explanation
+                    st.caption("Shows how prediction accuracy improves as more samples are used for training. "
+                             "Lower values indicate better prediction accuracy.")
+                
                 # Prepare data for all metrics comparison
                 metrics_data = []
                 
