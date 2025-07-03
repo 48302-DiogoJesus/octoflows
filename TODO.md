@@ -17,11 +17,11 @@
         - bar chart comparing [predicted_vs_real] for diff [planners]
         - line chart comparing prediction errors accross diff. planners
         - line chart comparing [predicted_vs_real] for diff [planners] as [nr_of_samples_increases]
-
-- [NOT_BY_SAMPLE_SIZE] box plot with prediction offsets (percentages (a.k.a. relative))
-- mostrar percentil das percentagens de offset entre diff. planners (REAL, NOT planned)
+        - box plot with prediction offsets (percentages (a.k.a. relative))
+            percentil das percentagens de erro de previsão
 
 - make the expensive workflow a little more complex with more fan-outs and fan-ins
+    run 15 of each
 - Do I currently support map-reduce?
 
 - [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)

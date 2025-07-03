@@ -31,8 +31,7 @@ def time_task_more_expensive_task(dummy_data: int) -> int:
     return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
 
 @DAGTask
-def last_task_expensive(dummy_data_1: int, dummy_data_2: int, dummy_data_3: int, 
-                       dummy_data_4: int, dummy_data_5: int) -> str:
+def time_task_expensive_fan_in(*dummy_data: int) -> int:
     # memory-sensitive computation
     size = 2500
     matrices = [np.random.rand(size, size) for _ in range(5)]
@@ -41,7 +40,7 @@ def last_task_expensive(dummy_data_1: int, dummy_data_2: int, dummy_data_3: int,
         result = np.matmul(result, m)  # Chained matrix multiplications
     
     modifier = int(result[0, 0] % 100)
-    return f"{dummy_data_1+modifier} {dummy_data_2} {dummy_data_3} {dummy_data_4} {dummy_data_5}"
+    return sum(dummy_data)+modifier
 
 # Define the workflow
 """
@@ -55,7 +54,10 @@ b1_t5 = time_task_expensive(b1_t4)
 
 b2_t1 = time_task_expensive(20)
 b2_t2 = time_task_expensive(b2_t1)
-b2_t3 = time_task_expensive(b2_t2)
+b2_t2_t1 = time_task_expensive(b2_t2)
+b2_t2_t2 = time_task_expensive(b2_t2)
+b2_t2_t3 = time_task_expensive(b2_t2)
+b2_t3 = time_task_expensive_fan_in(b2_t2_t1, b2_t2_t2, b2_t2_t3)
 b2_t4 = time_task_expensive(b2_t3)
 
 b3_t1 = time_task_expensive(30)
@@ -63,11 +65,15 @@ b3_t2 = time_task_expensive(b3_t1)
 b3_t3 = time_task_expensive(b3_t2)
 
 b4_t1 = time_task_expensive(40)
-b4_t2 = time_task_expensive(b4_t1)
+b4_t1_t1 = time_task_expensive(b4_t1)
+b4_t1_t2 = time_task_expensive(b4_t1)
+b4_t2 = time_task_expensive_fan_in(b4_t1_t1, b4_t1_t2)
 
 b5_t1 = time_task_more_expensive_task(50)
 
-sink_task = last_task_expensive(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
+b6 = time_task_expensive_fan_in(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
+sink_task = time_task_expensive_fan_in(b6)
+
 # sink_task.visualize_dag(open_after=True)
 
 for i in range(1):
