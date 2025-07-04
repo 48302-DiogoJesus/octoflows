@@ -135,7 +135,7 @@ class PredictionsProvider:
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
-        if len(function_io_ratios) == 0: raise ValueError(f"No data available for function {function_name}")
+        if len(function_io_ratios) == 0: return 0
 
         if sla == "avg":
             ratio = np.mean(function_io_ratios)
@@ -163,7 +163,7 @@ class PredictionsProvider:
         if data_size_bytes == 0: return 0
         
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
-        if len(cached_data) == 0: raise ValueError(f"No data available for {type}")
+        if len(cached_data) == 0: return 0
         
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
@@ -205,7 +205,7 @@ class PredictionsProvider:
         samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
         if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
         
-        if len(samples) == 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+        if len(samples) == 0: return 0
         
         prediction_key = f"{state}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_startup_times: 
@@ -270,7 +270,7 @@ class PredictionsProvider:
         
         # Get all samples for this function
         all_samples = self.cached_execution_time_per_byte[function_name]
-        if len(all_samples) == 0: raise ValueError(f"No data available for function {function_name}")
+        if len(all_samples) == 0: return 0
         
         # Filter samples by exact resource match
         matching_samples = [

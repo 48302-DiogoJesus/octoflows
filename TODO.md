@@ -1,3 +1,6 @@
+- BUG: running second planner on "memory expensive" workflow generates an invalid plan
+    Exception: Worker c0eee291357e413eac0e4102d6513508 has no uninterrupted branch of tasks. Detected at task: time_task_expensive_fan_in+69b791bf-19b7-44dc-a96b-908a4cd81cd1
+
 - Visualization
     - {most relevant metrics to compare}
         - makespan
@@ -20,10 +23,6 @@
         - box plot with prediction offsets (percentages (a.k.a. relative))
             percentil das percentagens de erro de previsão
 
-- make the expensive workflow a little more complex with more fan-outs and fan-ins
-    run 15 of each
-- Do I currently support map-reduce?
-
 - [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
     `self._try_install_third_party_libs()` executed upon task invocation, not worker startup!!
     store which libraries were installed **per worker startup** and how long each took
@@ -33,15 +32,6 @@
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead
-
-[DIFF_IDEA]
-- Change the way simulations are made, to be more realistic and follow the scheduling logic defined by the planner to be used
-    - Run the actual `Worker.execute_branch` or a mock `Worker.mock_execute_branch` but with dummy stuff and don't actually execute the tasks nor upload metrics
-    - As it "executes" the simulation, keep track of metrics and then the planner can use them to make decisions
-    - REPLACES CURRENT FUNCTION: `__calculate_node_timings`
-    - Think if all predictions are possible (can we fill all fields of `PlanningTaskInfo`??)
-
-- [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
@@ -59,6 +49,17 @@
     and then download it from external storage. The results produced by Worker 2 will be ignored by Worker 1. 
     Possible benefits: - makespan ; - data download time.
 - Create a planner that uses them + make the prediction calculations take it into account
+
+---
+
+[DIFF_IDEA]
+- Change the way simulations are made, to be more realistic and follow the scheduling logic defined by the planner to be used
+    - Run the actual `Worker.execute_branch` or a mock `Worker.mock_execute_branch` but with dummy stuff and don't actually execute the tasks nor upload metrics
+    - As it "executes" the simulation, keep track of metrics and then the planner can use them to make decisions
+    - REPLACES CURRENT FUNCTION: `__calculate_node_timings`
+    - Think if all predictions are possible (can we fill all fields of `PlanningTaskInfo`??)
+
+- [DIFF_IDEA] A dashboard that simulates diff. planning algorithms for workflow types that were already seen?
 
 [PREDICTIONS:IMPROVEMENTS]
 - Outlier removal strategies (remove values that fall under/above a threshold/percentage of the mean)
