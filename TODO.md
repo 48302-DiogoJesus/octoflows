@@ -1,6 +1,3 @@
-- BUG: running second planner on "memory expensive" workflow generates an invalid plan
-    Exception: Worker c0eee291357e413eac0e4102d6513508 has no uninterrupted branch of tasks. Detected at task: time_task_expensive_fan_in+69b791bf-19b7-44dc-a96b-908a4cd81cd1
-
 - Visualization
     - {most relevant metrics to compare}
         - makespan

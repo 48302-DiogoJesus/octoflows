@@ -293,7 +293,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, CoroutineType | None]:
+    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),

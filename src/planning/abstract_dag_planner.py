@@ -83,9 +83,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         logger.info(f"Planner: {self.__class__.__name__}")
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, predictions_provider)
-        if not plan_result: return None # no plan was made
-        self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
-        self.validate_plan(_dag.root_nodes)
+        if not plan_result: 
+            self.validate_plan(_dag.root_nodes)
+            return None # no plan was made
+        else:
+            self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+            self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
@@ -348,7 +351,8 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         - Ensure that there is at least 1 uninterrupted branch of tasks assigned to the same worker id
         """
         worker_id_to_resources_map: dict[str, tuple[float, int]] = {}
-        used_worker_ids: set[str] = set()
+        # (worker_id, first_seen_task_id)
+        seen_worker_ids: dict[str, str] = {}
         visited_nodes = set()
         # tasks that were already verified
         worker_id_branches_verification_set: set[str] = set()
@@ -384,25 +388,21 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
             
             # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
-            if node in root_nodes:
-                worker_config = node.get_annotation(TaskWorkerResourceConfiguration)
-                if worker_config.worker_id is not None: used_worker_ids.add(worker_config.worker_id)
-            else:
-                dnodes_grouped_by_worker_id: dict[str, list[DAGTaskNode]] = {}
-                for n in node.downstream_nodes:
-                    wid = n.get_annotation(TaskWorkerResourceConfiguration).worker_id
-                    if wid is None: continue
-                    if wid not in dnodes_grouped_by_worker_id: dnodes_grouped_by_worker_id[wid] = []
-                    dnodes_grouped_by_worker_id[wid].append(n)
-
-                for dwid, tasks in dnodes_grouped_by_worker_id.items():
-                    for task in tasks:
-                        if task.id.get_full_id() in worker_id_branches_verification_set: continue
-                        upstream_nodes_w_same_wid = [n for n in task.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == dwid]
-                        if dwid in used_worker_ids and len(upstream_nodes_w_same_wid) == 0:
-                            raise Exception(f"Worker {dwid} has no uninterrupted branch of tasks. Detected at task: {task.id.get_full_id()}")
-                        worker_id_branches_verification_set.add(task.id.get_full_id())
-                    used_worker_ids.add(dwid)
+            if worker_id is not None:
+                upstream_nodes_w_same_wid = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
+                if worker_id in seen_worker_ids and len(upstream_nodes_w_same_wid) == 0 and node.id.get_full_id() not in [rn.id.get_full_id() for rn in root_nodes]:
+                    # could still be valid if AT LEAST 1 of its upstream tasks downstream tasks has the same worker id (meaning it was launched at the "same time")
+                    other_udtasks_w_same_wid: set[str] = set()
+                    for unode in node.upstream_nodes:
+                        for udnode in unode.downstream_nodes:
+                            if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.get_annotation(TaskWorkerResourceConfiguration).worker_id:
+                                other_udtasks_w_same_wid.add(udnode.id.get_full_id())
+                                break
+                        
+                    if len(other_udtasks_w_same_wid) > 0 and not any([other_udtask_id == seen_worker_ids[worker_id] for other_udtask_id in other_udtasks_w_same_wid]):
+                        raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
+                
+                seen_worker_ids[worker_id] = node.id.get_full_id()
                 
         logger.info("Validation Succeeded!")
 
