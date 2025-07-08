@@ -1092,6 +1092,46 @@ def main():
                     base_metric = selected_metric.split('[')[0].strip()
                     unit = ']' + selected_metric.split('[')[1] if '[' in selected_metric else ''
                     
+                    # Add median and average markers for each planner
+                    for planner in df_metric['Planner'].unique():
+                        planner_data = df_metric[df_metric['Planner'] == planner]
+                        median_val = planner_data['Value'].median()
+                        avg_val = planner_data['Value'].mean()
+                        
+                        # Add median annotation
+                        fig.add_annotation(
+                            x=planner,
+                            y=median_val,
+                            text=f"{median_val:.1f}",
+                            showarrow=False,
+                            yshift=10,
+                            font=dict(size=10)
+                        )
+                        
+                        # Add average as a point
+                        fig.add_scatter(
+                            x=[planner],
+                            y=[avg_val],
+                            mode='markers',
+                            marker=dict(
+                                color='red',
+                                size=10,
+                                symbol='diamond'
+                            ),
+                            name='Avg.',
+                            showlegend=False
+                        )
+                        
+                        # Add average value label
+                        fig.add_annotation(
+                            x=planner,
+                            y=avg_val,
+                            text=f"{avg_val:.1f}",
+                            showarrow=False,
+                            yshift=-15,
+                            font=dict(color='red', size=10)
+                        )
+                    
                     # Update layout with proper units
                     fig.update_layout(
                         xaxis_title='Planner',
