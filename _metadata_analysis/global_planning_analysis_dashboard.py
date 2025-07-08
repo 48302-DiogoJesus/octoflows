@@ -954,27 +954,17 @@ def main():
                                     median_val = planner_data['Relative Error'].median()
                                     avg_val = planner_data['Relative Error'].mean()
                                     
-                                    # Add median annotation
-                                    fig_box.add_annotation(
-                                        x=planner,
-                                        y=median_val,
-                                        text=f"{median_val:.0f}%",
-                                        showarrow=False,
-                                        yshift=10,
-                                        font=dict(size=10)
-                                    )
-                                    
                                     # Add average as a point
                                     fig_box.add_scatter(
                                         x=[planner],
                                         y=[avg_val],
                                         mode='markers',
                                         marker=dict(
-                                            color='red',
+                                            color='white',
                                             size=10,
                                             symbol='diamond'
                                         ),
-                                        name=f'Avg.',
+                                        name="",
                                         showlegend=False
                                     )
                                     
@@ -982,10 +972,10 @@ def main():
                                     fig_box.add_annotation(
                                         x=planner,
                                         y=avg_val,
-                                        text=f"{avg_val:.0f}%",
+                                        text=f"Avg: {avg_val:.0f}%",
                                         showarrow=False,
                                         yshift=-15,
-                                        font=dict(color='red', size=10)
+                                        font=dict(color='white', size=10)
                                     )
                                 
                                 st.plotly_chart(fig_box, use_container_width=True)
@@ -1098,27 +1088,17 @@ def main():
                         median_val = planner_data['Value'].median()
                         avg_val = planner_data['Value'].mean()
                         
-                        # Add median annotation
-                        fig.add_annotation(
-                            x=planner,
-                            y=median_val,
-                            text=f"{median_val:.1f}",
-                            showarrow=False,
-                            yshift=10,
-                            font=dict(size=10)
-                        )
-                        
                         # Add average as a point
                         fig.add_scatter(
                             x=[planner],
                             y=[avg_val],
                             mode='markers',
                             marker=dict(
-                                color='red',
+                                color='white',
                                 size=10,
                                 symbol='diamond'
                             ),
-                            name='Avg.',
+                            name='',
                             showlegend=False
                         )
                         
@@ -1126,10 +1106,10 @@ def main():
                         fig.add_annotation(
                             x=planner,
                             y=avg_val,
-                            text=f"{avg_val:.1f}",
+                            text=f"Avg: {avg_val:.1f}",
                             showarrow=False,
                             yshift=-15,
-                            font=dict(color='red', size=10)
+                            font=dict(color='white', size=10)
                         )
                     
                     # Update layout with proper units
