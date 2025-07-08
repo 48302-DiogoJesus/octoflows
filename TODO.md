@@ -20,7 +20,6 @@
         - box plot with prediction offsets (percentages (a.k.a. relative))
             percentil das percentagens de erro de previsão
 
-- Pie chart showing the time spent doing each thing per planner
 - Line chart showing the preformance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
 
 - BUG: constant offset in both input and output sizes (predicted vs actual)
@@ -66,6 +65,10 @@
 [EVALUATION:PREPARE]
 ?? Implement **Dask** planner ?? 
     - just to produce a "Plan" and compare the expected impact of the diff. scheduling decisions for diff. types of workflows
+
+[IMPROVEMENT]
+- Async output upload => to allow the worker to execute other tasks without waiting for upload to finish
+    - useful on fan-outs where this worker will execute some of the downstream tasks
 
 [NEW_OPTIMIZATION?:OUTPUT_STREAMING]
     - As 1 worker starts uploading task output, another worker it immediatelly downloading it, masking download time, since it doesn't have to wait for the upload to complete

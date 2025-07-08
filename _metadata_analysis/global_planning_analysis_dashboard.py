@@ -1257,7 +1257,7 @@ def main():
                                 'Time (s)': list(time_data.values())
                             })
                             
-                            # Create the pie chart
+                            # Create the pie chart with legend
                             fig_pie = px.pie(
                                 df_pie, 
                                 values='Time (s)', 
@@ -1272,15 +1272,34 @@ def main():
                                 textposition='inside',
                                 textinfo='percent+label',
                                 hovertemplate='%{label}: %{value:.2f}s (%{percent})',
-                                textfont_size=12
+                                textfont_size=12,
+                                # Enable click-to-toggle behavior
+                                customdata=df_pie['Activity'],
+                                selector=dict(type='pie')
                             )
                             
                             fig_pie.update_layout(
-                                showlegend=False,
-                                margin=dict(t=30, b=10, l=10, r=10),
-                                height=400,
+                                showlegend=True,
+                                legend=dict(
+                                    title='Legend',
+                                    orientation='h',
+                                    yanchor='bottom',
+                                    y=-0.2,
+                                    xanchor='center',
+                                    x=0.5
+                                ),
+                                margin=dict(t=30, b=80, l=10, r=10),
+                                height=450,
                                 title_x=0.5,
-                                title_font_size=14
+                                title_font_size=14,
+                                # Enable click-to-toggle functionality
+                                clickmode='event+select'
+                            )
+                            
+                            # Add click-to-toggle functionality
+                            fig_pie.update_traces(
+                                hovertemplate='%{label}: %{value:.2f}s (%{percent})<extra></extra>',
+                                selector=dict(type='pie')
                             )
                             
                             st.plotly_chart(fig_pie, use_container_width=True)
