@@ -20,8 +20,6 @@
         - box plot with prediction offsets (percentages (a.k.a. relative))
             percentil das percentagens de erro de previsão
 
-- on the box plots show an average line, besides the median line
-
 ---
 
 - [!!] Add support for final result to be None, store a wrapper in storage instead

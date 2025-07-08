@@ -667,6 +667,110 @@ def main():
                         
                         st.plotly_chart(fig, use_container_width=True)
                 
+                # Add prediction error distribution box plot
+                st.markdown("### Prediction Error Distribution")
+                
+                # Prepare data for error distribution
+                error_data = []
+                for instance in workflow_types[selected_workflow].instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                    
+                    # Calculate actual metrics
+                    actual_metrics = {
+                        'makespan': (
+                            max([
+                                (task.metrics.started_at_timestamp_s * 1000) + 
+                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
+                                (task.metrics.tp_execution_time_ms or 0) + 
+                                (task.metrics.output_metrics.tp_time_ms or 0) + 
+                                (task.metrics.total_invocation_time_ms or 0) 
+                                for task in instance.tasks
+                            ]) - instance.start_time_ms
+                        ) / 1000,  # Convert to seconds
+                        'execution': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
+                        'download': sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0 for task in instance.tasks) / 1000,
+                        'upload': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
+                        'input_size': sum(sum(input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
+                                      (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
+                        'output_size': sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                    }
+                    
+                    # Get predicted metrics if available
+                    predicted_metrics = {}
+                    if instance.plan and instance.plan.nodes_info:
+                        sink_node = instance.dag.sink_node.id.get_full_id()
+                        predicted_metrics = {
+                            'makespan': instance.plan.nodes_info[sink_node].task_completion_time_ms / 1000,
+                            'execution': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'download': sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'upload': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
+                            'input_size': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
+                            'output_size': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
+                        }
+                    
+                    # Calculate relative errors for each metric
+                    for metric in ['makespan', 'execution', 'download', 'upload', 'input_size', 'output_size']:
+                        actual = actual_metrics.get(metric, 0)
+                        predicted = predicted_metrics.get(metric, 0)
+                        
+                        # Calculate relative error (absolute percentage error)
+                        if actual != 0 and predicted != 0:  # Only include if both values are non-zero
+                            rel_error = abs(actual - predicted) / actual * 100
+                            error_data.append({
+                                'Metric': metric.replace('_', ' ').title(),
+                                'Relative Error (%)': rel_error,
+                                'Planner': instance.plan.planner_name if instance.plan else 'Unknown',
+                                'Instance ID': instance.master_dag_id
+                            })
+                
+                if error_data:
+                    df_errors = pd.DataFrame(error_data)
+                    
+                    # Create box plot
+                    fig_errors = px.box(
+                        df_errors,
+                        x='Metric',
+                        y='Relative Error (%)',
+                        color='Planner',
+                        title='Distribution of Prediction Errors by Metric',
+                        points='all',  # Show all points
+                        hover_data=['Instance ID'],
+                        category_orders={"Metric": ["Makespan", "Execution", "Download", "Upload", "Input Size", "Output Size"]},
+                        color_discrete_map={
+                            planner: get_color_for_workflow(planner) 
+                            for planner in df_errors['Planner'].unique()
+                        }
+                    )
+                    
+                    # Update layout
+                    fig_errors.update_layout(
+                        xaxis_title='Metric',
+                        yaxis_title='Relative Error (%)',
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0.02)',
+                        height=600,
+                        xaxis_tickangle=-45,
+                        boxmode='group',
+                        margin=dict(t=60, b=120, l=60, r=60)
+                    )
+                    
+                    # Add horizontal line at 0% error for reference
+                    fig_errors.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.5)
+                    
+                    # Add annotation explaining the plot
+                    fig_errors.add_annotation(
+                        x=0.5,
+                        y=-0.25,
+                        xref='paper',
+                        yref='paper',
+                        text='Lower values indicate better prediction accuracy. Each point represents a workflow instance.',
+                        showarrow=False,
+                        font=dict(size=10, color='gray')
+                    )
+                    
+                    st.plotly_chart(fig_errors, use_container_width=True)
+                
                 # Add prediction accuracy evolution chart
                 st.markdown("### Prediction Accuracy Evolution")
                 
