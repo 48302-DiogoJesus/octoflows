@@ -76,9 +76,10 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
 
                 worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
                 worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
-                worker_startup_metrics.extend([cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else []) # type: ignore
-                total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in worker_startup_metrics if metric.end_time_ms is not None]) if worker_startup_metrics else 0
-                total_workers = len(worker_startup_metrics)
+                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
+                worker_startup_metrics.extend(this_workflow_wsm) # type: ignore
+                total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in this_workflow_wsm if metric.end_time_ms is not None]) if this_workflow_wsm else 0
+                total_workers = len(this_workflow_wsm)
 
                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
                 workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
@@ -921,6 +922,7 @@ def main():
                             'input_size': sum(sum(input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
                                         (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
                             'output_size': sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                            'worker_startup_time': instance.total_worker_startup_time_ms / 1000,
                         }
                         
                         # Get predicted metrics if available
@@ -934,10 +936,11 @@ def main():
                                 'upload': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                                 'input_size': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
                                 'output_size': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
+                                'worker_startup_time': sum(info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                             }
                         
                         # Calculate relative errors for each metric
-                        for metric in ['makespan', 'execution', 'download', 'upload', 'input_size', 'output_size']:
+                        for metric in ['makespan', 'execution', 'download', 'upload', 'input_size', 'output_size', 'worker_startup_time']:
                             actual = actual_metrics.get(metric, 0)
                             predicted = predicted_metrics.get(metric, 0)
                             
@@ -963,7 +966,7 @@ def main():
                             title='Distribution of Prediction Errors by Metric',
                             points='all',  # Show all points
                             hover_data=['Instance ID'],
-                            category_orders={"Metric": ["Makespan", "Execution", "Download", "Upload", "Input Size", "Output Size"]},
+                            category_orders={"Metric": ["Makespan", "Execution", "Download", "Upload", "Input Size", "Output Size", "Worker Startup Time"]},
                             color_discrete_map={
                                 planner: get_color_for_workflow(planner) 
                                 for planner in df_errors['Planner'].unique()
@@ -984,17 +987,6 @@ def main():
                         
                         # Add horizontal line at 0% error for reference
                         fig_errors.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.5)
-                        
-                        # Add annotation explaining the plot
-                        fig_errors.add_annotation(
-                            x=0.5,
-                            y=-0.25,
-                            xref='paper',
-                            yref='paper',
-                            text='Lower values indicate better prediction accuracy. Each point represents a workflow instance.',
-                            showarrow=False,
-                            font=dict(size=10, color='gray')
-                        )
                         
                         st.plotly_chart(fig_errors, use_container_width=True)
 
