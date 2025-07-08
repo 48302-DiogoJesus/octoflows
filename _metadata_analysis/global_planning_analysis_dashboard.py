@@ -1225,6 +1225,65 @@ def main():
                         fig.update_xaxes(tickangle=45)
                     
                     st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Add pie charts for time distribution by activity for each planner
+                    st.markdown("### Time Distribution by Activity (per Planner)")
+                    
+                    # Define the time metrics we want to include in the pie charts
+                    time_metrics = ['Execution Time [s]', 'Total Time Waiting for Inputs [s]', 
+                                  'Upload Time [s]', 'Worker Startup Time [s]']
+                    
+                    # Get unique planners and filter for time-related metrics
+                    planner_names = df_metrics['Planner'].unique()
+                    time_metrics_df = df_metrics[df_metrics['Metric'].isin(time_metrics)]
+                    
+                    # Create columns for the pie charts - one per planner
+                    cols = st.columns(len(planner_names) if len(planner_names) > 0 else 1)
+                    
+                    for idx, planner_name in enumerate(planner_names):
+                        with cols[idx % len(cols)]:
+                            # Get metrics for this planner
+                            planner_data = time_metrics_df[time_metrics_df['Planner'] == planner_name]
+                            
+                            # Create a dictionary with the time data
+                            time_data = {}
+                            for metric in time_metrics:
+                                metric_data = planner_data[planner_data['Metric'] == metric]
+                                time_data[metric] = metric_data['Value'].mean() if not metric_data.empty else 0
+                            
+                            # Create a DataFrame for the pie chart
+                            df_pie = pd.DataFrame({
+                                'Activity': list(time_data.keys()),
+                                'Time (s)': list(time_data.values())
+                            })
+                            
+                            # Create the pie chart
+                            fig_pie = px.pie(
+                                df_pie, 
+                                values='Time (s)', 
+                                names='Activity',
+                                title=f'{planner_name} Time Distribution',
+                                color='Activity',
+                                color_discrete_sequence=px.colors.qualitative.Pastel1
+                            )
+                            
+                            # Update layout for better visualization
+                            fig_pie.update_traces(
+                                textposition='inside',
+                                textinfo='percent+label',
+                                hovertemplate='%{label}: %{value:.2f}s (%{percent})',
+                                textfont_size=12
+                            )
+                            
+                            fig_pie.update_layout(
+                                showlegend=False,
+                                margin=dict(t=30, b=10, l=10, r=10),
+                                height=400,
+                                title_x=0.5,
+                                title_font_size=14
+                            )
+                            
+                            st.plotly_chart(fig_pie, use_container_width=True)
                 
                 # Calculate metrics by planner type
                 planner_metrics = {}

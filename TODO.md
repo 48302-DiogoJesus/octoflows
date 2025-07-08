@@ -20,13 +20,11 @@
         - box plot with prediction offsets (percentages (a.k.a. relative))
             percentil das percentagens de erro de previsão
 
-- pie chart showing the time spent doing each thing per planner
+- Pie chart showing the time spent doing each thing per planner
+- Line chart showing the preformance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
 
-- compare prediction error percentages between box plots
-    - actual worker startup time is def. wrong (predicted is correct?)
-        the second graph is fine, see diffs.
-    - download and upload predictions allways same offset
-        check if using serialized or deserialized
+- BUG: constant offset in both input and output sizes (predicted vs actual)
+    - 
 
 ---
 
