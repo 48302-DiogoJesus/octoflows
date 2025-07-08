@@ -20,11 +20,7 @@
         - box plot with prediction offsets (percentages (a.k.a. relative))
             percentil das percentagens de erro de previsão
 
-- [??QUESTION??] [NEW_METRIC]: time downloading Python libs/dependencies (only needed on cold starts?)
-    `self._try_install_third_party_libs()` executed upon task invocation, not worker startup!!
-    store which libraries were installed **per worker startup** and how long each took
-        `dict[lib_name, time_ms]`
-    would need to add an external library on purpose to test this
+- on the box plots show an average line, besides the median line
 
 ---
 

@@ -304,9 +304,6 @@ def main():
                 # Create a DataFrame for the table
                 df_instances = pd.DataFrame(instance_data)
                 
-                # Display the instance comparison table
-                st.markdown("### Instance Comparison")
-
                 # Ensure we're working with a pandas DataFrame
                 if not isinstance(df_instances, pd.DataFrame):
                     df_instances = pd.DataFrame(df_instances)
@@ -346,6 +343,9 @@ def main():
                     # Filter by selected planner if not 'All'
                     if selected_planner != 'All':
                         df_instances = df_instances[df_instances['Planner'].astype(str) == selected_planner]
+                
+                # Display the instance comparison table with row count
+                st.markdown(f"### Instance Comparison ({len(df_instances)} instances)")
                 
                 # Display the table
                 st.dataframe(
@@ -740,11 +740,8 @@ def main():
                     # Sort by samples for each planner to get proper line connections
                     df_accuracy = df_accuracy.sort_values(['Planner', 'Samples'])
                     
-                    # Create a formatted label for X-axis with instances first, then samples
-                    df_accuracy['X_Label'] = df_accuracy.apply(
-                        lambda x: f"{int(x['Previous Instances'])} ({int(x['Samples'])} samples)", 
-                        axis=1
-                    )
+                    # Create a formatted label for X-axis with just the instance counter
+                    df_accuracy['X_Label'] = df_accuracy['Previous Instances'].astype(int).astype(str)
                     
                     # Define all possible metrics and their display names
                     all_metric_options = [
@@ -797,11 +794,10 @@ def main():
                         title=f'Prediction Error vs Number of Samples - {selected_metric}',
                         labels={
                             'Relative Error': f'Relative Error (lower is better)', 
-                            'X_Label': 'Number of Instances (samples)'
+                            'X_Label': 'Number of Previous Instances'
                         },
                         hover_data={
                             'X_Label': False,  # Hide from hover
-                            'Samples': ':.0f',
                             'Previous Instances': ':.0f',
                             actual_col: ':.2f',
                             predicted_col: ':.2f',
@@ -822,11 +818,10 @@ def main():
                         title=f'Actual {selected_metric} vs Number of Samples',
                         labels={
                             actual_col: selected_metric,
-                            'X_Label': 'Number of Instances (samples)'
+                            'X_Label': 'Number of Previous Instances'
                         },
                         hover_data={
                             'X_Label': False,  # Hide from hover
-                            'Samples': ':.0f',
                             'Previous Instances': ':.0f',
                             actual_col: ':.2f'
                         },
