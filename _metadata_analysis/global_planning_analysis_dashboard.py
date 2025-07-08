@@ -948,15 +948,44 @@ def main():
                                 # Add horizontal line at 0% error for reference
                                 fig_box.add_hline(y=0, line_dash="dash", line_color="gray")
                                 
-                                # Add annotations for median values
+                                # Add median and average markers
                                 for planner in metric_data['Planner'].unique():
-                                    median_val = metric_data[metric_data['Planner'] == planner]['Relative Error'].median()
+                                    planner_data = metric_data[metric_data['Planner'] == planner]
+                                    median_val = planner_data['Relative Error'].median()
+                                    avg_val = planner_data['Relative Error'].mean()
+                                    
+                                    # Add median annotation
                                     fig_box.add_annotation(
                                         x=planner,
                                         y=median_val,
-                                        text=f"{median_val:.1f}%",
+                                        text=f"{median_val:.0f}%",
                                         showarrow=False,
-                                        yshift=10
+                                        yshift=10,
+                                        font=dict(size=10)
+                                    )
+                                    
+                                    # Add average as a point
+                                    fig_box.add_scatter(
+                                        x=[planner],
+                                        y=[avg_val],
+                                        mode='markers',
+                                        marker=dict(
+                                            color='red',
+                                            size=10,
+                                            symbol='diamond'
+                                        ),
+                                        name=f'Avg.',
+                                        showlegend=False
+                                    )
+                                    
+                                    # Add average value label
+                                    fig_box.add_annotation(
+                                        x=planner,
+                                        y=avg_val,
+                                        text=f"{avg_val:.0f}%",
+                                        showarrow=False,
+                                        yshift=-15,
+                                        font=dict(color='red', size=10)
                                     )
                                 
                                 st.plotly_chart(fig_box, use_container_width=True)
