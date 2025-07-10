@@ -87,4 +87,4 @@ class MetricsStorage():
         logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
 
-BASELINE_MEMORY_MB = 512 # reference value for normalization
+BASELINE_MEMORY_MB = 256 # reference value for normalization

@@ -4,36 +4,11 @@ import time
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
-from src.storage.metrics.metrics_storage import MetricsStorage
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
-from src.storage.in_memory_storage import InMemoryStorage
-from src.storage.redis_storage import RedisStorage
 from src.dag_task_node import DAGTask
 
-redis_intermediate_storage_config = RedisStorage.Config(host="localhost", port=6379, password="redisdevpwd123")
-inmemory_intermediate_storage_config = InMemoryStorage.Config()
-
-# METRICS STORAGE
-redis_metrics_storage_config = RedisStorage.Config(host="localhost", port=6380, password="redisdevpwd123")
-
-localWorkerConfig = LocalWorker.Config(
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metadata_storage_config=redis_intermediate_storage_config,  # will use the same as intermediate_storage_config
-)
-
-dockerWorkerConfig = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
-    intermediate_storage_config=redis_intermediate_storage_config,
-    metrics_storage_config=MetricsStorage.Config(storage_config=redis_metrics_storage_config),
-    planner_config=FirstPlannerAlgorithm.Config(
-        sla="avg",
-        worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-    )
-)
+# Import centralized configuration
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from common.config import WORKER_CONFIG
 
 def create_matrix_chunks(matrix, row_chunk_size=1, col_chunk_size=1):
     """Split matrix into smaller chunks based on specified sizes"""
@@ -77,9 +52,9 @@ if __name__ == "__main__":
     #     [8, 6]
     # ])
 
-    RANDOM_MATRIX_COLS = 1000
-    RANDOM_MATRIX_ROWS = 1000
-    CHUNK_SIZE = 100
+    RANDOM_MATRIX_COLS = 1_000
+    RANDOM_MATRIX_ROWS = 1_000
+    CHUNK_SIZE = 400
 
     def generate_matrices(rows_a, cols_a):
         matrix_a = np.random.randint(1, 10, (rows_a, cols_a))
@@ -112,6 +87,6 @@ if __name__ == "__main__":
     # distributed_result.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "gemm"), open_after=True)
 
     start_time = time.time()
-    distributed_result = distributed_result.compute(dag_name="gemm", config=localWorkerConfig)
+    distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG)
     print(f"GEMM completed in {time.time() - start_time:.4f} seconds")
     print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)}")

@@ -1,8 +1,9 @@
 import os
 import sys
-from PIL import Image, ImageFilter, ImageOps
 import io
-from typing import List
+import numpy as np
+from PIL import Image, ImageFilter, ImageOps
+from PIL.ImageFile import ImageFile
 
 # Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -13,7 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.config import WORKER_CONFIG
 
 
-def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.Image]:
+def split_image_into_chunks(image: Image.Image, num_chunks: int) -> list[Image.Image]:
     """Split image into roughly equal vertical chunks"""
     width, height = image.size
     chunk_width = width // num_chunks
@@ -26,6 +27,7 @@ def split_image_into_chunks(image: Image.Image, num_chunks: int) -> List[Image.I
         chunks.append(chunk)
     
     return chunks
+
 
 def combine_image_chunks(chunks: list[Image.Image]) -> Image.Image:
     """Combine image chunks horizontally"""
@@ -42,15 +44,20 @@ def combine_image_chunks(chunks: list[Image.Image]) -> Image.Image:
     
     return new_image
 
+
+def add_border_to_image(image: Image.Image, border_width: int = 2, border_color: str = "black") -> Image.Image:
+    return ImageOps.expand(image, border=border_width, fill=border_color)
+
+
 @DAGTask
 def determine_chunks_amount(image_data: bytes) -> int:
     image = Image.open(io.BytesIO(image_data)).convert("RGB")
     width, _ = image.size
-    
     return min(width // 64, 10)
 
+
 @DAGTask
-def split_image(image_data: bytes, num_chunks: int = 4) -> list[bytes]:
+def split_image(image_data: bytes, num_chunks: int) -> list[bytes]:
     """Split the image into chunks and return as list of bytes"""
     image = Image.open(io.BytesIO(image_data))
     chunks = split_image_into_chunks(image, num_chunks)
@@ -63,68 +70,92 @@ def split_image(image_data: bytes, num_chunks: int = 4) -> list[bytes]:
     
     return chunk_bytes
 
-def add_border_to_image(image: Image.Image, border_width: int = 2, border_color: str = "black") -> Image.Image:
-    return ImageOps.expand(image, border=border_width, fill=border_color)
 
 @DAGTask
 def grayscale_image_part(chunk_data: bytes) -> bytes:
-    """Convert a single image chunk to grayscale"""
+    """Convert a single image chunk to grayscale using the luminance formula:
+    Y = 0.2125 * R + 0.7154 * G + 0.0721 * B
+    """
+    # Open the image chunk
     image = Image.open(io.BytesIO(chunk_data))
-    grayscale = image.convert('L')
-    grayscale = add_border_to_image(grayscale)
     
+    # Convert to RGB if not already
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
+    # Convert to numpy array for processing
+    img_array = np.array(image)
+    
+    # Apply grayscale conversion using the luminance formula
+    grayscale_array = (
+        img_array[..., 0] * 0.2125 +
+        img_array[..., 1] * 0.7154 +
+        img_array[..., 2] * 0.0721
+    ).astype('uint8')
+    
+    # Convert back to PIL Image
+    grayscale_image = Image.fromarray(grayscale_array, 'L')
+    
+    # Add border for visualization
+    # grayscale_image = add_border_to_image(grayscale_image)
+    
+    # Convert to bytes and return
     byte_arr = io.BytesIO()
-    grayscale.save(byte_arr, format=image.format)
+    grayscale_image.save(byte_arr, format=image.format)
     return byte_arr.getvalue()
+
 
 @DAGTask
 def blur_image_part(chunk_data: bytes, blur_radius: int = 3) -> bytes:
+    """Apply Gaussian blur to an image chunk"""
     image = Image.open(io.BytesIO(chunk_data))
-    blurred_img = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-    blurred_img = add_border_to_image(blurred_img)
-
-    # Save blurred image to bytes
-    blurred_bytes = io.BytesIO()
-    blurred_img.save(blurred_bytes, format=image.format)
-    blurred_bytes.seek(0)
     
-    return blurred_bytes.getvalue()
+    # Apply Gaussian blur
+    blurred_img = image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    
+    # Add border for visualization
+    # blurred_img = add_border_to_image(blurred_img)
+    
+    # Save to bytes and return
+    byte_arr = io.BytesIO()
+    blurred_img.save(byte_arr, format=image.format)
+    return byte_arr.getvalue()
+
 
 @DAGTask
-def merge_image_parts(processed_chunks: List[bytes]) -> bytes:
+def merge_image_parts(processed_chunks: list[bytes]) -> bytes:
     """Combine processed image chunks back into one image"""
     images = [Image.open(io.BytesIO(chunk)) for chunk in processed_chunks]
-    
-    combined = combine_image_chunks(images) # type: ignore
+    combined = combine_image_chunks(images)
     
     byte_arr = io.BytesIO()
     combined.save(byte_arr, format=images[0].format)
     return byte_arr.getvalue()
 
-# WORKFLOW DEFINITION
+
 def main():
+    # Read the input image
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
-
-    num_chunks = determine_chunks_amount(image_data)
-
-    print("Number of chunks:", num_chunks)
+    
+    num_chunks = 12
+    
     chunks = split_image(image_data, num_chunks)
-    # Compute the chunks first
-    chunks_result = chunks.compute(dag_name="image_transform_split", config=WORKER_CONFIG)
+    chunks_result = chunks.compute(
+        dag_name="image_processing_split", 
+        config=WORKER_CONFIG
+    )
     
     processed_chunks = []
     for chunk in chunks_result:
-        blurred = blur_image_part(chunk)
+        blurred = blur_image_part(chunk, blur_radius=2)
         grayscaled = grayscale_image_part(blurred)
         processed_chunks.append(grayscaled)
-
+    
     final_image = merge_image_parts(processed_chunks)
-    # final_image.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "image_transform"), open_after=True)
-    final_image = final_image.compute(dag_name="image_transform_merge", config=WORKER_CONFIG)
-
+    final_image = final_image.compute(dag_name="image_processing_merge", config=WORKER_CONFIG)
+    
     # image = Image.open(io.BytesIO(final_image))
     # image.show()
 
 if __name__ == "__main__":
-    # asyncio.run(main())
     main()

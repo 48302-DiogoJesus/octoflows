@@ -1,14 +1,15 @@
 - Execute runs for workflows:
-    memory expensive
+    complex matrix mul (fan ins and fan outs)
     image transform
-        make it more similar to Dask internal implementation for better comparison
-        test it
+    wordcount
     gemm
     tree reduction
-    wordcount
     ...
 
-- Line chart showing the preformance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
+- Line chart showing the performance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
+
+- BUG: predictions are too low compared to reality
+    - predictions not accounting for time spent uploading input from the user machine ??
 
 - BUG [RE-CHECK_NOW]: constant offset in both input and output sizes (predicted vs actual)
     - it's always 94 bytes missing in both INPUT and OUTPUT

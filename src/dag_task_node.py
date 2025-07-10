@@ -67,7 +67,7 @@ class DAGTaskNode(Generic[R]):
         self.cached_result: _CachedResultWrapper[R] | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
         self._register_dependencies()
-        self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests", "_examples"]))
+        self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests", "_examples", "common"]))
 
     def _register_dependencies(self):
         for arg in self.func_args:
