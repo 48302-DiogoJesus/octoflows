@@ -57,7 +57,7 @@ def determine_chunks_amount(image_data: bytes) -> int:
 
 
 @DAGTask
-def split_image(image_data: bytes, num_chunks: int = 4) -> list[bytes]:
+def split_image(image_data: bytes, num_chunks: int) -> list[bytes]:
     """Split the image into chunks and return as list of bytes"""
     image = Image.open(io.BytesIO(image_data))
     chunks = split_image_into_chunks(image, num_chunks)
@@ -137,9 +137,8 @@ def main():
     # Read the input image
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
     
-    num_chunks = determine_chunks_amount(image_data)
+    num_chunks = 12
     
-    print("Number of chunks:", num_chunks)
     chunks = split_image(image_data, num_chunks)
     chunks_result = chunks.compute(
         dag_name="image_processing_split", 
