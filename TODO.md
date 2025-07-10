@@ -11,6 +11,7 @@
 
 - BUG: second planner is now creating a wrong plan where a fan-in where all tasks are assigned to the same worker but the fan-in task is assigned to another worker + then the first worker is reused
     - cause: downgrading resources outside critical path can break the plan forward
+    - test it
 
 - BUG [RE-CHECK_NOW]: constant offset in both input and output sizes (predicted vs actual)
     - it's always 94 bytes missing in both INPUT and OUTPUT

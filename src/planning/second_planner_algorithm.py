@@ -94,35 +94,26 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
 
         # Step 2: Downgrade resources on non-critical paths without introducing new critical path
         # logger.info("=== Step 2: Downgrading resources on non-critical paths ===")
+        worker_ids_outside_critical_path: set[str] = set()
+        for node in topo_sorted_nodes:
+            node_worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            if not node_worker_id: continue
+            if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.get_annotation(TaskWorkerResourceConfiguration).worker_id for cpnode in critical_path_nodes):
+                worker_ids_outside_critical_path.add(node_worker_id)
+
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
-        successful_downgrades = 0
+        successful_worker_resources_downgrades = 0
         
-        for node in nodes_outside_critical_path:
-            node_id = node.id.get_full_id()
-            original_config = node.get_annotation(TaskWorkerResourceConfiguration)
-            best_downgrade = None
-            
-            # Try each resource config from second best to worst (skip the best one which is already assigned)
-            for resource_config in self.config.available_worker_resource_configurations[1:]:
-                # Clone and try to reuse existing worker if possible
-                test_resource_config = resource_config.clone()
-                
-                # Try to reuse worker from upstream nodes with same resource configuration
-                reusable_worker_id_found = False
-                for unode in node.upstream_nodes:
-                    unode_resources = unode.get_annotation(TaskWorkerResourceConfiguration)
-                    if (unode_resources.cpus == test_resource_config.cpus and 
-                        unode_resources.memory_mb == test_resource_config.memory_mb):
-                        test_resource_config.worker_id = unode_resources.worker_id
-                        reusable_worker_id_found = True
-                        break
-                
-                # If no reusable worker found, create new worker id
-                if not reusable_worker_id_found:
-                    test_resource_config.worker_id = uuid.uuid4().hex
-                
-                # Temporarily assign this resource config
-                node.add_annotation(test_resource_config)
+        # For each worker outside critical path, simulate downgrading resources without introducing a new critical path
+        for worker_id in worker_ids_outside_critical_path:
+            original_configs: dict[str, TaskWorkerResourceConfiguration] = {}
+            for simul_resource_config in self.config.available_worker_resource_configurations[1:]:
+                new_res_config = simul_resource_config.clone()
+                new_res_config.worker_id = worker_id # use same worker_id, just change the resource config
+                for node in nodes_outside_critical_path:
+                    original_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
+                    if original_configs[node.id.get_full_id()].worker_id != worker_id: continue
+                    node.add_annotation(new_res_config)
                 
                 # Recalculate timings with this configuration
                 new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -130,21 +121,15 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 
                 # Check if this downgrade introduces a new critical path or increases makespan
                 if new_critical_path_time <= critical_path_time:
-                    best_downgrade = test_resource_config
-                    # Continue to find the lowest resource config that doesn't hurt performance
+                    successful_worker_resources_downgrades += 1
                 else:
-                    # This downgrade hurts performance, revert and stop trying lower configs
+                    # This downgrade hurts performance, REVERT and stop trying lower configs
+                    for node in nodes_outside_critical_path:
+                        if node.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id: continue
+                        node.add_annotation(original_configs[node.id.get_full_id()])
                     break
-            
-            if best_downgrade:
-                # note: no need to add annotation because it was added in the loop above
-                successful_downgrades += 1
-                # logger.info(f"Downgraded node {node_id}: {original_config.memory_mb}MB -> {best_downgrade.memory_mb}MB")
-            else:
-                # Restore original config if no downgrade was beneficial
-                node.add_annotation(original_config)
 
-        logger.info(f"Successfully downgraded {successful_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
+        logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
 
         # Step 3: Apply preload optimizations to improve resource efficiency and reduce makespan
         # logger.info("=== Step 3: Applying preload optimizations ===")
@@ -275,7 +260,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
         logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
-        logger.info(f"Successfully downgraded resources for {successful_downgrades}/{len(_dag._all_nodes)} nodes")
+        logger.info(f"Successfully downgraded resources for {successful_worker_resources_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
         logger.info(f"Prediction samples used: {prediction_samples_used}")
 
