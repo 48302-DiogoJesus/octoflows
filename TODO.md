@@ -1,29 +1,14 @@
-- Visualization
-    - {most relevant metrics to compare}
-        - makespan
-        - total execution time
-        - tp download time
-        - resource configuration
-        - total download/upload time
-        - output/input size
-        - worker startup time
-    - [dimensions]
-        - nr of samples
-        - planner algorithm
-        - prediction vs reality
-    - visualizations
-        - box plot comparing {relevant metrics} for diff [planners]
-        - bar chart comparing [real] {relevant metrics} accross diff [planners]
-        - bar chart comparing [predicted_vs_real] for diff [planners]
-        - line chart comparing prediction errors accross diff. planners
-        - line chart comparing [predicted_vs_real] for diff [planners] as [nr_of_samples_increases]
-        - box plot with prediction offsets (percentages (a.k.a. relative))
-            percentil das percentagens de erro de previsão
-
 - Line chart showing the preformance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
+- Execute runs for workflows:
+    memory expensive
+    image transform
+    wordcount
+    ...
 
-- BUG: constant offset in both input and output sizes (predicted vs actual)
-    - 
+- BUG [RE-CHECK_NOW]: constant offset in both input and output sizes (predicted vs actual)
+    - it's always 94 bytes missing in both INPUT and OUTPUT
+    - is the cause the workflow structure? didn't happen in previous version of same workflow
+    - use the planned image to find miscalculations
 
 ---
 

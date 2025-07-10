@@ -15,7 +15,7 @@ from _examples.common.config import WORKER_CONFIG
 @DAGTask
 def time_task_expensive(dummy_data: int) -> int:
     # memory-sensitive computation
-    size = 2500
+    size = 3500
     a = np.random.rand(size, size)
     b = np.random.rand(size, size)
     result = np.matmul(a, b)
@@ -32,15 +32,23 @@ def time_task_more_expensive_task(dummy_data: int) -> int:
 
 @DAGTask
 def time_task_expensive_fan_in(*dummy_data: int) -> int:
-    # memory-sensitive computation
-    size = 2500
-    matrices = [np.random.rand(size, size) for _ in range(5)]
-    result = matrices[0]
-    for m in matrices[1:]:
-        result = np.matmul(result, m)  # Chained matrix multiplications
+    # memory-sensitive computation that scales with input size
+    size = 1000  # Reduced base size to make it more manageable
+    num_matrices = max(1, len(dummy_data) // 2)  # Scale number of matrices based on input size
     
-    modifier = int(result[0, 0] % 100)
-    return sum(dummy_data)+modifier
+    # Generate random matrices
+    matrices = [np.random.rand(size, size) for _ in range(num_matrices)]
+    
+    # Perform chained matrix multiplications
+    if num_matrices > 1:
+        result = matrices[0]
+        for m in matrices[1:]:
+            result = np.matmul(result, m)  # Chained matrix multiplications
+        modifier = int(result[0, 0] % 100)
+    else:
+        modifier = int(matrices[0][0, 0] % 100)
+        
+    return sum(dummy_data) + modifier
 
 # Define the workflow
 """

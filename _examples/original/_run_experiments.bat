@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set ITERATIONS=25
+set ITERATIONS=10
 
 REM first run just to get some history
 python dagforpredictions_expensive_computations.py simple
