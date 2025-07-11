@@ -12,6 +12,8 @@ import redis
 import cloudpickle
 import pandas as pd
 import plotly.express as px
+from dataclasses import dataclass
+from typing import Dict, List
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.planning.annotations.preload import PreLoadOptimization
@@ -49,6 +51,83 @@ def get_function_group(task_id: str, func_name: str) -> str:
             return base_part
     return func_name
 
+@dataclass
+class WorkflowInstanceInfo:
+    master_dag_id: str
+    dag: FullDAG
+    dag_submission_metrics: UserDAGSubmissionMetrics
+    planner_type: str | None
+
+
+def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis) -> Dict[str, Dict[str, List[WorkflowInstanceInfo]]]:
+    """
+    Get all workflows grouped by workflow type and planner type.
+    Returns: Dict[workflow_type, Dict[planner_type, List[WorkflowInstanceInfo]]]
+    """
+    workflows: Dict[str, Dict[str, List[WorkflowInstanceInfo]]] = {}
+    
+    try:
+        # Get all DAG keys
+        dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)]
+        
+        for dag_key in dag_keys:
+            try:
+                # Get DAG data
+                dag_data = dag_redis.get(dag_key)
+                dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
+                
+                # Get DAG submission metrics
+                dag_metrics_data = metrics_redis.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
+                if not dag_metrics_data:
+                    continue
+                    
+                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_metrics_data)  # type: ignore
+                
+                # Get planner type from plan data
+                planner_type = None
+                plan_data = metrics_redis.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
+                if plan_data:
+                    try:
+                        plan_output = cloudpickle.loads(plan_data)  # type: ignore
+                        if hasattr(plan_output, 'planner') and plan_output.planner is not None:
+                            planner_type = plan_output.planner.__class__.__name__
+                        else:
+                            # Try to get the planner type from the plan output's class name
+                            planner_type = plan_output.__class__.__name__.replace('PlanOutput', '')
+                    except Exception as e:
+                        print(f"Error extracting planner type for DAG {dag.master_dag_id}: {e}")
+                
+                if not planner_type:
+                    planner_type = "unknown"
+                
+                # Initialize workflow type if not exists
+                if dag.dag_name not in workflows:
+                    workflows[dag.dag_name] = {}
+                
+                # Initialize planner type if not exists
+                if planner_type not in workflows[dag.dag_name]:
+                    workflows[dag.dag_name][planner_type] = []
+                
+                # Add workflow instance
+                workflows[dag.dag_name][planner_type].append(
+                    WorkflowInstanceInfo(
+                        master_dag_id=dag.master_dag_id,
+                        dag=dag,
+                        dag_submission_metrics=dag_submission_metrics,
+                        planner_type=planner_type
+                    )
+                )
+                
+            except Exception as e:
+                print(f"Error processing DAG {dag_key}: {e}")
+                continue
+                
+    except Exception as e:
+        print(f"Error accessing Redis: {e}")
+    
+    return workflows
+
+
 def main():
     # Configure page layout for wider usage
     st.set_page_config(layout="wide")
@@ -58,46 +137,78 @@ def main():
     dag_redis = get_redis_connection(6379)
     metrics_redis = get_redis_connection(6380)
     
-    # Get all DAG keys
-    dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
+    # Get all workflows information
+    if 'workflows' not in st.session_state:
+        with st.spinner('Loading workflow information...'):
+            st.session_state.workflows = get_workflows_information(dag_redis, metrics_redis)
     
-    if not dag_keys:
-        st.warning("No DAGs found in Redis")
+    workflows = st.session_state.workflows
+    
+    if not workflows:
+        st.warning("No workflows found in Redis")
         return
     
-    # Sort DAG keys for consistent display
-    dag_keys_sorted = sorted(dag_keys, key=lambda x: x.decode('utf-8'))
+    # Create three columns for the dropdowns
+    col1, col2, col3 = st.columns(3)
     
-    # Select DAG - use session state to track changes
-    if 'prev_dag_key' not in st.session_state:
-        st.session_state.prev_dag_key = None
+    # Workflow Type Dropdown
+    with col1:
+        workflow_types = sorted(workflows.keys())
+        selected_workflow = st.selectbox(
+            "Workflow Type",
+            options=workflow_types,
+            index=0,
+            key="selected_workflow"
+        )
     
-    selected_dag_key = st.selectbox(
-        "Current DAG",
-        options=dag_keys_sorted,
-        format_func=lambda x: x.decode('utf-8')
-    )
+    # Planner Type Dropdown
+    with col2:
+        planner_types = sorted(workflows[selected_workflow].keys()) if selected_workflow in workflows else []
+        selected_planner = st.selectbox(
+            "Planner Type",
+            options=planner_types,
+            index=0 if planner_types else None,
+            key="selected_planner",
+            disabled=not planner_types
+        )
+    
+    # DAG ID Dropdown
+    with col3:
+        workflow_instances = workflows.get(selected_workflow, {}).get(selected_planner, []) if selected_planner else []
+        dag_options = [
+            (f"{instance.master_dag_id} (submitted at {instance.dag_submission_metrics.dag_submission_time_ms:.2f} ms)", 
+             instance.master_dag_id) 
+            for instance in workflow_instances
+        ]
+        
+        selected_dag = st.selectbox(
+            "Workflow Instance (DAG ID)",
+            options=[opt[1] for opt in dag_options],
+            format_func=lambda x: next((opt[0] for opt in dag_options if opt[1] == x), x),
+            index=0 if dag_options else None,
+            key="selected_dag",
+            disabled=not dag_options
+        )
+    
+    # Get the selected DAG
+    selected_dag_info = None
+    if selected_workflow and selected_planner and selected_dag:
+        workflow_instances = workflows.get(selected_workflow, {}).get(selected_planner, [])
+        selected_dag_info = next((inst for inst in workflow_instances if inst.master_dag_id == selected_dag), None)
+    
+    if not selected_dag_info:
+        st.warning("No DAG selected or available")
+        return
     
     # Reset task selection if DAG changed
-    if selected_dag_key != st.session_state.prev_dag_key:
+    if 'prev_dag_id' not in st.session_state or st.session_state.prev_dag_id != selected_dag:
         if 'selected_task_id' in st.session_state:
             del st.session_state.selected_task_id
-        st.session_state.prev_dag_key = selected_dag_key
+        st.session_state.prev_dag_id = selected_dag
     
-    # Deserialize DAG
-    try:
-        dag_data = dag_redis.get(selected_dag_key)
-        dag: FullDAG = cloudpickle.loads(dag_data)
-    except Exception as e:
-        st.error(f"Failed to deserialize DAG: {e}")
-        return
-    
-    try:
-        dag_data = metrics_redis.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
-        dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
-    except Exception as e:
-        st.error(f"Failed to deserialize DAG submission metrics: {e}")
-        return
+    # Use the selected DAG for the rest of the dashboard
+    dag = selected_dag_info.dag
+    dag_submission_metrics = selected_dag_info.dag_submission_metrics
 
     worker_startup_keys = metrics_redis.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
     worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
