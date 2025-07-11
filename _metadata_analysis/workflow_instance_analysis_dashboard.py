@@ -83,22 +83,16 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
                     
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_metrics_data)  # type: ignore
                 
-                # Get planner type from plan data
-                planner_type = None
+                # Get planner type from PlanOutput.planner_name
+                planner_type = "unknown"
                 plan_data = metrics_redis.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
                 if plan_data:
                     try:
                         plan_output = cloudpickle.loads(plan_data)  # type: ignore
-                        if hasattr(plan_output, 'planner') and plan_output.planner is not None:
-                            planner_type = plan_output.planner.__class__.__name__
-                        else:
-                            # Try to get the planner type from the plan output's class name
-                            planner_type = plan_output.__class__.__name__.replace('PlanOutput', '')
+                        if hasattr(plan_output, 'planner_name'):
+                            planner_type = plan_output.planner_name
                     except Exception as e:
                         print(f"Error extracting planner type for DAG {dag.master_dag_id}: {e}")
-                
-                if not planner_type:
-                    planner_type = "unknown"
                 
                 # Initialize workflow type if not exists
                 if dag.dag_name not in workflows:
