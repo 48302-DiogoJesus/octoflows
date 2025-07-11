@@ -438,7 +438,7 @@ def main():
                                 'Worker Config': str(task_metrics.worker_resource_configuration),
                                 'Start Time (s)': task_metrics.started_at_timestamp_s,
                                 'Input Size (bytes)': sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
-                                'Download Time (ms)': task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms,
+                                'Download Time (ms)': sum([input_metric.time_ms for input_metric in task_metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]),
                                 'Execution Time (ms)': task_metrics.tp_execution_time_ms,
                                 'Output Size (bytes)': task_metrics.output_metrics.deserialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
                                 'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
@@ -842,7 +842,7 @@ def main():
                     # Update layout for the actual values chart
                     fig_actual.update_layout(
                         xaxis={
-                            'title': 'Number of Instances (samples)',
+                            'title': 'Number of Instances',
                             'tickangle': 45,
                             'tickmode': 'array',
                             'tickvals': df_accuracy['X_Label'].unique(),
@@ -872,7 +872,7 @@ def main():
                     # Update x-axis to show all tick labels and improve readability
                     fig_error.update_layout(
                         xaxis={
-                            'title': 'Number of Instances (samples)',
+                            'title': 'Number of Instances',
                             'tickangle': 45,
                             'tickmode': 'array',
                             'tickvals': df_accuracy['X_Label'].unique(),

@@ -14,6 +14,7 @@ import pandas as pd
 import plotly.express as px
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.planning.annotations.preload import PreLoadOptimization
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
@@ -425,6 +426,8 @@ def main():
                     small_metric(f"Worker Startup Time ({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'})", f"{worker_startup_time_ms:.2f} ms")
                     small_metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
                     small_metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
+                    
+                    small_metric("Preload ?:", f"{task_node.try_get_annotation(PreLoadOptimization) is not None}")
                     
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available

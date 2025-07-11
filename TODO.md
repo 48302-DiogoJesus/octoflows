@@ -4,27 +4,35 @@
     wordcount
     gemm
     tree reduction
-    ...
+    ...more from dask examples
+    ...see wukong evaluation
 
-- Line chart showing the performance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
 
-- BUG: predictions are too low compared to reality
-    - predictions not accounting for time spent uploading input from the user machine ??
+- `workflow_instance` dashboard: 
+    instance selector: add new dropdown to filter by `planner type` and `workflow type`
 
-- BUG [RE-CHECK_NOW]: constant offset in both input and output sizes (predicted vs actual)
+- BUG: individual predictions are too low compared to reality
+    - cause ?: worker startup time ?? predictions not accounting for time spent uploading input from the user machine ??
+
+- BUG: Download time is too high sometimes
+    cause ?: preload?? compare simple vs first for example on `memory intensive` workflow
+
+- BUG: constant offset in both input and output sizes (predicted vs actual)
     - it's always 94 bytes missing in both INPUT and OUTPUT
     - is the cause the workflow structure? didn't happen in previous version of same workflow
     - use the planned image to find miscalculations
 
----
-
-- [!!] Add support for final result to be None, store a wrapper in storage instead
+- [VIZ_IMPROVEMENT] Line chart showing the performance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
     + optimizations
         - Task Clustering (fan-ins + fan-outs)
         - Delayed I/O
+
+---
+
+- [!!] Add support for final result to be None, store a wrapper in storage instead
 
 [THINK:PLANNER_OPTIMIZATIONS]
 - `pre-warm` (Just make an "empty" invocation (special message that the `Worker Handler` must be ready for?) to a container with a given **resource config**)
