@@ -7,10 +7,6 @@
     ...more from dask examples
     ...see wukong evaluation
 
-
-- `workflow_instance` dashboard: 
-    instance selector: add new dropdown to filter by `planner type` and `workflow type`
-
 - BUG: individual predictions are too low compared to reality
     - cause ?: worker startup time ?? predictions not accounting for time spent uploading input from the user machine ??
 

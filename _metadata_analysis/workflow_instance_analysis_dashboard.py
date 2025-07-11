@@ -267,7 +267,7 @@ def main():
     sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
     makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_time_ms
 
-    keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}*')
+    keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*')
     total_time_downloading_dag_ms = 0
     dag_prepare_metrics = []
     for key in keys:
@@ -725,6 +725,7 @@ def main():
         cold_starts_count = len([m for m in worker_startup_metrics_for_this_workflow if m.state == "cold"])
         task_execution_time_avg = total_time_executing_tasks_ms / len(dag_metrics) if dag_metrics else 0
         avg_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
+        total_dag_download_time = sum(m['dag_download_time'] for m in dag_prepare_metrics)
         avg_subdag_create_time = sum(m['create_subdag_time'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
         avg_dag_size = sum(m['dag_size'] for m in dag_prepare_metrics) / len(dag_prepare_metrics)
         with col1:
@@ -777,7 +778,7 @@ def main():
             "Data Upload": total_time_uploading_data_ms,
             "Invocation Time": total_time_invoking_tasks_ms,
             "DC Updates": total_time_updating_dependency_counters_ms,
-            "DAG Download Time": total_time_downloading_dag_ms
+            "DAG Download Time": total_dag_download_time
         }
         
         # Create pie chart
