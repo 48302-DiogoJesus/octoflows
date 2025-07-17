@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set ITERATIONS=15
+set ITERATIONS=7
 
 REM Check if Python script name is provided
 if "%~1"=="" (
@@ -34,11 +34,11 @@ for /L %%j in (1,1,%ITERATIONS%) do (
     timeout /t 2 /nobreak
 )
 
-for /L %%j in (1,1,%ITERATIONS%) do (
-    echo Running SECOND algorithm %%j
-    python "%PYTHON_SCRIPT%" second
-    timeout /t 2 /nobreak
-)
+@REM for /L %%j in (1,1,%ITERATIONS%) do (
+@REM     echo Running SECOND algorithm %%j
+@REM     python "%PYTHON_SCRIPT%" second
+@REM     timeout /t 2 /nobreak
+@REM )
 
 echo All runs completed.
 exit /b

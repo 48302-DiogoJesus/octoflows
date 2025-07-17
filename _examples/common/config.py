@@ -28,19 +28,19 @@ def get_planner_from_sys_argv():
         return SimplePlannerAlgorithm.Config(
             sla="avg",
             all_flexible_workers=False,
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "first":
         return FirstPlannerAlgorithm.Config(
             sla="avg",
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "second":
         return SecondPlannerAlgorithm.Config(
             sla="avg",
             available_worker_resource_configurations=[
-                TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024)
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
             ]
         )
     else:

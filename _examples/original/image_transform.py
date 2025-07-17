@@ -137,7 +137,7 @@ def main():
     # Read the input image
     image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
     
-    num_chunks = 12
+    num_chunks = 8
     
     chunks = split_image(image_data, num_chunks)
     chunks_result = chunks.compute(

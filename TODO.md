@@ -7,18 +7,21 @@
     ...more from dask examples
     ...see wukong evaluation
 
-- BUG: individual predictions are too low compared to reality
+- BUG: individual predictions are too low compared to reality (only on wordcount workflow (real: 8s, predicted: 2s))
     - cause ?: worker startup time ?? predictions not accounting for time spent uploading input from the user machine ??
 
-- BUG: Download time is too high sometimes
-    cause ?: preload?? compare simple vs first for example on `memory intensive` workflow
+- BUG: "Download time" is too high sometimes (cause: preload! Downloads done in "preload" take longer)
+    fix: expect that not to happen on other machines
 
-- BUG: constant offset in both input and output sizes (predicted vs actual)
-    - it's always 94 bytes missing in both INPUT and OUTPUT
-    - is the cause the workflow structure? didn't happen in previous version of same workflow
-    - use the planned image to find miscalculations
+- BUG: Predicted upload time is off from reality
+    fix: TODO
 
-- [VIZ_IMPROVEMENT] Line chart showing the performance of each metric with the different memory configurations used (e.g., 256mb, 512mb, 1024mb)
+- Experiment with RDB save files
+    create a .bat to easily export and replace .rdb files
+
+- Create .sh versions of .bat files
+
+- re-run experiments
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner

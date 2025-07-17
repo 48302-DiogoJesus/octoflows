@@ -16,7 +16,7 @@ import src.docker_workers_gateway.container_pool_executor as container_pool_exec
 logger = create_logger(__name__)
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker_handler/worker.py"
-MAX_CONCURRENT_TASKS = 20
+MAX_CONCURRENT_TASKS = 8
 
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
