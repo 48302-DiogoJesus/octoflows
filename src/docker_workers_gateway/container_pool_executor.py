@@ -50,7 +50,7 @@ class ContainerPoolExecutor:
 
         # Use Popen instead of run to get real-time output
         process = subprocess.Popen(
-            ["docker", "exec", "-i", container_id, "sh"],
+            ["docker", "exec", "-i", "-e", "TZ=UTC-1", container_id, "sh"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

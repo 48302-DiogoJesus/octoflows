@@ -340,8 +340,6 @@ def main():
             'end_time': end_time
         }
     
-    print("-------")
-
     # Update task_metrics_data with the calculated timing information
     for i, task_data in enumerate(task_metrics_data):
         task_id = task_data['task_id']

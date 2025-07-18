@@ -1,1 +1,1 @@
-venv\Scripts\activate.bat && set DOCKER_IMAGE=docker_worker && waitress-serve --port=5000 src.docker_workers_gateway.handler:app
+venv\Scripts\activate.bat && set DOCKER_IMAGE=docker_worker && set TZ=UTC && waitress-serve --port=5000 src.docker_workers_gateway.handler:app

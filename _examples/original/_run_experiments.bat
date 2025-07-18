@@ -8,7 +8,9 @@ if "%~1"=="" (
     echo Example: %~nx0 my_script.py
     exit /b 1
 )
+
 set PYTHON_SCRIPT=%~1
+set TZ=UTC-1
 
 REM Check if the Python script exists
 if not exist "%PYTHON_SCRIPT%" (
@@ -34,11 +36,11 @@ for /L %%j in (1,1,%ITERATIONS%) do (
     timeout /t 2 /nobreak
 )
 
-@REM for /L %%j in (1,1,%ITERATIONS%) do (
-@REM     echo Running SECOND algorithm %%j
-@REM     python "%PYTHON_SCRIPT%" second
-@REM     timeout /t 2 /nobreak
-@REM )
+for /L %%j in (1,1,%ITERATIONS%) do (
+    echo Running SECOND algorithm %%j
+    python "%PYTHON_SCRIPT%" second
+    timeout /t 2 /nobreak
+)
 
 echo All runs completed.
 exit /b

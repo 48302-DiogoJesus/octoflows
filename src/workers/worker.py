@@ -90,11 +90,15 @@ class Worker(ABC, WorkerExecutionLogic):
                     if not t.cached_result: continue
                     
                     task_dependencies[t.id.get_full_id()] = t.cached_result.result
+
                     current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
                         serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(t.cached_result.result)),
                         deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
                         time_ms=None
                     )
+                
+                # if len(current_task.upstream_nodes) > 0:
+                #     print("TIMEPROBE: ", time.time() - current_task.metrics.started_at_timestamp_s)
 
                 if tasks_to_fetch:
                     for utask in tasks_to_fetch:
@@ -125,7 +129,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 for func_kwarg in current_task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
-                    
+
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 if self.planner:
@@ -142,7 +146,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
                     if total_input_size > 0 else None  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
-                
+
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 if self.planner:
@@ -174,6 +178,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
 
                 self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
+
+                if len(current_task.upstream_nodes) > 0:
+                    print("COMPLETED_IN: ", time.time() - current_task.metrics.started_at_timestamp_s, "s")
 
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")

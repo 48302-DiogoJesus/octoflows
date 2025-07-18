@@ -1,34 +1,33 @@
-import inspect
 import sys
-from typing import Callable, Optional
-from pympler import asizeof
-
+import random
 import numpy as np
 
-
-def calculate_data_structure_size(obj):
+def calculate_data_structure_size(obj, fast=True, sample_size=50) -> int:
+    """
+    Calculate size of data structure with optional fast mode
+    
+    Args:
+        obj: Object to measure
+        fast: If True, use sampling for large collections
+        sample_size: Number of items to sample for estimation
+    """
     if isinstance(obj, np.ndarray):
         return obj.nbytes
-    elif isinstance(obj, tuple) or isinstance(obj, list):
-        return sys.getsizeof(obj) + sum(calculate_data_structure_size(item) for item in obj)
-    else:
-        try:
-            return asizeof.asizeof(obj)
-        except:
-            return sys.getsizeof(obj)
-        
-# def get_method_overridden(
-#     potential_class_overriding_method: type, 
-#     base_method_ref: Callable,
-# ) -> Optional[Callable]:
-#     # Get the planner's method (without invoking descriptors)
-#     planner_method = inspect.getattr_static(potential_class_overriding_method, base_method_ref.__name__, None)
-#     if planner_method is None: return None
-
-#     # Unwrap staticmethod if needed
-#     base_func = base_method_ref.__func__ if isinstance(base_method_ref, staticmethod) else base_method_ref
-#     planner_func = planner_method.__func__ if isinstance(planner_method, staticmethod) else planner_method
     
-#     # Return the callable method if it's actually overridden
-#     if planner_func.__code__ != base_func.__code__: return planner_method
-#     return None
+    elif isinstance(obj, (tuple, list)):
+        container_size = sys.getsizeof(obj)
+        
+        if not obj:
+            return container_size
+        
+        # Fast mode: sample items for large collections
+        if fast and len(obj) > sample_size:
+            sample_items = random.sample(list(obj), sample_size)
+            avg_item_size = sum(sys.getsizeof(item) for item in sample_items) / sample_size
+            return int(container_size + avg_item_size * len(obj))
+        else:
+            # Regular mode: calculate all items
+            return int(container_size + sum(calculate_data_structure_size(item, fast, sample_size) for item in obj))
+    
+    else:
+        return int(sys.getsizeof(obj))
