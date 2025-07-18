@@ -7,8 +7,15 @@
     ...more from dask examples
     ...see wukong evaluation
 
+- BUG: wordcount `merge_count_words` I/O predictions are very off (e.g., 3KB vs 4MB)
+
 - BUG: individual predictions are too low compared to reality (only on wordcount workflow (real: 8s, predicted: 2s))
     - cause ?: worker startup time ?? predictions not accounting for time spent uploading input from the user machine ??
+
+- Experiment with RDB save files
+    create a .bat to easily export and replace .rdb files
+
+- Create .sh versions of .bat files
 
 - BUG: "Download time" is too high sometimes (cause: preload! Downloads done in "preload" take longer)
     fix: expect that not to happen on other machines
@@ -16,12 +23,7 @@
 - BUG: Predicted upload time is off from reality
     fix: TODO
 
-- Experiment with RDB save files
-    create a .bat to easily export and replace .rdb files
-
-- Create .sh versions of .bat files
-
-- re-run experiments
+- Re-run experiments
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner

@@ -4,7 +4,6 @@ from typing import Any
 import uuid
 
 from src.dag.dag import FullDAG, SubDAG
-from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -97,19 +96,3 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
             final_critical_path_node_ids, 
             prediction_samples_used
         )
-    
-    @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
-        from src.planning.annotations.preload import PreLoadOptimization
-        await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
-
-    @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
-        """
-        returns (
-            tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),
-            wait_until_coroutine: list[TaskInputMetrics] (so that the caller can fetch the tasks in parallel)
-        )
-        """
-        res = await PreLoadOptimization.override_handle_inputs(intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
-        return res

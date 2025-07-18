@@ -1,5 +1,6 @@
 import logging
 import sys
+from datetime import datetime
 
 def create_logger(name: str, prefix: str = "") -> logging.Logger:
     logger = logging.getLogger(name)
@@ -13,19 +14,26 @@ def create_logger(name: str, prefix: str = "") -> logging.Logger:
         file_handler = logging.FileHandler("app.log")
         file_handler.setLevel(level)
 
-        # Custom formatter that includes the prefix (if provided)
         class PrefixFormatter(logging.Formatter):
             def __init__(self, prefix: str = "", *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.prefix = prefix
 
             def format(self, record: logging.LogRecord) -> str:
-                # Add prefix in brackets if it exists
                 message = record.getMessage()
                 if self.prefix:
                     message = f"[{self.prefix}] {message}"
                 record.msg = message
                 return super().format(record)
+
+            def formatTime(self, record, datefmt=None):
+                # Force UTC time
+                ct = datetime.utcfromtimestamp(record.created)
+                if datefmt:
+                    s = ct.strftime(datefmt)
+                else:
+                    s = ct.strftime("%Y-%m-%d %H:%M:%S") + ",{:03d}".format(int(record.msecs))
+                return s + " UTC"
 
         formatter = PrefixFormatter(
             prefix=prefix,

@@ -284,37 +284,6 @@ def main():
     # Calculate task timing metrics (start times, end times)
     task_timings = {}
     
-    # First pass: collect all task metrics and find the minimum start time
-    dag_start_timestamp_s = dag_submission_metrics.dag_submission_time_ms / 1000
-
-    # Second pass: calculate end times relative to min_start_time
-    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
-        # worker startup time is considered through the {metrics.started_at_timestamp_s}
-        relative_start_time_ms = (metrics.started_at_timestamp_s - dag_start_timestamp_s) * 1000  # Convert to ms
-        end_time = relative_start_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
-        task_timings[task_id] = {
-            'start_time': relative_start_time_ms,
-            'end_time': end_time
-        }
-    
-    # Update task_metrics_data with the calculated timing information
-    for i, task_data in enumerate(task_metrics_data):
-        task_id = task_data['task_id']
-        task_metrics_data[i].update({
-            'relative_start_time_ms': task_timings[task_id]['start_time'],
-            'end_time_ms': task_timings[task_id]['end_time']
-        })
-    
-    # Create tabs for visualization and metrics
-    tab_viz, tab_summary, tab_exec, tab_data_transfer, tab_workers, tab_critical_path = st.tabs([
-        "Visualization", 
-        "Summary", 
-        "Execution Times", 
-        "Data Transfer", 
-        "Worker Distribution",
-        "Critical Path Breakdown"
-    ])
-    
     # Find critical path (longest path from source to sink)
     def find_critical_path():
         # Perform DFS to find the longest path from source to sink
@@ -356,6 +325,40 @@ def main():
         return critical_nodes, critical_edges
             
     critical_nodes, critical_edges = find_critical_path()
+
+    # First pass: collect all task metrics and find the minimum start time
+    dag_start_timestamp_s = dag_submission_metrics.dag_submission_time_ms / 1000
+
+    # Second pass: calculate end times relative to min_start_time
+    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
+        # worker startup time is considered through the {metrics.started_at_timestamp_s}
+        relative_start_time_ms = (metrics.started_at_timestamp_s - dag_start_timestamp_s) * 1000  # Convert to ms
+        end_time = relative_start_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
+
+        task_timings[task_id] = {
+            'start_time': relative_start_time_ms,
+            'end_time': end_time
+        }
+    
+    print("-------")
+
+    # Update task_metrics_data with the calculated timing information
+    for i, task_data in enumerate(task_metrics_data):
+        task_id = task_data['task_id']
+        task_metrics_data[i].update({
+            'relative_start_time_ms': task_timings[task_id]['start_time'],
+            'end_time_ms': task_timings[task_id]['end_time']
+        })
+    
+    # Create tabs for visualization and metrics
+    tab_viz, tab_summary, tab_exec, tab_data_transfer, tab_workers, tab_critical_path = st.tabs([
+        "Visualization", 
+        "Summary", 
+        "Execution Times", 
+        "Data Transfer", 
+        "Worker Distribution",
+        "Critical Path Breakdown"
+    ])
 
     # Visualization tab
     with tab_viz:
