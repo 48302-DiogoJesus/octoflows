@@ -1,7 +1,3 @@
-- BUG: `wordcount` critical path breakdown is missing 1.1 seconds
-    - how to find the gap?? 
-        use "TIMEPROBE:"
-
 - Experiment with RDB save files
     create a .bat to easily export and replace .rdb files
 - Create .sh versions of .bat files

@@ -160,6 +160,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         deserialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=True)
         serialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=False)
+
         downloadable_input_size = 0
         
         # 1. Calculate earliest start time (max of upstream completions)

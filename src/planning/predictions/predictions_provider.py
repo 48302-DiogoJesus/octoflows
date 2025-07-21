@@ -140,10 +140,13 @@ class PredictionsProvider:
         if sla == "avg":
             ratio = np.mean(function_io_ratios)
         else:
-            if sla.value < 0 or sla.value > 100: raise ValueError("SLA must be between 0 and 100")
             ratio = np.percentile(function_io_ratios, 100 - sla.value)
         
+        # Logarithmic scaling: output grows slower than input
+        # base_output = input_size * ratio
+        # scaled_output = base_output * math.log(input_size + 1) / math.log(input_size * 2 + 1)
         res = math.ceil(input_size * ratio)
+
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
@@ -278,7 +281,7 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name}")
+        # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name} | nr samples: {len(all_samples)}")
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)

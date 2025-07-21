@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set ITERATIONS=7
+set ITERATIONS=5
 
 REM Check if Python script name is provided
 if "%~1"=="" (

@@ -145,7 +145,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 # normalize based on the memory used. Calculate "per input size byte"
                 total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
-                    if total_input_size > 0 else None  # 0, not to influence predictions, using current_task.metrics.execution_time_ms would be incorrect
+                    if total_input_size > 0 else None
 
                 #* 3) HANDLE TASK OUTPUT
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")

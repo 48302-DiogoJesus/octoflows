@@ -37,9 +37,9 @@ def format_bytes(size: float) -> str:
     """Convert bytes to human-readable format"""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size < 1024.0:
-            return f"{size:.2f} {unit}"
+            return f"{size:.3f} {unit}"
         size /= 1024.0
-    return f"{size:.2f} TB"
+    return f"{size:.3f} TB"
 
 def get_function_group(task_id: str, func_name: str) -> str:
     """Extract the function group from task ID and function name"""
@@ -584,22 +584,22 @@ def main():
                             if tp:
                                 st.text(format_bytes(tp.deserialized_input_size))
                                 st.text(format_bytes(tp.deserialized_output_size))
-                                st.text(f"{float(tp.total_download_time_ms):.2f} ms")
-                                st.text(f"{float(tp.tp_exec_time_ms):.2f} ms")
-                                st.text(f"{float(tp.tp_upload_time_ms):.2f} ms")
-                                st.text(f"{float(tp.earliest_start_ms):.2f} ms")
-                                st.text(f"{float(tp.task_completion_time_ms):.2f} ms")
-                                st.text(f"({tp.worker_startup_state or 'N/A'}) {float(tp.tp_worker_startup_time_ms):.2f} ms")
+                                st.text(f"{float(tp.total_download_time_ms):.3f} ms")
+                                st.text(f"{float(tp.tp_exec_time_ms):.3f} ms")
+                                st.text(f"{float(tp.tp_upload_time_ms):.3f} ms")
+                                st.text(f"{float(tp.earliest_start_ms):.3f} ms")
+                                st.text(f"{float(tp.task_completion_time_ms):.3f} ms")
+                                st.text(f"({tp.worker_startup_state or 'N/A'}) {float(tp.tp_worker_startup_time_ms):.3f} ms")
                         
                         with col_observed:
                             st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                             st.text(format_bytes(output_size))
                             time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
-                            st.text(f"{float(time_downloading_inputs):.2f} ms")
-                            st.text(f"{float(metrics.tp_execution_time_ms):.2f} ms")
-                            st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.2f} ms")
-                            st.text(f"{float(actual_start_time):.2f} ms")
-                            st.text(f"{float(end_time_ms):.2f} ms")
+                            st.text(f"{float(time_downloading_inputs):.3f} ms")
+                            st.text(f"{float(metrics.tp_execution_time_ms):.3f} ms")
+                            st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.3f} ms")
+                            st.text(f"{float(actual_start_time):.3f} ms")
+                            st.text(f"{float(end_time_ms):.3f} ms")
                             worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
                             worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                             actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
