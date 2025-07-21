@@ -136,12 +136,19 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         total_input_size = 0
         # For root nodes, use the size from function args (estimate)
+
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_arg.get_full_id()
                 if upstream_node_id in nodes_info:
                     output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
+            elif isinstance(func_arg, list) and all(isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_arg):
+                for item in func_arg:
+                    upstream_node_id = item.get_full_id()
+                    if upstream_node_id in nodes_info:
+                        output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
+                        total_input_size += output_size
             else:
                 total_input_size += calculate_data_structure_size(func_arg) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_arg))
         for func_kwarg_val in node.func_kwargs.values():
@@ -150,6 +157,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 if upstream_node_id in nodes_info: 
                     output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
+            elif isinstance(func_kwarg_val, list) and all(isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_kwarg_val):
+                for item in func_kwarg_val:
+                    upstream_node_id = item.get_full_id()
+                    if upstream_node_id in nodes_info:
+                        output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
+                        total_input_size += output_size
             else:
                 total_input_size += calculate_data_structure_size(func_kwarg_val) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_kwarg_val))
 
@@ -160,6 +173,9 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
         deserialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=True)
         serialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=False)
+
+        if node.id.function_name == "merge_word_counts":
+            print("Predicted Input: ", deserialized_input_size, "bytes")
 
         downloadable_input_size = 0
         
@@ -195,6 +211,9 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         exec_time = predictions_provider.predict_execution_time(node.func_name, deserialized_input_size, resource_config, sla)
         deserialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=True)
         serialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=False)
+
+        if node.id.function_name == "count_words_in_chunk":
+            print("Predicted Output: ", deserialized_output_size, "bytes")
         
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
