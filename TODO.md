@@ -2,9 +2,7 @@
     - cause ?: input size diff.?
         test `worker.py` print execution times
 
-- Experiment with RDB save files
-    create a .bat to easily export and replace .rdb files
-- Create .sh versions of .bat files
+- Create .sh versions of relevant .bat files
 
 - BUG: Predicted upload time is off from reality
     fix: TODO
