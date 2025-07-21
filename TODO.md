@@ -1,3 +1,7 @@
+- `wordcount` execution time constant 0.7 seconds offset
+    - cause ?: input size diff.?
+        test `worker.py` print execution times
+
 - Experiment with RDB save files
     create a .bat to easily export and replace .rdb files
 - Create .sh versions of .bat files
