@@ -212,9 +212,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         deserialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=True)
         serialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=False)
 
-        if node.id.function_name == "count_words_in_chunk":
-            print("Predicted Output: ", deserialized_output_size, "bytes")
-        
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
             all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):

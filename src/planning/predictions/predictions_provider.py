@@ -250,30 +250,33 @@ class PredictionsProvider:
         input_size: int,
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
-        allow_cached: bool = True
+        allow_cached: bool = True,
+        size_scaling_factor: float = 0.9
     ) -> float:
         """Predict execution time for a function given input size and resources.
         
-        Args:
-            function_name: Name of the function to predict
-            input_size: Size of input data in bytes
-            resource_config: Worker resource configuration (CPUs + RAM)
-            sla: Either "avg" for mean prediction or percentile (0-100)
+        size_scaling_factor: Exponent for input size scaling (default 0.8 for sublinear growth)
+            - 1.0 = linear scaling (original behavior)
+            - 0.5 = square root scaling (very slow growth)
+            - 0.8 = moderate sublinear scaling (recommended)
         
         Returns:
             Predicted execution time in milliseconds
             None if no data is available
         """
-        if sla != "avg" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'avg' or between 0 and 100")
-        if function_name not in self.cached_execution_time_per_byte: raise ValueError(f"Function {function_name} not found in metadata")
+        if sla != "avg" and (sla.value < 0 or sla.value > 100): 
+            raise ValueError("SLA must be 'avg' or between 0 and 100")
+        if function_name not in self.cached_execution_time_per_byte: 
+            raise ValueError(f"Function {function_name} not found in metadata")
         
-        prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}"
+        prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{size_scaling_factor}"
         if allow_cached and prediction_key in self._cached_prediction_execution_times: 
             return self._cached_prediction_execution_times[prediction_key]
         
         # Get all samples for this function
         all_samples = self.cached_execution_time_per_byte[function_name]
-        if len(all_samples) == 0: return 0
+        if len(all_samples) == 0: 
+            return 0
         
         # Filter samples by exact resource match
         matching_samples = [
@@ -285,19 +288,31 @@ class PredictionsProvider:
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
-            if sla == "avg": ms_per_byte = np.mean(matching_samples)
-            else: ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
-            if ms_per_byte <= 0: raise ValueError(f"No data available for function {function_name}")
-            res = ms_per_byte * input_size
+            if sla == "avg": 
+                ms_per_byte = np.mean(matching_samples)
+            else: 
+                ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
+            if ms_per_byte <= 0: 
+                raise ValueError(f"No data available for function {function_name}")
+            # Apply sublinear scaling to input size
+            res = ms_per_byte * (input_size ** size_scaling_factor)
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5 for t, cpus, memory_mb in all_samples]
+            baseline_normalized_samples = [
+                t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5 
+                for t, cpus, memory_mb in all_samples
+            ]
             
-            if sla == "avg": baseline_ms_per_byte = np.mean(baseline_normalized_samples) 
-            else: baseline_ms_per_byte = np.percentile(baseline_normalized_samples, 100 - sla.value)
-            if baseline_ms_per_byte <= 0:  raise ValueError(f"No data available for function {function_name}")
-            res = baseline_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.5
+            if sla == "avg": 
+                baseline_ms_per_byte = np.mean(baseline_normalized_samples) 
+            else: 
+                baseline_ms_per_byte = np.percentile(baseline_normalized_samples, 100 - sla.value)
+            if baseline_ms_per_byte <= 0:  
+                raise ValueError(f"No data available for function {function_name}")
+            # Apply sublinear scaling to input size and memory scaling
+            res = (baseline_ms_per_byte * (input_size ** size_scaling_factor) * 
+                   (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.5)
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore

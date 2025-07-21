@@ -1,11 +1,8 @@
+- Create .sh versions of relevant .bat files
+
 - `wordcount` execution time constant 0.7 seconds offset
     - cause ?: input size diff.?
         test `worker.py` print execution times
-
-- Create .sh versions of relevant .bat files
-
-- BUG: Predicted upload time is off from reality
-    fix: TODO
 
 - Re-run experiments
 
@@ -14,9 +11,6 @@
     + optimizations
         - Task Clustering (fan-ins + fan-outs)
         - Delayed I/O
-
-- BUG: "Download time" is too high sometimes (cause: preload! Downloads done in "preload" take longer)
-    fix: expect that not to happen on other machines
 
 ---
 
