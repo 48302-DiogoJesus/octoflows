@@ -20,8 +20,8 @@ class PredictionsProvider:
     cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_deserialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
     cached_serialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
-    # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb]]]
-    cached_execution_time_per_byte: dict[str, list[tuple[float, float, int]]] = {}
+    # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
+    cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
     cached_worker_cold_start_times: list[tuple[float, float, int]] = []
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
@@ -93,7 +93,8 @@ class PredictionsProvider:
             self.cached_execution_time_per_byte[function_name].append((
                 metrics.execution_time_per_input_byte_ms,
                 metrics.worker_resource_configuration.cpus,
-                metrics.worker_resource_configuration.memory_mb
+                metrics.worker_resource_configuration.memory_mb,
+                metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             ))
 
             # I/O RATIO
@@ -280,7 +281,7 @@ class PredictionsProvider:
         
         # Filter samples by exact resource match
         matching_samples = [
-            normalized_time for normalized_time, cpus, memory_mb in all_samples
+            normalized_time for normalized_time, cpus, memory_mb, total_input_size_bytes in all_samples
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
@@ -301,7 +302,7 @@ class PredictionsProvider:
             # First, normalize all samples to baseline memory configuration
             baseline_normalized_samples = [
                 t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5 
-                for t, cpus, memory_mb in all_samples
+                for t, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
             if sla == "avg": 
