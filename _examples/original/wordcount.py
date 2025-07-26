@@ -85,7 +85,7 @@ if __name__ == "__main__":
     # with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
     #     outfile.write(str(result))
     
-    print(f"Wordcount Hash: {hash_dict(result)} | Makespan: {time.time() - start_time}s")
+    print(f"Wordcount Hash: {hash_dict(result)} | User Waited: {time.time() - start_time}s")
 
     # top_10 = sorted(result.items(), key=lambda x: x[1], reverse=True)[:10]
     # print("\nTop 10 Words:")

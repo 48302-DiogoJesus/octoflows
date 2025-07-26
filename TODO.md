@@ -1,3 +1,5 @@
+- First fix
+
 - Improve prediction accuracy by doing constrained interpolations (only a subset of samples)
     - min_samples: 5 | max_samples: 20
     - use (0.05 * `nr_samples`) / 2 samples **acima** e **abaixo**

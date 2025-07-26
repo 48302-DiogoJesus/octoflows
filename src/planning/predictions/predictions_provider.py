@@ -252,7 +252,7 @@ class PredictionsProvider:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = True,
-        size_scaling_factor: float = 0.9
+        size_scaling_factor: float = 1
     ) -> float:
         """Predict execution time for a function given input size and resources.
         
@@ -287,25 +287,58 @@ class PredictionsProvider:
 
         # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name} | nr samples: {len(all_samples)}")
         
+        def _select_samples_by_input_size(samples_with_sizes: list[tuple[float, int]], input_size: int) -> list[float]:
+            if not samples_with_sizes: return []
+            
+            if len(samples_with_sizes) <= 5: return [value for value, _ in samples_with_sizes] # use all samples
+            
+            # calculate distances from input_size and sort by distance
+            samples_with_distances = [(abs(size - input_size), value, idx) for idx, (value, size) in enumerate(samples_with_sizes)]
+            samples_with_distances.sort()
+            
+            target_count = min(
+                20, # max samples
+                max(
+                    len(samples_with_sizes) // 5, # 20% of total samples 
+                    1 # to avoid 0
+                )
+            )
+            return [value for _, value, _ in samples_with_distances[:target_count]]
+            # return [value for _, value, _ in samples_with_distances]
+
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            # Direct prediction using exact resource matches (no memory scaling needed)
+            # Get the full samples (with input sizes) for the matching resource config
+            full_matching_samples = [
+                (t, size) for t, cpus, memory_mb, size in all_samples
+                if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
+            ]
+            
+            # Select samples based on input size similarity
+            selected_times = _select_samples_by_input_size(full_matching_samples, input_size)
+            
+            # Calculate prediction using the selected samples
             if sla == "avg": 
-                ms_per_byte = np.mean(matching_samples)
+                ms_per_byte = np.mean(selected_times)
             else: 
-                ms_per_byte = np.percentile(matching_samples, 100 - sla.value)
+                ms_per_byte = np.percentile(selected_times, 100 - sla.value)
+            
             if ms_per_byte <= 0: 
-                raise ValueError(f"No data available for function {function_name}")
+                raise ValueError(f"No valid data available for function {function_name}")
+                
             # Apply sublinear scaling to input size
             res = ms_per_byte * (input_size ** size_scaling_factor)
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
-            # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [
-                t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5 
+            # Normalize samples to baseline memory configuration and select by input size
+            samples_with_sizes = [
+                (t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5, total_input_size_bytes)
                 for t, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
-            if sla == "avg": 
+            # Select samples based on input size similarity
+            baseline_normalized_samples = _select_samples_by_input_size(samples_with_sizes, input_size)
+            
+            if sla == "avg":
                 baseline_ms_per_byte = np.mean(baseline_normalized_samples) 
             else: 
                 baseline_ms_per_byte = np.percentile(baseline_normalized_samples, 100 - sla.value)
