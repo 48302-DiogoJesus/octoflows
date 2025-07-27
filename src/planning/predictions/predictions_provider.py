@@ -18,8 +18,8 @@ class PredictionsProvider:
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
     cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
     cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
-    cached_deserialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
-    cached_serialized_io_ratios: dict[str, list[float]] = {} # i/o for each function_name
+    cached_deserialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
+    cached_serialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
@@ -102,13 +102,13 @@ class PredictionsProvider:
                 self.cached_deserialized_io_ratios[function_name] = []
             input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             output_size = metrics.output_metrics.deserialized_size_bytes
-            self.cached_deserialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
+            self.cached_deserialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
 
             if function_name not in self.cached_serialized_io_ratios:
                 self.cached_serialized_io_ratios[function_name] = []
             input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             output_size = metrics.output_metrics.serialized_size_bytes
-            self.cached_serialized_io_ratios[function_name].append(output_size / input_size if input_size > 0 else 0)
+            self.cached_serialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
 
         self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
         logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
@@ -125,29 +125,42 @@ class PredictionsProvider:
         return len(self.cached_deserialized_io_ratios) > 0 or len(self.cached_serialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, deserialized: bool = True, allow_cached: bool = True) -> int:
-        """
-        Returns:
-            Predicted output size in bytes
-        """
         if input_size < 0: raise ValueError("Input size cannot be negative")
         if deserialized and function_name not in self.cached_deserialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
         if not deserialized and function_name not in self.cached_serialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
         prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
+
+        def _select_samples_by_input_size(samples_with_sizes: list[tuple[float, int]], input_size: int) -> list[float]:
+                if not samples_with_sizes: return []
+                
+                if len(samples_with_sizes) <= 5: return [value for value, _ in samples_with_sizes] # use all samples
+                
+                # calculate distances from input_size and sort by distance
+                samples_with_distances = [(abs(total_input_size - input_size), ratio, idx) for idx, (ratio, total_input_size) in enumerate(samples_with_sizes)]
+                samples_with_distances.sort()
+                
+                target_count = min(
+                    20, # max samples
+                    max(
+                        len(samples_with_sizes) // 5, # 20% of total samples 
+                        1 # to avoid 0
+                    )
+                )
+                return [value for _, value, _ in samples_with_distances[:target_count]]
+
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
-
-        if sla == "avg":
-            ratio = np.mean(function_io_ratios)
-        else:
-            ratio = np.percentile(function_io_ratios, 100 - sla.value)
+        selected_ratios = _select_samples_by_input_size(function_io_ratios, input_size)
         
-        # Logarithmic scaling: output grows slower than input
-        # base_output = input_size * ratio
-        # scaled_output = base_output * math.log(input_size + 1) / math.log(input_size * 2 + 1)
+        if sla == "avg":
+            ratio = np.mean(selected_ratios)
+        else:
+            ratio = np.percentile(selected_ratios, 100 - sla.value)
+        
         res = math.ceil(input_size * ratio)
-
+        
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
@@ -281,7 +294,7 @@ class PredictionsProvider:
         
         # Filter samples by exact resource match
         matching_samples = [
-            normalized_time for normalized_time, cpus, memory_mb, total_input_size_bytes in all_samples
+            (time_per_byte, cpus, memory_mb, total_input_size_bytes) for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
@@ -309,7 +322,7 @@ class PredictionsProvider:
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Get the full samples (with input sizes) for the matching resource config
             full_matching_samples = [
-                (t, size) for t, cpus, memory_mb, size in all_samples
+                (time_per_byte, total_input_size) for time_per_byte, cpus, memory_mb, total_input_size in matching_samples
                 if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
             ]
             
@@ -330,13 +343,13 @@ class PredictionsProvider:
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # Normalize samples to baseline memory configuration and select by input size
-            samples_with_sizes = [
-                (t * (memory_mb / BASELINE_MEMORY_MB) ** 0.5, total_input_size_bytes)
-                for t, cpus, memory_mb, total_input_size_bytes in all_samples
+            samples_w_normalized_time_per_byte = [
+                (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.5, total_input_size_bytes)
+                for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples = _select_samples_by_input_size(samples_with_sizes, input_size)
+            baseline_normalized_samples = _select_samples_by_input_size(samples_w_normalized_time_per_byte, input_size)
             
             if sla == "avg":
                 baseline_ms_per_byte = np.mean(baseline_normalized_samples) 

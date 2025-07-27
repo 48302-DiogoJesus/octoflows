@@ -1,16 +1,11 @@
-- First fix
+- DEBUG: Understand why new prediction logic (closer related samples) is producing WORSE results ONLY for `execution time` predictions
 
-- Improve prediction accuracy by doing constrained interpolations (only a subset of samples)
-    - min_samples: 5 | max_samples: 20
-    - use (0.05 * `nr_samples`) / 2 samples **acima** e **abaixo**
+- Apply same prediction optimization for the other predictions if applicable (worker startup time + data transfer times)
+
+- [DELAY_OR_CANCEL_THIS] Improving predictions, new approach
+    Use adaptive `size_scaling_factor` value
 
 - Create .sh versions of relevant .bat files
-
-- `wordcount` execution time constant 0.7 seconds offset
-    - cause ?: input size diff.?
-        test `worker.py` print execution times
-
-- Re-run experiments
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
