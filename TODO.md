@@ -3,9 +3,12 @@
     generic cause: the variance of nearby results is too high
     solution ?:
         1. When doing prediction, detect the variance of the NEARBY results and if it's too high, use the average of ALL samples instead (db: potentially big calculation)
-        2. ...
+        2. [CURRENT] Group results with the same offset and summarize their values using the **median**
 
 - Apply same prediction optimization for the other predictions if applicable (worker startup time + data transfer times)
+
+- Run on `worcount` workflow and see if predictions are better than before
+
 
 - [DELAY_OR_CANCEL_THIS] Improving predictions, new approach
     Use adaptive `size_scaling_factor` value

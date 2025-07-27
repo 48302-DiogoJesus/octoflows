@@ -132,27 +132,9 @@ class PredictionsProvider:
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
 
-        def _select_samples_by_input_size(samples_with_sizes: list[tuple[float, int]], input_size: int) -> list[float]:
-                if not samples_with_sizes: return []
-                
-                if len(samples_with_sizes) <= 5: return [value for value, _ in samples_with_sizes] # use all samples
-                
-                # calculate distances from input_size and sort by distance
-                samples_with_distances = [(abs(total_input_size - input_size), ratio, idx) for idx, (ratio, total_input_size) in enumerate(samples_with_sizes)]
-                samples_with_distances.sort()
-                
-                target_count = min(
-                    20, # max samples
-                    max(
-                        len(samples_with_sizes) // 5, # 20% of total samples 
-                        1 # to avoid 0
-                    )
-                )
-                return [value for _, value, _ in samples_with_distances[:target_count]]
-
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
-        selected_ratios = _select_samples_by_input_size(function_io_ratios, input_size)
+        selected_ratios = self._select_related_samples(input_size, function_io_ratios)
         
         if sla == "median":
             ratio = np.median(selected_ratios)
@@ -299,42 +281,6 @@ class PredictionsProvider:
         ]
 
         # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name} | nr samples: {len(all_samples)}")
-        
-        def _select_samples_by_input_size(samples_with_sizes: list[tuple[float, int]]) -> list[float]:
-            if not samples_with_sizes: return []
-            
-            if len(samples_with_sizes) <= 5: return [value for value, _ in samples_with_sizes] # use all samples
-            
-            # calculate distances from input_size and sort by distance
-            samples_with_distances = [(abs(size - input_size), value, size, idx) for idx, (value, size) in enumerate(samples_with_sizes)]
-            samples_with_distances.sort()
-            
-            target_count = min(
-                20, # max samples
-                max(
-                    len(samples_with_sizes) // 5, # 20% of total samples 
-                    1 # to avoid 0
-                )
-            )
-            if function_name == "time_task_expensive":
-                for a in samples_with_distances[:target_count]:
-                    print(f"A {function_name} | Offset: {a[0]} | Time per byte: {a[1]}")
-
-                for a in samples_with_distances:
-                    print(f"B {function_name} | Offset: {a[0]} | Time per byte: {a[1]}")
-
-                # if sla != "median":
-                #     print(f"A {function_name} | Avg time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances[:target_count]], sla.value)}")
-                #     print(f"B {function_name} | Avg time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances], sla.value)}")
-                #     print(f"A {function_name} | Median time per byte: {np.median([value for _, value, _, _ in samples_with_distances[:target_count]])}")
-                #     print(f"B {function_name} | Median time per byte: {np.median([value for _, value, _, _ in samples_with_distances])}")
-                #     print(f"A {function_name} | P30 time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances[:target_count]], 30)}")
-                #     print(f"B {function_name} | P30 time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances], 30)}")
-                #     print(f"A {function_name} | P70 time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances[:target_count]], 70)}")
-                #     print(f"B {function_name} | P70 time per byte: {np.percentile([value for _, value, _, _ in samples_with_distances], 70)}")
-
-            # return [value for _, value, _, _ in samples_with_distances[:target_count]]
-            return [value for _, value, _, _ in samples_with_distances]
 
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Get the full samples (with input sizes) for the matching resource config
@@ -344,7 +290,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times = _select_samples_by_input_size(full_matching_samples)
+            selected_times = self._select_related_samples(input_size, full_matching_samples)
             
             # Calculate prediction using the selected samples
             if sla == "median": 
@@ -366,7 +312,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples = _select_samples_by_input_size(samples_w_normalized_time_per_byte)
+            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
             
             if sla == "median":
                 baseline_ms_per_byte = np.median(baseline_normalized_samples) 
@@ -380,6 +326,47 @@ class PredictionsProvider:
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
+
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]]) -> list[float]:
+        """
+        reference_value: int
+        all_samples: [(value, value_to_compare)]
+        """
+        if not all_samples: return []
+        
+        if len(all_samples) <= 5: return [value for value, _ in all_samples] # use all samples
+        
+        # calculate distances from input_size and sort by distance
+        samples_with_distances = [(abs(size - reference_value), value, size, idx) for idx, (value, size) in enumerate(all_samples)]
+        samples_with_distances.sort()
+        
+        # Group by distance and calculate median for each group
+        from collections import defaultdict
+        import statistics
+        
+        distance_groups = defaultdict(list)
+        for distance, value, size, idx in samples_with_distances:
+            distance_groups[distance].append((value, size, idx))
+        
+        # Create new samples list with median values for each distance group
+        grouped_samples = []
+        for distance in sorted(distance_groups.keys()):
+            values_in_group = [value for value, _, _ in distance_groups[distance]]
+            median_value = statistics.median(values_in_group)
+            # Keep the first size and idx from the group for reference
+            first_size = distance_groups[distance][0][1]
+            first_idx = distance_groups[distance][0][2]
+            grouped_samples.append((distance, median_value, first_size, first_idx))
+        
+        target_count = min(
+            20, # max samples
+            max(
+                len(grouped_samples) // 5, # 20% of total distance groups 
+                1 # to avoid 0
+            )
+        )
+
+        return [value for _, value, _, _ in grouped_samples[:target_count]]
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """
