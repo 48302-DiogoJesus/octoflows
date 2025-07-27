@@ -82,7 +82,7 @@ docker_worker_config = DockerWorker.Config(
         port=6380,
         password="redisdevpwd123"
     )),
-    planner_config=DummyDAGPlanner.Config(sla="avg")
+    planner_config=DummyDAGPlanner.Config(sla="median")
 )
 
 for i in range(1):

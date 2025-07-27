@@ -6,4 +6,4 @@ from typing import Literal, TypeAlias
 class Percentile:
     value: int # higher => more confidence
 
-SLA: TypeAlias = Literal["avg"] | Percentile
+SLA: TypeAlias = Literal["median"] | Percentile

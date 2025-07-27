@@ -265,8 +265,8 @@ def main():
                 # Format SLA for display
                 sla_value = 'N/A'
                 if instance.plan:
-                    if instance.plan.sla == 'avg':
-                        sla_value = 'avg'
+                    if instance.plan.sla == 'median':
+                        sla_value = 'median'
                     else:
                         sla_value = f'p{instance.plan.sla.value}'
                 

@@ -1,4 +1,9 @@
-- DEBUG: Understand why new prediction logic (closer related samples) is producing WORSE results ONLY for `execution time` predictions
+- DEBUG: `execution_time` prediction is worse when using new prediction logic (closer related samples)
+    cause: very diff. historic exec.time results for the same input size => we pick the X% closest (lowest offset (to predict - predict))
+    generic cause: the variance of nearby results is too high
+    solution ?:
+        1. When doing prediction, detect the variance of the NEARBY results and if it's too high, use the average of ALL samples instead (db: potentially big calculation)
+        2. ...
 
 - Apply same prediction optimization for the other predictions if applicable (worker startup time + data transfer times)
 

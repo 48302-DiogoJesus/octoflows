@@ -1,5 +1,6 @@
 from typing import Optional, List, Literal
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.sla import Percentile
 from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.workers.docker_worker import DockerWorker
@@ -26,18 +27,18 @@ def get_planner_from_sys_argv():
 
     if planner_type == "simple":
         return SimplePlannerAlgorithm.Config(
-            sla="avg",
+            sla="median",
             all_flexible_workers=False,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "first":
         return FirstPlannerAlgorithm.Config(
-            sla="avg",
+            sla=Percentile(75),
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "second":
         return SecondPlannerAlgorithm.Config(
-            sla="avg",
+            sla=Percentile(75),
             available_worker_resource_configurations=[
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
