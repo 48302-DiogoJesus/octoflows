@@ -1,9 +1,14 @@
 - [PREDICTION_PRECISION] Data transfer time predictions are not as accurate as the others
-
-- [DELAY_OR_CANCEL_THIS] Improving predictions, new approach
-    Use adaptive `size_scaling_factor` value
+    CAUSE: find it!
+    would using adaptive `size_scaling_factor` value help?
 
 - Create .sh versions of relevant .bat files
+
+- Deploy on LAPTOP
+    - Create a simple LINUX deployment guide
+    - Deploy on Laptop
+
+- usar VPN tecnico
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
