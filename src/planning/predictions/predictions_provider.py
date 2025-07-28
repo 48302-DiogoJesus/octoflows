@@ -1,6 +1,8 @@
 import math
 from typing import Literal
 import numpy as np
+from collections import defaultdict
+
 from src.planning.sla import SLA
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStorage
 from src.storage.metrics.metrics_types import TaskMetrics, WorkerStartupMetrics
@@ -16,8 +18,8 @@ class PredictionsProvider:
     nr_of_previous_instances: int = 0
 
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
-    cached_upload_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
-    cached_download_speeds: list[tuple[float, float, int]] = [] # (bytes/ms, cpus, memory_mb)
+    cached_upload_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
+    cached_download_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
     cached_deserialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     cached_serialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
@@ -66,7 +68,8 @@ class PredictionsProvider:
                 self.cached_download_speeds.append((
                     input_metric.serialized_size_bytes / input_metric.time_ms,
                     metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb
+                    metrics.worker_resource_configuration.memory_mb,
+                    input_metric.serialized_size_bytes
                 ))
 
             # UPLOAD SPEEDS
@@ -75,7 +78,8 @@ class PredictionsProvider:
                 self.cached_upload_speeds.append((
                     metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
                     metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb
+                    metrics.worker_resource_configuration.memory_mb,
+                    metrics.output_metrics.serialized_size_bytes
                 ))
 
         worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
@@ -134,19 +138,25 @@ class PredictionsProvider:
 
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
-        selected_ratios = self._select_related_samples(input_size, function_io_ratios, sla)
-        
-        if sla == "median":
-            ratio = np.median(selected_ratios)
-        else:
-            ratio = np.percentile(selected_ratios, sla.value)
-        
+
+        selected_ratios = self._select_related_samples(input_size, function_io_ratios)
+        if sla == "median": ratio = np.median(selected_ratios)
+        else: ratio = np.percentile(selected_ratios, sla.value)
+
         res = math.ceil(input_size * ratio)
         
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
-    def predict_data_transfer_time(self, type: Literal['upload', 'download'], data_size_bytes: int, resource_config: TaskWorkerResourceConfiguration, sla: SLA, allow_cached: bool = True) -> float:
+    def predict_data_transfer_time(
+        self,
+        type: Literal['upload', 'download'],
+        data_size_bytes: int,
+        resource_config: TaskWorkerResourceConfiguration,
+        sla: SLA,
+        allow_cached: bool = True,
+        scaling_exponent: float = 0.8
+    ) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
         Args:
@@ -154,50 +164,61 @@ class PredictionsProvider:
             data_size_bytes: Size of data to transfer in bytes
             resource_config: Worker resource configuration (CPUs + RAM)
             sla: Either "median" for mean prediction or percentile (0-100)
-        
-        Returns:
-            Predicted data transfer time in milliseconds
+            allow_cached: Whether to use cached predictions
+            scaling_exponent: Power-law exponent for size-time relationship:
+                            time ∝ size^exponent (1.0=linear, <1.0=sublinear, >1.0=superlinear)
         """
-        if sla != "median" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'median' or between 0 and 100")
-        if data_size_bytes == 0: return 0
+        if sla != "median" and (sla.value < 0 or sla.value > 100):
+            raise ValueError("SLA must be 'median' or between 0 and 100")
+        if data_size_bytes == 0:
+            return 0
         
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
-        if len(cached_data) == 0: return 0
+        if len(cached_data) == 0:
+            return 0
         
-        prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
+        # Include scaling exponent in cache key
+        prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{scaling_exponent}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
             return self._cached_prediction_data_transfer_times[prediction_key]
         
         # Filter samples by exact resource match
         matching_samples = [
-            speed for speed, cpus, memory_mb in cached_data
+            speed for speed, total_bytes, cpus, memory_mb in cached_data
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        # logger.info(f"Found {len(matching_samples)} exact resource matches for {type}")
-        
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            # Direct prediction using exact resource matches (no memory scaling needed)
-            if sla == "median": normalized_speed_bytes_per_ms = np.median(matching_samples)
-            else: normalized_speed_bytes_per_ms = np.percentile(matching_samples, sla.value)
-            if normalized_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
-            res = data_size_bytes / normalized_speed_bytes_per_ms
+            if sla == "median":
+                speed_bytes_per_ms = np.median(matching_samples)
+            else:
+                speed_bytes_per_ms = np.percentile(matching_samples, sla.value)
+            
+            if speed_bytes_per_ms <= 0:
+                raise ValueError(f"No data available for {type}")
+            
+            # Apply non-linear scaling directly
+            res = (data_size_bytes / speed_bytes_per_ms) ** scaling_exponent
         else:
-            # Insufficient exact matches - use memory scaling model with baseline normalization
-            # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5 for speed, cpus, memory_mb in cached_data]
+            baseline_normalized_samples = [
+                speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5
+                for speed, total_bytes, cpus, memory_mb in cached_data
+            ]
             
-            if sla == "median":  baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
-            else: baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, sla.value)
+            if sla == "median":
+                baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
+            else:
+                baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, sla.value)
             
-            if baseline_speed_bytes_per_ms <= 0: raise ValueError(f"No data available for {type}")
+            if baseline_speed_bytes_per_ms <= 0:
+                raise ValueError(f"No data available for {type}")
             
-            # Scale from baseline to target resource configuration
+            # Scale from baseline to target and apply non-linear scaling
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
-            res = data_size_bytes / actual_speed
-            
-        self._cached_prediction_data_transfer_times[prediction_key] = res # type: ignore
-        return res # type: ignore
+            res = (data_size_bytes / actual_speed) ** scaling_exponent
+        
+        self._cached_prediction_data_transfer_times[prediction_key] = float(res)
+        return float(res)
 
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
@@ -290,7 +311,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times = self._select_related_samples(input_size, full_matching_samples, sla)
+            selected_times = self._select_related_samples(input_size, full_matching_samples)
             
             # Calculate prediction using the selected samples
             if sla == "median": 
@@ -312,7 +333,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
+            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
             
             if sla == "median":
                 baseline_ms_per_byte = np.median(baseline_normalized_samples) 
@@ -327,48 +348,81 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA) -> list[float]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], max_samples = 100, min_samples = 6) -> list[float]:
         """
         reference_value: int
-        all_samples: [(value, value_to_compare)]
+        all_samples: [(value, comparable_to_reference)]
         """
         if not all_samples: return []
-        
-        if len(all_samples) <= 5: return [value for value, _ in all_samples] # use all samples
-        
-        # calculate distances from input_size and sort by distance
-        samples_with_distances = [(abs(size - reference_value), value, size, idx) for idx, (value, size) in enumerate(all_samples)]
-        samples_with_distances.sort()
-        
-        # Group by distance and calculate median for each group
-        from collections import defaultdict
-        
-        distance_groups = defaultdict(list)
-        for distance, value, size, idx in samples_with_distances:
-            distance_groups[distance].append((value, size, idx))
-        
-        # Create new samples list with median values for each distance group
-        grouped_samples = []
-        for distance in sorted(distance_groups.keys()):
-            values_in_group = [value for value, _, _ in distance_groups[distance]]
-            if sla == "median":
-                median_value = np.median(values_in_group)
-            else:
-                median_value = np.percentile(values_in_group, sla.value)
-            # Keep the first size and idx from the group for reference
-            first_size = distance_groups[distance][0][1]
-            first_idx = distance_groups[distance][0][2]
-            grouped_samples.append((distance, median_value, first_size, first_idx))
-        
-        target_count = min(
-            20, # max samples
-            max(
-                len(grouped_samples) // 5, # 20% of total distance groups 
-                1 # to avoid 0
-            )
-        )
 
-        return [value for _, value, _, _ in grouped_samples[:target_count]]
+        distance_threshold = abs(reference_value * 0.1)
+        
+        below_samples = []
+        above_samples = []
+        exact_samples = []
+        
+        # First pass: try to collect samples within threshold
+        for idx, (value, size) in enumerate(all_samples):
+            signed_distance = size - reference_value
+            abs_distance = abs(signed_distance)
+            
+            if abs_distance <= distance_threshold:
+                if signed_distance < 0:
+                    below_samples.append((abs_distance, value, size, idx))
+                elif signed_distance > 0:
+                    above_samples.append((abs_distance, value, size, idx))
+                else:  # signed_distance == 0
+                    exact_samples.append((0, value, size, idx))
+        
+        total_within_threshold = len(below_samples) + len(above_samples) + len(exact_samples)
+        # If not enough samples within threshold, ignore threshold (won't be as accurate)
+        if total_within_threshold < min_samples:
+            below_samples = []
+            above_samples = []
+            exact_samples = []
+            
+            # Second pass: collect all samples regardless of distance
+            for idx, (value, size) in enumerate(all_samples):
+                signed_distance = size - reference_value
+                abs_distance = abs(signed_distance)
+                
+                if signed_distance < 0:
+                    below_samples.append((abs_distance, value, size, idx))
+                elif signed_distance > 0:
+                    above_samples.append((abs_distance, value, size, idx))
+                else: # signed_distance == 0
+                    exact_samples.append((0, value, size, idx))
+        
+        # sort by distance (closest first)
+        below_samples.sort()
+        above_samples.sort()
+        
+        remaining_budget = max_samples - len(exact_samples)
+        if remaining_budget <= 0: return [value for _, value, _, _ in exact_samples[:max_samples]]
+        
+        max_per_side = remaining_budget // 2 
+        selected_below = below_samples[:min(max_per_side, len(below_samples))]
+        selected_above = above_samples[:min(max_per_side, len(above_samples))]
+        total_selected = len(exact_samples) + len(selected_below) + len(selected_above)
+        
+        # if we're under the max_samples limit, try to take more from whichever side has remaining samples
+        if total_selected < max_samples:
+            remaining_budget = max_samples - total_selected
+            
+            available_below = len(below_samples) - len(selected_below)
+            if available_below > 0:
+                additional_below = min(remaining_budget, available_below)
+                selected_below.extend(below_samples[len(selected_below):len(selected_below) + additional_below])
+                remaining_budget -= additional_below
+            
+            if remaining_budget > 0:
+                available_above = len(above_samples) - len(selected_above)
+                additional_above = min(remaining_budget, available_above)
+                selected_above.extend(above_samples[len(selected_above):len(selected_above) + additional_above])
+        
+        # combine and return values
+        all_selected = exact_samples + selected_below + selected_above
+        return [value for _, value, _, _ in all_selected]
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """
