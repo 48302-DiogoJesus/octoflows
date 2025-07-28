@@ -134,7 +134,7 @@ class PredictionsProvider:
 
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
-        selected_ratios = self._select_related_samples(input_size, function_io_ratios)
+        selected_ratios = self._select_related_samples(input_size, function_io_ratios, sla)
         
         if sla == "median":
             ratio = np.median(selected_ratios)
@@ -290,7 +290,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times = self._select_related_samples(input_size, full_matching_samples)
+            selected_times = self._select_related_samples(input_size, full_matching_samples, sla)
             
             # Calculate prediction using the selected samples
             if sla == "median": 
@@ -312,7 +312,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
+            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
             
             if sla == "median":
                 baseline_ms_per_byte = np.median(baseline_normalized_samples) 
@@ -327,7 +327,7 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]]) -> list[float]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA) -> list[float]:
         """
         reference_value: int
         all_samples: [(value, value_to_compare)]
@@ -342,7 +342,6 @@ class PredictionsProvider:
         
         # Group by distance and calculate median for each group
         from collections import defaultdict
-        import statistics
         
         distance_groups = defaultdict(list)
         for distance, value, size, idx in samples_with_distances:
@@ -352,7 +351,10 @@ class PredictionsProvider:
         grouped_samples = []
         for distance in sorted(distance_groups.keys()):
             values_in_group = [value for value, _, _ in distance_groups[distance]]
-            median_value = statistics.median(values_in_group)
+            if sla == "median":
+                median_value = np.median(values_in_group)
+            else:
+                median_value = np.percentile(values_in_group, sla.value)
             # Keep the first size and idx from the group for reference
             first_size = distance_groups[distance][0][1]
             first_idx = distance_groups[distance][0][2]
