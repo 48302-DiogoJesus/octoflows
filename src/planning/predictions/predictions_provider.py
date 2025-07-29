@@ -67,9 +67,9 @@ class PredictionsProvider:
                 # Normalize the download speed based on memory
                 self.cached_download_speeds.append((
                     input_metric.serialized_size_bytes / input_metric.time_ms,
+                    input_metric.serialized_size_bytes,
                     metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb,
-                    input_metric.serialized_size_bytes
+                    metrics.worker_resource_configuration.memory_mb
                 ))
 
             # UPLOAD SPEEDS
@@ -77,9 +77,9 @@ class PredictionsProvider:
                 # Normalize the upload speed based on memory
                 self.cached_upload_speeds.append((
                     metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
+                    metrics.output_metrics.serialized_size_bytes,
                     metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb,
-                    metrics.output_metrics.serialized_size_bytes
+                    metrics.worker_resource_configuration.memory_mb
                 ))
 
         worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
@@ -155,7 +155,7 @@ class PredictionsProvider:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = True,
-        scaling_exponent: float = 0.8
+        scaling_exponent: float = 0.8  # sublinear
     ) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
@@ -165,8 +165,7 @@ class PredictionsProvider:
             resource_config: Worker resource configuration (CPUs + RAM)
             sla: Either "median" for mean prediction or percentile (0-100)
             allow_cached: Whether to use cached predictions
-            scaling_exponent: Power-law exponent for size-time relationship:
-                            time ∝ size^exponent (1.0=linear, <1.0=sublinear, >1.0=superlinear)
+            scaling_exponent: Power-law exponent for size-time relationship (1.0=linear, <1.0=sublinear, >1.0=superlinear)
         """
         if sla != "median" and (sla.value < 0 or sla.value > 100):
             raise ValueError("SLA must be 'median' or between 0 and 100")
