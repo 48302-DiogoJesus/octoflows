@@ -155,7 +155,7 @@ class PredictionsProvider:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = True,
-        scaling_exponent: float = 0.8  # sublinear
+        scaling_exponent: float = 0.8  # sublinear, because 2x data size doesn't mean 2x time
     ) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
@@ -166,6 +166,8 @@ class PredictionsProvider:
             sla: Either "median" for mean prediction or percentile (0-100)
             allow_cached: Whether to use cached predictions
             scaling_exponent: Power-law exponent for size-time relationship (1.0=linear, <1.0=sublinear, >1.0=superlinear)
+    
+        Note: Not using the `related_samples` tecnique here because when the value to predict is too low, the values will include bootstraping/cold-start times massively overestimating the prediction
         """
         if sla != "median" and (sla.value < 0 or sla.value > 100):
             raise ValueError("SLA must be 'median' or between 0 and 100")
@@ -183,7 +185,7 @@ class PredictionsProvider:
         
         # Filter samples by exact resource match
         matching_samples = [
-            speed for speed, total_bytes, cpus, memory_mb in cached_data
+            (speed, total_bytes) for speed, total_bytes, cpus, memory_mb in cached_data
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
@@ -200,7 +202,7 @@ class PredictionsProvider:
             res = (data_size_bytes / speed_bytes_per_ms) ** scaling_exponent
         else:
             baseline_normalized_samples = [
-                speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5
+                (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
             
@@ -347,14 +349,14 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], max_samples = 100, min_samples = 6) -> list[float]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], threshold = 0.1, max_samples = 100, min_samples = 6) -> list[tuple[float, float]]:
         """
         reference_value: int
         all_samples: [(value, comparable_to_reference)]
         """
         if not all_samples: return []
 
-        distance_threshold = abs(reference_value * 0.1)
+        distance_threshold = abs(reference_value * threshold)
         
         below_samples = []
         above_samples = []

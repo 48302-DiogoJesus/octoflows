@@ -1,5 +1,10 @@
 - [PREDICTION_PRECISION] Data transfer time predictions are not as accurate as the others
-    CAUSE: find it!
+    CAUSE:
+        When the value to predict is too low, the values will include bootstraping/cold-start times, massively overestimating the prediction
+        SOLUTIONS: 
+            - [CURRENT] use all samples instead of related samples + 0.8 scaling exponent (sublinear relationship between data size and transfer time)
+            - Select more representative samples
+    then make it use the `_select_related_samples` function
     would using adaptive `size_scaling_factor` value help?
 
 - Create .sh versions of relevant .bat files
