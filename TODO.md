@@ -3,8 +3,6 @@
         When the value to predict is too low, the values will include bootstraping/cold-start times, massively overestimating the prediction
         SOLUTIONS: 
             - [CURRENT] Use all samples instead of related samples (w/ lower threshold) + 0.8 scaling exponent (sublinear relationship between data size and transfer time)
-        [FIXED] [BUG] Download speeds prediction are too high when MATRIX_MUL is executed after WORDCOUNT
-        [BUG] Only 4 uploads are being predicted but there's one more in reality (still, the prediction is currently too high)
     [TEST]
         - make the wordcount workflow transfer a lot more data
 

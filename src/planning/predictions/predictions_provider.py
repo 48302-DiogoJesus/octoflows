@@ -366,12 +366,12 @@ class PredictionsProvider:
         if not all_samples:
             return [], []
         
-        max_observed_value = max(size for _, size in all_samples)
+        median_of_observed_values = np.median([size for _, size in all_samples])
         
         # Try increasing thresholds from 5% to 100% in 5% steps
         for threshold_percent in range(5, 101, 5):
             threshold = threshold_percent / 100.0
-            distance_threshold = abs(max_observed_value * threshold)
+            distance_threshold = abs(median_of_observed_values * threshold)
             
             below_samples = []
             above_samples = []

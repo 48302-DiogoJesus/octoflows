@@ -241,7 +241,7 @@ def main():
         task_data = 0
         total_time_downloading_data_ms += sum([input_metrics.time_ms for input_metrics in metrics.input_metrics.input_download_metrics.values() if input_metrics.time_ms])
         if metrics.output_metrics:
-            task_data += metrics.output_metrics.deserialized_size_bytes
+            task_data += metrics.output_metrics.serialized_size_bytes
             total_time_uploading_data_ms += metrics.output_metrics.tp_time_ms if metrics.output_metrics.tp_time_ms else 0
         
         total_data_transferred += task_data
@@ -718,7 +718,9 @@ def main():
 
         predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms if plan_output else -1
         predicted_upload_time = sum([tp.tp_upload_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
+        predicted_upload_size = sum([tp.deserialized_output_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_download_time = sum([tp.total_download_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
+        predicted_download_size = sum([tp.deserialized_input_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
@@ -734,7 +736,15 @@ def main():
         with col1:
             st.metric("Total Tasks", len(dag._all_nodes))
             st.metric(f"Total Time Executing Tasks (avg: {task_execution_time_avg:.2f} ms)", f"{total_time_executing_tasks_ms:.2f} ms")
-            st.metric("Total Data Transferred", format_bytes(total_data_transferred))
+            if predicted_upload_size > 0:
+                percentage_diff = ((total_data_transferred - predicted_upload_size) / predicted_upload_size) * 100
+                st.metric(
+                    "Total Data Transferred", 
+                    format_bytes(total_data_transferred),
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({format_bytes(predicted_upload_size)})"
+                )
+            else:
+                st.metric("Total Data Transferred", format_bytes(total_data_transferred))
             st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
         with col2:
             if predicted_makespan > 0:
@@ -927,55 +937,33 @@ def main():
             # Display metrics in columns
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
-                st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
+                if predicted_download_size > 0:
+                    percentage_diff = ((total_data_downloaded - predicted_download_size) / predicted_download_size) * 100
+                    st.metric(
+                        "Total Data Downloaded",
+                        format_bytes(total_data_downloaded),
+                        delta=f"{percentage_diff:+.1f}% vs predicted ({format_bytes(predicted_download_size)})"
+                    )
+                else:
+                    st.metric("Total Data Downloaded", format_bytes(total_data_downloaded))
+                if predicted_upload_size > 0:
+                    percentage_diff = ((total_data_uploaded - predicted_upload_size) / predicted_upload_size) * 100
+                    st.metric(
+                        "Total Data Uploaded",
+                        format_bytes(total_data_uploaded),
+                        delta=f"{percentage_diff:+.1f}% vs predicted ({format_bytes(predicted_upload_size)})"
+                    )
+                else:
+                    st.metric("Total Data Uploaded", format_bytes(total_data_uploaded))
             with col2:
                 st.metric("Download Throughput (avg)", f"{avg_download_throughput_mb_s:.2f} MB/s")
                 st.metric("Upload Throughput (avg)", f"{avg_upload_throughput_mb_s:.2f} MB/s")
             with col3:
                 st.metric("Number of Downloads", len(download_throughputs_mb_s))
-                st.metric("Number of Uploads", len(upload_throughputs_mb_s))
+                st.metric("Number of Uploads", f"{len(upload_throughputs_mb_s)}")
             with col4:
                 st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
                 st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
-
-            # Add transfer speeds distribution visualization
-            st.subheader("Transfer Speeds Distribution")
-            
-            if all_transfer_speeds_b_ms:
-                # Calculate percentiles
-                percentiles = [5, 25, 50, 75, 95]
-                percentile_values = np.percentile(all_transfer_speeds_b_ms, percentiles)
-                
-                # Create figure with smaller size and custom background
-                fig, ax = plt.subplots(figsize=(8, 4))  # Reduced from (10, 6)
-                fig.patch.set_alpha(0)  # Light gray background
-                # fig.patch.set_facecolor('#636EFA')  # Light gray background
-                ax.set_facecolor('none')  # Same for axis background
-                
-                # Plot histogram with KDE
-                sns.histplot(all_transfer_speeds_b_ms, bins=30, kde=True, ax=ax, color='#1f77b4')  # Added specific color
-                
-                # Add percentile lines
-                colors = ['red', 'orange', 'green', 'blue', 'purple']
-                for i, p in enumerate(percentiles):
-                    ax.axvline(percentile_values[i], color=colors[i], linestyle='--', 
-                            linewidth=2, label=f'{p}th: {percentile_values[i]:.2f} bytes/ms')
-                
-                # Customize the plot
-                ax.set_title('Transfer Speeds Distribution with Percentile Markers', color="white")
-                ax.set_xlabel('Transfer Speed (bytes/ms)', color="white")
-                ax.set_ylabel('Frequency', color="white")
-                ax.legend()
-                ax.tick_params(axis='both', colors='white')  # Makes x & y axis numbers white
-                ax.legend(facecolor='none', edgecolor='none', labelcolor='white')
-                ax.grid(True, alpha=0.2, color='lightgray')
-                for spine in ax.spines.values():
-                    spine.set_color('white')
-                
-                st.pyplot(fig, use_container_width=False)
-            else:
-                st.warning("No transfer metrics available for visualization")
 
     with tab_workers:
         if dag_metrics:
