@@ -139,7 +139,7 @@ class PredictionsProvider:
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
 
-        selected_ratios = self._select_related_samples(input_size, function_io_ratios)
+        selected_ratios, _ = self._select_related_samples(input_size, function_io_ratios)
         if sla == "median": ratio = np.median(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
@@ -171,12 +171,10 @@ class PredictionsProvider:
         """
         if sla != "median" and (sla.value < 0 or sla.value > 100):
             raise ValueError("SLA must be 'median' or between 0 and 100")
-        if data_size_bytes == 0:
-            return 0
+        if data_size_bytes == 0: return 0
         
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
-        if len(cached_data) == 0:
-            return 0
+        if len(cached_data) == 0: return 0
         
         # Include scaling exponent in cache key
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{scaling_exponent}"
@@ -193,7 +191,7 @@ class PredictionsProvider:
         #     print(f"Sample | Total bytes: {sample[1]} | To predict: {data_size_bytes}")
 
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            matching_samples = self._select_related_samples(data_size_bytes, matching_samples)
+            matching_samples, _debug_samples = self._select_related_samples(data_size_bytes, matching_samples)
             if sla == "median":
                 speed_bytes_per_ms = np.median(matching_samples)
             else:
@@ -209,7 +207,7 @@ class PredictionsProvider:
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
-            baseline_normalized_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples)
+            baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples)
             
             if sla == "median":
                 baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
@@ -223,10 +221,11 @@ class PredictionsProvider:
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
             res = (data_size_bytes / actual_speed) ** scaling_exponent
         
-        print(f"{type} | To predict: {data_size_bytes} | Result: {res} | Result W/ mean: {(data_size_bytes / np.mean(matching_samples)) ** scaling_exponent} | Avg: {np.mean(matching_samples)} | Median: {np.median(matching_samples)} | Used normalization: {len(matching_samples) < self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION}")
+        # if type == "download":
+        #     print(f"{type} | To predict: {data_size_bytes} | Result: {res} | Result W/ mean: {(data_size_bytes / np.mean(matching_samples)) ** scaling_exponent} | Median: {np.median(matching_samples)} | Used normalization: {len(matching_samples) < self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION}")
         
-        for sample in matching_samples:
-            print(f"Sample | Dist: {sample[1]} | Value: {sample[0]} | Total: {sample[2]}")
+        #     for sample in _debug_samples:
+        #         print(f"Sample {sample}, to predict: {data_size_bytes}")
 
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
         return float(res)
@@ -322,7 +321,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times = self._select_related_samples(input_size, full_matching_samples)
+            selected_times, _ = self._select_related_samples(input_size, full_matching_samples)
             
             # Calculate prediction using the selected samples
             if sla == "median": 
@@ -344,7 +343,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
+            baseline_normalized_samples, _ = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
             
             if sla == "median":
                 baseline_ms_per_byte = np.median(baseline_normalized_samples) 
@@ -359,82 +358,87 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], threshold = 0.1, max_samples = 100, min_samples = 6) -> list[float]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], max_samples = 100, min_samples = 6) -> tuple[list[float], list[tuple[float, int, float]]]:
         """
         reference_value: int
         all_samples: [(value, comparable_to_reference)]
         """
-        if not all_samples: return []
-
+        if not all_samples:
+            return [], []
+        
         max_observed_value = max(size for _, size in all_samples)
-        distance_threshold = abs(max_observed_value * threshold)
         
-        below_samples = []
-        above_samples = []
-        exact_samples = []
-        
-        # First pass: try to collect samples within threshold
-        for idx, (value, size) in enumerate(all_samples):
-            signed_distance = size - reference_value
-            abs_distance = abs(signed_distance)
+        # Try increasing thresholds from 5% to 100% in 5% steps
+        for threshold_percent in range(5, 101, 5):
+            threshold = threshold_percent / 100.0
+            distance_threshold = abs(max_observed_value * threshold)
             
-            if abs_distance <= distance_threshold:
-                if signed_distance < 0:
-                    below_samples.append((abs_distance, value, size, idx))
-                elif signed_distance > 0:
-                    above_samples.append((abs_distance, value, size, idx))
-                else:  # signed_distance == 0
-                    exact_samples.append((0, value, size, idx))
-        
-        total_within_threshold = len(below_samples) + len(above_samples) + len(exact_samples)
-        # If not enough samples within threshold, ignore threshold (won't be as accurate)
-        if total_within_threshold < min_samples:
             below_samples = []
             above_samples = []
             exact_samples = []
             
-            # Second pass: collect all samples regardless of distance
+            # Collect samples within current threshold
             for idx, (value, size) in enumerate(all_samples):
                 signed_distance = size - reference_value
                 abs_distance = abs(signed_distance)
                 
-                if signed_distance < 0:
-                    below_samples.append((abs_distance, value, size, idx))
-                elif signed_distance > 0:
-                    above_samples.append((abs_distance, value, size, idx))
-                else: # signed_distance == 0
-                    exact_samples.append((0, value, size, idx))
-        
-        # sort by distance (closest first)
-        below_samples.sort()
-        above_samples.sort()
-        
-        remaining_budget = max_samples - len(exact_samples)
-        if remaining_budget <= 0: return [value for _, value, _, _ in exact_samples[:max_samples]]
-        
-        max_per_side = remaining_budget // 2 
-        selected_below = below_samples[:min(max_per_side, len(below_samples))]
-        selected_above = above_samples[:min(max_per_side, len(above_samples))]
-        total_selected = len(exact_samples) + len(selected_below) + len(selected_above)
-        
-        # if we're under the max_samples limit, try to take more from whichever side has remaining samples
-        if total_selected < max_samples:
-            remaining_budget = max_samples - total_selected
+                if abs_distance <= distance_threshold:
+                    if signed_distance < 0:
+                        below_samples.append((abs_distance, value, size, idx))
+                    elif signed_distance > 0:
+                        above_samples.append((abs_distance, value, size, idx))
+                    else:  # signed_distance == 0
+                        exact_samples.append((0, value, size, idx))
             
-            available_below = len(below_samples) - len(selected_below)
-            if available_below > 0:
-                additional_below = min(remaining_budget, available_below)
-                selected_below.extend(below_samples[len(selected_below):len(selected_below) + additional_below])
-                remaining_budget -= additional_below
+            total_within_threshold = len(below_samples) + len(above_samples) + len(exact_samples)
             
-            if remaining_budget > 0:
-                available_above = len(above_samples) - len(selected_above)
-                additional_above = min(remaining_budget, available_above)
-                selected_above.extend(above_samples[len(selected_above):len(selected_above) + additional_above])
+            # If we have enough samples at this threshold, proceed with selection
+            if total_within_threshold >= min_samples:
+                # Sort by distance (closest first)
+                below_samples.sort()
+                above_samples.sort()
+                
+                remaining_budget = max_samples - len(exact_samples)
+                if remaining_budget <= 0:
+                    return [value for _, value, _, _ in exact_samples[:max_samples]], [(value, total, threshold) for _, value, total, _ in exact_samples[:max_samples]]
+                
+                max_per_side = remaining_budget // 2
+                
+                selected_below = below_samples[:min(max_per_side, len(below_samples))]
+                selected_above = above_samples[:min(max_per_side, len(above_samples))]
+                total_selected = len(exact_samples) + len(selected_below) + len(selected_above)
+                
+                # If we're under the max_samples limit, try to take more from whichever side has remaining samples
+                if total_selected < max_samples:
+                    remaining_budget = max_samples - total_selected
+                    
+                    available_below = len(below_samples) - len(selected_below)
+                    if available_below > 0:
+                        additional_below = min(remaining_budget, available_below)
+                        selected_below.extend(below_samples[len(selected_below):len(selected_below) + additional_below])
+                        remaining_budget -= additional_below
+                    
+                    if remaining_budget > 0:
+                        available_above = len(above_samples) - len(selected_above)
+                        additional_above = min(remaining_budget, available_above)
+                        selected_above.extend(above_samples[len(selected_above):len(selected_above) + additional_above])
+                
+                # Combine and return values
+                all_selected = exact_samples + selected_below + selected_above
+                return [value for _, value, _, _ in all_selected], [(value, total, threshold) for _, value, total, _ in all_selected]
         
-        # combine and return values
-        all_selected = exact_samples + selected_below + selected_above
-        return [(value, dst, total) for dst, value, total, _ in all_selected]
+        # If we reach here, even at 100% threshold we don't have enough samples
+        # Sort all samples by distance to reference_value and take the closest ones
+        samples_with_distance = []
+        for value, size in all_samples:
+            abs_distance = abs(size - reference_value)
+            samples_with_distance.append((abs_distance, value, size))
+        
+        # Sort by distance (closest first) and take up to min_samples. Since the closest samples are very far (more than 100% of the max observed value), pick a few samples (min_samples)
+        samples_with_distance.sort()
+        closest_samples = samples_with_distance[:min_samples]
+        
+        return [value for _, value, _ in closest_samples], [(value, size, 1.0) for _, value, size in closest_samples]
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """

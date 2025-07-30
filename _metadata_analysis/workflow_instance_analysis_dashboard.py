@@ -717,6 +717,8 @@ def main():
             plan_output = cloudpickle.loads(plan_data) # type: ignore
 
         predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms if plan_output else -1
+        predicted_upload_time = sum([tp.tp_upload_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
+        predicted_download_time = sum([tp.total_download_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
@@ -744,13 +746,29 @@ def main():
                 )
             else:
                 st.metric("Makespan", f"{makespan_ms:.2f} ms")
-            st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
+            if predicted_upload_time > 0:
+                percentage_diff = ((total_time_uploading_data_ms - predicted_upload_time) / predicted_upload_time) * 100
+                st.metric(
+                    "Total Upload Time", 
+                    f"{total_time_uploading_data_ms:.2f} ms",
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({predicted_upload_time:.2f} ms)"
+                )
+            else:
+                st.metric("Total Upload Time", f"{total_time_uploading_data_ms:.2f} ms")
             avg_data = total_data_transferred / len(dag_metrics) if dag_metrics else 0
             st.metric("Data Transferred per Task (avg)", format_bytes(avg_data))
             st.metric("DAG Size", format_bytes(avg_dag_size))
         with col3:
             st.metric("Unique Workers", int(metrics_df['worker_id'].nunique()))
-            st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
+            if predicted_download_time > 0:
+                percentage_diff = ((total_time_downloading_data_ms - predicted_download_time) / predicted_download_time) * 100
+                st.metric(
+                    "Total Download Time", 
+                    f"{total_time_downloading_data_ms:.2f} ms",
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({predicted_download_time:.2f} ms)"
+                )
+            else:
+                st.metric("Total Download Time", f"{total_time_downloading_data_ms:.2f} ms")
             st.metric("Total Worker Invocations (excludes initial)", f"{int(metrics_df['downstream_calls'].sum())}")
             st.metric("Total Time Downloading DAG", f"{total_time_downloading_dag_ms:.2f} ms")
         with col4:

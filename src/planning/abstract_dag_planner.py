@@ -89,9 +89,9 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        print(f"Total Download Time: {sum(info.total_download_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
-        print(f"Total Upload Time: {sum(info.tp_upload_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
-        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        # print(f"Total Download Time: {sum(info.total_download_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
+        # print(f"Total Upload Time: {sum(info.tp_upload_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -220,6 +220,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             upload_time = 0.0
         else:
             upload_time = predictions_provider.predict_data_transfer_time('upload', deserialized_output_size, resource_config, sla)
+            if upload_time == 0: print("WTF: ", len(node.downstream_nodes), "func_name: ", node.func_name)
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
