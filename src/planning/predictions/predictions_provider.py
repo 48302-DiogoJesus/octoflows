@@ -366,7 +366,8 @@ class PredictionsProvider:
         """
         if not all_samples: return []
 
-        distance_threshold = abs(reference_value * threshold)
+        max_observed_value = max(size for _, size in all_samples)
+        distance_threshold = abs(max_observed_value * threshold)
         
         below_samples = []
         above_samples = []
