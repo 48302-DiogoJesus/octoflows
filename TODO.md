@@ -1,13 +1,6 @@
-[TEST]
-- make the wordcount workflow transfer a lot more data
-
-- Create .sh versions of relevant .bat files
-
 - Deploy on LAPTOP
     - Create a simple LINUX deployment guide
     - Deploy on Laptop
-
-- usar VPN tecnico
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
