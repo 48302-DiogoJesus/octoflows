@@ -1,10 +1,5 @@
-- [PREDICTION_PRECISION] Data transfer time predictions are not as accurate as the others
-    CAUSE:
-        When the value to predict is too low, the values will include bootstraping/cold-start times, massively overestimating the prediction
-        SOLUTIONS: 
-            - [CURRENT] Use all samples instead of related samples (w/ lower threshold) + 0.8 scaling exponent (sublinear relationship between data size and transfer time)
-    [TEST]
-        - make the wordcount workflow transfer a lot more data
+[TEST]
+- make the wordcount workflow transfer a lot more data
 
 - Create .sh versions of relevant .bat files
 
