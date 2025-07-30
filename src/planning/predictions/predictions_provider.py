@@ -189,7 +189,11 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
+        # for sample in matching_samples:
+        #     print(f"Sample | Total bytes: {sample[1]} | To predict: {data_size_bytes}")
+
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
+            matching_samples = self._select_related_samples(data_size_bytes, matching_samples)
             if sla == "median":
                 speed_bytes_per_ms = np.median(matching_samples)
             else:
@@ -205,6 +209,7 @@ class PredictionsProvider:
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
+            baseline_normalized_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples)
             
             if sla == "median":
                 baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
@@ -218,6 +223,11 @@ class PredictionsProvider:
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
             res = (data_size_bytes / actual_speed) ** scaling_exponent
         
+        print(f"{type} | To predict: {data_size_bytes} | Result: {res} | Result W/ mean: {(data_size_bytes / np.mean(matching_samples)) ** scaling_exponent} | Avg: {np.mean(matching_samples)} | Median: {np.median(matching_samples)} | Used normalization: {len(matching_samples) < self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION}")
+        
+        for sample in matching_samples:
+            print(f"Sample | Dist: {sample[1]} | Value: {sample[0]} | Total: {sample[2]}")
+
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
         return float(res)
 
@@ -349,7 +359,7 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], threshold = 0.1, max_samples = 100, min_samples = 6) -> list[tuple[float, float]]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], threshold = 0.1, max_samples = 100, min_samples = 6) -> list[float]:
         """
         reference_value: int
         all_samples: [(value, comparable_to_reference)]
@@ -423,7 +433,7 @@ class PredictionsProvider:
         
         # combine and return values
         all_selected = exact_samples + selected_below + selected_above
-        return [value for _, value, _, _ in all_selected]
+        return [(value, dst, total) for dst, value, total, _ in all_selected]
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """
