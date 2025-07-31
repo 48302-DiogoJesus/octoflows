@@ -100,7 +100,7 @@ class DAGTaskNode(Generic[R]):
                     top_level_imports.add(alias.name.split('.')[0])  # Only take top-level package
             elif isinstance(node, ast.ImportFrom):
                 module = node.module
-                if module: 
+                if module:
                     top_level_imports.add(module.split('.')[0])  # Only take top-level package
 
         return {

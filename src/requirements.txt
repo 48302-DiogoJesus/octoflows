@@ -7,3 +7,6 @@ numpy==2.2.6
 Pympler==1.1
 redis==5.2.1
 streamlit==1.43.2
+waitress==3.0.2
+plotly==6.2.0
+pytest==8.4.1
