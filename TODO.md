@@ -1,3 +1,13 @@
+- [+] Usar user SLA para calcular SLA de uma workflow
+    + testar com percentis e ver se promessa se cumpre:
+        quando selectiona p90, os resultados estão abaixo de 90% das execuções
+- [+] Otimizações
+    pre-warm
+    task-duplication
+    output-streaming (think/research) (see slack)
+
+- [-] Mais workflows
+
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner
     + optimizations
@@ -15,6 +25,7 @@
     it can execute that task itself. By executing Task 1 locally, Worker 2 won’t need to wait for the data to be available 
     and then download it from external storage. The results produced by Worker 2 will be ignored by Worker 1. 
     Possible benefits: - makespan ; - data download time.
+- `output-streaming`
 - Create a planner that uses them + make the prediction calculations take it into account
 
 ---
