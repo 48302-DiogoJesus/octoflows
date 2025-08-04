@@ -2,6 +2,7 @@
     + testar com percentis e ver se promessa se cumpre:
         quando selectiona p90, os resultados estão abaixo de 90% das execuções
         adicionar ao dashboard (para cada metrica da tabela, a verde se a promessa foi cumprida, vermelho se não)
+    [BUG] predicted worker startup time is showing 0 on global dashboard
 - [+] Otimizações
     pre-warm
     task-duplication

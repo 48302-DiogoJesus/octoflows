@@ -1,7 +1,7 @@
 import streamlit as st
 import redis
 import cloudpickle
-from typing import Dict, List, Any, Union
+from typing import Dict, List
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -224,7 +224,7 @@ def main():
                 
                 # Get predicted metrics if available
                 predicted_total_download = predicted_execution = predicted_upload = predicted_makespan_s = 0
-                predicted_input_size = predicted_output_size = 0
+                predicted_input_size = predicted_output_size = predicted_total_worker_startup_time_s = 0
                 if instance.plan and instance.plan.nodes_info:
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
@@ -232,6 +232,7 @@ def main():
                     predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                    predicted_total_worker_startup_time_s = sum(info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()) / 1000
                 
                 # Store actual values for SLA comparison
                 instance_metrics = {
@@ -329,7 +330,7 @@ def main():
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
-                    'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0, 'worker_startup'),
+                    'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, predicted_total_worker_startup_time_s, 'worker_startup'),
                     '_actual_worker_startup': actual_total_worker_startup_time_s,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
@@ -529,7 +530,7 @@ def main():
                         'Total Task Invocation Time': "Total Task Invocation Time",
                         'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
                         'Total DAG Download Time': "Total DAG Download Time",
-                        'Total Worker Startup Time': "Total Worker Startup Time",
+                        'Total Worker Startup Time': "Total Worker Startup Time (Predicted → Actual)",
                     },
                     use_container_width=True,
                     height=min(400, 35 * (len(df_instances) + 1)),
