@@ -363,77 +363,109 @@ def main():
                         for metric, value in row['_metrics'].items():
                             all_metrics[metric].append(value)
                     
-                    # Calculate SLA values (median or specified percentile) for each metric
-                    sla_metrics: Dict[str, float] = {}
-                    if not df_instances.empty and '_sla_percentile' in df_instances.columns:
-                        # Get the SLA percentile for this instance (use first instance as reference)
-                        sla_pct = df_instances.iloc[0]['_sla_percentile']
-                        
-                        if sla_pct is not None:
-                            for metric, values in all_metrics.items():
-                                if not values:
-                                    continue
-                                
-                                try:
-                                    if sla_pct == 50:  # median
-                                        sla_value = float(np.median(values))
-                                    else:  # specific percentile
-                                        sla_value = float(np.percentile(values, sla_pct))
-                                    
-                                    sla_metrics[metric] = sla_value
-                                except (TypeError, ValueError) as e:
-                                    print(f"Error calculating SLA for {metric}: {e}")
-                    
-                    # Update the display values with SLA comparison
-                    for idx, row in df_instances.iterrows():
-                        metrics = row['_metrics']
-                        
-                        # Helper function to format SLA comparison
-                        def format_with_sla(metric_name: str, value: float, unit: str = 's') -> str:
-                            try:
-                                if not sla_metrics or metric_name not in sla_metrics or pd.isna(sla_metrics[metric_name]):
-                                    return f"{value:.3f}{unit}"
-                                
-                                sla = float(sla_metrics[metric_name])
-                                offset = value - sla
-                                sign = "+" if offset >= 0 else ""
-                                meets_sla = value <= sla
-                                emoji = "✅" if meets_sla else "❌"
-                                
-                                # Get the current cell value (contains the predicted vs actual comparison)
-                                current_value = str(df_instances.at[idx, col_name])
-                                
-                                # Format the SLA information
-                                if unit == 's':
-                                    sla_info = f"{emoji} SLA: {sla:.3f}s (offset: {sign}{abs(offset):.3f}s)"
-                                else:  # for sizes
-                                    sla_info = f"{emoji} SLA: {format_bytes(sla)} (offset: {sign}{format_bytes(abs(offset))})"
-                                
-                                return f"{current_value}\n{sla_info}"
-                            except Exception as e:
-                                print(f"Error formatting SLA for {metric_name}: {e}")
-                                return str(value)
-                        
-                        # Update each metric with SLA comparison
-                        metric_columns = {
-                            'Makespan': ('makespan', 's'),
-                            'Total Execution Time': ('execution', 's'),
-                            'Total Download Time': ('download', 's'),
-                            'Total Upload Time': ('upload', 's'),
-                            'Total Input Size': ('input_size', 'b'),
-                            'Total Output Size': ('output_size', 'b'),
-                            'Total Worker Startup Time': ('worker_startup', 's')
+                    # Sort instances by start time to ensure we're looking at previous instances correctly
+                    if not df_instances.empty and 'Master DAG ID' in df_instances.columns:
+                        # Create a list to store all previous metrics for each metric type
+                        all_previous_metrics = {
+                            'makespan': [],
+                            'execution': [],
+                            'download': [],
+                            'upload': [],
+                            'input_size': [],
+                            'output_size': [],
+                            'worker_startup': []
                         }
                         
-                        for col_name, (metric_name, unit) in metric_columns.items():
-                            if col_name in df_instances.columns and metric_name in metrics:
+                        # Create a new column to store the formatted values
+                        formatted_values = {col: [None] * len(df_instances) for col in [
+                            'Makespan', 'Total Execution Time', 'Total Download Time',
+                            'Total Upload Time', 'Total Input Size', 'Total Output Size',
+                            'Total Worker Startup Time'
+                        ]}
+                        
+                        # Process each instance in order
+                        for idx, row in df_instances.iterrows():
+                            metrics = row['_metrics']
+                            sla_pct = row['_sla_percentile']
+                            
+                            # Helper function to format SLA comparison for this instance
+                            def format_with_sla(metric_name: str, value: float, unit: str = 's', current_metrics: Dict[str, float] = None) -> str:
                                 try:
-                                    metric_value = float(metrics[metric_name])
-                                    formatted = format_with_sla(metric_name, metric_value, unit)
-                                    if formatted is not None:
-                                        df_instances.at[idx, col_name] = formatted
-                                except (ValueError, TypeError) as e:
-                                    print(f"Error processing {metric_name}: {e}")
+                                    if not current_metrics or metric_name not in current_metrics or pd.isna(current_metrics[metric_name]):
+                                        return f"{value:.3f}{unit}"
+                                    
+                                    sla = float(current_metrics[metric_name])
+                                    offset = value - sla
+                                    sign = "+" if offset >= 0 else ""
+                                    meets_sla = value <= sla
+                                    emoji = "✅" if meets_sla else "❌"
+                                    
+                                    # Get the current cell value (contains the predicted vs actual comparison)
+                                    current_value = str(df_instances.at[idx, col_name])
+                                    
+                                    # Format the SLA information
+                                    if unit == 's':
+                                        sla_info = f"{emoji} SLA: {sla:.3f}s (offset: {sign}{abs(offset):.3f}s)"
+                                    else:  # for sizes
+                                        sla_info = f"{emoji} SLA: {format_bytes(sla)} (offset: {sign}{format_bytes(abs(offset))})"
+                                    
+                                    return f"{current_value}\n{sla_info}"
+                                except Exception as e:
+                                    print(f"Error formatting SLA for {metric_name}: {e}")
+                                    return str(value)
+                            
+                            # Calculate SLA based on previous instances
+                            current_sla_metrics = {}
+                            if sla_pct is not None and all_previous_metrics['makespan']:  # Only calculate if we have previous data
+                                for metric in all_previous_metrics.keys():
+                                    if not all_previous_metrics[metric]:
+                                        continue
+                                        
+                                    try:
+                                        if sla_pct == 50:  # median
+                                            sla_value = float(np.median(all_previous_metrics[metric]))
+                                        else:  # specific percentile
+                                            sla_value = float(np.percentile(all_previous_metrics[metric], sla_pct))
+                                        current_sla_metrics[metric] = sla_value
+                                    except (TypeError, ValueError) as e:
+                                        print(f"Error calculating SLA for {metric}: {e}")
+                            
+                            # Update each metric with SLA comparison if we have SLA data
+                            metric_columns = {
+                                'Makespan': ('makespan', 's'),
+                                'Total Execution Time': ('execution', 's'),
+                                'Total Download Time': ('download', 's'),
+                                'Total Upload Time': ('upload', 's'),
+                                'Total Input Size': ('input_size', 'b'),
+                                'Total Output Size': ('output_size', 'b'),
+                                'Total Worker Startup Time': ('worker_startup', 's')
+                            }
+                            
+                            for col_name, (metric_name, unit) in metric_columns.items():
+                                if col_name in df_instances.columns and metric_name in metrics:
+                                    try:
+                                        metric_value = float(metrics[metric_name])
+                                        
+                                        if current_sla_metrics:  # Only add SLA if we have previous data to compare with
+                                            formatted = format_with_sla(metric_name, metric_value, unit, current_sla_metrics)
+                                        else:
+                                            formatted = str(df_instances.at[idx, col_name])
+                                            
+                                        if formatted is not None:
+                                            formatted_values[col_name][idx] = formatted
+                                    except (ValueError, TypeError) as e:
+                                        print(f"Error processing {metric_name}: {e}")
+                                        formatted_values[col_name][idx] = str(metrics.get(metric_name, 'N/A'))
+                            
+                            # Add current instance's metrics to the history for the next iteration
+                            for metric_name in all_previous_metrics.keys():
+                                if metric_name in metrics:
+                                    all_previous_metrics[metric_name].append(float(metrics[metric_name]))
+                        
+                        # Update the dataframe with the formatted values
+                        for col_name, values in formatted_values.items():
+                            if col_name in df_instances.columns:
+                                df_instances[col_name] = values
                 
                 # Sort by sample count in descending order
                 if '_sample_count' in df_instances.columns:
