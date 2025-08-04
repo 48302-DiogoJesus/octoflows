@@ -61,9 +61,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.started_at_timestamp_s = time.time()
 
                 if self.planner:
-                    await self.planner.override_before_task_handling()
+                    await self.planner.override_before_task_handling(self, current_task)
                 else:
-                    await WorkerExecutionLogic.override_before_task_handling()
+                    await WorkerExecutionLogic.override_before_task_handling(self, current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -102,9 +102,6 @@ class Worker(ABC, WorkerExecutionLogic):
                         time_ms=None
                     )
                 
-                # if len(current_task.upstream_nodes) > 0:
-                #     print("TIMEPROBE: ", time.time() - current_task.metrics.started_at_timestamp_s)
-
                 if tasks_to_fetch:
                     for utask in tasks_to_fetch:
                         _timer = Timer()
@@ -233,6 +230,13 @@ class Worker(ABC, WorkerExecutionLogic):
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
+        """
+        pass
+
+    @abstractmethod
+    async def warmup(self, resource_configuration: TaskWorkerResourceConfiguration):
+        """
+        Warmup the worker with the given resource configuration by doing a "special" invocation
         """
         pass
 

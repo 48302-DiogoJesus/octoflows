@@ -52,13 +52,39 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     finally:
         container_pool.release_container(container_id)
 
+def process_warmup_async(resource_configuration: TaskWorkerResourceConfiguration):
+    """
+    Process a warmup request asynchronously.
+    Waits for a container with the requested resource configuration to be available and leaves it available for later re-use for {container_pool_executor.container_idle_timeout} seconds
+    """
+    container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+    container_pool.release_container(container_id)
+
+@app.route('/warmup', methods=['POST'])
+def handle_warmup():
+    # Parse request data
+    if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
+    data = request.get_json()
+
+    resource_config_key = data.get('resource_configuration', None)
+    if resource_config_key is None: 
+        logger.error("'resource_configuration' field is required")
+        return jsonify({"error": "'resource_configuration' field is required"}), 400
+    
+    resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
+    if resource_configuration is None: 
+        logger.error("'resource_configuration' field is required")
+        return jsonify({"error": "'resource_configuration' field is required"}), 400
+
+    thread_pool.submit(process_warmup_async, resource_configuration)
+    return "", 202
 
 @app.route('/job', methods=['POST', 'GET'])
 def handle_job():
     """
     Handles POST and GET requests to /job.
     - POST: Accepts the job and immediately returns 202, then processes the job asynchronously.
-    - GET: Returns a list of container IDs grouped by resource configuration.
+    - GET: Returns a list of available container IDs grouped by resource configuration. Used for DEBUG
     """
     if request.method == 'POST':
         # Parse request data
@@ -90,17 +116,17 @@ def handle_job():
         
         return "", 202 # Immediately return 202 Accepted
 
-    elif request.method == 'GET':
-        # Get all resource configurations and their containers
-        configurations = container_pool.get_all_resource_configurations()
+    # elif request.method == 'GET':
+    #     # Get all resource configurations and their containers
+    #     configurations = container_pool.get_all_resource_configurations()
         
-        # Format the response
-        result = {}
-        for config_key, container_ids in configurations.items():
-            cpus, memory = map(float, config_key.split('_'))
-            result[f"{cpus};{memory}"] = container_ids
+    #     # Format the response
+    #     result = {}
+    #     for config_key, container_ids in configurations.items():
+    #         cpus, memory = map(float, config_key.split('_'))
+    #         result[f"{cpus};{memory}"] = container_ids
         
-        return jsonify({"configurations": result}), 200
+    #     return jsonify({"configurations": result}), 200
 
 if __name__ == '__main__':
     is_shutting_down_flag = threading.Event()

@@ -105,3 +105,30 @@ class DockerWorker(Worker):
         
         # Wait for all HTTP requests to complete
         await asyncio.gather(*http_tasks)
+
+    async def warmup(self, resource_configuration: TaskWorkerResourceConfiguration):
+        """
+        Sends a warmup request to the worker with the given resource configuration.
+        """
+
+        # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
+        gateway_addr = "http://host.docker.internal:5000"
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    gateway_addr + "/warmup",
+                    data=json.dumps({
+                        "resource_configuration": base64.b64encode(cloudpickle.dumps(resource_configuration)).decode('utf-8')
+                    }),
+                    headers={"Content-Type": "application/json"}
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"Warmup request failed with status {response.status}")
+                        response_text = await response.text()
+                        logger.error(f"Response: {response_text}")
+                    else:
+                        logger.info("Warmup request completed successfully")
+        except Exception as e:
+            logger.error(f"Error during warmup request: {str(e)}")
+            raise

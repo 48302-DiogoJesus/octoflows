@@ -26,6 +26,12 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return PreWarmOptimization(self.target_resource_config.clone())
 
     @staticmethod
-    async def override_before_task_handling():
-        # TODO: make the invocation to the target resource config
-        pass
+    async def override_before_task_handling(this_worker, current_task: DAGTaskNode):
+        from src.workers.worker import Worker
+        _this_worker: Worker = this_worker
+        
+        prewarm_annotation = current_task.get_annotation(PreWarmOptimization)
+        if prewarm_annotation is None: return
+
+        # "fire-and-forget" / non-blocking
+        asyncio.create_task(_this_worker.warmup(prewarm_annotation.target_resource_config))

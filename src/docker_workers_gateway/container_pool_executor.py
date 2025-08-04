@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import os
 import sys
 import threading
@@ -12,7 +11,7 @@ import uuid
 from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
-ALLOW_CONTAINER_REUSAGE = False
+ALLOW_CONTAINER_REUSAGE = True
 
 @dataclass
 class Container:

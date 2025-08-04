@@ -19,7 +19,7 @@ class WorkerExecutionLogic():
         pass
 
     @staticmethod
-    async def override_before_task_handling():
+    async def override_before_task_handling(this_worker, current_task):
         pass
 
     @staticmethod
