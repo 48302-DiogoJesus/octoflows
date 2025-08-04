@@ -139,7 +139,7 @@ class PredictionsProvider:
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
 
-        selected_ratios, _ = self._select_related_samples(input_size, function_io_ratios)
+        selected_ratios, _ = self._select_related_samples(input_size, function_io_ratios, sla)
         if sla == "median": ratio = np.median(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
@@ -191,7 +191,7 @@ class PredictionsProvider:
         #     print(f"Sample | Total bytes: {sample[1]} | To predict: {data_size_bytes}")
 
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            matching_samples, _debug_samples = self._select_related_samples(data_size_bytes, matching_samples)
+            matching_samples, _debug_samples = self._select_related_samples(data_size_bytes, matching_samples, sla)
             if sla == "median":
                 speed_bytes_per_ms = np.median(matching_samples)
             else:
@@ -207,7 +207,7 @@ class PredictionsProvider:
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
-            baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples)
+            baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples, sla)
             
             if sla == "median":
                 baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
@@ -321,7 +321,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times, _ = self._select_related_samples(input_size, full_matching_samples)
+            selected_times, _ = self._select_related_samples(input_size, full_matching_samples, sla)
             
             # Calculate prediction using the selected samples
             if sla == "median": 
@@ -343,7 +343,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples, _ = self._select_related_samples(input_size, samples_w_normalized_time_per_byte)
+            baseline_normalized_samples, _ = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
             
             if sla == "median":
                 baseline_ms_per_byte = np.median(baseline_normalized_samples) 
@@ -358,7 +358,7 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], max_samples = 100, min_samples = 6) -> tuple[list[float], list[tuple[float, int, float]]]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 6) -> tuple[list[float], list[tuple[float, int, float]]]:
         """
         reference_value: int
         all_samples: [(value, comparable_to_reference)]
@@ -366,7 +366,8 @@ class PredictionsProvider:
         if not all_samples:
             return [], []
         
-        median_of_observed_values = np.median([size for _, size in all_samples])
+        if sla == "median": median_of_observed_values = np.median([size for _, size in all_samples])
+        else: median_of_observed_values = np.percentile([size for _, size in all_samples], sla.value)
         
         # Try increasing thresholds from 5% to 100% in 5% steps
         for threshold_percent in range(5, 101, 5):

@@ -25,20 +25,22 @@ def get_planner_from_sys_argv():
 
     print(f"Using planner type: {planner_type}")
 
+    sla = Percentile(90)
+
     if planner_type == "simple":
         return SimplePlannerAlgorithm.Config(
-            sla="median",
+            sla=sla,
             all_flexible_workers=False,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "first":
         return FirstPlannerAlgorithm.Config(
-            sla="median",
+            sla=sla,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
         )
     elif planner_type == "second":
         return SecondPlannerAlgorithm.Config(
-            sla="median",
+            sla=sla,
             available_worker_resource_configurations=[
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=256),
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
