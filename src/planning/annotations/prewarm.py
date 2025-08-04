@@ -1,0 +1,31 @@
+import asyncio
+from dataclasses import dataclass, field
+from types import CoroutineType
+from typing import Any
+import cloudpickle
+from src.dag.dag import FullDAG, SubDAG
+from src.dag_task_annotation import TaskAnnotation
+from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
+from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
+from src.storage.storage import Storage
+from src.workers.worker_execution_logic import WorkerExecutionLogic
+from src.utils.logger import create_logger
+
+logger = create_logger(__name__)
+
+@dataclass
+class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
+    """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible 
+    """
+
+    target_resource_config: TaskWorkerResourceConfiguration
+
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+    def clone(self): return PreWarmOptimization(self.target_resource_config.clone())
+
+    @staticmethod
+    async def override_before_task_handling():
+        # TODO: make the invocation to the target resource config
+        pass

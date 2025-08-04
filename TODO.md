@@ -1,20 +1,25 @@
-- [+] Usar user SLA para calcular SLA de uma workflow
-    + testar com percentis e ver se promessa se cumpre:
-        quando selectiona p90, os resultados estão abaixo de 90% das execuções
-        adicionar ao dashboard (para cada metrica da tabela, a verde se a promessa foi cumprida, vermelho se não)
-    [BUG] predicted worker startup time is showing 0 on global dashboard
-- [+] Otimizações
+- [TODO] Usar user SLA para calcular SLA de uma workflow
+    - Create python script to run experiments
+        - this script should by run as: `python script.py`
+        - run each planner X times with Y different SLAs for each
+- [TODO] Otimizações
     pre-warm
     task-duplication
     output-streaming (think/research) (see slack)
 
-- [-] Mais workflows
-
 [THINK:PLANNER_OPTIMIZATIONS]
 - `pre-warm` (an "empty" invocation (special message) to a **target resource config**)
+    a task that has this annotation, should prewarm `prewarmoptimization.targetResourceConfig`
     when it receives this invocation, the FaaS engine will startup a container, run the "empty invocation" code path (could exit immediatelly), and then leave the environment running for a few more seconds (not controllable by us) in hope of another invocation (would be "warm")
     possible benefits: faster startup times for some tasks on workers with a resource config for which there are not yet enough worker instances
     possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
+    [TODO]
+        - implement annotation
+        - implement the handling of empty invocations
+        - make planner algorithms use this optimization (decide when it's appropriate and apply on all algorithms)
+            make the planners call the `.override_before_task_handling` on their overriden `workerexecutionlogic` methods
+            when to add this annotation ?:
+
 - `task-dup`
     if a worker A is waiting for the data of an upstream task 1 (executing or to be executed on worker 2) to be available, 
     it can execute that task itself. by executing task 1 locally, worker 2 won’t need to wait for the data to be available 
@@ -44,6 +49,7 @@
 - `output-streaming`
 - Create a planner that uses them + make the prediction calculations take it into account
 
+- [-] Find/Create more workflows
 
 [EVALUATION:PREPARE]
 - Implement **WUKONG** planner

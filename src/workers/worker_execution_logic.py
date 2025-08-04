@@ -19,6 +19,10 @@ class WorkerExecutionLogic():
         pass
 
     @staticmethod
+    async def override_before_task_handling():
+        pass
+
+    @staticmethod
     async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (

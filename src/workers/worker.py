@@ -60,6 +60,11 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id
                 current_task.metrics.started_at_timestamp_s = time.time()
 
+                if self.planner:
+                    await self.planner.override_before_task_handling()
+                else:
+                    await WorkerExecutionLogic.override_before_task_handling()
+
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 task_dependencies: dict[str, Any] = {}

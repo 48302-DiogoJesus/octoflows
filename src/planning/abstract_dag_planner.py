@@ -89,8 +89,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        # print(f"Total Download Time: {sum(info.total_download_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
-        # print(f"Total Upload Time: {sum(info.tp_upload_time_ms / 1000 for info in plan_result.nodes_info.values()):.4f}s")
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
