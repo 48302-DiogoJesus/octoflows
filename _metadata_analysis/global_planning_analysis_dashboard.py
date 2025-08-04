@@ -1,8 +1,9 @@
 import streamlit as st
 import redis
 import cloudpickle
-from typing import Dict, List
+from typing import Dict, List, Any, Union
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import hashlib
 import colorsys
@@ -232,73 +233,108 @@ def main():
                     predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
                 
+                # Store actual values for SLA comparison
+                instance_metrics = {
+                    'makespan': actual_makespan_s,
+                    'execution': actual_execution,
+                    'download': actual_total_download,
+                    'upload': actual_upload,
+                    'input_size': actual_input_size,
+                    'output_size': actual_output_size,
+                    'worker_startup': actual_total_worker_startup_time_s
+                }
+                
                 # Calculate differences and percentages with sample counts
-                def format_metric(actual, predicted, samples=None):
+                def format_metric(actual, predicted, metric_name=None, samples=None):
+                    # Store the actual value for SLA comparison
+                    if metric_name is not None:
+                        instance_metrics[metric_name] = actual
+                    
+                    # Format the predicted vs actual comparison
                     if predicted == 0 and actual == 0:
-                        base = "0.000s (0.000%)"
+                        comparison = "0.000s (0.000%)"
                     else:
                         diff = actual - predicted
                         pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
-                        sign = "+" if diff >= 0 else "-"
-                        base = f"{predicted:.3f}s → {actual:.3f}s ({sign}{abs(diff):.3f}s, {sign}{abs(pct_diff):.1f}%)"
+                        sign = "+" if diff >= 0 else ""
+                        comparison = f"{predicted:.3f}s → {actual:.3f}s ({sign}{diff:.3f}s, {sign}{pct_diff:.1f}%)"
                     
+                    # Add sample count if provided
                     if samples is not None:
-                        return f"{base}\n(samples: {samples})"
-                    return base
+                        comparison = f"{comparison}\n(samples: {samples})"
+                    
+                    return comparison
                 
                 # Get sample counts if available
                 sample_counts = instance.plan.prediction_sample_counts if instance.plan and hasattr(instance.plan, 'prediction_sample_counts') else None
                 
-                def format_size_metric(actual, predicted, samples=None):
+                def format_size_metric(actual, predicted, metric_name=None, samples=None):
+                    # Store the actual value for SLA comparison
+                    if metric_name is not None:
+                        instance_metrics[metric_name] = actual
+                        
                     formatted_actual = format_bytes(actual)
                     formatted_predicted = format_bytes(predicted)
-                    if predicted == 0 and actual == 0:
-                        return f"{formatted_predicted} → {formatted_actual} (0.0%)"
-                    diff = actual - predicted
-                    pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
-                    sign = "+" if diff >= 0 else "-"
-                    base = f"{formatted_predicted} → {formatted_actual} ({sign}{abs(pct_diff):.1f}%)"
-                    if samples is not None:
-                        return f"{base}\n(samples: {samples})"
-                    return base
                     
-                # Format SLA for display
+                    # Format the predicted vs actual comparison
+                    if predicted == 0 and actual == 0:
+                        comparison = f"{formatted_predicted} → {formatted_actual} (0.0%)"
+                    else:
+                        diff = actual - predicted
+                        pct_diff = (diff / predicted * 100) if predicted != 0 else float('inf')
+                        sign = "+" if diff >= 0 else ""
+                        comparison = f"{formatted_predicted} → {formatted_actual} ({sign}{pct_diff:.1f}%)"
+                    
+                    # Add sample count if provided
+                    if samples is not None:
+                        comparison = f"{comparison}\n(samples: {samples})"
+                        
+                    return comparison
+                    
+                # Format SLA for display and store for later use
+                sla_percentile = None
                 sla_value = 'N/A'
                 if instance.plan:
                     if instance.plan.sla == 'median':
-                        sla_value = 'median'
+                        sla_value = 'median (p50)'
+                        sla_percentile = 50
                     else:
                         sla_value = f'p{instance.plan.sla.value}'
+                        sla_percentile = instance.plan.sla.value
                 
                 # Calculate total DAG download time across all downloads
                 total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
                 dag_download_time = f"{total_download_time / 1000:.3f}s"
                 
+                # Store the instance data with metrics for SLA comparison
                 instance_data.append({
                     'Workflow Type': selected_workflow,
                     'Planner': instance.plan.planner_name if instance.plan else 'N/A',
                     'Resources': f"{common_resources.cpus} CPUs {common_resources.memory_mb} MB" if common_resources else 'Non-Uniform',
                     'SLA': sla_value,
+                    '_sla_percentile': sla_percentile,
                     'Master DAG ID': instance.master_dag_id,
-                    'Makespan': format_metric(actual_makespan_s, predicted_makespan_s, 
+                    'Makespan': format_metric(actual_makespan_s, predicted_makespan_s, 'makespan',
                                         sample_counts.for_execution_time if sample_counts else None),
-                    'Total Execution Time': format_metric(actual_execution, predicted_execution, 
+                    'Total Execution Time': format_metric(actual_execution, predicted_execution, 'execution',
                                                 sample_counts.for_execution_time if sample_counts else None),
-                    'Total Download Time': format_metric(actual_total_download, predicted_total_download, 
+                    'Total Download Time': format_metric(actual_total_download, predicted_total_download, 'download',
                                             sample_counts.for_download_speed if sample_counts else None),
-                    'Total Upload Time': format_metric(actual_upload, predicted_upload, 
+                    'Total Upload Time': format_metric(actual_upload, predicted_upload, 'upload',
                                             sample_counts.for_upload_speed if sample_counts else None),
-                    'Total Input Size': format_size_metric(actual_input_size, predicted_input_size,
+                    'Total Input Size': format_size_metric(actual_input_size, predicted_input_size, 'input_size',
                                             sample_counts.for_output_size if sample_counts else None),
-                    'Total Output Size': format_size_metric(actual_output_size, predicted_output_size,
+                    'Total Output Size': format_size_metric(actual_output_size, predicted_output_size, 'output_size',
                                             sample_counts.for_output_size if sample_counts else None),
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
-                    'Total Worker Startup Time': f"{actual_total_worker_startup_time_s:.3f}s",
+                    'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0, 'worker_startup'),
+                    '_actual_worker_startup': actual_total_worker_startup_time_s,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
                     '_sample_count': sample_counts.for_execution_time if sample_counts else 0,
+                    '_metrics': instance_metrics
                 })
 
             if instance_data:
@@ -309,13 +345,110 @@ def main():
                 if not isinstance(df_instances, pd.DataFrame):
                     df_instances = pd.DataFrame(df_instances)
                 
+                # Calculate SLA metrics across all instances for each metric type
+                if len(df_instances) > 0 and '_metrics' in df_instances.columns:
+                    # Get all metrics from all instances
+                    all_metrics = {
+                        'makespan': [],
+                        'execution': [],
+                        'download': [],
+                        'upload': [],
+                        'input_size': [],
+                        'output_size': [],
+                        'worker_startup': []
+                    }
+                    
+                    # Collect all metrics
+                    for _, row in df_instances.iterrows():
+                        for metric, value in row['_metrics'].items():
+                            all_metrics[metric].append(value)
+                    
+                    # Calculate SLA values (median or specified percentile) for each metric
+                    sla_metrics: Dict[str, float] = {}
+                    if not df_instances.empty and '_sla_percentile' in df_instances.columns:
+                        # Get the SLA percentile for this instance (use first instance as reference)
+                        sla_pct = df_instances.iloc[0]['_sla_percentile']
+                        
+                        if sla_pct is not None:
+                            for metric, values in all_metrics.items():
+                                if not values:
+                                    continue
+                                
+                                try:
+                                    if sla_pct == 50:  # median
+                                        sla_value = float(np.median(values))
+                                    else:  # specific percentile
+                                        sla_value = float(np.percentile(values, sla_pct))
+                                    
+                                    sla_metrics[metric] = sla_value
+                                except (TypeError, ValueError) as e:
+                                    print(f"Error calculating SLA for {metric}: {e}")
+                    
+                    # Update the display values with SLA comparison
+                    for idx, row in df_instances.iterrows():
+                        metrics = row['_metrics']
+                        
+                        # Helper function to format SLA comparison
+                        def format_with_sla(metric_name: str, value: float, unit: str = 's') -> str:
+                            try:
+                                if not sla_metrics or metric_name not in sla_metrics or pd.isna(sla_metrics[metric_name]):
+                                    return f"{value:.3f}{unit}"
+                                
+                                sla = float(sla_metrics[metric_name])
+                                offset = value - sla
+                                sign = "+" if offset >= 0 else ""
+                                meets_sla = value <= sla
+                                emoji = "✅" if meets_sla else "❌"
+                                
+                                # Get the current cell value (contains the predicted vs actual comparison)
+                                current_value = str(df_instances.at[idx, col_name])
+                                
+                                # Format the SLA information
+                                if unit == 's':
+                                    sla_info = f"{emoji} SLA: {sla:.3f}s (offset: {sign}{abs(offset):.3f}s)"
+                                else:  # for sizes
+                                    sla_info = f"{emoji} SLA: {format_bytes(sla)} (offset: {sign}{format_bytes(abs(offset))})"
+                                
+                                return f"{current_value}\n{sla_info}"
+                            except Exception as e:
+                                print(f"Error formatting SLA for {metric_name}: {e}")
+                                return str(value)
+                        
+                        # Update each metric with SLA comparison
+                        metric_columns = {
+                            'Makespan': ('makespan', 's'),
+                            'Total Execution Time': ('execution', 's'),
+                            'Total Download Time': ('download', 's'),
+                            'Total Upload Time': ('upload', 's'),
+                            'Total Input Size': ('input_size', 'b'),
+                            'Total Output Size': ('output_size', 'b'),
+                            'Total Worker Startup Time': ('worker_startup', 's')
+                        }
+                        
+                        for col_name, (metric_name, unit) in metric_columns.items():
+                            if col_name in df_instances.columns and metric_name in metrics:
+                                try:
+                                    metric_value = float(metrics[metric_name])
+                                    formatted = format_with_sla(metric_name, metric_value, unit)
+                                    if formatted is not None:
+                                        df_instances.at[idx, col_name] = formatted
+                                except (ValueError, TypeError) as e:
+                                    print(f"Error processing {metric_name}: {e}")
+                
                 # Sort by sample count in descending order
                 if '_sample_count' in df_instances.columns:
                     df_instances = df_instances.sort_values('_sample_count', ascending=False)
                 
                 # Remove the temporary columns before display
-                cols_to_drop = [col for col in ['_sample_count', '_actual_invocation', '_actual_dependency_update'] 
-                              if col in df_instances.columns]
+                cols_to_drop = [col for col in [
+                    '_sample_count', 
+                    '_actual_invocation', 
+                    '_actual_dependency_update',
+                    '_actual_worker_startup',
+                    '_metrics',
+                    '_sla_percentile'
+                ] if col in df_instances.columns]
+                
                 if cols_to_drop:
                     df_instances = df_instances.drop(columns=cols_to_drop)
                 
