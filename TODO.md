@@ -14,15 +14,11 @@
     possible benefits: faster startup times for some tasks on workers with a resource config for which there are not yet enough worker instances
     possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
     [TODO]
-        - [DONE] implement annotation
-            """
-            Don't handle errors and send the request in an async manner. the caller of warmup() should NOT block waiting for the request to receive a response. It should be a fire and forget
-            """
-        - [DONE] implement the handling of empty invocations
-        - make planner algorithms use this optimization (decide when it's appropriate and apply on all algorithms)
-            make the planners call the `.override_before_task_handling` on their overriden `workerexecutionlogic` methods
-            when to add this annotation ?:
-        - make the simulator take this into consideration to predict `warm` instead of `cold` starts
+        - Make the simulator take this into consideration to predict `warm` instead of `cold` starts
+            change the `_calculate_node_timings_with_common_resources` function to look at the `prewarm` annotation
+        ``` [MAY NOT BE NEEDED IF I REFRESH NODES_INFO BY CALLING "_calculate_node_timings_with_common_resources" after adding a prewarm annotation]
+        @first_planner_algorithm.py#L152-191 this works but since the outer for loop is iterating on all nodes I want to avoid adding unneded prewarm annotations. For example, after I add a prewarm annotation in an iteration, that worker config (memory and cpu) will be warm until there is a gap of TIME_UNTIL_COLD_MS where no task is executing on it. Please make future iterations take that into consideration
+        ```
 
 - `task-dup`
     if a worker A is waiting for the data of an upstream task 1 (executing or to be executed on worker 2) to be available, 
