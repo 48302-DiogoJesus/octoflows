@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import cloudpickle
 from graphviz import Digraph
 from typing import Literal
+from collections import defaultdict
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
@@ -244,10 +245,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         """
         Note: Needs to run after {earliest_start} and {path_completion_time} are calculated so that it can predict if the startup will be WARM or COLD
         """
-
+        
         # create a new sorted list from topo_sorted_nodes where nodes where earliest start appear first
         # note: there can be overlapping time periods within the same resource_configuration
-        worker_active_periods: dict[tuple[float, int], list[tuple[float, float]]] = {}  # (cpus, memory_mb) -> List[Tuple[start_ms, end_ms]]
+        worker_active_periods: dict[tuple[float, int], list[tuple[float, float]]] = defaultdict(list)  # (cpus, memory_mb) -> List[Tuple[start_ms, end_ms]]
 
         # Collect expected worker activity periods
         for node in topo_sorted_nodes:

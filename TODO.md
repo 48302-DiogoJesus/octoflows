@@ -1,9 +1,4 @@
 [PLANNER_OPTIMIZATIONS]
-- `pre-warm` (an "empty" invocation (special message) to a **target resource config**)
-    a task that has this annotation, should prewarm `prewarmoptimization.targetResourceConfig` before it starts it's own input handling => execution => etc...
-    when it receives this invocation, the FaaS engine will startup a container, run the "empty invocation" code path (could exit immediatelly), and then leave the environment running for a few more seconds (not controllable by us) in hope of another invocation (would be "warm")
-    possible benefits: faster startup times for some tasks on workers with a resource config for which there are not yet enough worker instances
-    possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
 - `task-dup`
     if a worker A is waiting for the data of an upstream task 1 (executing or to be executed on worker 2) to be available, 
     it can execute that task itself. by executing task 1 locally, worker 2 won’t need to wait for the data to be available 
@@ -32,6 +27,12 @@
         - DAG representation will be bigger because of embedded plan
 - `output-streaming`
     (think/research) (see slack)
+
+- [DONE] `pre-warm` (an "empty" invocation (special message) to a **target resource config**)
+    a task that has this annotation, should prewarm `prewarmoptimization.targetResourceConfig` before it starts it's own input handling => execution => etc...
+    when it receives this invocation, the FaaS engine will startup a container, run the "empty invocation" code path (could exit immediatelly), and then leave the environment running for a few more seconds (not controllable by us) in hope of another invocation (would be "warm")
+    possible benefits: faster startup times for some tasks on workers with a resource config for which there are not yet enough worker instances
+    possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
 
 - [TODO] Create python script to run experiments to test diff. SLAs:
     - this script should by run as: `python script.py`
