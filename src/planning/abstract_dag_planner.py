@@ -7,6 +7,7 @@ from typing import Literal
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.annotations.prewarm import PreWarmOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
@@ -16,11 +17,15 @@ from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
 
+
 class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     """
     A planner should override WorkerExecutionLogic methods if it uses annotations that may conflict with each other.
     This way, the planner can specify the desired behavior.
     """
+
+    TIME_UNTIL_WORKER_GOES_COLD_MS = 10_000
+
     @dataclass
     class Config(ABC):
         sla: SLA
@@ -174,9 +179,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         deserialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=True)
         serialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=False)
 
-        if node.id.function_name == "merge_word_counts":
-            print("Predicted Input: ", deserialized_input_size, "bytes")
-
         downloadable_input_size = 0
         
         # 1. Calculate earliest start time (max of upstream completions)
@@ -218,7 +220,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             upload_time = 0.0
         else:
             upload_time = predictions_provider.predict_data_transfer_time('upload', deserialized_output_size, resource_config, sla)
-            if upload_time == 0: print("WTF: ", len(node.downstream_nodes), "func_name: ", node.func_name)
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
@@ -244,9 +245,35 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         Note: Needs to run after {earliest_start} and {path_completion_time} are calculated so that it can predict if the startup will be WARM or COLD
         """
 
-        MAX_TIME_UNTIL_COLD_MS = 10_000
+        # create a new sorted list from topo_sorted_nodes where nodes where earliest start appear first
+        # note: there can be overlapping time periods within the same resource_configuration
+        worker_active_periods: dict[tuple[float, int], list[tuple[float, float]]] = {}  # (cpus, memory_mb) -> List[Tuple[start_ms, end_ms]]
 
-        # create a new sorted list from topo_sorted_nodes where nodes with earlisest earliest start appear first
+        # Collect expected worker activity periods
+        for node in topo_sorted_nodes:
+            my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            my_node_info = nodes_info[node.id.get_full_id()]
+            # register when MY worker config should be active
+            worker_active_periods[(my_resource_config.cpus, my_resource_config.memory_mb)].append((
+                my_node_info.earliest_start_ms, 
+                my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS
+            ))
+            # register when the worker config I PRE-WARM should be active
+            prewarm_optimization = node.try_get_annotation(PreWarmOptimization)
+            if prewarm_optimization:
+                time_at_which_worker_will_be_ready = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
+                worker_active_periods[(prewarm_optimization.target_resource_config.cpus, prewarm_optimization.target_resource_config.memory_mb)].append((
+                    time_at_which_worker_will_be_ready,
+                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS
+                ))
+
+        def _is_worker_warm_at_time(worker_config: tuple[float, int], target_time_ms: float) -> bool:
+            return any(
+                start_ms < target_time_ms < end_ms 
+                for start_ms, end_ms in worker_active_periods[(worker_config[0], worker_config[1])]
+            )
+
+        # Second pass: apply the scheduling logic with simplified condition
         for node in topo_sorted_nodes:
             my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             my_node_info = nodes_info[node.id.get_full_id()]
@@ -254,7 +281,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             if any(
                 n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
                 n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
-                # Same worker_id (could be both None) or at least one is None ("flexbile"), in which case we assume it will execute on the same worker
                 (
                     n.get_annotation(TaskWorkerResourceConfiguration).worker_id == my_resource_config.worker_id or \
                     n.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or \
@@ -263,24 +289,13 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 for n in node.upstream_nodes
             ):
                 # won't cause a worker launch, it will execute on already running worker
-                #   note: checking cpus and memory is done to prevent against "flexible" workers (worker_id = None)
                 my_node_info.tp_worker_startup_time_ms = 0
                 my_node_info.worker_startup_state = None
                 my_node_info.earliest_start_ms += 0
                 my_node_info.task_completion_time_ms += 0
                 continue
 
-            any_node_w_same_resources_starting_before_me = len(node.upstream_nodes) > 0 and \
-                any([n for n in topo_sorted_nodes if \
-                    n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
-                    n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
-                    # Filter for tasks whose workers started before me
-                    nodes_info[n.id.get_full_id()].earliest_start_ms < my_node_info.earliest_start_ms and \
-                    # Filter for tasks whose workers are expected to be WARM until I start (at least)
-                    nodes_info[n.id.get_full_id()].task_completion_time_ms + MAX_TIME_UNTIL_COLD_MS >= my_node_info.earliest_start_ms
-                ])
-
-            if any_node_w_same_resources_starting_before_me:
+            if _is_worker_warm_at_time((my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
                 my_node_info.worker_startup_state = "warm"

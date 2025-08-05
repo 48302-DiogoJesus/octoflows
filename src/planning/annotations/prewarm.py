@@ -30,7 +30,7 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         
-        prewarm_annotation = current_task.get_annotation(PreWarmOptimization)
+        prewarm_annotation = current_task.try_get_annotation(PreWarmOptimization)
         if prewarm_annotation is None: return
 
         # "fire-and-forget" / non-blocking

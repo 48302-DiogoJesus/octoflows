@@ -1,25 +1,9 @@
-- [TODO] Usar user SLA para calcular SLA de uma workflow
-    - Create python script to run experiments
-        - this script should by run as: `python script.py`
-        - run each planner X times with Y different SLAs for each
-- [TODO] Otimizações
-    pre-warm
-    task-duplication
-    output-streaming (think/research) (see slack)
-
-[THINK:PLANNER_OPTIMIZATIONS]
+[PLANNER_OPTIMIZATIONS]
 - `pre-warm` (an "empty" invocation (special message) to a **target resource config**)
-    a task that has this annotation, should prewarm `prewarmoptimization.targetResourceConfig`
+    a task that has this annotation, should prewarm `prewarmoptimization.targetResourceConfig` before it starts it's own input handling => execution => etc...
     when it receives this invocation, the FaaS engine will startup a container, run the "empty invocation" code path (could exit immediatelly), and then leave the environment running for a few more seconds (not controllable by us) in hope of another invocation (would be "warm")
     possible benefits: faster startup times for some tasks on workers with a resource config for which there are not yet enough worker instances
     possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
-    [TODO]
-        - Make the simulator take this into consideration to predict `warm` instead of `cold` starts
-            change the `_calculate_node_timings_with_common_resources` function to look at the `prewarm` annotation
-        ``` [MAY NOT BE NEEDED IF I REFRESH NODES_INFO BY CALLING "_calculate_node_timings_with_common_resources" after adding a prewarm annotation]
-        @first_planner_algorithm.py#L152-191 this works but since the outer for loop is iterating on all nodes I want to avoid adding unneded prewarm annotations. For example, after I add a prewarm annotation in an iteration, that worker config (memory and cpu) will be warm until there is a gap of TIME_UNTIL_COLD_MS where no task is executing on it. Please make future iterations take that into consideration
-        ```
-
 - `task-dup`
     if a worker A is waiting for the data of an upstream task 1 (executing or to be executed on worker 2) to be available, 
     it can execute that task itself. by executing task 1 locally, worker 2 won’t need to wait for the data to be available 
@@ -47,7 +31,17 @@
         - signal checks consume storage and add small latency
         - DAG representation will be bigger because of embedded plan
 - `output-streaming`
-- Create a planner that uses them + make the prediction calculations take it into account
+    (think/research) (see slack)
+
+- [TODO] Create python script to run experiments to test diff. SLAs:
+    - this script should by run as: `python script.py`
+    - run each planner X times with Y different SLAs for each
+
+- [TODO] Update "global" dashboard to allow comparing data by SLA:
+    - success rate (percentage of workflows that finished below the SLA)
+    - overall prediction success rate (compared to the real values)
+
+--- 
 
 - [-] Find/Create more workflows
 

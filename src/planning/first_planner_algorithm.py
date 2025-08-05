@@ -5,6 +5,7 @@ import uuid
 
 from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.annotations.prewarm import PreWarmOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -62,6 +63,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 # Use same worker id as its first upstream node
                 resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
 
+        # OPTIMIZATION: PRE-LOAD
         iteration = 0
         total_preload_optimizations = 0
         while True:
@@ -144,9 +146,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             if iteration > 100:
                 logger.warning(f"Maximum iterations reached. Stopping algorithm.")
                 break
-
-        # Add pre-warm annotations for cold starts
-        from src.planning.annotations.prewarm import PreWarmOptimization
+        
+        # OPTIMIZATION: PRE-WARM
+        total_prewarm_optimizations = 0
         
         # For each node that has a cold start
         for my_node_id, node_info in nodes_info.items():
@@ -171,7 +173,6 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             # Find the best node to add pre-warm annotation to
             best_node = None
             best_start_time = -1
-            TIME_UNTIL_COLD_MS = 10_000 # lower bound (if goes below, it will become cold again)
             TIME_MARGIN_MS = 1_500 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
             
             for other_node_id, other_node_info in nodes_info.items():
@@ -179,7 +180,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 
                 # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
                 my_potential_start_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
-                min_prewarm_time = max(0, node_info.earliest_start_ms - TIME_UNTIL_COLD_MS)
+                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS)
                 max_prewarm_time = max(0, node_info.earliest_start_ms - TIME_MARGIN_MS)
                 is_in_optimal_prewarm_window = min_prewarm_time < my_potential_start_if_prewarmed < max_prewarm_time
                 
@@ -188,7 +189,12 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                     best_start_time = other_node_info.earliest_start_ms
             
             # Add pre-warm annotation to the best node found
-            if best_node is not None: best_node.add_annotation(PreWarmOptimization(my_worker_config))
+            if best_node is not None: 
+                best_node.add_annotation(PreWarmOptimization(my_worker_config))
+                # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
+                #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
+                nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
+                total_prewarm_optimizations += 1
         
         # Final statistics
         final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
@@ -214,7 +220,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
-        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations}")
+        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
         logger.info(f"Prediction samples used: {prediction_samples_used}")
