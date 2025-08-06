@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from types import CoroutineType
 from typing import Any
+import time
 import cloudpickle
 from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_annotation import TaskAnnotation
@@ -19,23 +20,17 @@ class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
     """ 
     Indicates that this task can be duplicated if needed (decided at runtime)
     """
+    TASK_STARTED_PREFIX = "taskdup-task-started-"
+    TIME_THRESHOLD_MS = 1_000 # the least amount of time we need to save to justify duplication
 
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def clone(self): return TaskDupOptimization()
 
     @staticmethod
-    async def override_before_task_handling(this_worker, subdag: SubDAG, current_task: DAGTaskNode):
+    async def override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
         taskdup_annotation = current_task.try_get_annotation(TaskDupOptimization)
         is_duppable = taskdup_annotation is not None
-        can_dup_upstream = any(t.try_get_annotation(TaskDupOptimization) is not None for t in current_task.upstream_nodes)
-        if not is_duppable and not can_dup_upstream: return
+        if not is_duppable: return
 
-        if is_duppable:
-            # TODO: Set a storage flag with CURRENT timestamp (real_task_start_time)
-            pass
-        elif can_dup_upstream:
-            # TODO: eval if should dup and dup if so
-            pass
-
-        pass
+        await metadata_storage.set(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())

@@ -23,6 +23,8 @@ from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 
+from src.planning.annotations.taskdup import TaskDupOptimization
+
 logger = create_logger(__name__)
 
 def create_if_not_exists(filename):
@@ -118,6 +120,45 @@ async def main():
                 asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
             return callback
         
+        cached_tasks_start_time: dict[str, float] = {} # task_id -> real_task_start_time
+        def _on_task_dup_callback_builder(one_of_the_upsteam_tasks: DAGTaskNode, main_task: DAGTaskNode):
+            """
+            {task} is an upstream task of {main_task}
+            {main_task} has at least 1 upstream task with "task-dup" annotation
+            """
+            async def callback(_: dict):
+                await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}")
+                logger.info(f"Task {one_of_the_upsteam_tasks.id.get_full_id()} is READY! Checking dup...")
+
+                assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
+
+                greatest_predicted_time_saved_task: DAGTaskNode | None = None
+                greatest_predicted_time_saved: float = float("inf")
+                duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_annotation(TaskDupOptimization) is not None]
+                for u_task in duppable_tasks:
+                    # get REAL (not predicted ES) start time
+                    if u_task.id.get_full_id() not in cached_tasks_start_time:
+                        cached_tasks_start_time[u_task.id.get_full_id()] = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                    real_task_start_time_ts_s: float | None = cached_tasks_start_time[u_task.id.get_full_id()]
+                    assert real_task_start_time_ts_s is not None, "Couldn't find real_task_start_time for duppable task {}".format(u_task.id.get_full_id())
+
+                    task_predictions = main_task.duppable_tasks_predictions[u_task.id.get_full_id()]
+                    expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
+                    potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.exec_time_ms
+                    
+                    if potential_ready_to_exec_ts_ms + TaskDupOptimization.TIME_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
+                        potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
+                        if potential_time_saved < greatest_predicted_time_saved:
+                            greatest_predicted_time_saved = potential_time_saved
+                            greatest_predicted_time_saved_task = u_task
+
+                #* Only chooses duplicate the task
+                if greatest_predicted_time_saved_task:
+                    # TODO: grab task inputs + execute task + return (needs to be blocking). Then the outputs should be cached in subdag structure
+                    assert wk.my_resource_configuration.worker_id is not None
+                    await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, execute_only_one_task=True)
+            return callback
+
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
         if this_worker_id is not None:
             for task in all_tasks_for_this_worker:
@@ -126,6 +167,11 @@ async def main():
                     continue
                 tasks_that_depend_on_other_workers.append(task)
                 await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
+
+                has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
+                if has_duppable_upstream_tasks:
+                    for utask in task.upstream_nodes:
+                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task))
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()

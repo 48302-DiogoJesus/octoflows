@@ -37,6 +37,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
     @dataclass
     class DuppableTaskPrediction:
+        original_exec_time_ms: float # time to execute the duppable task on it's planned worker
+        original_upload_time_ms: float # time to upload the duppable task output to storage
+        original_download_time_ms: float # time for ME to download the duppable task OUTPUT from storage
+
         inputs_download_time_ms: float # time to download inputs of the duppable task
         exec_time_ms: float # time to execute the duppable task
 
@@ -234,8 +238,12 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for u_task in node.upstream_nodes:
             if not u_task.try_get_annotation(TaskDupOptimization): continue
             node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
+                original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, u_task.get_annotation(TaskWorkerResourceConfiguration), sla),
+                original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.get_annotation(TaskWorkerResourceConfiguration), sla),
+                original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
+
                 exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, resource_config, sla),
-                inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla)
+                inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
             )
             
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(

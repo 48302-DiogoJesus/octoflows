@@ -41,7 +41,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str) -> None:
+    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str, execute_only_one_task: bool = False) -> None:
         """
         Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
         """
@@ -61,9 +61,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.started_at_timestamp_s = time.time()
 
                 if self.planner:
-                    await self.planner.override_before_task_handling(self, subdag, current_task)
+                    await self.planner.override_before_task_handling(self, self.metadata_storage, subdag, current_task)
                 else:
-                    await WorkerExecutionLogic.override_before_task_handling(self, subdag, current_task)
+                    await WorkerExecutionLogic.override_before_task_handling(self, self.metadata_storage, subdag, current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -187,6 +187,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
                     break # Give up
+
+                if execute_only_one_task:
+                    break
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS

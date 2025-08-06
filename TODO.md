@@ -7,6 +7,9 @@
         W1 won’t need to wait for the data to be available and then download it from external storage.
         W2 may not need to upload the output to storage.
     - implementation:
+        - [NEW] on the docker worker, add READY subscriptions to the `non_immediate.upstream_tasks` of `non_immediate` that have at least 1 upstream task with `task-dup` annotation
+            - on the upstream subscription handler, check dup condition for the others
+
         - what if has N **not-ready** dependencies (how to choose/which to `dup`?)
             use the formula below on all of them and chose based on some criterion
         - how to predict how late a dependency is
@@ -31,10 +34,10 @@
     [TODO]
     X Embed plan data in the DAG representation
     - Implement duplication annotation
-    - Provide prediction capabilities to the worker
-    - Implement duplication logic
-    - Implement signal on storage that indicates a task has been duped so that it's original worker can avoid uploading output to storage
+    - check refs. to `override_before_task_handling` and update with new arguments
+    - make the 1 and 2 planners call the overrides of the `taskdup` annotation
     - make the planners assign this annotation (see criterion above)
+    - Add support for duplicating more input tasks, but only one at a time, and re-calculating predictions
 - `output-streaming`
     (think/research) (see slack)
 
