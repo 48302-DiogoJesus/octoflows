@@ -328,7 +328,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def override_before_task_handling(this_worker, subdag: SubDAG, current_task):
+    async def override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
         from src.planning.annotations.prewarm import PreWarmOptimization
         await PreWarmOptimization.override_before_task_handling(this_worker, subdag, current_task)
 

@@ -21,7 +21,8 @@ class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
     Indicates that this task can be duplicated if needed (decided at runtime)
     """
     TASK_STARTED_PREFIX = "taskdup-task-started-"
-    TIME_THRESHOLD_MS = 1_000 # the least amount of time we need to save to justify duplication
+    TASK_DUP_CANCELLATION_PREFIX = "taskdup-cancellation-"
+    TIME_THRESHOLD_MS = 500 # the least amount of time we need to save to justify duplication
 
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 

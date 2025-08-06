@@ -120,43 +120,59 @@ async def main():
                 asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
             return callback
         
+        dupping_locks: dict[str, asyncio.Lock] = {} # ensures that only 1 dupping task is executed at a time for each main task (disalows 2 duppings while also protecting concurrent accesses to the 2 variables below)
         cached_tasks_start_time: dict[str, float] = {} # task_id -> real_task_start_time
+        # the "pending" also accounts for remote workers dupping the same task
+        finished_or_pending_duppable_tasks: dict[str, set[str]] = {} # main_task_id -> {finished_upstream_task_ids}
         def _on_task_dup_callback_builder(one_of_the_upsteam_tasks: DAGTaskNode, main_task: DAGTaskNode):
             """
             {task} is an upstream task of {main_task}
             {main_task} has at least 1 upstream task with "task-dup" annotation
             """
+            dupping_locks.setdefault(main_task.id.get_full_id(), asyncio.Lock())
             async def callback(_: dict):
                 await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}")
                 logger.info(f"Task {one_of_the_upsteam_tasks.id.get_full_id()} is READY! Checking dup...")
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
-                greatest_predicted_time_saved_task: DAGTaskNode | None = None
-                greatest_predicted_time_saved: float = float("inf")
-                duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_annotation(TaskDupOptimization) is not None]
-                for u_task in duppable_tasks:
-                    # get REAL (not predicted ES) start time
-                    if u_task.id.get_full_id() not in cached_tasks_start_time:
-                        cached_tasks_start_time[u_task.id.get_full_id()] = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
-                    real_task_start_time_ts_s: float | None = cached_tasks_start_time[u_task.id.get_full_id()]
-                    assert real_task_start_time_ts_s is not None, "Couldn't find real_task_start_time for duppable task {}".format(u_task.id.get_full_id())
+                async with dupping_locks[main_task.id.get_full_id()]:
+                    if one_of_the_upsteam_tasks.try_get_annotation(TaskDupOptimization) is not None:
+                        finished_or_pending_duppable_tasks\
+                            .setdefault(main_task.id.get_full_id(), set())\
+                            .add(one_of_the_upsteam_tasks.id.get_full_id())
 
-                    task_predictions = main_task.duppable_tasks_predictions[u_task.id.get_full_id()]
-                    expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
-                    potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.exec_time_ms
+                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_annotation(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set())]
                     
-                    if potential_ready_to_exec_ts_ms + TaskDupOptimization.TIME_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
-                        potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
-                        if potential_time_saved < greatest_predicted_time_saved:
-                            greatest_predicted_time_saved = potential_time_saved
-                            greatest_predicted_time_saved_task = u_task
+                    greatest_predicted_time_saved_task: DAGTaskNode | None = None
+                    greatest_predicted_time_saved: float = float("inf")
+                    for u_task in unfinished_duppable_tasks:
+                        is_task_dup_cancelation_flag_set = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                        if is_task_dup_cancelation_flag_set:
+                            finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(u_task.id.get_full_id())
 
-                #* Only chooses duplicate the task
-                if greatest_predicted_time_saved_task:
-                    # TODO: grab task inputs + execute task + return (needs to be blocking). Then the outputs should be cached in subdag structure
-                    assert wk.my_resource_configuration.worker_id is not None
-                    await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, execute_only_one_task=True)
+                        # get REAL (not predicted ES) start time
+                        if u_task.id.get_full_id() not in cached_tasks_start_time:
+                            task_started_timestamp: float | None = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                            # if the task didn't start yet, assume it would start NOW (best case scenario)
+                            cached_tasks_start_time[u_task.id.get_full_id()] = task_started_timestamp or time.time()
+                        real_task_start_time_ts_s = cached_tasks_start_time[u_task.id.get_full_id()]
+
+                        task_predictions = main_task.duppable_tasks_predictions[u_task.id.get_full_id()]
+                        expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
+                        potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.exec_time_ms
+                        
+                        if potential_ready_to_exec_ts_ms + TaskDupOptimization.TIME_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
+                            potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
+                            if potential_time_saved > greatest_predicted_time_saved:
+                                greatest_predicted_time_saved = potential_time_saved
+                                greatest_predicted_time_saved_task = u_task
+
+                    #* Only chooses 1 task to duplicate
+                    if greatest_predicted_time_saved_task:
+                        assert wk.my_resource_configuration.worker_id is not None
+                        await wk.metadata_storage.set(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{greatest_predicted_time_saved_task.id.get_full_id_in_dag(fulldag)}", True)
+                        await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, is_dupping=True)
             return callback
 
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
