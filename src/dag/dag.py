@@ -11,6 +11,7 @@ import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
 from src.utils.utils import calculate_data_structure_size
 from src.utils.timer import Timer
+from src.planning.abstract_dag_planner import AbstractDAGPlanner
 
 logger = create_logger(__name__)
 
@@ -21,6 +22,8 @@ class GenericDAG(ABC):
     master_dag_structure_hash: str
     master_dag_id: str
     dag_name: str
+
+    plan: AbstractDAGPlanner.PlanOutput | None
 
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self._all_nodes[node_id.get_full_id()]
@@ -81,15 +84,16 @@ class FullDAG(GenericDAG):
         wk: Worker = _wk_config.create_instance()
         self.dag_name = dag_name
 
-        # Only do PLANNING if `metrics_storage` is specified
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metrics_storage)
             planner_name = wk.planner.__class__.__name__
-            await predictions_provider.load_metrics_from_storage(planner_name)
+            await predictions_provider.load_metrics_from_storage(planner_name=planner_name)
             logger.info(f"[PLANNING] Planner Selected: {planner_name}")
             plan_result = wk.planner.plan(self, predictions_provider)
-            if plan_result: wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
+            if plan_result:
+                self.plan = plan_result
+                wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 
         if not isinstance(wk, LocalWorker):
             # ! Need to STORE after PLANNING because after the full dag is stored on redis, all workers will use that!
