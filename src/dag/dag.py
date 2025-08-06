@@ -23,8 +23,6 @@ class GenericDAG(ABC):
     master_dag_id: str
     dag_name: str
 
-    plan: AbstractDAGPlanner.PlanOutput | None
-
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self._all_nodes[node_id.get_full_id()]
     
@@ -92,7 +90,6 @@ class FullDAG(GenericDAG):
             logger.info(f"[PLANNING] Planner Selected: {planner_name}")
             plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result:
-                self.plan = plan_result
                 wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 
         if not isinstance(wk, LocalWorker):

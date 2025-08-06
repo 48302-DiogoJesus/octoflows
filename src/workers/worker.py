@@ -61,9 +61,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.started_at_timestamp_s = time.time()
 
                 if self.planner:
-                    await self.planner.override_before_task_handling(self, current_task)
+                    await self.planner.override_before_task_handling(self, subdag, current_task)
                 else:
-                    await WorkerExecutionLogic.override_before_task_handling(self, current_task)
+                    await WorkerExecutionLogic.override_before_task_handling(self, subdag, current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")

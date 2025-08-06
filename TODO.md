@@ -11,9 +11,10 @@
             use the formula below on all of them and chose based on some criterion
         - how to predict how late a dependency is
             - need to know the REAL startup time of DEPENDENCY tasks of eligible tasks?
-            - to predict, embed the produced plan data in the DAG representation
+            - embed predictions of (exec. time + download. time) `for task.downstream_tasks in tasks w/ task-dup` of `task` the CORRECT worker (not `tasks'`)
+            - to predict
                 for dependency tasks:
-                    `expected_ready_to_exec_ts` = `REAL_task_startup_time` + `pred_execution_time` + `pred_upload_time` + `pred_download_time` (by eligible task)
+                    `expected_ready_to_exec_ts` = `(real_task_start_time` + `pred_execution_time` + `pred_upload_time` + `pred_download_time` (by eligible task)
                     `simulated_ready_to_exec_ts` = `NOW_TS` + `pred_download_time` (all deps. of the dep. task) + `pred_execution_time`
                         (live predictions because my **resource config** may be different)
                     if `simulated_ready_to_exec_ts` + `TIME_TOLERANCE` < `expected_ready_to_exec_ts`, then **dup**

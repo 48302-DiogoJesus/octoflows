@@ -43,6 +43,7 @@ class _CachedResultWrapper(Generic[R]):
 class DAGTaskNode(Generic[R]):
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         from src.storage.metrics.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
+        from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
         self.func_code = func
@@ -61,6 +62,7 @@ class DAGTaskNode(Generic[R]):
             total_invocations_count=0,
             total_invocation_time_ms=None
         )
+        self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         # Initialized with a dummy worker config annotation for local worker
         self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers

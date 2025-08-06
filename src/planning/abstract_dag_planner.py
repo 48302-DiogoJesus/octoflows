@@ -9,6 +9,7 @@ from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.prewarm import PreWarmOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
@@ -33,6 +34,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         @abstractmethod
         def create_instance(self) -> "AbstractDAGPlanner": pass
+
+    @dataclass
+    class DuppableTaskPrediction:
+        inputs_download_time_ms: float # time to download inputs of the duppable task
+        exec_time_ms: float # time to execute the duppable task
 
     @dataclass
     class PlanningTaskInfo:
@@ -224,7 +230,14 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
-        
+
+        for u_task in node.upstream_nodes:
+            if not u_task.try_get_annotation(TaskDupOptimization): continue
+            node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
+                exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, resource_config, sla),
+                inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla)
+            )
+            
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
             deserialized_input_size, 

@@ -239,9 +239,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         await PreLoadOptimization.override_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def override_before_task_handling(this_worker, current_task):
+    async def override_before_task_handling(this_worker, subdag: SubDAG, current_task):
         from src.planning.annotations.prewarm import PreWarmOptimization
-        await PreWarmOptimization.override_before_task_handling(this_worker, current_task)
+        await PreWarmOptimization.override_before_task_handling(this_worker, subdag, current_task)
 
     @staticmethod
     async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:

@@ -21,12 +21,10 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
 
     target_resource_config: TaskWorkerResourceConfiguration
 
-    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
     def clone(self): return PreWarmOptimization(self.target_resource_config.clone())
 
     @staticmethod
-    async def override_before_task_handling(this_worker, current_task: DAGTaskNode):
+    async def override_before_task_handling(this_worker, subdag: SubDAG, current_task: DAGTaskNode):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         
