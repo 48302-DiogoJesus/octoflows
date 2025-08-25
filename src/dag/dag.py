@@ -11,7 +11,6 @@ import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
 from src.utils.utils import calculate_data_structure_size
 from src.utils.timer import Timer
-from src.planning.abstract_dag_planner import AbstractDAGPlanner
 
 logger = create_logger(__name__)
 

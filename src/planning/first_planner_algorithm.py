@@ -189,7 +189,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                     best_start_time = other_node_info.earliest_start_ms
             
             # Add pre-warm annotation to the best node found
-            if best_node is not None: 
+            if best_node is not None:
                 best_node.add_annotation(PreWarmOptimization(my_worker_config))
                 # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")

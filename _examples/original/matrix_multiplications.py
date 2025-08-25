@@ -80,8 +80,6 @@ b5_t1 = time_task_more_expensive_task(50)
 b6 = time_task_expensive_fan_in(b1_t5, b2_t4, b3_t3, b4_t2, b5_t1)
 sink_task = time_task_expensive_fan_in(b6)
 
-# sink_task.visualize_dag(open_after=True)
-
 for i in range(1):
     start_time = time.time()
     result = sink_task.compute(dag_name="memory_intensive_computations", config=WORKER_CONFIG, open_dashboard=False)

@@ -105,7 +105,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -519,12 +519,15 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # Create node label with task name in bold and larger font
             # Use HTML formatting to better control spacing and prevent text cutoff
             # Added extra <BR/> spacing between lines and smaller font for details
+            has_optimization_preload = node.try_get_annotation(PreLoadOptimization) is not None
+            has_optimization_prewarm = node.try_get_annotation(PreWarmOptimization) is not None
+            has_optimization_taskdup = node.try_get_annotation(TaskDupOptimization) is not None
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.deserialized_input_size if node_info else 0} - {node_info.deserialized_output_size if node_info else 0} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start_ms if node_info else 0:.2f} - {node_info.task_completion_time_ms if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>PreLoad: {node.try_get_annotation(PreLoadOptimization) is not None}</FONT></TD></TR>" \
+                    f"<TR><TD><B><FONT POINT-SIZE='11'>{"PreLoad" if has_optimization_preload else ""} {"PreWarm" if has_optimization_prewarm else ""} {"TaskDup" if has_optimization_taskdup else ""} </FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"
