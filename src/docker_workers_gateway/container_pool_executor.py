@@ -12,6 +12,7 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 ALLOW_CONTAINER_REUSAGE = True
+TIME_UNTIL_WORKER_GOES_COLD_S = 1
 
 @dataclass
 class Container:
@@ -22,7 +23,7 @@ class Container:
     last_active_time: float = 0
 
 class ContainerPoolExecutor:
-    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval_s: float = 0.5, container_idle_timeout_s: float = 1):
+    def __init__(self, docker_image: str, max_containers: int = 15):
         """
         {container_idle_timeout} is the time a container can stay idle (without executing tasks) before it is removed
         """
@@ -32,8 +33,8 @@ class ContainerPoolExecutor:
         self.container_by_resources: Dict[Tuple[float, int], Set[str]] = defaultdict(set)  # (cpus, memory) -> {container_ids}
         self.condition = threading.Condition(self.lock)
         self.containers: Dict[str, Container] = {}
-        self.container_cleanup_interval_s = container_cleanup_interval_s 
-        self.container_idle_timeout_s = container_idle_timeout_s
+        self.container_idle_timeout_s = TIME_UNTIL_WORKER_GOES_COLD_S
+        self.container_cleanup_interval_s = TIME_UNTIL_WORKER_GOES_COLD_S / 2
         self.cleanup_thread = threading.Thread(target=self._cleanup_idle_containers, daemon=True)
         self.shutdown_flag = threading.Event()
         self.cleanup_thread.start()

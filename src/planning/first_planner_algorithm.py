@@ -173,14 +173,14 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             # Find the best node to add pre-warm annotation to
             best_node = None
             best_start_time = -1
-            TIME_MARGIN_MS = AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS / 4 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
+            TIME_MARGIN_MS = (AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S / 4) * 1_000 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
             
             for other_node_id, other_node_info in nodes_info.items():
                 if other_node_id == my_node_id: continue
                 
                 # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
                 my_potential_start_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
-                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS)
+                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000)
                 max_prewarm_time = max(0, node_info.earliest_start_ms - TIME_MARGIN_MS)
                 is_in_optimal_prewarm_window = min_prewarm_time < my_potential_start_if_prewarmed < max_prewarm_time
                 

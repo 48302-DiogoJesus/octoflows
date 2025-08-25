@@ -255,7 +255,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 
                 # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
                 my_potential_start_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
-                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS)
+                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S)
                 max_prewarm_time = max(0, node_info.earliest_start_ms - TIME_MARGIN_MS)
                 is_in_optimal_prewarm_window = min_prewarm_time < my_potential_start_if_prewarmed < max_prewarm_time
                 

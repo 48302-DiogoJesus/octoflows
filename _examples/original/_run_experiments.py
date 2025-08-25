@@ -4,50 +4,62 @@ import time
 import subprocess
 from typing import List, Optional
 
-def run_experiment(script_path: str, algorithm: str, iteration: Optional[int] = None) -> None:
+WORKFLOWS_PATHS = [
+        'matrix_multiplications.py',
+        # 'gemm.py',
+        # 'fixed_times.py',
+        # 'wordcount.py',
+        # 'image_transform.py',
+    ]
+    
+ITERATIONS = 3
+ALGORITHMS = ['simple', 'first', 'second']
+
+TIME_UNTIL_WORKER_GOES_COLD_S = 1
+
+def run_experiment(script_path: str, algorithm: str, iteration: str) -> None:
     """Run the specified Python script with the given algorithm parameter."""
-    cmd = [sys.executable, script_path, algorithm]
-    if iteration is not None:
-        print(f"Running {algorithm.upper()} algorithm {iteration}")
-    else:
-        print(f"Initial run with {algorithm.upper()} algorithm")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    full_script_path = os.path.join(script_dir, script_path)
+    
+    cmd = [sys.executable, full_script_path, algorithm]
+    
+    print(f" > Running {os.path.basename(script_path)} with {algorithm.upper()} algorithm (iteration: {iteration})")
     
     try:
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, cwd=script_dir)
     except subprocess.CalledProcessError as e:
         print(f"Error running {script_path} with {algorithm}: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # Add a small delay between runs
-    print("Sleeping for 2 seconds...")
-    time.sleep(2)
+    # Small delay between runs to give time for the workers to go cold between diff. workflow runs
+    print(f"Sleeping for {TIME_UNTIL_WORKER_GOES_COLD_S * 2} seconds...")
+    time.sleep(TIME_UNTIL_WORKER_GOES_COLD_S * 2)
 
 def main():
-    # Set timezone for consistency
-    os.environ['TZ'] = 'UTC-1'
+    os.environ['TZ'] = 'UTC-1' # Set timezone for log timestamps consistency
     
-    # Check if script name is provided
-    if len(sys.argv) < 2:
-        print(f"Error: Please provide the Python script name as the first argument.")
-        print(f"Example: {sys.argv[0]} my_script.py")
-        sys.exit(1)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    script_name = sys.argv[1]
-    iterations = 2
-    algorithms = ['simple', 'first', 'second']
-    
-    # Check if the script exists
-    if not os.path.isfile(script_name):
-        print(f"Error: The file \"{script_name}\" does not exist.", file=sys.stderr)
-        sys.exit(1)
-    
-    # First run to get some history
-    run_experiment(script_name, 'simple')
-    
-    # Run experiments for each algorithm
-    for algo in algorithms:
-        for i in range(1, iterations + 1):
-            run_experiment(script_name, algo, i)
+    for script_name in WORKFLOWS_PATHS:
+        script_path = os.path.join(script_dir, script_name)
+        
+        # Check if the script exists
+        if not os.path.isfile(script_path):
+            print(f"Warning: The file \"{script_path}\" does not exist. Skipping...", file=sys.stderr)
+            continue
+        
+        print(f"\n{'='*50}")
+        print(f"Running experiments for {script_name}")
+        print(f"{'='*50}")
+        
+        # First run to get some history
+        run_experiment(script_name, 'simple', iteration="initial")
+        
+        # Run experiments for each algorithm
+        for algo in ALGORITHMS:
+            for i in range(ITERATIONS):
+                run_experiment(script_name, algo, iteration=str(i))
     
     print("All runs completed.")
 

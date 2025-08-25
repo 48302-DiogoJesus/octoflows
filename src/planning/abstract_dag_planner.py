@@ -26,7 +26,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     This way, the planner can specify the desired behavior.
     """
 
-    TIME_UNTIL_WORKER_GOES_COLD_MS = 1_000
+    TIME_UNTIL_WORKER_GOES_COLD_S = 1
 
     @dataclass
     class Config(ABC):
@@ -278,7 +278,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # register when MY worker config should be active
             worker_active_periods[(my_resource_config.cpus, my_resource_config.memory_mb)].append((
                 my_node_info.earliest_start_ms, 
-                my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS
+                my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S
             ))
             # register when the worker config I PRE-WARM should be active
             prewarm_optimization = node.try_get_annotation(PreWarmOptimization)
@@ -286,7 +286,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 time_at_which_worker_will_be_ready = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 worker_active_periods[(prewarm_optimization.target_resource_config.cpus, prewarm_optimization.target_resource_config.memory_mb)].append((
                     time_at_which_worker_will_be_ready,
-                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS
+                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S
                 ))
 
         def _is_worker_warm_at_time(worker_config: tuple[float, int], target_time_ms: float) -> bool:
