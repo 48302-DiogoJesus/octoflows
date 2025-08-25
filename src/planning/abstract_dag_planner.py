@@ -26,7 +26,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     This way, the planner can specify the desired behavior.
     """
 
-    TIME_UNTIL_WORKER_GOES_COLD_MS = 10_000
+    TIME_UNTIL_WORKER_GOES_COLD_MS = 1_000
 
     @dataclass
     class Config(ABC):

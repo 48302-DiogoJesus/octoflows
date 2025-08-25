@@ -22,15 +22,18 @@ class Container:
     last_active_time: float = 0
 
 class ContainerPoolExecutor:
-    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval: int = 10, container_idle_timeout: int = 10):
+    def __init__(self, docker_image: str, max_containers: int = 15, container_cleanup_interval_s: float = 0.5, container_idle_timeout_s: float = 1):
+        """
+        {container_idle_timeout} is the time a container can stay idle (without executing tasks) before it is removed
+        """
         self.docker_image = docker_image
         self.lock = threading.RLock()
         self.max_containers = max_containers
         self.container_by_resources: Dict[Tuple[float, int], Set[str]] = defaultdict(set)  # (cpus, memory) -> {container_ids}
         self.condition = threading.Condition(self.lock)
         self.containers: Dict[str, Container] = {}
-        self.container_cleanup_interval = container_cleanup_interval 
-        self.container_idle_timeout = container_idle_timeout
+        self.container_cleanup_interval_s = container_cleanup_interval_s 
+        self.container_idle_timeout_s = container_idle_timeout_s
         self.cleanup_thread = threading.Thread(target=self._cleanup_idle_containers, daemon=True)
         self.shutdown_flag = threading.Event()
         self.cleanup_thread.start()
@@ -149,7 +152,7 @@ class ContainerPoolExecutor:
         """Periodically check for and remove idle containers."""
         while not self.shutdown_flag.is_set():
             # Interruptible time.sleep() alternative
-            self.shutdown_flag.wait(timeout=self.container_cleanup_interval)
+            self.shutdown_flag.wait(timeout=self.container_cleanup_interval_s)
             if self.shutdown_flag.is_set(): break
 
             current_time = time.time()
@@ -161,7 +164,7 @@ class ContainerPoolExecutor:
                     if container.is_busy: continue
                     
                     # Check if the container has been idle for too long
-                    if current_time - container.last_active_time > self.container_idle_timeout:
+                    if current_time - container.last_active_time > self.container_idle_timeout_s:
                         container.is_busy = True # Avoids the main thread from using this container
                         containers_to_remove.append(container_id)
             

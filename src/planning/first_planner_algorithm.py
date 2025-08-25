@@ -173,7 +173,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             # Find the best node to add pre-warm annotation to
             best_node = None
             best_start_time = -1
-            TIME_MARGIN_MS = 1_500 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
+            TIME_MARGIN_MS = AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_MS / 4 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
             
             for other_node_id, other_node_info in nodes_info.items():
                 if other_node_id == my_node_id: continue
