@@ -105,7 +105,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -528,7 +528,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start_ms if node_info else 0:.2f} - {node_info.task_completion_time_ms if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
                     f"<TR><TD><B><FONT POINT-SIZE='11'>{"PreLoad" if has_optimization_preload else ""} {"PreWarm" if has_optimization_prewarm else ""} {"TaskDup" if has_optimization_taskdup else ""} </FONT></B></TD></TR>" \
-                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'}</FONT></TD></TR>" \
+                    f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'} | State: {node_info.worker_startup_state if node_info and node_info.worker_startup_state else '-'}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"
             

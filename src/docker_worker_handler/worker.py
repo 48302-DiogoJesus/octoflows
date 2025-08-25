@@ -42,7 +42,7 @@ async def main():
             # Windows-specific file locking
             if os.path.exists(LOCK_FILE):
                 logger.error("Error: Another instance of the script is already running. Exiting.")
-                sys.exit(1)
+                sys.exit(2)
             # Create the lock file
             with open(LOCK_FILE, "w") as lock_file:
                 lock_file.write(str(os.getpid()))
