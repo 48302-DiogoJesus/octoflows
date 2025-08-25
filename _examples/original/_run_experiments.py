@@ -7,9 +7,9 @@ from typing import List, Optional
 WORKFLOWS_PATHS = [
         'matrix_multiplications.py',
         # 'gemm.py',
-        # 'fixed_times.py',
+        'fixed_times.py',
         # 'wordcount.py',
-        # 'image_transform.py',
+        'image_transform.py',
     ]
     
 ITERATIONS = 3

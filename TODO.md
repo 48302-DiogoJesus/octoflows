@@ -12,10 +12,6 @@
     possible issues: to simulate this, I have to set "ALLOW_CONTAINER_REUSAGE=True", but this will make the experiments unfair because some startups will be warm
     [TODO] Manipulate workflow to force this annotation to be used, then see it in action (ONLY MAKES SENSE ON 2ND planner)
         - e.g., a big fan-out should force a new worker to be spawned mid-workflow (potential for pre-warm)
-            [ISSUE] currently even on a 7-task fan-out, the algorithm plans ALL tasks on same worker
-                COPY THE CODE TO FIRST ALGORITHM
-                [BUG] fan-in is not reusing ANY worker_id
-                [BUG] validation function is failing for workers that are spawned in parallel on fan-out
 
 **2** | `task-dup` (to represent tasks that can be duplicated)
     - Use-case:
