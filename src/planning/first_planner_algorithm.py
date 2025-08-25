@@ -51,16 +51,39 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             self._store_plan_image(dag)
             return
         
-        # Give same resources to all nodes and assign worker ids
+        # Step 1: Assign best resources to all nodes and find initial critical path
+        # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
             node.add_annotation(resource_config)
             if len(node.upstream_nodes) == 0:
-                # Give each root node a unique worker id
                 resource_config.worker_id = uuid.uuid4().hex
             else:
-                # Use same worker id as its first upstream node
-                resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
+                # Count worker usage among downstream nodes of upstream nodes
+                same_level_worker_usage = {}
+                for upstream_node in node.upstream_nodes:
+                    worker_id = upstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    if not worker_id: continue
+                    same_level_worker_usage[worker_id] = 0
+
+                for upstream_node in node.upstream_nodes:
+                    # Get all downstream nodes of this upstream node
+                    for downstream_node in upstream_node.downstream_nodes:
+                        if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
+                        downstream_worker_id = downstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                        if not downstream_worker_id: continue
+                        same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
+
+                # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
+                best_worker_id = None
+                best_usage = -1
+                for worker_id, usage in same_level_worker_usage.items():
+                    if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
+                        best_worker_id = worker_id
+                        best_usage = usage
+                
+                # If no suitable worker found, create a new one
+                resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
         # OPTIMIZATION: PRE-LOAD
         iteration = 0

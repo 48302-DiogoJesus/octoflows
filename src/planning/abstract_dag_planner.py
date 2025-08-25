@@ -26,6 +26,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     This way, the planner can specify the desired behavior.
     """
 
+    MAX_FAN_OUT_SIZE_W_SAME_WORKER = 4
     TIME_UNTIL_WORKER_GOES_COLD_S = 1
 
     @dataclass
@@ -105,7 +106,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -409,8 +410,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         # (worker_id, first_seen_task_id)
         seen_worker_ids: dict[str, str] = {}
         visited_nodes = set()
-        # tasks that were already verified
-        worker_id_branches_verification_set: set[str] = set()
 
         # Initialize queue with root nodes
         queue: list[DAGTaskNode] = []
@@ -452,7 +451,6 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                         for udnode in unode.downstream_nodes:
                             if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.get_annotation(TaskWorkerResourceConfiguration).worker_id:
                                 other_udtasks_w_same_wid.add(udnode.id.get_full_id())
-                                break
                         
                     if len(other_udtasks_w_same_wid) > 0 and not any([other_udtask_id == seen_worker_ids[worker_id] for other_udtask_id in other_udtasks_w_same_wid]):
                         raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
