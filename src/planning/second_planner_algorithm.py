@@ -120,8 +120,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
                 new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
                 
-                # Check if this downgrade introduces a new critical path or increases makespan
-                if new_critical_path_time <= critical_path_time:
+                # If downgrading doesn't change the critical path, allow it, else: reverse it
+                if new_critical_path_time == critical_path_time:
                     successful_worker_resources_downgrades += 1
                 else:
                     # This downgrade hurts performance, REVERT and stop trying lower configs
