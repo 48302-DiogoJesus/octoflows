@@ -279,17 +279,17 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # Find the best node to add pre-warm annotation to
             best_node = None
             best_start_time = -1
-            TIME_MARGIN_MS = 1_500 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
+            time_until_worker_goes_cold_ms = AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
             
             for other_node_id, other_node_info in updated_nodes_info.items():
                 if other_node_id == my_node_id: continue
                 
                 # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
-                my_potential_start_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
-                min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S)
-                max_prewarm_time = max(0, node_info.earliest_start_ms - TIME_MARGIN_MS)
-                is_in_optimal_prewarm_window = min_prewarm_time < my_potential_start_if_prewarmed < max_prewarm_time
-                print("Node Id: ", other_node_id, "Window: ", min_prewarm_time, "to", max_prewarm_time, "Potential start: ", my_potential_start_if_prewarmed)
+                my_worker_potential_ready_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
+                # avoid the worker being ready but cold by the time we need it
+                min_prewarm_time = max(0, node_info.earliest_start_ms - time_until_worker_goes_cold_ms + time_until_worker_goes_cold_ms / 3)
+                max_prewarm_time = max(0, node_info.earliest_start_ms)
+                is_in_optimal_prewarm_window = min_prewarm_time < my_worker_potential_ready_if_prewarmed < max_prewarm_time
                 
                 if is_in_optimal_prewarm_window and (best_node is None or other_node_info.earliest_start_ms > best_start_time):
                     best_node = other_node_info.node_ref

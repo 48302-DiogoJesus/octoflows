@@ -12,7 +12,7 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 ALLOW_CONTAINER_REUSAGE = True
-TIME_UNTIL_WORKER_GOES_COLD_S = 1
+TIME_UNTIL_WORKER_GOES_COLD_S = 2
 
 @dataclass
 class Container:

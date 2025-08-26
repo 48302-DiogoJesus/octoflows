@@ -27,7 +27,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     """
 
     MAX_FAN_OUT_SIZE_W_SAME_WORKER = 4
-    TIME_UNTIL_WORKER_GOES_COLD_S = 1
+    TIME_UNTIL_WORKER_GOES_COLD_S = 2
 
     @dataclass
     class Config(ABC):
@@ -286,11 +286,11 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             # register when the worker config I PRE-WARM should be active
             prewarm_optimization = node.try_get_annotation(PreWarmOptimization)
             if prewarm_optimization:
-                time_at_which_worker_will_be_ready = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
+                time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 worker_active_periods[(prewarm_optimization.target_resource_config.cpus, prewarm_optimization.target_resource_config.memory_mb)].append((
                     prewarm_optimization.target_resource_config.worker_id,
-                    time_at_which_worker_will_be_ready,
-                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
+                    time_at_which_worker_will_be_ready_ms,
+                    time_at_which_worker_will_be_ready_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
                 ))
 
         def _is_worker_warm_at_time(my_worker_id: str | None, worker_config: tuple[float, int], target_time_ms: float) -> bool:
@@ -321,6 +321,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 my_node_info.task_completion_time_ms += 0
                 continue
 
+            print("Node Id: ", node.id.get_full_id(), "EST", my_node_info.earliest_start_ms, "Is worker warm?:", _is_worker_warm_at_time(my_resource_config.worker_id, (my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms))
             if _is_worker_warm_at_time(my_resource_config.worker_id, (my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
