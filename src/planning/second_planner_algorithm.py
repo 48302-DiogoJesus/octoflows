@@ -252,6 +252,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         # For each node that has a cold start
         for my_node_id, node_info in nodes_info.items():
             if node_info.worker_startup_state != "cold": continue
+            if len(node_info.node_ref.upstream_nodes) == 0: continue # ignore root nodes
 
             # Calculate sum of execution times of tasks with same worker config that start after this node
             my_worker_config = node_info.node_ref.get_annotation(TaskWorkerResourceConfiguration)

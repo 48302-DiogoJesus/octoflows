@@ -106,7 +106,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             self.validate_plan(_dag.root_nodes)
-        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -270,30 +270,33 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         
         # create a new sorted list from topo_sorted_nodes where nodes where earliest start appear first
         # note: there can be overlapping time periods within the same resource_configuration
-        worker_active_periods: dict[tuple[float, int], list[tuple[float, float]]] = defaultdict(list)  # (cpus, memory_mb) -> List[Tuple[start_ms, end_ms]]
+        worker_active_periods: dict[tuple[float, int], list[tuple[str | None, float, float]]] = defaultdict(list)  # (cpus, memory_mb) -> List[Tuple[worker_id, start_ms, end_ms]]
 
         # Collect expected worker activity periods
         for node in topo_sorted_nodes:
             my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
             my_node_info = nodes_info[node.id.get_full_id()]
             # register when MY worker config should be active
-            worker_active_periods[(my_resource_config.cpus, my_resource_config.memory_mb)].append((
-                my_node_info.earliest_start_ms, 
-                my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S
-            ))
+            if my_resource_config.worker_id:
+                worker_active_periods[(my_resource_config.cpus, my_resource_config.memory_mb)].append((
+                    my_resource_config.worker_id,
+                    my_node_info.earliest_start_ms, 
+                    my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
+                ))
             # register when the worker config I PRE-WARM should be active
             prewarm_optimization = node.try_get_annotation(PreWarmOptimization)
             if prewarm_optimization:
                 time_at_which_worker_will_be_ready = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 worker_active_periods[(prewarm_optimization.target_resource_config.cpus, prewarm_optimization.target_resource_config.memory_mb)].append((
+                    prewarm_optimization.target_resource_config.worker_id,
                     time_at_which_worker_will_be_ready,
-                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S
+                    time_at_which_worker_will_be_ready + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
                 ))
 
-        def _is_worker_warm_at_time(worker_config: tuple[float, int], target_time_ms: float) -> bool:
+        def _is_worker_warm_at_time(my_worker_id: str | None, worker_config: tuple[float, int], target_time_ms: float) -> bool:
             return any(
-                start_ms < target_time_ms < end_ms 
-                for start_ms, end_ms in worker_active_periods[(worker_config[0], worker_config[1])]
+                worker_id != my_worker_id and start_ms < target_time_ms < end_ms 
+                for worker_id, start_ms, end_ms in worker_active_periods[(worker_config[0], worker_config[1])]
             )
 
         # Second pass: apply the scheduling logic with simplified condition
@@ -318,7 +321,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 my_node_info.task_completion_time_ms += 0
                 continue
 
-            if _is_worker_warm_at_time((my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
+            if _is_worker_warm_at_time(my_resource_config.worker_id, (my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
                 my_node_info.worker_startup_state = "warm"

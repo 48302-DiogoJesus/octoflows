@@ -12,6 +12,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from _examples.common.config import WORKER_CONFIG
 
 @DAGTask
+def time_task_cheap(dummy_data: int) -> int:
+    # memory-sensitive computation
+    size = 500
+    a = np.random.rand(size, size)
+    b = np.random.rand(size, size)
+    result = np.matmul(a, b)
+    return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
+
+@DAGTask
 def time_task_expensive(dummy_data: int) -> int:
     # memory-sensitive computation
     size = 2500
@@ -19,6 +28,11 @@ def time_task_expensive(dummy_data: int) -> int:
     b = np.random.rand(size, size)
     result = np.matmul(a, b)
     return dummy_data + int(result[0, 0] % 100)  # Just use a small part of the result
+
+@DAGTask
+def lengthy_task(dummy_data: int) -> int:
+    time.sleep(5)
+    return dummy_data
 
 @DAGTask
 def time_task_more_expensive_task(dummy_data: int) -> int:
@@ -59,7 +73,7 @@ b1_t4 = time_task_expensive(b1_t3)
 b1_t5 = time_task_expensive(b1_t4)
 
 b2_t1 = time_task_expensive(20)
-b2_t2 = time_task_expensive(b2_t1)
+b2_t2 = lengthy_task(b2_t1)
 b2_t2_t1 = time_task_expensive(b2_t2)
 b2_t2_t2 = time_task_expensive(b2_t2)
 b2_t2_t3 = time_task_expensive(b2_t2)
