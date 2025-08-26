@@ -92,8 +92,8 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             iteration += 1
             
             # Calculate current node timings and find critical path
-            nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
-            critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
+            updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
+            critical_path_nodes, critical_path_time = self._find_critical_path(dag, updated_nodes_info)
             critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
             
             # logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
@@ -120,8 +120,8 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 node.add_annotation(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
-                new_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
-                new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
+                updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
+                new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, updated_nodes_info)
                 new_critical_path_node_ids = { node.id.get_full_id() for node in new_critical_path_nodes }
 
                 # Check if optimization improved performance
@@ -156,8 +156,8 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
             # (this happens when we've optimized all optimizable nodes in the current critical path)
-            current_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
-            current_critical_path_nodes, _ = self._find_critical_path(dag, current_nodes_info)
+            updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
+            current_critical_path_nodes, _ = self._find_critical_path(dag, updated_nodes_info)
             current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
             
             if critical_path_node_ids == current_critical_path_node_ids:

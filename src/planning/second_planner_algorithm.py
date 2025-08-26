@@ -81,6 +81,11 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
             node.add_annotation(resource_config)
+            
+            #!! for debugging pre-warm
+            resource_config.worker_id = uuid.uuid4().hex
+            continue #!! for debugging pre-warm
+            
             if len(node.upstream_nodes) == 0:
                 resource_config.worker_id = uuid.uuid4().hex
             else:
@@ -111,8 +116,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
         # Calculate initial critical path with best resources
-        nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, best_resource_config, self.config.sla)
-        critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
+        updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, best_resource_config, self.config.sla)
+        critical_path_nodes, critical_path_time = self._find_critical_path(dag, updated_nodes_info)
         critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
         
         # logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
@@ -165,8 +170,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # logger.info(f"=== Preload Optimization Iteration {iteration} ===")
             
             # Recalculate current critical path with current resource assignments
-            current_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-            current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, current_nodes_info)
+            updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
+            current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, updated_nodes_info)
             current_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
             
             # logger.info(f"Current Critical Path | Nodes: {len(current_critical_path_nodes)} | Time: {current_critical_path_time} ms")
@@ -233,8 +238,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 break
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
-            final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-            final_critical_path_nodes, _ = self._find_critical_path(dag, final_nodes_info)
+            updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
+            final_critical_path_nodes, _ = self._find_critical_path(dag, updated_nodes_info)
             final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
             
             if current_critical_path_node_ids == final_critical_path_node_ids:
@@ -250,7 +255,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         total_prewarm_optimizations = 0
         
         # For each node that has a cold start
-        for my_node_id, node_info in nodes_info.items():
+        for my_node_id, node_info in updated_nodes_info.items():
             if node_info.worker_startup_state != "cold": continue
             if len(node_info.node_ref.upstream_nodes) == 0: continue # ignore root nodes
 
@@ -259,13 +264,14 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             sum_exec_times = 0
             
             # Get tasks with same resources that start after this node (because they could also benefit from pre-warm)
-            for other_node_id, other_node_info in nodes_info.items():
+            for other_node_id, other_node_info in updated_nodes_info.items():
                 if other_node_id == my_node_id: continue
                 other_worker_config = other_node_info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
                 if other_worker_config.cpus != my_worker_config.cpus or other_worker_config.memory_mb != my_worker_config.memory_mb: continue
                 if other_node_info.earliest_start_ms > node_info.earliest_start_ms:
                     sum_exec_times += other_node_info.tp_exec_time_ms
             
+
             if not (node_info.tp_worker_startup_time_ms > 0.15 * sum_exec_times):
                 # don't apply pre-warm if the startup time is not significant when compared to the time that worker will be executing
                 continue
@@ -275,7 +281,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             best_start_time = -1
             TIME_MARGIN_MS = 1_500 # upper bound (if goes above, it is too close that it wouldn't make sense to pre-warm)
             
-            for other_node_id, other_node_info in nodes_info.items():
+            for other_node_id, other_node_info in updated_nodes_info.items():
                 if other_node_id == my_node_id: continue
                 
                 # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
@@ -283,6 +289,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 min_prewarm_time = max(0, node_info.earliest_start_ms - AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S)
                 max_prewarm_time = max(0, node_info.earliest_start_ms - TIME_MARGIN_MS)
                 is_in_optimal_prewarm_window = min_prewarm_time < my_potential_start_if_prewarmed < max_prewarm_time
+                print("Node Id: ", other_node_id, "Window: ", min_prewarm_time, "to", max_prewarm_time, "Potential start: ", my_potential_start_if_prewarmed)
                 
                 if is_in_optimal_prewarm_window and (best_node is None or other_node_info.earliest_start_ms > best_start_time):
                     best_node = other_node_info.node_ref
@@ -293,7 +300,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 best_node.add_annotation(PreWarmOptimization(my_worker_config))
                 # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
-                nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
+                updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
                 total_prewarm_optimizations += 1
 
         # Final statistics and logging
