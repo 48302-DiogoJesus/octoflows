@@ -1,9 +1,7 @@
 [TODO] PREWARM
     - Manipulate workflow to force this annotation to be used, then see it in action (ONLY MAKES SENSE ON 2ND planner)
-        - need to make the "before-big-fanout-task" take longer so that other worker configs become cold
-            need to force the new tasks to be on another worker (rely on the downgrade optimization)
-                [BUG] the downgrade optimization is not downgrading on the fan-out for tasks outside the CP
-                [BUG] in the prewarm time table: earliest starts need to include worker startup time, but we need earliest start to know worker activity times
+        [CLEANUP] 2ND planner is always assigning NEW WORKER ID on downstream tasks
+        Run and check if prewarm happened successfuly (look at worker startup times of the tasks (first algo vs second algo))
 
 [TODO] TASKDUP
     - make the planners assign this annotation (see criterion below)

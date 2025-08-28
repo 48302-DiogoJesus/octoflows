@@ -289,7 +289,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 for target_resource_config in prewarm_optimization.target_resource_configs:
                     worker_active_periods[(target_resource_config.cpus, target_resource_config.memory_mb)].append((
-                        target_resource_config.worker_id,
+                        None,
                         time_at_which_worker_will_be_ready_ms,
                         time_at_which_worker_will_be_ready_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
                     ))
@@ -325,7 +325,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             if _is_worker_warm_at_time(my_resource_config.worker_id, (my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
                 # WARM START
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
-                my_node_info.worker_startup_state = "warm"
+                my_node_info.worker_startup_state = "warm" 
                 my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
                 my_node_info.earliest_start_ms += worker_startup_prediction
                 my_node_info.task_completion_time_ms += worker_startup_prediction
