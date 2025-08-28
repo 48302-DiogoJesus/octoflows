@@ -15,7 +15,7 @@ WORKFLOWS_PATHS = [
 ITERATIONS = 3
 ALGORITHMS = ['simple', 'first', 'second']
 
-TIME_UNTIL_WORKER_GOES_COLD_S = 2
+TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
 def run_experiment(script_path: str, algorithm: str, iteration: str) -> None:
     """Run the specified Python script with the given algorithm parameter."""

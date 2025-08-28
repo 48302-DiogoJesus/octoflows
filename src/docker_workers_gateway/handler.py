@@ -58,7 +58,8 @@ def process_warmup_async(resource_configurations: list[TaskWorkerResourceConfigu
     Waits for a container with the requested resource configuration to be available and leaves it available for later re-use for {container_pool_executor.container_idle_timeout} seconds
     """
     for resource_configuration in resource_configurations:
-        container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+        print("Warming up resource configuration: ", resource_configuration)
+        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
         container_pool.release_container(container_id)
 
 @app.route('/warmup', methods=['POST'])
@@ -73,9 +74,6 @@ def handle_warmup():
         return jsonify({"error": "'resource_configurations' field is required"}), 400
     
     resource_configurations: list[TaskWorkerResourceConfiguration] = cloudpickle.loads(base64.b64decode(resource_config_key))
-    if resource_configurations is None: 
-        logger.error("'resource_configurations' field is required")
-        return jsonify({"error": "'resource_configurations' field is required"}), 400
 
     thread_pool.submit(process_warmup_async, resource_configurations)
     return "", 202

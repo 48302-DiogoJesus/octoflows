@@ -123,7 +123,7 @@ class DockerWorker(Worker):
                     }),
                     headers={"Content-Type": "application/json"}
                 ) as response:
-                    if response.status != 200:
+                    if response.status != 202:
                         logger.error(f"Warmup request failed with status {response.status}")
                         response_text = await response.text()
                         logger.error(f"Response: {response_text}")

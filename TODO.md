@@ -1,7 +1,7 @@
-[TODO] PREWARM
-    - Manipulate workflow to force this annotation to be used, then see it in action (ONLY MAKES SENSE ON 2ND planner)
-        [CLEANUP] 2ND planner is always assigning NEW WORKER ID on downstream tasks
-        Run and check if prewarm happened successfuly (look at worker startup times of the tasks (first algo vs second algo))
+[NEW_ISSUES_FOUND]
+- In the start, planners assign worker ids randomly/first upstream worker id
+    this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
+- worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
 [TODO] TASKDUP
     - make the planners assign this annotation (see criterion below)

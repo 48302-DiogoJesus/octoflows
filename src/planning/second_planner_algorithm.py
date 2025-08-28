@@ -82,9 +82,9 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             resource_config = best_resource_config.clone()
             node.add_annotation(resource_config)
             
-            #!! for debugging pre-warm
-            resource_config.worker_id = uuid.uuid4().hex
-            continue #!! for debugging pre-warm
+            # #!! for debugging pre-warm
+            # resource_config.worker_id = uuid.uuid4().hex
+            # continue #!! for debugging pre-warm
             
             if len(node.upstream_nodes) == 0:
                 resource_config.worker_id = uuid.uuid4().hex
@@ -299,7 +299,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             if best_node is not None:
                 annotation = best_node.try_get_annotation(PreWarmOptimization)
                 if not annotation: annotation = best_node.add_annotation(PreWarmOptimization([]))
-                elif any([config.cpus == my_worker_config.cpus and config.memory_mb == my_worker_config.memory_mb for config in annotation.target_resource_configs]): continue # no need to tell a worker to preload the same config twice
+                # allow multiple pre-warms for the same worker config (only makes sense with local docker implementation. Lambda implementation)
                 
                 annotation.target_resource_configs.append(my_worker_config)
                 # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
