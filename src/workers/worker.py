@@ -271,7 +271,7 @@ class Worker(ABC, WorkerExecutionLogic):
         pass
 
     @abstractmethod
-    async def warmup(self, resource_configuration: TaskWorkerResourceConfiguration):
+    async def warmup(self, resource_configurations: list[TaskWorkerResourceConfiguration]):
         """
         Warmup the worker with the given resource configuration by doing a "special" invocation
         """

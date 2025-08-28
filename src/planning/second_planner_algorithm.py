@@ -296,8 +296,12 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     best_start_time = other_node_info.earliest_start_ms
             
             # Add pre-warm annotation to the best node found
-            if best_node is not None: 
-                best_node.add_annotation(PreWarmOptimization(my_worker_config))
+            if best_node is not None:
+                annotation = best_node.try_get_annotation(PreWarmOptimization)
+                if not annotation: annotation = best_node.add_annotation(PreWarmOptimization([]))
+                elif any([config.cpus == my_worker_config.cpus and config.memory_mb == my_worker_config.memory_mb for config in annotation.target_resource_configs]): continue # no need to tell a worker to preload the same config twice
+                
+                annotation.target_resource_configs.append(my_worker_config)
                 # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
                 updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)

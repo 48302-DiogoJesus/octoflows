@@ -28,5 +28,5 @@ class LocalWorker(Worker):
         for subdag in subdags:
             await asyncio.create_task(self.execute_branch(subdag, ""), name=f"local_delegate_subdag(task={subdag.root_node.id.get_full_id()})")
 
-    async def warmup(self, resource_configuration: TaskWorkerResourceConfiguration):
+    async def warmup(self, resource_configurations: list[TaskWorkerResourceConfiguration]):
         raise Exception("LocalWorker does not support warmup")

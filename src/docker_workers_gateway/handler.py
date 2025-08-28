@@ -52,13 +52,14 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     finally:
         container_pool.release_container(container_id)
 
-def process_warmup_async(resource_configuration: TaskWorkerResourceConfiguration):
+def process_warmup_async(resource_configurations: list[TaskWorkerResourceConfiguration]):
     """
     Process a warmup request asynchronously.
     Waits for a container with the requested resource configuration to be available and leaves it available for later re-use for {container_pool_executor.container_idle_timeout} seconds
     """
-    container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
-    container_pool.release_container(container_id)
+    for resource_configuration in resource_configurations:
+        container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+        container_pool.release_container(container_id)
 
 @app.route('/warmup', methods=['POST'])
 def handle_warmup():
@@ -66,17 +67,17 @@ def handle_warmup():
     if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
     data = request.get_json()
 
-    resource_config_key = data.get('resource_configuration', None)
+    resource_config_key = data.get('resource_configurations', None)
     if resource_config_key is None: 
-        logger.error("'resource_configuration' field is required")
-        return jsonify({"error": "'resource_configuration' field is required"}), 400
+        logger.error("'resource_configurations' field is required")
+        return jsonify({"error": "'resource_configurations' field is required"}), 400
     
-    resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
-    if resource_configuration is None: 
-        logger.error("'resource_configuration' field is required")
-        return jsonify({"error": "'resource_configuration' field is required"}), 400
+    resource_configurations: list[TaskWorkerResourceConfiguration] = cloudpickle.loads(base64.b64decode(resource_config_key))
+    if resource_configurations is None: 
+        logger.error("'resource_configurations' field is required")
+        return jsonify({"error": "'resource_configurations' field is required"}), 400
 
-    thread_pool.submit(process_warmup_async, resource_configuration)
+    thread_pool.submit(process_warmup_async, resource_configurations)
     return "", 202
 
 @app.route('/job', methods=['POST', 'GET'])

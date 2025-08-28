@@ -15,9 +15,9 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible 
     """
 
-    target_resource_config: TaskWorkerResourceConfiguration
+    target_resource_configs: list[TaskWorkerResourceConfiguration]
 
-    def clone(self): return PreWarmOptimization(self.target_resource_config.clone())
+    def clone(self): return PreWarmOptimization([config.clone() for config in self.target_resource_configs])
 
     @staticmethod
     async def override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
@@ -28,4 +28,4 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
         if prewarm_annotation is None: return
 
         # "fire-and-forget" / non-blocking
-        asyncio.create_task(_this_worker.warmup(prewarm_annotation.target_resource_config))
+        asyncio.create_task(_this_worker.warmup(prewarm_annotation.target_resource_configs))

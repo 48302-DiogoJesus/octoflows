@@ -208,14 +208,14 @@ class DAGTaskNode(Generic[R]):
 
     T = TypeVar('T', bound='TaskAnnotation')
 
-    def add_annotation(self, annotation: TaskAnnotation):
+    def add_annotation(self, annotation: T) -> T:
         for existing in self.annotations:
             if type(existing) is type(annotation): 
                 self.annotations.remove(existing) # replace annotation
                 break
         
         self.annotations.append(annotation)
-        return True
+        return annotation
 
     def remove_annotation(self, annotation_type: Type[T]):
         for annotation in self.annotations:
