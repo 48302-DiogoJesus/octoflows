@@ -4,8 +4,8 @@
         - fast tasks + small input size (because will need to fetch it again (besides the original assigned worker))
         - big output size (because would avoid waiting for storage upload)
     [EXTRAS]
-    - use atomic cancelation flag to avoid 2 workers dupping the same task
-    - batch storage operations
+    - BATCH storage operations
+    - use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
     - on the dashboard, show how many dups happened and where visually
 
 - [TODO] `run_experiments.py` script: make the SLA configurable via CLI argument (update on `config.py` that is imported on all test workflows)
@@ -13,6 +13,7 @@
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
+    requires: rethinking order of actions by the planner algorithm
 - worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
 - [TODO] Update dashboards:

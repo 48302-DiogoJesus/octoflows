@@ -23,7 +23,7 @@ from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 
-from src.planning.annotations.taskdup import TaskDupOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
 
 logger = create_logger(__name__)
 
@@ -147,13 +147,13 @@ async def main():
                     greatest_predicted_time_saved_task: DAGTaskNode | None = None
                     greatest_predicted_time_saved: float = float("inf")
                     for u_task in unfinished_duppable_tasks:
-                        is_task_dup_cancelation_flag_set = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                        is_task_dup_cancelation_flag_set = await wk.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
                         if is_task_dup_cancelation_flag_set:
                             finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(u_task.id.get_full_id())
 
                         # get REAL (not predicted ES) start time
                         if u_task.id.get_full_id() not in cached_tasks_start_time:
-                            task_started_timestamp: float | None = await wk.metadata_storage.get(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                            task_started_timestamp: float | None = await wk.metadata_storage.get(f"{DUPPABLE_TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
                             # if the task didn't start yet, assume it would start NOW (best case scenario)
                             cached_tasks_start_time[u_task.id.get_full_id()] = task_started_timestamp or time.time()
                         real_task_start_time_ts_s = cached_tasks_start_time[u_task.id.get_full_id()]
@@ -162,7 +162,7 @@ async def main():
                         expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
                         potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.exec_time_ms
                         
-                        if potential_ready_to_exec_ts_ms + TaskDupOptimization.TIME_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
+                        if potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
                             potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
                             if potential_time_saved > greatest_predicted_time_saved:
                                 greatest_predicted_time_saved = potential_time_saved
@@ -171,7 +171,7 @@ async def main():
                     #* Only chooses 1 task to duplicate
                     if greatest_predicted_time_saved_task:
                         assert wk.my_resource_configuration.worker_id is not None
-                        await wk.metadata_storage.set(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{greatest_predicted_time_saved_task.id.get_full_id_in_dag(fulldag)}", True)
+                        await wk.metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{greatest_predicted_time_saved_task.id.get_full_id_in_dag(fulldag)}", True)
                         await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, is_dupping=True)
             return callback
 

@@ -7,6 +7,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
+from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_MAX_EXEC_TIME_MS, DUPPABLE_TASK_MAX_INPUT_SIZE
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
@@ -51,7 +52,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             self._store_plan_image(dag)
             return
         
-        # Step 1: Assign best resources to all nodes and find initial critical path
+        # Step 1: Assign best resources to all nodes and find initial critical path + assign worker IDs
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
@@ -169,6 +170,12 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 logger.warning(f"Maximum iterations reached. Stopping algorithm.")
                 break
         
+        # OPTIMIZATION: TASK-DUP
+        for node_info in updated_nodes_info.values():
+            if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
+            if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
+            node_info.node_ref.add_annotation(TaskDupOptimization())
+
         # Final statistics
         final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, final_nodes_info)

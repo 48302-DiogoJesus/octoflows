@@ -1,28 +1,28 @@
 import asyncio
 from dataclasses import dataclass, field
-from types import CoroutineType
-from typing import Any
 import time
-import cloudpickle
-from src.dag.dag import FullDAG, SubDAG
+from src.dag.dag import SubDAG
 from src.dag_task_annotation import TaskAnnotation
-from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
+from src.dag_task_node import DAGTaskNode
 from src.storage.storage import Storage
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
 
+# if task execution time exceeds this, don't allow dupping. Short tasks are better for dupping
+DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
+# if task input size exceeds 1MB, don't allow dupping
+DUPPABLE_TASK_MAX_INPUT_SIZE: int = 1024 * 1024 * 5
+DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
+DUPPABLE_TASK_CANCELLATION_PREFIX = "taskdup-cancellation-"
+DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 500 # the least amount of time we need to save to justify duplication
+
 @dataclass
 class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
     """ 
-    Indicates that this task can be duplicated if needed (decided at runtime)
+    Indicates that this task can be duplicated IF NEEDED (decided at runtime)
     """
-    TASK_STARTED_PREFIX = "taskdup-task-started-"
-    TASK_DUP_CANCELLATION_PREFIX = "taskdup-cancellation-"
-    TIME_THRESHOLD_MS = 500 # the least amount of time we need to save to justify duplication
 
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -34,4 +34,4 @@ class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
         is_duppable = taskdup_annotation is not None
         if not is_duppable: return
 
-        await metadata_storage.set(f"{TaskDupOptimization.TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
+        await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())

@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskInputMetrics, TaskInputDownloadMetrics
-from src.planning.annotations.taskdup import TaskDupOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_CANCELLATION_PREFIX
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -71,7 +71,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 #   (avoids complex logic waiting for the remote worker to finish it + download time (because it's produced locally))
                 cached_dup_cancelation_flag = False
                 if is_current_task_duppable and not has_downstream_task_to_execute_locally:
-                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
+                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                     if cached_dup_cancelation_flag:
                         self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
                         break
@@ -150,7 +150,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 #* 2) EXECUTE TASK
                 if is_current_task_duppable and not has_downstream_task_to_execute_locally:
-                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
+                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                     if cached_dup_cancelation_flag:
                         self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
                         break
@@ -177,7 +177,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     if cached_dup_cancelation_flag: 
                         upload_output = False
                     else:
-                        cached_dup_cancelation_flag = await self.metadata_storage.get(f"{TaskDupOptimization.TASK_DUP_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
+                        cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                         if cached_dup_cancelation_flag:
                             self.log(current_task.id.get_full_id(), "Task is being dupped by another worker. Won't upload output...")
                             upload_output = False

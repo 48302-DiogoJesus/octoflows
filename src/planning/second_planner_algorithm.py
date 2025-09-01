@@ -6,6 +6,7 @@ import uuid
 from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.prewarm import PreWarmOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_MAX_EXEC_TIME_MS, DUPPABLE_TASK_MAX_INPUT_SIZE
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -306,6 +307,12 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
                 updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
                 total_prewarm_optimizations += 1
+
+        # OPTIMIZATION: TASK-DUP
+        for node_info in updated_nodes_info.values():
+            if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
+            if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
+            node_info.node_ref.add_annotation(TaskDupOptimization())
 
         # Final statistics and logging
         final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
