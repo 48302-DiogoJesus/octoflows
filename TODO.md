@@ -1,12 +1,9 @@
 [TODO] TASKDUP
-    - make the planners assign this annotation (see criterion below)
-        CRITERION: which tasks should be duppable?:
-        - fast tasks + small input size (because will need to fetch it again (besides the original assigned worker))
-        - big output size (because would avoid waiting for storage upload)
     [EXTRAS]
     - BATCH storage operations
     - use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
     - on the dashboard, show how many dups happened and where visually
+- [TODO] Reset the `DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS` to 1_000ms
 
 - [TODO] `run_experiments.py` script: make the SLA configurable via CLI argument (update on `config.py` that is imported on all test workflows)
 
@@ -51,6 +48,7 @@
             - check duppable tasks startup times
             - check cancelation flag before **input grabbing**, **execution** and **output upload** (cost: resources, not latency)
             - check cancelation flag before **dupping** (to TRY avoid 2 workers dupping the same task)
+            - the duppable.upstream tasks all need to send their outputs to storage
     - [A] Implementation:
         - Before they start executing, duppable tasks will store a timestamp
         - For each task that has at least 1 upstream task that can be dupped (has annotation), subscribe to COMPLETION events of ALL upstream tasks (not just the duppable ones)

@@ -215,6 +215,7 @@ class RedisStorage(storage.Storage):
                                 callback(message)
                         except Exception as e:
                             logger.error(f"Error in callback for channel {channel}: {e}")
+                            raise e
         except asyncio.CancelledError:
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:

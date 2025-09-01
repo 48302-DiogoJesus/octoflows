@@ -309,10 +309,13 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 total_prewarm_optimizations += 1
 
         # OPTIMIZATION: TASK-DUP
+        total_duppable_tasks = 0
         for node_info in updated_nodes_info.values():
+            if len(node_info.node_ref.downstream_nodes) == 0: continue
             if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
             node_info.node_ref.add_annotation(TaskDupOptimization())
+            total_duppable_tasks += 1
 
         # Final statistics and logging
         final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -351,7 +354,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
-        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations}")
+        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(updated_nodes_info)}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Successfully downgraded resources for {successful_worker_resources_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
