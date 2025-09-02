@@ -105,11 +105,11 @@ async def main():
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
-        #* 1) Execute override_on_worker_ready
+        #* 1) Execute wel_override_on_worker_ready
         if wk.planner:
-            await wk.planner.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+            await wk.planner.wel_override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
         else:
-            await WorkerExecutionLogic.override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
+            await WorkerExecutionLogic.wel_override_on_worker_ready(wk.intermediate_storage, fulldag, this_worker_id)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker

@@ -82,9 +82,9 @@ class Worker(ABC, WorkerExecutionLogic):
                         break
 
                 if self.planner:
-                    await self.planner.override_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await self.planner.wel_override_before_task_handling(self, self.metadata_storage, subdag, current_task)
                 else:
-                    await WorkerExecutionLogic.override_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await WorkerExecutionLogic.wel_override_before_task_handling(self, self.metadata_storage, subdag, current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -99,10 +99,10 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
-                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await self.planner.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await self.planner.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
-                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await WorkerExecutionLogic.override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await WorkerExecutionLogic.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
 
                 tasks_with_cached_results = list(
                     set([un.id.get_full_id() for un in current_task.upstream_nodes]) - 
@@ -167,10 +167,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_EXECUTION()")
-                    deserialized_task_result, task_execution_time_ms = await self.planner.override_handle_execution(current_task, task_dependencies)
+                    deserialized_task_result, task_execution_time_ms = await self.planner.wel_override_handle_execution(current_task, task_dependencies)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
-                    deserialized_task_result, task_execution_time_ms = await WorkerExecutionLogic.override_handle_execution(current_task, task_dependencies)
+                    deserialized_task_result, task_execution_time_ms = await WorkerExecutionLogic.wel_override_handle_execution(current_task, task_dependencies)
 
                 tasks_executed_by_this_coroutine.append(current_task)
 
@@ -203,10 +203,10 @@ class Worker(ABC, WorkerExecutionLogic):
                     self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                     if self.planner:
                         # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
-                        upload_output = await self.planner.override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
+                        upload_output = await self.planner.wel_override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
                     else:
                         # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
-                        upload_output = await WorkerExecutionLogic.override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
+                        upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
                     
                     if upload_output:
                         output_upload_timer = Timer()
@@ -250,10 +250,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks = await self.planner.override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
+                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks = await WorkerExecutionLogic.override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
+                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:

@@ -31,7 +31,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return PreLoadOptimization()
 
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
@@ -87,7 +87,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 )
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
+    async def wel_override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),

@@ -15,15 +15,15 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         pass
 
     @staticmethod
-    async def override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
+    async def wel_override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
         pass
 
     @staticmethod
-    async def override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
+    async def wel_override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
@@ -34,13 +34,13 @@ class WorkerExecutionLogic():
         return (upstream_tasks_without_cached_results, [], None)
     
     @staticmethod
-    async def override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
+    async def wel_override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
         exec_timer = Timer()
         task_result = task.invoke(dependencies=task_dependencies)
         return (task_result, exec_timer.stop())
 
     @staticmethod
-    async def override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:
+    async def wel_override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:
         """
         return value indicates if the task result was uploaded or not 
         """
@@ -52,7 +52,7 @@ class WorkerExecutionLogic():
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes))
 
     @staticmethod
-    async def override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG) -> list:
+    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG) -> list:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
