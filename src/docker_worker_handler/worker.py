@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 # Define a lock file path
 LOCK_FILE = os.path.join(tempfile.gettempdir(), "script.lock")
 
+from src.utils.coroutine_tags import COROTAG_DUP
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_READY_EVENT_PREFIX
@@ -197,12 +198,12 @@ async def main():
                 if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), debug_tag=f"normal")
+                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
 
                 has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
-                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), debug_tag=f"dup({utask.id.get_full_id()}, {task.id.get_full_id()})")
+                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})")
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
@@ -229,7 +230,7 @@ async def main():
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
-        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if "dup" not in t.get_name()]
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
         logger.info(f"Worker({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
         logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")

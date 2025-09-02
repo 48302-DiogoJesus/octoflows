@@ -9,6 +9,7 @@ from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.storage import Storage
+from src.utils.coroutine_tags import COROTAG_PRELOAD
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
@@ -82,7 +83,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
                     _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag),
-                    debug_tag="preload"
+                    coroutine_tag=COROTAG_PRELOAD
                 )
 
     @staticmethod

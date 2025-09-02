@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 import time
+from types import coroutine
 from typing import Any
 import cloudpickle
 from abc import ABC, abstractmethod
@@ -315,7 +316,7 @@ class Worker(ABC, WorkerExecutionLogic):
             nonlocal result
             message_received.set()
         
-        await metadata_storage.subscribe(channel, callback)
+        await metadata_storage.subscribe(channel, callback, coroutine_tag="wait_for_result_of_task")
         
         try:
             await message_received.wait()

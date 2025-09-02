@@ -11,12 +11,12 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 # if task execution time exceeds this, don't allow dupping. Short tasks are better for dupping
-DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
+DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 1_000
 # if task input size exceeds 5MB, don't allow dupping
 DUPPABLE_TASK_MAX_INPUT_SIZE: int = 1024 * 1024 * 5
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
 DUPPABLE_TASK_CANCELLATION_PREFIX = "taskdup-cancellation-"
-DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 0 # the least amount of time we need to save to justify duplication
+DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_000 # the least amount of time we need to save to justify duplication
 
 @dataclass
 class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):

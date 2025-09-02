@@ -160,7 +160,7 @@ class Storage(ABC):
     async def publish(self, channel: str, message: Union[str, bytes]) -> int: pass
     
     @abstractmethod
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, debug_tag: str = "") -> None: pass
+    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "") -> None: pass
     
     @abstractmethod
     async def unsubscribe(self, channel: str) -> None: pass

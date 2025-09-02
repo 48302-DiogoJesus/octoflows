@@ -1,13 +1,6 @@
-[TODO] TASKDUP
-    [EXTRAS]
-    - BATCH storage operations
-    - use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
-    - on the dashboard, show how many dups happened and where visually
-- [TODO] Reset the `DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS` to 1_000ms
+# TASKDUP
 - [TODO] `has_any_duppable_downstream` check should be on Taskdup override and not in generic WorkerExecutionLogic
-    - requires: fixing the current taskdup errors, where dependent tasks output is not being found in remote storage
-    current step: `print("DEBUG: Has any duppable downstream: ", has_any_duppable_downstream)`
-- When `taskdup` starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
+- [INVESTIGATE] When `taskdup` starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
 
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
@@ -25,6 +18,7 @@
     - how many happened, which tasks were dupped?
 
 - [EVALUATION_PLAN]
+- Write a shared google doc
     - Combinations of:
         3 planners: simple, first (uniform workers), second (non-uniform workers)
             planners w/ diff optimizations
@@ -80,6 +74,10 @@
         - [A] Cancelation flag:
             - Set for a duppable task when it's being dupped by another worker
             - also used to TRY to avoid 2 workers from dupping the same task
+    [TODO:IMPROVEMENTS]
+    - BATCH storage operations
+    - use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
+    - on the dashboard, show how many dups happened and where visually
 
 ---
 

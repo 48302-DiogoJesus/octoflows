@@ -132,7 +132,7 @@ class RedisStorage(storage.Storage):
         logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
 
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, debug_tag: str = "") -> None:
+    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "") -> None:
         """
         Subscribe to a channel and process messages with a callback.
         
@@ -159,11 +159,11 @@ class RedisStorage(storage.Storage):
         # Start a background task to process messages
         task = asyncio.create_task(
             self._message_handler(pubsub, channel, callback, decode_responses),
-            name=f"redis_subscribe_message_handler(channel={channel}, debug_tag={debug_tag})"
+            name=f"redis_subscribe_message_handler(coroutine_tag={coroutine_tag}, channel={channel})"
         )
         self._subscription_tasks[channel] = (task, pubsub)
         
-        logger.info(f"Subscribed to channel: {channel} | debug tag: {debug_tag}")
+        logger.info(f"Subscribed to channel: {channel} | coroutine tag: {coroutine_tag}")
 
     async def unsubscribe(self, channel: str) -> None:
         """
