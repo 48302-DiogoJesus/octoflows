@@ -288,8 +288,20 @@ class DAGTaskNode(Generic[R]):
                 except ImportError:
                     logger.error(f"Warning: Failed to import {module} after installation")
 
-def DAGTask(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
-    @wraps(func)
-    def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
-        return DAGTaskNode[R](func, args, kwargs)
-    return wrapper
+def DAGTask(func_or_params=None, optimizations: list[TaskAnnotation] = []) -> Any:
+    def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
+            node = DAGTaskNode[R](func, args, kwargs)
+            for annotation in optimizations:  node.add_annotation(annotation)
+            return node
+        return wrapper
+    
+    # @DAGTaskFlexible(annotations={...})
+    if func_or_params is None:
+        return decorator
+    # @DAGTaskFlexible
+    elif callable(func_or_params):
+        return decorator(func_or_params)
+    else:
+        raise ValueError("Invalid usage of 'DAGTask' decorator")

@@ -1,10 +1,7 @@
 # TASKDUP
 [TODO] Add support for user-specified optimizations
-    - would it make sense for all optimizations?
-    - ? should I allow optimizations that are not used by the selected planner ?
     - ? need to tag them (internally), to know that it was user-provided and not temporarily created by my planner ?
     - planners should NOT remove (don't even traverse nodes when checking for the optimization that they already have)
-    - added to the decorator
 
 [EVALUATION_PLAN]
 - Write a shared google doc

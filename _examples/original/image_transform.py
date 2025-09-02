@@ -3,11 +3,11 @@ import sys
 import io
 import numpy as np
 from PIL import Image, ImageFilter, ImageOps
-from PIL.ImageFile import ImageFile
 
 # Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
+from src.planning.annotations.preload import PreLoadOptimization
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -56,7 +56,7 @@ def determine_chunks_amount(image_data: bytes) -> int:
     return min(width // 64, 10)
 
 
-@DAGTask
+@DAGTask(optimizations=[PreLoadOptimization()])
 def split_image(image_data: bytes, num_chunks: int) -> list[bytes]:
     """Split the image into chunks and return as list of bytes"""
     image = Image.open(io.BytesIO(image_data))
