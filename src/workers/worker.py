@@ -82,9 +82,9 @@ class Worker(ABC, WorkerExecutionLogic):
                         break
 
                 if self.planner:
-                    await self.planner.wel_override_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await self.planner.wel_before_task_handling(self, self.metadata_storage, subdag, current_task)
                 else:
-                    await WorkerExecutionLogic.wel_override_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -165,12 +165,9 @@ class Worker(ABC, WorkerExecutionLogic):
                         break
 
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
-                if self.planner:
-                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_EXECUTION()")
-                    deserialized_task_result, task_execution_time_ms = await self.planner.wel_override_handle_execution(current_task, task_dependencies)
-                else:
-                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
-                    deserialized_task_result, task_execution_time_ms = await WorkerExecutionLogic.wel_override_handle_execution(current_task, task_dependencies)
+                exec_timer = Timer()
+                deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
+                task_execution_time_ms = exec_timer.stop()
 
                 tasks_executed_by_this_coroutine.append(current_task)
 

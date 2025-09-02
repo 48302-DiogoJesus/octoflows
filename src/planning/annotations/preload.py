@@ -31,7 +31,7 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return PreLoadOptimization()
 
     @staticmethod
-    async def wel_override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 

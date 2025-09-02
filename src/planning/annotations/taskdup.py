@@ -29,7 +29,7 @@ class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return TaskDupOptimization()
 
     @staticmethod
-    async def wel_override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
         taskdup_annotation = current_task.try_get_annotation(TaskDupOptimization)
         is_duppable = taskdup_annotation is not None
         if not is_duppable: return

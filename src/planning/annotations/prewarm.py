@@ -20,7 +20,7 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return PreWarmOptimization([config.clone() for config in self.target_resource_configs])
 
     @staticmethod
-    async def wel_override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         

@@ -1,25 +1,21 @@
 import asyncio
 from types import CoroutineType
 from typing import Any
-import cloudpickle
 
 from src.dag.dag import FullDAG, SubDAG
-from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
-from src.utils.utils import calculate_data_structure_size
-from src.storage.metrics.metrics_types import TaskOutputMetrics
 
 logger = create_logger(__name__)
 
 class WorkerExecutionLogic():
     @staticmethod
-    async def wel_override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         pass
 
     @staticmethod
-    async def wel_override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
         pass
 
     @staticmethod
@@ -32,12 +28,6 @@ class WorkerExecutionLogic():
         )
         """
         return (upstream_tasks_without_cached_results, [], None)
-    
-    @staticmethod
-    async def wel_override_handle_execution(task, task_dependencies: dict[str, Any]) -> tuple[Any, float]:
-        exec_timer = Timer()
-        task_result = task.invoke(dependencies=task_dependencies)
-        return (task_result, exec_timer.stop())
 
     @staticmethod
     async def wel_override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:

@@ -215,14 +215,14 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         )
 
     @staticmethod
-    async def wel_override_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         from src.planning.annotations.preload import PreLoadOptimization
-        await PreLoadOptimization.wel_override_on_worker_ready(intermediate_storage, dag, this_worker_id)
+        await PreLoadOptimization.wel_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def wel_override_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
         from src.planning.annotations.taskdup import TaskDupOptimization
-        await TaskDupOptimization.wel_override_before_task_handling(this_worker, metadata_storage, subdag, current_task)
+        await TaskDupOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task)
 
     @staticmethod
     async def wel_override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
