@@ -15,7 +15,7 @@ class WorkerExecutionLogic():
         pass
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
         pass
 
     @staticmethod
@@ -30,19 +30,23 @@ class WorkerExecutionLogic():
         return (upstream_tasks_without_cached_results, [], None)
 
     @staticmethod
-    async def wel_override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:
+    async def wel_before_task_execution(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
+        pass
+
+    @staticmethod
+    async def wel_override_should_upload_output(current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
         """
         return value indicates if the task result was uploaded or not 
         """
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-        _task: DAGTaskNode = task
+        _task: DAGTaskNode = current_task
 
         # only upload if necessary
-        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes))
+        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
     @staticmethod
-    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG) -> list:
+    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration

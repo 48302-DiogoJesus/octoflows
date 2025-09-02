@@ -1,9 +1,6 @@
 # TASKDUP
-- [REFACTOR] move the taskdup cancellation flags to the taskdup optimization overrides where possible
-    what about the `is_dupping` flag?
-        + 
-        use custom exception for branch execution loop cancellation?
-- [INVESTIGATE] When `taskdup` starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
+- [REFACTOR] How to abstract the `is_dupping` flag?
+- [INVESTIGATE] When task duplication starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
 
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
@@ -85,9 +82,12 @@
             - Set for a duppable task when it's being dupped by another worker
             - also used to TRY to avoid 2 workers from dupping the same task
     [TODO:IMPROVEMENTS]
+    - Check if ALL duppable task dependencies are ready before dupping
+        replace the current logic that aborts execution if not READY (lazy)
+        use `storage.exists(keys[])`
     - BATCH storage operations
-    - use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
-    - on the dashboard, show how many dups happened and where visually
+    - Use atomic cancelation flag to avoid 2 workers dupping the same task (redis atomic_increment?)
+    - On the dashboard, show how many dups happened and where visually
 
 ---
 

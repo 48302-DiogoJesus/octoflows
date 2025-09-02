@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskInputMetrics, TaskInputDownloadMetrics, TaskOutputMetrics
-from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_CANCELLATION_PREFIX
+from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
+from src.planning.annotations.taskdup import DUPPABLE_TASK_CANCELLATION_PREFIX
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -20,12 +20,13 @@ import src.storage.storage as storage_module
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.storage.prefixes import DAG_PREFIX
+from src.utils.errors import CancelCurrentWorkerLoopException
 
 logger = create_logger(__name__)
 
 class TaskOutputNotAvailableException(Exception):
     def __init__(self, task_id: str):
-        message = f"[ERROR] Task {task_id}'s data is not available yet!"
+        message = f"Task {task_id}'s data is not available yet!"
         super().__init__(message)
 
 class Worker(ABC, WorkerExecutionLogic):
@@ -67,24 +68,11 @@ class Worker(ABC, WorkerExecutionLogic):
             while True:
                 current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id
                 current_task.metrics.started_at_timestamp_s = time.time()
-                
-                is_current_task_duppable = current_task.try_get_annotation(TaskDupOptimization) is not None
-                has_downstream_task_to_execute_locally = any([n for n in current_task.downstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == my_worker_id or n.try_get_annotation(TaskDupOptimization) is None])
-
-                # if there is NOT ANY downstream task that will(fixed worker_id)/could(flexible worker) be executed by this worker, I don't need to execute locally, since someone else is executing it already and will notify the others who need it
-                # if I do have at least 1 task that will need this locally, execute it 
-                #   (avoids complex logic waiting for the remote worker to finish it + download time (because it's produced locally))
-                cached_dup_cancelation_flag = False
-                if not is_dupping and is_current_task_duppable and not has_downstream_task_to_execute_locally:
-                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
-                    if cached_dup_cancelation_flag:
-                        self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
-                        break
 
                 if self.planner:
-                    await self.planner.wel_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await self.planner.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
                 else:
-                    await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task)
+                    await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
@@ -137,10 +125,6 @@ class Worker(ABC, WorkerExecutionLogic):
                             time_ms=time_to_fetch_ms
                         )
 
-                # if all inputs are available, then we can dup the task. Warn others that they MAY NOT need to execute it
-                if is_dupping:
-                    await self.metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", 1)
-
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
 
@@ -157,13 +141,12 @@ class Worker(ABC, WorkerExecutionLogic):
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
 
-                #* 2) EXECUTE TASK
-                if not is_dupping and is_current_task_duppable and not has_downstream_task_to_execute_locally:
-                    cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
-                    if cached_dup_cancelation_flag:
-                        self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
-                        break
+                if self.planner:
+                    await self.planner.wel_before_task_execution(self, self.metadata_storage, subdag, current_task, is_dupping)
+                else:
+                    await WorkerExecutionLogic.wel_before_task_execution(self, self.metadata_storage, subdag, current_task, is_dupping)
 
+                #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 exec_timer = Timer()
                 deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
@@ -177,17 +160,6 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
                     if total_input_size > 0 else None
 
-                # TASK_DUP => may not need to upload output if another worker dupped this task
-                try_upload_output = True
-                if not is_dupping and is_current_task_duppable:
-                    if cached_dup_cancelation_flag: 
-                        try_upload_output = False
-                    else:
-                        cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
-                        if cached_dup_cancelation_flag:
-                            self.log(current_task.id.get_full_id(), "Task is being dupped by another worker. Won't upload output...")
-                            try_upload_output = False
-
                 #* 3) HANDLE TASK OUTPUT
                 serialized_task_result = cloudpickle.dumps(deserialized_task_result)
                 current_task.metrics.output_metrics = TaskOutputMetrics(
@@ -196,19 +168,18 @@ class Worker(ABC, WorkerExecutionLogic):
                     tp_time_ms=None
                 )
 
-                if try_upload_output:
-                    self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
-                    if self.planner:
-                        # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
-                        upload_output = await self.planner.wel_override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
-                    else:
-                        # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
-                        upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
-                    
-                    if upload_output:
-                        output_upload_timer = Timer()
-                        await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
-                        current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
+                if self.planner:
+                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
+                    upload_output = await self.planner.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
+                else:
+                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
+                    upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
+                
+                if upload_output:
+                    output_upload_timer = Timer()
+                    await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
+                    current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
                 
                 await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
 
@@ -239,18 +210,15 @@ class Worker(ABC, WorkerExecutionLogic):
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
                     break # Give up
 
-                if is_dupping:
-                    break
-
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
+                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
-                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag)
+                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
@@ -264,10 +232,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     # Execute other tasks on coroutines in this worker
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
+        except CancelCurrentWorkerLoopException as e:
+            self.log(current_task.id.get_full_id(), f"CancelCurrentWorkerLoopException: {str(e)}")
+            pass
         except TaskOutputNotAvailableException as e:
             if is_dupping:
                 # CANCEL dupping because at least 1 of the dependencies of duppable task may not be available
-                self.log(current_task.id.get_full_id(), f"Tried to dup a task whose inputs were not available. skipping...") # type: ignore
+                self.log(current_task.id.get_full_id(), f"TaskOutputNotAvailableException: {str(e)}") # type: ignore
                 pass
             else:
                 raise e

@@ -374,11 +374,16 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         await PreLoadOptimization.wel_on_worker_ready(intermediate_storage, dag, this_worker_id)
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool = False):
         from src.planning.annotations.prewarm import PreWarmOptimization
         await PreWarmOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task)
         from src.planning.annotations.taskdup import TaskDupOptimization
-        await TaskDupOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task)
+        await TaskDupOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task, is_dupping)
+
+    @staticmethod
+    async def wel_before_task_execution(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
+        from src.planning.annotations.taskdup import TaskDupOptimization
+        await TaskDupOptimization.wel_before_task_execution(this_worker, metadata_storage, subdag, current_task, is_dupping)
 
     @staticmethod
     async def wel_override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
@@ -392,7 +397,13 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         return res
 
     @staticmethod
-    async def wel_override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:
+    async def wel_override_should_upload_output(current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
         from src.planning.annotations.taskdup import TaskDupOptimization
-        res = await TaskDupOptimization.wel_override_should_upload_output(task, subdag, this_worker_id)
+        res = await TaskDupOptimization.wel_override_should_upload_output(current_task, subdag, this_worker, metadata_storage, is_dupping)
+        return res
+
+    @staticmethod
+    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+        from src.planning.annotations.taskdup import TaskDupOptimization
+        res = await TaskDupOptimization.wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
         return res
