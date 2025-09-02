@@ -175,7 +175,7 @@ async def main():
                                    f"Expected time saved: {expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms:.2f}ms, "
                                    f"Dup?: {potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms}ms")
                         
-                        if potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms:
+                        if potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms - DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS:
                             potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
                             if potential_time_saved > greatest_predicted_time_saved:
                                 greatest_predicted_time_saved = potential_time_saved

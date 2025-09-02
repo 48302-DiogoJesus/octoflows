@@ -1,14 +1,13 @@
 import asyncio
 from dataclasses import dataclass
 import time
-from types import coroutine
 from typing import Any
 import cloudpickle
 from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskInputMetrics, TaskInputDownloadMetrics
+from src.storage.metrics.metrics_types import TaskInputMetrics, TaskInputDownloadMetrics, TaskOutputMetrics
 from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_CANCELLATION_PREFIX
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
@@ -127,13 +126,13 @@ class Worker(ABC, WorkerExecutionLogic):
                 if tasks_to_fetch:
                     for utask in tasks_to_fetch:
                         _timer = Timer()
-                        serialized_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if serialized_result is None:  raise TaskOutputNotAvailableException(utask.id.get_full_id())
+                        serialized_task_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
+                        if serialized_task_result is None:  raise TaskOutputNotAvailableException(utask.id.get_full_id())
                         time_to_fetch_ms = _timer.stop()
-                        deserialized_result = cloudpickle.loads(serialized_result)
+                        deserialized_result = cloudpickle.loads(serialized_task_result)
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
                         current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size(serialized_result), 
+                            serialized_size_bytes=calculate_data_structure_size(serialized_task_result), 
                             deserialized_size_bytes=calculate_data_structure_size(deserialized_result),
                             time_ms=time_to_fetch_ms
                         )
@@ -168,10 +167,10 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 if self.planner:
                     # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_EXECUTION()")
-                    task_result, task_execution_time_ms = await self.planner.override_handle_execution(current_task, task_dependencies)
+                    deserialized_task_result, task_execution_time_ms = await self.planner.override_handle_execution(current_task, task_dependencies)
                 else:
                     # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_EXECUTION()")
-                    task_result, task_execution_time_ms = await WorkerExecutionLogic.override_handle_execution(current_task, task_dependencies)
+                    deserialized_task_result, task_execution_time_ms = await WorkerExecutionLogic.override_handle_execution(current_task, task_dependencies)
 
                 tasks_executed_by_this_coroutine.append(current_task)
 
@@ -182,26 +181,40 @@ class Worker(ABC, WorkerExecutionLogic):
                     if total_input_size > 0 else None
 
                 # TASK_DUP => may not need to upload output if another worker dupped this task
-                upload_output = True
+                try_upload_output = True
                 if not is_dupping and is_current_task_duppable:
                     if cached_dup_cancelation_flag: 
-                        upload_output = False
+                        try_upload_output = False
                     else:
                         cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                         if cached_dup_cancelation_flag:
                             self.log(current_task.id.get_full_id(), "Task is being dupped by another worker. Won't upload output...")
-                            upload_output = False
+                            try_upload_output = False
 
                 #* 3) HANDLE TASK OUTPUT
-                if upload_output:
+                serialized_task_result = cloudpickle.dumps(deserialized_task_result)
+                current_task.metrics.output_metrics = TaskOutputMetrics(
+                    serialized_size_bytes=calculate_data_structure_size(serialized_task_result),
+                    deserialized_size_bytes=calculate_data_structure_size(deserialized_task_result),
+                    tp_time_ms=None
+                )
+
+                if try_upload_output:
                     self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                     if self.planner:
                         # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
-                        await self.planner.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
+                        upload_output = await self.planner.override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
                     else:
                         # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
-                        await WorkerExecutionLogic.override_handle_output(task_result, current_task, subdag, self.intermediate_storage, self.metadata_storage, self.my_resource_configuration.worker_id)
+                        upload_output = await WorkerExecutionLogic.override_should_upload_output(current_task, subdag, self.my_resource_configuration.worker_id)
+                    
+                    if upload_output:
+                        output_upload_timer = Timer()
+                        await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
+                        current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
                 
+                await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
                     break

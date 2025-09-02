@@ -1,5 +1,8 @@
 # TASKDUP
-- [TODO] `has_any_duppable_downstream` check should be on Taskdup override and not in generic WorkerExecutionLogic
+- [REFACTOR] move the taskdup cancellation flags to the taskdup optimization overrides where possible
+    what about the `is_dupping` flag?
+        + 
+        use custom exception for branch execution loop cancellation?
 - [INVESTIGATE] When `taskdup` starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
 
 [NEW_ISSUES_FOUND]
@@ -8,16 +11,14 @@
     requires: rethinking order of actions by the planner algorithm
 - worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
-- [TODO] Update dashboards:
-    Compare SLAs ("global"):
-    - success rate (percentage of workflows that finished below the SLA)
-    - overall prediction success rate (compared to the real values)
-    PreWarm ("individual"):
-    - how many happened, which tasks had them
-    Dup ("individual"):
-    - how many happened, which tasks were dupped?
+[TODO] Add support for user-specified optimizations
+    - would it make sense for all optimizations?
+    - ? should I allow optimizations that are not used by the selected planner ?
+    - ? need to tag them (internally), to know that it was user-provided and not temporarily created by my planner ?
+    - planners should NOT remove (don't even traverse nodes when checking for the optimization that they already have)
+    - added to the decorator
 
-- [EVALUATION_PLAN]
+[EVALUATION_PLAN]
 - Write a shared google doc
     - Combinations of:
         3 planners: simple, first (uniform workers), second (non-uniform workers)
@@ -29,6 +30,15 @@
         My solution w/ WUKONG-style planner/scheduling
         ? Dask cluster running similar workflows (is it possible?)
         ? Revisit how to deploy WUKONG?
+
+- [TODO] Update dashboards:
+    Compare SLAs ("global"):
+    - success rate (percentage of workflows that finished below the SLA)
+    - overall prediction success rate (compared to the real values)
+    PreWarm ("individual"):
+    - how many happened, which tasks had them
+    Dup ("individual"):
+    - how many happened, which tasks were dupped?
 
 ---
 

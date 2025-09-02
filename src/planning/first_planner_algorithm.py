@@ -234,3 +234,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         """
         res = await PreLoadOptimization.override_handle_inputs(intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
         return res
+
+    @staticmethod
+    async def override_should_upload_output(task, subdag: SubDAG, this_worker_id: str | None) -> bool:
+        from src.planning.annotations.taskdup import TaskDupOptimization
+        res = await TaskDupOptimization.override_should_upload_output(task, subdag, this_worker_id)
+        return res
