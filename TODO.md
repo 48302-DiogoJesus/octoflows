@@ -1,13 +1,4 @@
 # TASKDUP
-- [REFACTOR] How to abstract the `is_dupping` flag?
-- [INVESTIGATE] When task duplication starts, the worker must cancel is subscription to task ready event of that task? (currently it's executing it twice)
-
-[NEW_ISSUES_FOUND]
-- In the start, planners assign worker ids randomly/first upstream worker id
-    this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
-    requires: rethinking order of actions by the planner algorithm
-- worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
-
 [TODO] Add support for user-specified optimizations
     - would it make sense for all optimizations?
     - ? should I allow optimizations that are not used by the selected planner ?
@@ -27,6 +18,12 @@
         My solution w/ WUKONG-style planner/scheduling
         ? Dask cluster running similar workflows (is it possible?)
         ? Revisit how to deploy WUKONG?
+
+[NEW_ISSUES_FOUND]
+- In the start, planners assign worker ids randomly/first upstream worker id
+    this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
+    requires: rethinking order of actions by the planner algorithm
+- worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
 - [TODO] Update dashboards:
     Compare SLAs ("global"):

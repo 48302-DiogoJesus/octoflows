@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
-from src.planning.annotations.taskdup import DUPPABLE_TASK_CANCELLATION_PREFIX
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
 from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
