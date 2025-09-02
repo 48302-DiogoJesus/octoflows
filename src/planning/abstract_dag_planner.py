@@ -436,7 +436,8 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             worker_id = resource_config.worker_id
 
             if worker_id is None and node.try_get_annotation(PreLoadOptimization):
-                raise Exception(f"Task {node.id.get_full_id()} is assigned to a flexible worker (worker_id=None) and has PreLoadOptimization annotation. This is not allowed!")
+                node.remove_annotation(PreLoadOptimization)
+                logger.warning(f"Task {node.id.get_full_id()} has a 'PreLoadOptimization' optimization but since it's assigned to a flexible worker (worker_id=None), this optimization will be ignored in this run")
             
             # Validation #1 => Similar Worker IDs have same resources
             if worker_id is not None and worker_id in worker_id_to_resources_map and worker_id_to_resources_map[worker_id] != (resource_config.cpus, resource_config.memory_mb):

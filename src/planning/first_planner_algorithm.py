@@ -43,7 +43,6 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
 
         if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({self.config.worker_resource_configuration}) to all nodes")
-            # No Metadata recorded for previous runs of the same DAG structure => give intermediate resources to all nodes
             # Assign worker resources and ids
             for node in topo_sorted_nodes: 
                 unique_resources = self.config.worker_resource_configuration.clone()
@@ -104,9 +103,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             nodes_optimized_this_iteration = 0
             
             for node in critical_path_nodes:
-                my_node_id = node.id.get_full_id()
-                
-                if node.try_get_annotation(PreLoadOptimization): continue # Skip if node already has PreLoad annotation
+                if node.try_get_annotation(PreLoadOptimization): 
+                    # Skip if node already has PreLoad annotation. Either added by this planner or the user
+                    continue 
                 
                 resource_config: TaskWorkerResourceConfiguration = node.get_annotation(TaskWorkerResourceConfiguration)
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
@@ -171,6 +170,9 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         # OPTIMIZATION: TASK-DUP
         total_duppable_tasks = 0
         for node_info in updated_nodes_info.values():
+            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
+                # Skip if node already has TaskDup annotation. Cloud have been added by the user
+                continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
             if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue

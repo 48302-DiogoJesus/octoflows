@@ -182,10 +182,9 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             nodes_optimized_this_iteration = 0
             
             for node in current_critical_path_nodes:
-                node_id = node.id.get_full_id()
-                
                 if node.try_get_annotation(PreLoadOptimization):
-                    continue  # Skip if node already has PreLoad annotation
+                    # Skip if node already has PreLoad annotation. Either added by this planner or the user
+                    continue 
                     
                 resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
 
@@ -311,6 +310,9 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         # OPTIMIZATION: TASK-DUP
         total_duppable_tasks = 0
         for node_info in updated_nodes_info.values():
+            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
+                # Skip if node already has TaskDup annotation. Cloud have been added by the user
+                continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
             if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue

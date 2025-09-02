@@ -189,7 +189,6 @@ if __name__ == "__main__":
             if not isinstance(dag, FullDAG):
                 raise Exception("Error: dag is not a DAG instance")
             
-            print("Initializing dashboard (this should only print once)")
             st.session_state.dashboard = DAGVisualizationDashboard(dag, config)
         
         except Exception as e:

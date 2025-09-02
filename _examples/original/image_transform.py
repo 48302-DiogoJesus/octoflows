@@ -56,7 +56,7 @@ def determine_chunks_amount(image_data: bytes) -> int:
     return min(width // 64, 10)
 
 
-@DAGTask(optimizations=[PreLoadOptimization()])
+@DAGTask(forced_optimizations=[PreLoadOptimization()])
 def split_image(image_data: bytes, num_chunks: int) -> list[bytes]:
     """Split the image into chunks and return as list of bytes"""
     image = Image.open(io.BytesIO(image_data))
