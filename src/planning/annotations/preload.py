@@ -81,7 +81,8 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                    _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag)
+                    _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag),
+                    debug_tag="preload"
                 )
 
     @staticmethod

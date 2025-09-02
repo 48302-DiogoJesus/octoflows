@@ -43,26 +43,27 @@ class WorkerExecutionLogic():
     async def override_handle_output(task_result: Any, task, subdag: SubDAG, intermediate_storage: Storage, metadata_storage: Storage, this_worker_id: str | None):
         from src.dag_task_node import DAGTaskNode
         from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+        from src.planning.annotations.taskdup import TaskDupOptimization
 
         _task: DAGTaskNode = task
         
         _task.metrics.output_metrics = TaskOutputMetrics(
-            serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(task_result)), 
+            serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(task_result)),
             deserialized_size_bytes=calculate_data_structure_size(task_result), # accurate
             tp_time_ms=None
         )
         # only upload if necessary
-        if subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
+        has_any_duppable_downstream = any(dt.try_get_annotation(TaskDupOptimization) is not None for dt in _task.downstream_nodes)
+        if has_any_duppable_downstream or subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker_id is None or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id for dt in _task.downstream_nodes)):
             task_result_serialized = cloudpickle.dumps(task_result)
             _task.metrics.output_metrics.serialized_size_bytes = calculate_data_structure_size(task_result_serialized)
             output_upload_timer = Timer()
             await intermediate_storage.set(_task.id.get_full_id_in_dag(subdag), task_result_serialized)
             _task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
         else:
-            logger.info(f"Worker({this_worker_id}) Task({task.id.get_full_id_in_dag(subdag)}) WON'T upload task result. Not needed...")
+            logger.info(f"Worker({this_worker_id}) Task({task.id.get_full_id()}) WON'T upload task result. Not needed...")
         #! Can be optimized, don't need to always be sending this
-        receivers = await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{_task.id.get_full_id_in_dag(subdag)}", b"1")
-        # logger.info(f"Receivers for completion of task {task.id.get_full_id_in_dag(subdag)}: {receivers}")
+        await metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{_task.id.get_full_id_in_dag(subdag)}", b"1")
 
     @staticmethod
     async def override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG) -> list:

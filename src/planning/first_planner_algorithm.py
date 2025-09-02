@@ -128,7 +128,6 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 # Check if optimization improved performance
                 if new_critical_path_time < critical_path_time:
                     # Optimization helped - keep it
-                    # logger.info(f"PreLoad optimization successful for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms")
                     optimized_any_node = True
                     nodes_optimized_this_iteration += 1
                     total_preload_optimizations += 1
@@ -145,7 +144,6 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                         continue
                 else:
                     # Optimization didn't help, revert it
-                    # logger.info(f"PreLoad optimization not beneficial for node {node_id}: {critical_path_time} -> {new_critical_path_time} ms, reverting")
                     node.remove_annotation(PreLoadOptimization)
 
             # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
@@ -202,7 +200,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         )
 
         logger.info(f"=== FINAL RESULTS ===")
-        logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time} ms")
+        logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time / 1000:.2f}s")
         logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(updated_nodes_info)}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")

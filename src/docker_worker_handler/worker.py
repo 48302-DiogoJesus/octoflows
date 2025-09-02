@@ -184,8 +184,7 @@ async def main():
                     if greatest_predicted_time_saved_task:
                         task_id = greatest_predicted_time_saved_task.id.get_full_id()
                         assert wk.my_resource_configuration.worker_id is not None
-                        await wk.metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{greatest_predicted_time_saved_task.id.get_full_id_in_dag(fulldag)}", 1)
-                        logger.info(f"[TASK-DUP] Dupping task {task_id}. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
+                        logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
                         await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, is_dupping=True)
                     else:
                         logger.info("[TASK-DUP] No suitable task found for duplication")
@@ -198,12 +197,12 @@ async def main():
                 if all(n.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
+                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), debug_tag=f"normal")
 
                 has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
-                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task))
+                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), debug_tag=f"dup({utask.id.get_full_id()}, {task.id.get_full_id()})")
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
@@ -230,11 +229,12 @@ async def main():
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
-        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if "dup" not in t.get_name()]
         logger.info(f"Worker({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
         logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")
 
+        # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):
             logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
 

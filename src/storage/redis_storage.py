@@ -132,7 +132,7 @@ class RedisStorage(storage.Storage):
         logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
 
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False) -> None:
+    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, debug_tag: str = "") -> None:
         """
         Subscribe to a channel and process messages with a callback.
         
@@ -159,11 +159,11 @@ class RedisStorage(storage.Storage):
         # Start a background task to process messages
         task = asyncio.create_task(
             self._message_handler(pubsub, channel, callback, decode_responses),
-            name=f"redis_subscribe_message_handler(channel={channel})"
+            name=f"redis_subscribe_message_handler(channel={channel}, debug_tag={debug_tag})"
         )
         self._subscription_tasks[channel] = (task, pubsub)
         
-        logger.info(f"Subscribed to channel: {channel}")
+        logger.info(f"Subscribed to channel: {channel} | debug tag: {debug_tag}")
 
     async def unsubscribe(self, channel: str) -> None:
         """
@@ -216,11 +216,13 @@ class RedisStorage(storage.Storage):
                         except Exception as e:
                             logger.error(f"Error in callback for channel {channel}: {e}")
                             raise e
+                            # traceback.print_exc()
         except asyncio.CancelledError:
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:
-            logger.error(f"Error in message handler for {channel}: {e}")
-            traceback.print_exc()
+            # logger.error(f"Error in message handler for {channel}: {e}")
+            # traceback.print_exc()
+            raise e
     
     async def _delete_matching_keys(self, conn: Redis, match_pattern: str) -> int:
         """Helper method to delete keys matching a pattern using scan_iter.

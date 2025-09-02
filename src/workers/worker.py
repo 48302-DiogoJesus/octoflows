@@ -23,6 +23,11 @@ from src.storage.prefixes import DAG_PREFIX
 
 logger = create_logger(__name__)
 
+class TaskOutputNotAvailableException(Exception):
+    def __init__(self, task_id: str):
+        message = f"[ERROR] Task {task_id}'s data is not available yet!"
+        super().__init__(message)
+
 class Worker(ABC, WorkerExecutionLogic):
     @dataclass
     class Config(ABC):
@@ -70,7 +75,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 # if I do have at least 1 task that will need this locally, execute it 
                 #   (avoids complex logic waiting for the remote worker to finish it + download time (because it's produced locally))
                 cached_dup_cancelation_flag = False
-                if is_current_task_duppable and not has_downstream_task_to_execute_locally:
+                if not is_dupping and is_current_task_duppable and not has_downstream_task_to_execute_locally:
                     cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                     if cached_dup_cancelation_flag:
                         self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
@@ -122,7 +127,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     for utask in tasks_to_fetch:
                         _timer = Timer()
                         serialized_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if serialized_result is None: raise Exception(f"[ERROR] Task {utask.id.get_full_id_in_dag(subdag)}'s data is not available")
+                        if serialized_result is None:  raise TaskOutputNotAvailableException(utask.id.get_full_id())
                         time_to_fetch_ms = _timer.stop()
                         deserialized_result = cloudpickle.loads(serialized_result)
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
@@ -131,6 +136,10 @@ class Worker(ABC, WorkerExecutionLogic):
                             deserialized_size_bytes=calculate_data_structure_size(deserialized_result),
                             time_ms=time_to_fetch_ms
                         )
+
+                # if all inputs are available, then we can dup the task. Warn others that they MAY NOT need to execute it
+                if is_dupping:
+                    await self.metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", 1)
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
@@ -149,7 +158,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
 
                 #* 2) EXECUTE TASK
-                if is_current_task_duppable and not has_downstream_task_to_execute_locally:
+                if not is_dupping and is_current_task_duppable and not has_downstream_task_to_execute_locally:
                     cached_dup_cancelation_flag = await self.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}")
                     if cached_dup_cancelation_flag:
                         self.log(current_task.id.get_full_id(), "Task is being dupped by another worker, aborting branch...")
@@ -173,7 +182,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 # TASK_DUP => may not need to upload output if another worker dupped this task
                 upload_output = True
-                if is_current_task_duppable:
+                if not is_dupping and is_current_task_duppable:
                     if cached_dup_cancelation_flag: 
                         upload_output = False
                     else:
@@ -215,9 +224,6 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
 
-                if len(current_task.upstream_nodes) > 0:
-                    print("COMPLETED_IN: ", time.time() - current_task.metrics.started_at_timestamp_s, "s")
-
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
                     break # Give up
@@ -247,8 +253,15 @@ class Worker(ABC, WorkerExecutionLogic):
                     # Execute other tasks on coroutines in this worker
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
+        except TaskOutputNotAvailableException as e:
+            if is_dupping:
+                # CANCEL dupping because at least 1 of the dependencies of duppable task may not be available
+                self.log(current_task.id.get_full_id(), f"Tried to dup a task whose inputs were not available. skipping...") # type: ignore
+                pass
+            else:
+                raise e
         except Exception as e:
-            self.log(current_task.id.get_full_id(), f"Error: {str(e)}") # type: ignore
+            self.log(current_task.id.get_full_id(), f"ExecuteBranch Error: {str(e)}") # type: ignore
             raise e
 
         # Wait for my other coroutines executing other tasks
@@ -261,6 +274,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 self.metrics_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
+        # print the names of the coroutines that are still running in the program in a single print
+        logger.info(f"Coroutines still running: {[t.get_name() for t in asyncio.all_tasks()]}")
         return None
 
     @abstractmethod
