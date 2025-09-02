@@ -1,12 +1,3 @@
-# TASKDUP
-[TODO] Add support for user-specified optimizations
-    - how should the planners look at them?
-        - planners should NOT remove (don't even traverse nodes when checking for the optimization that they already have)
-        - ? need to tag them (internally), to know that it was user-provided and not temporarily created by my planner ?
-
-[REFACTOR] Make it so that `TaskWorkerResourceConfiguration` is a field of DAGTaskNode instead of a weak annotation
-    backup before, just an experiment
-
 [EVALUATION_PLAN]
 - Write a shared google doc
     - Combinations of:
@@ -19,6 +10,9 @@
         My solution w/ WUKONG-style planner/scheduling
         ? Dask cluster running similar workflows (is it possible?)
         ? Revisit how to deploy WUKONG?
+
+[REFACTOR] Make it so that `TaskWorkerResourceConfiguration` is a field of DAGTaskNode instead of a weak annotation
+    backup before, just an experiment
 
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
