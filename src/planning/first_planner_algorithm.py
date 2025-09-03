@@ -5,7 +5,7 @@ import uuid
 
 from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_MAX_EXEC_TIME_MS, DUPPABLE_TASK_MAX_INPUT_SIZE
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -47,7 +47,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             for node in topo_sorted_nodes: 
                 unique_resources = self.config.worker_resource_configuration.clone()
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
-                node.add_annotation(unique_resources)
+                node.worker_config = unique_resources
             self._store_plan_image(dag)
             return
         
@@ -55,14 +55,14 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
-            node.add_annotation(resource_config)
+            node.worker_config = resource_config
             if len(node.upstream_nodes) == 0:
                 resource_config.worker_id = uuid.uuid4().hex
             else:
                 # Count worker usage among downstream nodes of upstream nodes
                 same_level_worker_usage = {}
                 for upstream_node in node.upstream_nodes:
-                    worker_id = upstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    worker_id = upstream_node.worker_config.worker_id
                     if not worker_id: continue
                     same_level_worker_usage[worker_id] = 0
 
@@ -70,7 +70,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                     # Get all downstream nodes of this upstream node
                     for downstream_node in upstream_node.downstream_nodes:
                         if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
-                        downstream_worker_id = downstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                        downstream_worker_id = downstream_node.worker_config.worker_id
                         if not downstream_worker_id: continue
                         same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
 
@@ -106,11 +106,11 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                     # Skip if node already has PreLoad annotation. Either added by this planner or the user
                     continue 
                 
-                resource_config: TaskWorkerResourceConfiguration = node.get_annotation(TaskWorkerResourceConfiguration)
+                resource_config: TaskWorkerResourceConfiguration = node.worker_config
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
                 # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker id
-                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or un.get_annotation(TaskWorkerResourceConfiguration).worker_id != resource_config.worker_id]) == 0:
+                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) == 0:
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
@@ -184,7 +184,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             
         unique_worker_ids: dict[str, int] = {}
         for my_node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             if resource_config.worker_id is None: continue
             if resource_config.worker_id not in unique_worker_ids: unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Literal
 
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 # NOTE: Prefix "tp" means "task-path", which indicates time spent doing something while handling a task (SYNC)
     # pre-load isn't included in this time, but waiting for pending preloads is

@@ -10,7 +10,7 @@ from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PR
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.utils.logger import create_logger
 import src.dag.dag as dag
@@ -55,7 +55,7 @@ class Worker(ABC, WorkerExecutionLogic):
         """
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
-        self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.get_annotation(TaskWorkerResourceConfiguration)
+        self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.worker_config
         # To help understand locality decisions afterwards, at the dashboard
         _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
         _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
@@ -127,7 +127,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine
 
-                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.get_annotation(TaskWorkerResourceConfiguration).worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
 
                 # Store raw values, normalization will be done during prediction
 

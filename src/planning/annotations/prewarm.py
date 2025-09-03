@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from src.dag.dag import  SubDAG
 from src.dag_task_annotation import TaskAnnotation
 from src.dag_task_node import  DAGTaskNode
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.storage import Storage
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.utils.logger import create_logger
@@ -20,7 +20,7 @@ class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
     def clone(self): return PreWarmOptimization([config.clone() for config in self.target_resource_configs])
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
+    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         

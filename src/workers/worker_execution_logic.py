@@ -39,17 +39,15 @@ class WorkerExecutionLogic():
         return value indicates if the task result was uploaded or not 
         """
         from src.dag_task_node import DAGTaskNode
-        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         _task: DAGTaskNode = current_task
 
         # only upload if necessary
-        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or dt.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
+        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
     @staticmethod
     async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
-        from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
         _downstream_tasks_ready: list[DAGTaskNode] = downstream_tasks_ready
         _current_task: DAGTaskNode = current_task
@@ -59,7 +57,7 @@ class WorkerExecutionLogic():
         coroutines = []
         total_invocation_time_timer = Timer()
         for task in _downstream_tasks_ready:
-            task_resource_config = task.get_annotation(TaskWorkerResourceConfiguration)
+            task_resource_config = task.worker_config
             if task_resource_config.worker_id is None:
                 # if I have the same resources, it's mine
                 if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
@@ -72,7 +70,7 @@ class WorkerExecutionLogic():
             else:
                 requires_launching_worker = True
                 for dunode in task.upstream_nodes:
-                    dunode_resource_config = dunode.get_annotation(TaskWorkerResourceConfiguration)
+                    dunode_resource_config = dunode.worker_config
                     if dunode_resource_config.worker_id is None:
                         pass # can't reuse these, flexible workers don't subscribe to TASK_READY events
                     elif dunode_resource_config.worker_id == task_resource_config.worker_id:

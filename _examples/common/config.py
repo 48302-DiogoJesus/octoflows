@@ -1,5 +1,4 @@
 from typing import Optional, List, Literal
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.sla import Percentile
 from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
@@ -9,6 +8,7 @@ from src.storage.metrics.metrics_storage import MetricsStorage
 from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
 from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
 from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 import sys
 
 def get_planner_from_sys_argv():

@@ -10,8 +10,8 @@ from typing import Any, Callable, Generic, Type, TypeVar
 import uuid
 
 from src.dag_task_annotation import TaskAnnotation
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.timer import Timer
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 R = TypeVar('R')
 S = TypeVar('S')
@@ -41,6 +41,7 @@ class _CachedResultWrapper(Generic[R]):
     result: R
 
 class DAGTaskNode(Generic[R]):
+
     def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
         from src.storage.metrics.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
@@ -48,11 +49,12 @@ class DAGTaskNode(Generic[R]):
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
+        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1)
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
         self.metrics: TaskMetrics = TaskMetrics(
-            worker_resource_configuration=TaskWorkerResourceConfiguration(-1, -1),
+            worker_resource_configuration=self.worker_config,
             started_at_timestamp_s=0,
             input_metrics=TaskInputMetrics(input_download_metrics={}),
             tp_execution_time_ms=0,
@@ -64,7 +66,7 @@ class DAGTaskNode(Generic[R]):
         )
         self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         # Initialized with a dummy worker config annotation for local worker
-        self.annotations: list[TaskAnnotation] = [TaskWorkerResourceConfiguration(-1, -1)]
+        self.annotations: list[TaskAnnotation] = []
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None
         self.completed_event: asyncio.Event = asyncio.Event()

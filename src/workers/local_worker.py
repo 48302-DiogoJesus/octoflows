@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from src.dag import dag
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
 

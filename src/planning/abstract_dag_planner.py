@@ -14,7 +14,7 @@ from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
@@ -187,7 +187,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     
     def __calculate_node_timings(self, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, predictions_provider: PredictionsProvider, sla: SLA):
         node_id = node.id.get_full_id()
-        worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+        worker_id = node.worker_config.worker_id
         deserialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=True)
         serialized_input_size = self._calculate_total_input_size(node, nodes_info, deserialized=False)
 
@@ -201,7 +201,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         # 2. Calculate download finish time (considering parallel downloads)
         download_finish_time = 0.0
         for unode in node.upstream_nodes:
-            if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id: 
+            if unode.worker_config.worker_id == worker_id: 
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
@@ -228,7 +228,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         # 5. Calculate upload_time (existing logic is correct)
         if len(node.downstream_nodes) > 0 and worker_id is not None and \
-            all(dt.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id for dt in node.downstream_nodes):
+            all(dt.worker_config.worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
             upload_time = predictions_provider.predict_data_transfer_time('upload', deserialized_output_size, resource_config, sla)
@@ -239,8 +239,8 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for u_task in node.upstream_nodes:
             if not u_task.try_get_annotation(TaskDupOptimization): continue
             node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
-                original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, u_task.get_annotation(TaskWorkerResourceConfiguration), sla),
-                original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.get_annotation(TaskWorkerResourceConfiguration), sla),
+                original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, u_task.worker_config, sla),
+                original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.worker_config, sla),
                 original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
 
                 exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, resource_config, sla),
@@ -274,7 +274,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         # Collect expected worker activity periods
         for node in topo_sorted_nodes:
-            my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_full_id()]
             # register when MY worker config should be active
             if my_resource_config.worker_id:
@@ -302,15 +302,15 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         # Second pass: apply the scheduling logic with simplified condition
         for node in topo_sorted_nodes:
-            my_resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_full_id()]
 
             if any(
-                n.get_annotation(TaskWorkerResourceConfiguration).cpus == my_resource_config.cpus and \
-                n.get_annotation(TaskWorkerResourceConfiguration).memory_mb == my_resource_config.memory_mb and \
+                n.worker_config.cpus == my_resource_config.cpus and \
+                n.worker_config.memory_mb == my_resource_config.memory_mb and \
                 (
-                    n.get_annotation(TaskWorkerResourceConfiguration).worker_id == my_resource_config.worker_id or \
-                    n.get_annotation(TaskWorkerResourceConfiguration).worker_id is None or \
+                    n.worker_config.worker_id == my_resource_config.worker_id or \
+                    n.worker_config.worker_id is None or \
                     my_resource_config.worker_id is None
                 )
                 for n in node.upstream_nodes
@@ -365,7 +365,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
 
         for node in topo_sorted_nodes:
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             # note: modifies `nodes_info`
             self.__calculate_node_timings(nodes_info, node, resource_config, predictions_provider, sla)
 
@@ -432,7 +432,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                     queue.append(ds_node)
             
             # Get resource configuration
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             worker_id = resource_config.worker_id
 
             if worker_id is None and node.try_get_annotation(PreLoadOptimization):
@@ -448,13 +448,13 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             
             # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
             if worker_id is not None:
-                upstream_nodes_w_same_wid = [n for n in node.upstream_nodes if n.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id]
+                upstream_nodes_w_same_wid = [n for n in node.upstream_nodes if n.worker_config.worker_id == worker_id]
                 if worker_id in seen_worker_ids and len(upstream_nodes_w_same_wid) == 0 and node.id.get_full_id() not in [rn.id.get_full_id() for rn in root_nodes]:
                     # could still be valid if AT LEAST 1 of its upstream tasks downstream tasks has the same worker id (meaning it was launched at the "same time")
                     other_udtasks_w_same_wid: set[str] = set()
                     for unode in node.upstream_nodes:
                         for udnode in unode.downstream_nodes:
-                            if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.get_annotation(TaskWorkerResourceConfiguration).worker_id:
+                            if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.worker_config.worker_id:
                                 other_udtasks_w_same_wid.add(udnode.id.get_full_id())
                         
                     if len(other_udtasks_w_same_wid) > 0 and not any([other_udtask_id == seen_worker_ids[worker_id] for other_udtask_id in other_udtasks_w_same_wid]):
@@ -486,7 +486,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         # Collect unique resource configurations and sort them
         resource_configs = {}
         for node in _dag._all_nodes.values():
-            config = node.get_annotation(TaskWorkerResourceConfiguration)
+            config = node.worker_config
             config_key = f"CPU:{config.cpus},Mem:{config.memory_mb}MB"
             resource_configs[config_key] = (config.cpus, config.memory_mb)
         
@@ -516,7 +516,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         for node in _dag._all_nodes.values():
             node_id = node.id.get_full_id()
             node_info = nodes_planning_info[node_id] if node_id in nodes_planning_info else None
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             config_key = f"CPU:{resource_config.cpus},Mem:{resource_config.memory_mb}MB"
             
             # Create node label with task name in bold and larger font

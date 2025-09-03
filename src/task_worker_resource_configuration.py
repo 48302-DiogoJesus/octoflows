@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-
 from src.dag_task_annotation import TaskAnnotation
+
 
 @dataclass
 class TaskWorkerResourceConfiguration(TaskAnnotation):
@@ -8,5 +8,4 @@ class TaskWorkerResourceConfiguration(TaskAnnotation):
     cpus: float
     memory_mb: int
     worker_id: str | None = None
-
     def clone(self): return TaskWorkerResourceConfiguration(self.cpus, self.memory_mb, self.worker_id)

@@ -6,7 +6,7 @@ import cloudpickle
 from src.dag.dag import FullDAG, SubDAG
 from src.dag_task_annotation import TaskAnnotation
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.coroutine_tags import COROTAG_PRELOAD
@@ -73,12 +73,12 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
             # MY Logic
             # 1) tasks assigned to me
-            if current_node.get_annotation(TaskWorkerResourceConfiguration).worker_id != this_worker_id: continue
+            if current_node.worker_config.worker_id != this_worker_id: continue
             preload_annotation = current_node.try_get_annotation(PreLoadOptimization)
             # 2) that should preload
             if not preload_annotation: continue
             for unode in current_node.upstream_nodes:
-                if unode.get_annotation(TaskWorkerResourceConfiguration).worker_id == this_worker_id: continue
+                if unode.worker_config.worker_id == this_worker_id: continue
                 logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 

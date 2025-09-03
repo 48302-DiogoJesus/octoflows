@@ -8,7 +8,7 @@ from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStora
 from src.storage.metrics.metrics_types import TaskMetrics, WorkerStartupMetrics
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 logger = create_logger(__name__)
 

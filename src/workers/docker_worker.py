@@ -8,7 +8,7 @@ import time
 import aiohttp
 import cloudpickle
 from src.dag import dag
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
 
@@ -39,14 +39,14 @@ class DockerWorker(Worker):
         if len(subdags) == 0: 
             raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
         
-        subdags.sort(key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id or "", reverse=True)
+        subdags.sort(key=lambda sd: sd.root_node.worker_config.worker_id or "", reverse=True)
         
         # Separate tasks with None worker_id from those with specific worker_ids
         tasks_with_worker_id = []
         tasks_without_worker_id = []
         
         for subdag in subdags:
-            worker_id = subdag.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            worker_id = subdag.root_node.worker_config.worker_id
             if worker_id is None:
                 tasks_without_worker_id.append(subdag)
             else:
@@ -55,7 +55,7 @@ class DockerWorker(Worker):
         # Group tasks with specific worker_ids (existing logic)
         tasks_grouped_by_id = {
             worker_id: list(tasks)
-            for worker_id, tasks in groupby(tasks_with_worker_id, key=lambda sd: sd.root_node.get_annotation(TaskWorkerResourceConfiguration).worker_id)
+            for worker_id, tasks in groupby(tasks_with_worker_id, key=lambda sd: sd.root_node.worker_config.worker_id)
         }
         
         # Create a list to store all the async tasks
@@ -64,7 +64,7 @@ class DockerWorker(Worker):
         # Define the async function for making individual HTTP requests
         async def make_worker_request(worker_id, worker_subdags):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
-            targetWorkerResourcesConfig = _worker_subdags[0].root_node.get_annotation(TaskWorkerResourceConfiguration)
+            targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
             gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
             if self.metrics_storage:

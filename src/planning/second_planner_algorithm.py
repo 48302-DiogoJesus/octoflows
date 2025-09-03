@@ -7,7 +7,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.prewarm import PreWarmOptimization
 from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_MAX_EXEC_TIME_MS, DUPPABLE_TASK_MAX_INPUT_SIZE
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.storage.storage import Storage
@@ -60,7 +60,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 if len(node.upstream_nodes) == 0:
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
-                    unique_resources.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    unique_resources.worker_id = node.upstream_nodes[0].worker_config.worker_id
             self._store_plan_image(dag)
             return
 
@@ -93,7 +93,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 # Count worker usage among downstream nodes of upstream nodes
                 same_level_worker_usage = {}
                 for upstream_node in node.upstream_nodes:
-                    worker_id = upstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    worker_id = upstream_node.worker_config.worker_id
                     if not worker_id: continue
                     same_level_worker_usage[worker_id] = 0
 
@@ -101,7 +101,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     # Get all downstream nodes of this upstream node
                     for downstream_node in upstream_node.downstream_nodes:
                         if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
-                        downstream_worker_id = downstream_node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+                        downstream_worker_id = downstream_node.worker_config.worker_id
                         if not downstream_worker_id: continue
                         same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
 
@@ -127,9 +127,9 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         # logger.info("=== Step 2: Downgrading resources on non-critical paths ===")
         worker_ids_outside_critical_path: set[str] = set()
         for node in topo_sorted_nodes:
-            node_worker_id = node.get_annotation(TaskWorkerResourceConfiguration).worker_id
+            node_worker_id = node.worker_config.worker_id
             if not node_worker_id: continue
-            if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.get_annotation(TaskWorkerResourceConfiguration).worker_id for cpnode in critical_path_nodes):
+            if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.worker_config.worker_id for cpnode in critical_path_nodes):
                 worker_ids_outside_critical_path.add(node_worker_id)
 
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
@@ -141,16 +141,16 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             
             # Store initial configurations as the first "successful" state
             for node in nodes_outside_critical_path:
-                if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id:
-                    last_successful_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
+                if node.worker_config.worker_id == worker_id:
+                    last_successful_configs[node.id.get_full_id()] = node.worker_config
             
             for simul_resource_config in self.config.available_worker_resource_configurations[1:]:
                 new_res_config = simul_resource_config.clone()
                 new_res_config.worker_id = worker_id # use same worker_id, just change the resource config
                 
                 for node in nodes_outside_critical_path:
-                    if node.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id: continue
-                    node.add_annotation(new_res_config)
+                    if node.worker_config.worker_id != worker_id: continue
+                    node.worker_config = new_res_config
                 
                 # Recalculate timings with this configuration
                 new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -161,13 +161,13 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     successful_worker_resources_downgrades += 1
                     # Update last successful configs to current state
                     for node in nodes_outside_critical_path:
-                        if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id:
-                            last_successful_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
+                        if node.worker_config.worker_id == worker_id:
+                            last_successful_configs[node.id.get_full_id()] = node.worker_config
                 else:
                     # This downgrade hurts performance, REVERT to last successful state and stop trying lower configs
                     for node in nodes_outside_critical_path:
-                        if node.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id: continue
-                        node.add_annotation(last_successful_configs[node.id.get_full_id()])
+                        if node.worker_config.worker_id != worker_id: continue
+                        node.worker_config = last_successful_configs[node.id.get_full_id()]
                     break
 
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
@@ -195,14 +195,14 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     # Skip if node already has PreLoad annotation. Either added by this planner or the user
                     continue 
                     
-                resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+                resource_config = node.worker_config
 
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
                 # Only try to apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
                 if (len(node.upstream_nodes) == 0 or 
                     len([un for un in node.upstream_nodes 
-                        if un.get_annotation(TaskWorkerResourceConfiguration).worker_id != 
+                        if un.worker_config.worker_id != 
                             resource_config.worker_id]) == 0):
                     continue
 
@@ -268,13 +268,13 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             if len(node_info.node_ref.upstream_nodes) == 0: continue # ignore root nodes
 
             # Calculate sum of execution times of tasks with same worker config that start after this node
-            my_worker_config = node_info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
+            my_worker_config = node_info.node_ref.worker_config
             sum_exec_times = 0
             
             # Get tasks with same resources that start after this node (because they could also benefit from pre-warm)
             for other_node_id, other_node_info in updated_nodes_info.items():
                 if other_node_id == my_node_id: continue
-                other_worker_config = other_node_info.node_ref.get_annotation(TaskWorkerResourceConfiguration)
+                other_worker_config = other_node_info.node_ref.worker_config
                 if other_worker_config.cpus != my_worker_config.cpus or other_worker_config.memory_mb != my_worker_config.memory_mb: continue
                 if other_node_info.earliest_start_ms > node_info.earliest_start_ms:
                     sum_exec_times += other_node_info.tp_exec_time_ms
@@ -338,7 +338,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         nodes_with_preload = 0
         
         for node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             config_key = f"CPU:{resource_config.cpus},Memory:{resource_config.memory_mb}MB"
             if config_key not in resource_distribution:
                 resource_distribution[config_key] = 0

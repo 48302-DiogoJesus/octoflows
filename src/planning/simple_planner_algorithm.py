@@ -4,7 +4,7 @@ from typing import Any
 import uuid
 
 from src.dag.dag import FullDAG, SubDAG
-from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.storage.storage import Storage
@@ -59,7 +59,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
                     resource_config.worker_id = uuid.uuid4().hex
                 else:
                     # Use same worker id as its first upstream node
-                    resource_config.worker_id = node.upstream_nodes[0].get_annotation(TaskWorkerResourceConfiguration).worker_id
+                    resource_config.worker_id = node.upstream_nodes[0].worker_config.worker_id
 
         # Final statistics
         final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
@@ -68,7 +68,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
             
         unique_worker_ids: dict[str, int] = {}
         for node_id, node in _dag._all_nodes.items():
-            resource_config = node.get_annotation(TaskWorkerResourceConfiguration)
+            resource_config = node.worker_config
             if resource_config.worker_id is None: continue
             if resource_config.worker_id not in unique_worker_ids: unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1

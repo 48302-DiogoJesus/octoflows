@@ -212,7 +212,7 @@ def main():
                 actual_total_worker_startup_time_s = instance.total_worker_startup_time_ms / 1000  # in seconds
                 
                 # Calculate actual makespan
-                from src.planning.annotations.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+                from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
                 common_resources: TaskWorkerResourceConfiguration | None = None
                 for task in instance.tasks:
                     if common_resources is None: common_resources = task.metrics.worker_resource_configuration
