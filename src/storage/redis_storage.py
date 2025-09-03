@@ -132,7 +132,7 @@ class RedisStorage(storage.Storage):
         logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
 
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "") -> None:
+    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> None:
         """
         Subscribe to a channel and process messages with a callback.
         
@@ -163,7 +163,7 @@ class RedisStorage(storage.Storage):
         )
         self._subscription_tasks[channel] = (task, pubsub)
         
-        logger.info(f"Subscribed to channel: {channel} | coroutine tag: {coroutine_tag}")
+        logger.info(f"W({worker_id}) Subscribed to channel: {channel} | coroutine tag: {coroutine_tag}")
 
     async def unsubscribe(self, channel: str) -> None:
         """

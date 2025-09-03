@@ -105,6 +105,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             return None # no plan was made
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+            self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
@@ -586,3 +587,75 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         print(f"DAG visualization saved to {output_file_name}.png")
         
         return dot
+
+    def _store_plan_as_json(self, dag, nodes_planning_info: dict[str, PlanningTaskInfo] = dict()):
+        """
+        Store DAG task information as hierarchical JSON starting from root nodes.
+        
+        Args:
+            dag: The DAG object
+            nodes_planning_info: Dictionary mapping node IDs to PlanningTaskInfo objects
+        """
+        import json
+        from src.dag.dag import GenericDAG
+        
+        _dag: GenericDAG = dag
+        
+        def build_node_tree(node, visited=None):
+            """Recursively build hierarchical tree structure for a node and its children."""
+            if visited is None:
+                visited = set()
+            
+            node_id = node.id.get_full_id()
+            
+            # Avoid infinite loops in case of cycles
+            if node_id in visited:
+                return {
+                    "id": node_id,
+                    "function_name": node.func_name,
+                    "assigned_worker_id": node.worker_config.worker_id if node.worker_config.worker_id else "Flexible",
+                    "note": "Already processed (cycle detected)"
+                }
+            
+            visited.add(node_id)
+            
+            # Build node info
+            node_info = {
+                "id": node_id,
+                "function_name": node.func_name,
+                "assigned_worker_id": node.worker_config.worker_id if node.worker_config.worker_id else "Flexible",
+                "children": []
+            }
+            
+            # Recursively add downstream nodes as children
+            for downstream_node in node.downstream_nodes:
+                child_info = build_node_tree(downstream_node, visited.copy())
+                node_info["children"].append(child_info)
+            
+            return node_info
+        
+        # Find root nodes (nodes with no upstream dependencies)
+        root_nodes = [node for node in _dag._all_nodes.values() if len(node.upstream_nodes) == 0]
+        
+        # Build hierarchical structure starting from root nodes
+        hierarchical_tasks = []
+        for root_node in root_nodes:
+            root_tree = build_node_tree(root_node)
+            hierarchical_tasks.append(root_tree)
+        
+        # Create output structure
+        output_data = {
+            "dag_name": _dag.sink_node.func_name,
+            "total_tasks": len(_dag._all_nodes),
+            "root_count": len(root_nodes),
+            "hierarchical_tasks": hierarchical_tasks
+        }
+        
+        # Save to JSON file
+        output_file_name = f"planned_{_dag.sink_node.func_name}.json"
+        with open(output_file_name, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"DAG task information saved to {output_file_name}")
+        
+        return output_data

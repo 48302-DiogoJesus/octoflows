@@ -117,7 +117,7 @@ async def main():
                 await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}")
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_non_immediate(task={task_id.get_full_id()})")
+                asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
             return callback
         
         dupping_locks: dict[str, asyncio.Lock] = {} # ensures that only 1 dupping task is executed at a time for each main task (disalows 2 duppings while also protecting concurrent accesses to the 2 variables below)
@@ -197,12 +197,12 @@ async def main():
                 if all(n.worker_config.worker_id == this_worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id))
+                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id)
 
                 has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
-                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})")
+                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
@@ -223,16 +223,16 @@ async def main():
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
                 completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
-                logger.info(f"Worker({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
+                logger.info(f"W({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
                 await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
-                logger.info(f"Worker({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
+                logger.info(f"W({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
-        logger.info(f"Worker({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
+        logger.info(f"W({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
         if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
-        logger.info(f"Worker({this_worker_id}) DONE Waiting for all coroutines!")
+        logger.info(f"W({this_worker_id}) DONE Waiting for all coroutines!")
 
         # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):

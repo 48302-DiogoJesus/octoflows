@@ -85,12 +85,12 @@ class WorkerExecutionLogic():
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(f"Worker({_this_worker.my_resource_configuration.worker_id}) Delegating {len(other_continuation_tasks)} tasks to other workers...")
+            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) Delegating {len(other_continuation_tasks)} tasks to other workers...")
             coroutines.append(_this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], called_by_worker=True))
             await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
         for my_task in my_continuation_tasks:
-            logger.info(f"Worker({_this_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
+            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
 
         _current_task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
         _current_task.metrics.total_invocations_count = total_invocations_count

@@ -49,6 +49,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.worker_config = unique_resources
             self._store_plan_image(dag)
+            self._store_plan_as_json(dag)
             return
         
         # Step 1: Assign best resources to all nodes and find initial critical path + assign worker IDs

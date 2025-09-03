@@ -198,7 +198,13 @@ class Worker(ABC, WorkerExecutionLogic):
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
+                        if self.my_resource_configuration.worker_id is not None and self.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
+                            # avoids double-execution (one by following the execution branch, and another by the READY event callback)
+                            await self.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                        if any([t.id.get_full_id() == downstream_task.id.get_full_id() for t in downstream_tasks_ready]):
+                            raise Exception(f"INCORRECT DUP Downstream task {downstream_task.id.get_full_id()} is already in the list of ready tasks")
                         downstream_tasks_ready.append(downstream_task)
                 
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
@@ -311,4 +317,4 @@ class Worker(ABC, WorkerExecutionLogic):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        logger.info(f"Worker({self.my_resource_configuration.worker_id}) Task({task_id}) | {message}")
+        logger.info(f"W({self.my_resource_configuration.worker_id}) T({task_id}) | {message}")

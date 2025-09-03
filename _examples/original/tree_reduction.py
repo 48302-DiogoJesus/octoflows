@@ -24,5 +24,5 @@ sink: DAGTaskNode = L[0] # type: ignore
 
 for i in range(1):
     start_time = time.time()
-    result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG)
+    result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

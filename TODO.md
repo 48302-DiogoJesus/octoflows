@@ -1,7 +1,10 @@
-[REFACTOR] Make it so that `TaskWorkerResourceConfiguration` is a field of DAGTaskNode instead of a weak annotation
-    backup before, just an experiment
-
-Test `tree_reduction` algorithm again
+Debug `tree_reduction` algorithm when using 64 tasks
+- when assigned worker_ids sometimes it gives error: can't find task output
+- other times just stays frozen
+ISSUE: a task is being executed more than once, leading to incrementing DCs wrongly
+    this could also happen if a task is dupped!
+    MAIN ISSUE: double execution on same worker should not happen
+    ROOT ISSUE: DC being a counter makes running tasks **non-idempotent**
 
 Start writing small 10 page paper
 
