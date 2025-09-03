@@ -203,8 +203,6 @@ class Worker(ABC, WorkerExecutionLogic):
                             await self.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
 
                         await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
-                        if any([t.id.get_full_id() == downstream_task.id.get_full_id() for t in downstream_tasks_ready]):
-                            raise Exception(f"INCORRECT DUP Downstream task {downstream_task.id.get_full_id()} is already in the list of ready tasks")
                         downstream_tasks_ready.append(downstream_task)
                 
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None

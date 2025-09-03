@@ -16,8 +16,8 @@ import src.docker_workers_gateway.container_pool_executor as container_pool_exec
 logger = create_logger(__name__)
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker_handler/worker.py"
-MAX_CONCURRENT_TASKS = 8
 
+MAX_CONCURRENT_TASKS = 14
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
     logger.warning("Set the DOCKER_IMAGE environment variable to the name of the Docker image to use.")
