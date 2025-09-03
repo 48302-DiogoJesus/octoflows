@@ -1,13 +1,9 @@
 from dataclasses import dataclass
-from types import CoroutineType
-from typing import Any
 import uuid
 
-from src.dag.dag import FullDAG, SubDAG
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
-from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
@@ -44,14 +40,14 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
             for node in topo_sorted_nodes: 
                 unique_resources = self.config.worker_resource_configuration.clone()
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
-                node.add_annotation(unique_resources)
+                node.worker_config = unique_resources
             self._store_plan_image(dag)
             return
         
         # Give same resources to all nodes and assign worker ids
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
-            node.add_annotation(resource_config)
+            node.worker_config = resource_config
             
             if not self.config.all_flexible_workers:
                 if len(node.upstream_nodes) == 0:

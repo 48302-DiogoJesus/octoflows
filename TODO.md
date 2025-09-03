@@ -1,24 +1,15 @@
-[EVALUATION_PLAN]
-- Write a shared google doc
-    - Combinations of:
-        3 planners: simple, first (uniform workers), second (non-uniform workers)
-            planners w/ diff optimizations
-        x SLAs: y percentiles, avg, median
-        x workflows (variety + representative): lots of data involved
-    - Compare:
-        My solution
-        My solution w/ WUKONG-style planner/scheduling
-        ? Dask cluster running similar workflows (is it possible?)
-        ? Revisit how to deploy WUKONG?
-
 [REFACTOR] Make it so that `TaskWorkerResourceConfiguration` is a field of DAGTaskNode instead of a weak annotation
     backup before, just an experiment
 
+Test `tree_reduction` algorithm again
+
+Start writing small 10 page paper
+
 [NEW_ISSUES_FOUND]
+- [BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
     requires: rethinking order of actions by the planner algorithm
-- worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
 - [TODO] Update dashboards:
     Compare SLAs ("global"):
@@ -90,8 +81,3 @@
     + optimizations
         - Task Clustering (fan-ins + fan-outs)
         - Delayed I/O
-
----
-
-[EVALUATION:AWS_LAMBDA]
-Implement Lambda worker (similar to Docker `worker.py`) and create an automated deployment process

@@ -230,6 +230,15 @@ class ContainerPoolExecutor:
     def _launch_container(self, cpus, memory):
         # Generate a random 16-digit ID
         container_name = f"CPUS_{cpus}--MEMORY_{memory}--ID_{uuid.uuid4()}"
+
+        logger.info(f"(launch_container) Launching container {" ".join([
+                "docker", "run", "-d",
+                "--name", container_name,
+                "--cpus", str(cpus),
+                "--memory", f"{memory}m",
+                "--network", "host",
+                self.docker_image
+            ])}")
         
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(

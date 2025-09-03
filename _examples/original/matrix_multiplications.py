@@ -100,5 +100,5 @@ sink_task = mmul_fan_in(b6)
 
 for i in range(1):
     start_time = time.time()
-    result = sink_task.compute(dag_name="memory_intensive_computations", config=WORKER_CONFIG, open_dashboard=True)
+    result = sink_task.compute(dag_name="memory_intensive_computations", config=WORKER_CONFIG, open_dashboard=False)
     print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")

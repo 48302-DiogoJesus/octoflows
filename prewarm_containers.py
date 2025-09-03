@@ -1,7 +1,6 @@
 import base64
 import cloudpickle
 import requests
-from typing import List
 from dataclasses import dataclass
 
 # Define the TaskWorkerResourceConfiguration class to match the server's implementation

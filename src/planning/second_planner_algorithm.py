@@ -56,7 +56,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # If only one resource config is available, use it for all nodes
             for node in topo_sorted_nodes:
                 unique_resources = self.config.available_worker_resource_configurations[0].clone()
-                node.add_annotation(unique_resources)
+                node.worker_config = unique_resources
                 if len(node.upstream_nodes) == 0:
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
@@ -70,7 +70,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
             for node in topo_sorted_nodes: 
                 unique_resources = middle_resource_config.clone()
-                node.add_annotation(unique_resources)
+                node.worker_config = unique_resources
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
             self._store_plan_image(dag)
             return
@@ -81,7 +81,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
-            node.add_annotation(resource_config)
+            node.worker_config = resource_config
             
             # #!! for debugging pre-warm
             # resource_config.worker_id = uuid.uuid4().hex
@@ -386,7 +386,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
     @staticmethod
     async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool = False):
         from src.planning.annotations.prewarm import PreWarmOptimization
-        await PreWarmOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task)
+        await PreWarmOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task, is_dupping)
         from src.planning.annotations.taskdup import TaskDupOptimization
         await TaskDupOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task, is_dupping)
 

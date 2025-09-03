@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import subprocess
-from typing import List, Optional
 
 WORKFLOWS_PATHS = [
         'matrix_multiplications.py',
@@ -10,9 +9,10 @@ WORKFLOWS_PATHS = [
         'fixed_times.py',
         'wordcount.py',
         'image_transform.py',
+        # 'tree_reduction.py'
     ]
     
-ITERATIONS_PER_ALGORITHM = 4
+ITERATIONS_PER_ALGORITHM = 5
 ALGORITHMS = ['simple', 'first', 'second']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
