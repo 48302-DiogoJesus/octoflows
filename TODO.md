@@ -1,3 +1,16 @@
+BUG: running tree_reduction with the second planner doesn't give error but makes it stall 
+    cause: root nodes start late, meaning they don't receive the READY events
+        task executes too fast and emits event before other worker is ONLINE
+        solution: 
+            A) events + persistent flags
+                emitters need to also `set` flag
+                receivers must also `check` set flag ?before? they start
+                    first `subscribe`, then check flag, to avoid time gap where we loose it
+                        but how to avoid same worker DOUBLE executing (on check flag + subscribe?)
+                            per-task handling LOCK
+            B) use redis streams instead of pub/sub
+            
+
 ISSUE: a task is being executed more than once, leading to incrementing DCs wrongly
     this could also happen if a task is dupped!
     MAIN ISSUE: double execution on same worker should not happen

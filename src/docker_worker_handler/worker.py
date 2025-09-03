@@ -131,7 +131,7 @@ async def main():
             """
             dupping_locks.setdefault(main_task.id.get_full_id(), asyncio.Lock())
             async def callback(_: dict):
-                await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}")
+                # await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}")
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
@@ -230,8 +230,9 @@ async def main():
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
-        logger.info(f"W({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
-        if pending: await asyncio.wait(pending, timeout=None)  # Wait indefinitely
+        if len(pending) > 0:
+            logger.info(f"W({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
+            await asyncio.wait(pending, timeout=None)  # Wait indefinitely
         logger.info(f"W({this_worker_id}) DONE Waiting for all coroutines!")
 
         # Intermediate data cleanup after execution

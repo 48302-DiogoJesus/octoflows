@@ -106,15 +106,26 @@ class DAGVisualizationDashboard:
 
             is_completed = node_id in self.completed_tasks
             node_color = "#4CAF50" if is_completed else "#9E9E9E"
+            
+            # Get last 5 characters of task ID
+            task_id_suffix = node_id[-5:] if len(node_id) >= 5 else node_id
+            
+            # Create label with function name and task ID suffix on separate lines
+            node_label = f"{node.func_name}\n({task_id_suffix})"
 
             nodes.append(
                 Node(
                     id=node_id,
-                    label=node.func_name,
-                    size=25,
+                    label=node_label,
+                    size=30,
                     color=node_color,
-                    shape="box",
-                    font={"color": "white", "size": 15, "face": "Arial" },
+                    shape="circle",  # Changed from "box" to "circle"
+                    font={
+                        "color": "black",  # Changed to black for better visibility outside circle
+                        "size": 12, 
+                        "face": "Arial",
+                        "align": "center"
+                    },
                     level=level,
                 )
             )

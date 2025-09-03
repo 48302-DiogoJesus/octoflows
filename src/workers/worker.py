@@ -85,10 +85,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 _download_dependencies_timer = Timer()
 
                 if self.planner:
-                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_INPUTS()")
                     tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await self.planner.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 else:
-                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_INPUTS()")
                     tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await WorkerExecutionLogic.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
 
                 tasks_with_cached_results = list(
@@ -169,16 +167,17 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
                 if self.planner:
-                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_OUTPUT()")
                     upload_output = await self.planner.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
                 else:
-                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_OUTPUT()")
                     upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
                 
                 if upload_output:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
+                    self.log(current_task.id.get_full_id(), f"Uploaded Output")
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                else:
+                    self.log(current_task.id.get_full_id(), f"Won't upload output")
                 
                 await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
 
@@ -217,10 +216,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
                 if self.planner:
-                    # self.log(self.my_resource_configuration.worker_id, "PLANNER.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
                 else:
-                    # self.log(self.my_resource_configuration.worker_id, "WEL.HANDLE_DOWNSTREAM()")
                     my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
 
                 # Continue with one task in this worker
