@@ -94,12 +94,11 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             # Calculate current node timings and find critical path
             updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
             critical_path_nodes, critical_path_time = self._find_critical_path(dag, updated_nodes_info)
-            critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
+            initial_critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
             
             # logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
 
             # Try to optimize nodes in the current critical path with PreLoad
-            optimized_any_node = False
             nodes_optimized_this_iteration = 0
             
             for node in critical_path_nodes:
@@ -127,19 +126,18 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 # Check if optimization improved performance
                 if new_critical_path_time < critical_path_time:
                     # Optimization helped - keep it
-                    optimized_any_node = True
                     nodes_optimized_this_iteration += 1
                     total_preload_optimizations += 1
                     
                     # Check if we introduced a new critical path (different set of nodes)
-                    if critical_path_node_ids != new_critical_path_node_ids:
+                    if initial_critical_path_node_ids != new_critical_path_node_ids:
                         # logger.info(f"New critical path introduced. Old: {critical_path_node_ids} | New: {new_critical_path_node_ids}")
                         break  # Start new iteration with the new critical path
                     else:
                         # Same critical path, continue optimizing it
                         critical_path_nodes = new_critical_path_nodes
                         critical_path_time = new_critical_path_time
-                        critical_path_node_ids = new_critical_path_node_ids
+                        initial_critical_path_node_ids = new_critical_path_node_ids
                         continue
                 else:
                     # Optimization didn't help, revert it
@@ -148,7 +146,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
             # If no optimization was applied in this iteration, we're done
-            if not optimized_any_node:
+            if nodes_optimized_this_iteration == 0:
                 # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
                 break
             
@@ -158,7 +156,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             current_critical_path_nodes, _ = self._find_critical_path(dag, updated_nodes_info)
             current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
             
-            if critical_path_node_ids == current_critical_path_node_ids:
+            if initial_critical_path_node_ids == current_critical_path_node_ids:
                 # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
                 break
                 

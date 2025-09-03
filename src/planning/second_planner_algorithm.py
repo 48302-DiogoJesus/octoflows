@@ -134,16 +134,22 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
 
         nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
         successful_worker_resources_downgrades = 0
-        
+
         # For each worker outside critical path, simulate downgrading resources without introducing a new critical path
         for worker_id in worker_ids_outside_critical_path:
-            original_configs: dict[str, TaskWorkerResourceConfiguration] = {}
+            last_successful_configs: dict[str, TaskWorkerResourceConfiguration] = {}
+            
+            # Store initial configurations as the first "successful" state
+            for node in nodes_outside_critical_path:
+                if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id:
+                    last_successful_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
+            
             for simul_resource_config in self.config.available_worker_resource_configurations[1:]:
                 new_res_config = simul_resource_config.clone()
                 new_res_config.worker_id = worker_id # use same worker_id, just change the resource config
+                
                 for node in nodes_outside_critical_path:
-                    original_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
-                    if original_configs[node.id.get_full_id()].worker_id != worker_id: continue
+                    if node.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id: continue
                     node.add_annotation(new_res_config)
                 
                 # Recalculate timings with this configuration
@@ -153,11 +159,15 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 # If downgrading doesn't change the critical path, allow it, else: reverse it
                 if new_critical_path_time == critical_path_time:
                     successful_worker_resources_downgrades += 1
+                    # Update last successful configs to current state
+                    for node in nodes_outside_critical_path:
+                        if node.get_annotation(TaskWorkerResourceConfiguration).worker_id == worker_id:
+                            last_successful_configs[node.id.get_full_id()] = node.get_annotation(TaskWorkerResourceConfiguration)
                 else:
-                    # This downgrade hurts performance, REVERT and stop trying lower configs
+                    # This downgrade hurts performance, REVERT to last successful state and stop trying lower configs
                     for node in nodes_outside_critical_path:
                         if node.get_annotation(TaskWorkerResourceConfiguration).worker_id != worker_id: continue
-                        node.add_annotation(original_configs[node.id.get_full_id()])
+                        node.add_annotation(last_successful_configs[node.id.get_full_id()])
                     break
 
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
@@ -173,12 +183,11 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # Recalculate current critical path with current resource assignments
             updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
             current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, updated_nodes_info)
-            current_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
+            initial_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
             
             # logger.info(f"Current Critical Path | Nodes: {len(current_critical_path_nodes)} | Time: {current_critical_path_time} ms")
 
             # Try to optimize nodes in the current critical path with PreLoad
-            optimized_any_node = False
             nodes_optimized_this_iteration = 0
             
             for node in current_critical_path_nodes:
@@ -211,19 +220,18 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 if new_critical_path_time < current_critical_path_time:
                     # Optimization helped - keep it
                     # logger.info(f"PreLoad optimization successful for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms")
-                    optimized_any_node = True
                     nodes_optimized_this_iteration += 1
                     total_preload_optimizations += 1
                     
                     # Check if we introduced a new critical path (different set of nodes)
-                    if current_critical_path_node_ids != new_critical_path_node_ids:
+                    if initial_critical_path_node_ids != new_critical_path_node_ids:
                         # logger.info(f"New critical path introduced. Old: {current_critical_path_node_ids} | New: {new_critical_path_node_ids}")
                         break  # Start new iteration with the new critical path
                     else:
                         # Same critical path, continue optimizing it
                         current_critical_path_nodes = new_critical_path_nodes
                         current_critical_path_time = new_critical_path_time
-                        current_critical_path_node_ids = new_critical_path_node_ids
+                        initial_critical_path_node_ids = new_critical_path_node_ids
                         continue
                 else:
                     # Optimization didn't help, revert it
@@ -233,7 +241,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
             # If no optimization was applied in this iteration, we're done
-            if not optimized_any_node:
+            if nodes_optimized_this_iteration == 0:
                 # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
                 break
             
@@ -242,7 +250,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             final_critical_path_nodes, _ = self._find_critical_path(dag, updated_nodes_info)
             final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
             
-            if current_critical_path_node_ids == final_critical_path_node_ids:
+            if initial_critical_path_node_ids == final_critical_path_node_ids:
                 # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
                 break
                 
