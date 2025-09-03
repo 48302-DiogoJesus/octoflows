@@ -4,15 +4,15 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
-        'matrix_multiplications.py',
-        'gemm.py',
-        'fixed_times.py',
-        'wordcount.py',
-        'image_transform.py',
+        # 'matrix_multiplications.py',
+        # 'gemm.py',
+        # 'fixed_times.py',
+        # 'wordcount.py',
+        # 'image_transform.py',
         'tree_reduction.py'
     ]
     
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 3
 ALGORITHMS = ['simple', 'first', 'second']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
