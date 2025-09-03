@@ -84,7 +84,7 @@ class MetricsStorage():
         for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
         end = time.time()
-        logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
+        # logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
 
 BASELINE_MEMORY_MB = 256 # reference value for normalization
