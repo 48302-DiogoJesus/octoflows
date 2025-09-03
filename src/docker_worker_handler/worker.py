@@ -56,8 +56,6 @@ async def main():
         raise e
 
     try:
-        logger.info("[DOCKER_WORKER] Started")
-
         if len(sys.argv) != 4:
             raise Exception("Usage: python script.py <b64_config> <dag_id> <task_id>")
 
@@ -76,7 +74,6 @@ async def main():
         dag_download_time_ms = dag_download_time_ms.stop()
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
-        logger.info(f"I should do: {[id.get_full_id() for id in immediate_task_ids]}")
 
         tmp_dir = tempfile.gettempdir()
         filepath = os.path.join(tmp_dir, "worker_startup.atomic")
@@ -90,6 +87,7 @@ async def main():
             )
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config.worker_id
+        logger.info(f"W({this_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
@@ -113,8 +111,9 @@ async def main():
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
-            async def callback(_: dict):
-                await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}")
+            async def callback(_: dict, subscription_id: str | None = None):
+                if subscription_id is not None: 
+                    await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
                 asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
@@ -130,8 +129,9 @@ async def main():
             {main_task} has at least 1 upstream task with "task-dup" annotation
             """
             dupping_locks.setdefault(main_task.id.get_full_id(), asyncio.Lock())
-            async def callback(_: dict):
-                # await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}")
+            async def callback(_: dict, subscription_id: str | None = None):
+                if subscription_id is not None:
+                    await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}", subscription_id)
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
@@ -151,6 +151,9 @@ async def main():
                     greatest_predicted_time_saved_task: DAGTaskNode | None = None
                     greatest_predicted_time_saved: float = -1
                     for u_task in unfinished_duppable_tasks:
+                        if u_task.worker_config.worker_id == this_worker_id: 
+                            # if the task is assigned to me, doesn't make sense for me to try dup it
+                            continue
                         task_id = u_task.id.get_full_id()
                         is_task_dup_cancelation_flag_set = await wk.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
                         if is_task_dup_cancelation_flag_set:
@@ -198,11 +201,20 @@ async def main():
                     continue
                 tasks_that_depend_on_other_workers.append(task)
                 await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id)
+                # Check persistent flags of previous {TASK_READY} events
+                # flag_exists = await wk.metadata_storage.exists(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}")
+                # if flag_exists:
+                #     await _on_task_ready_callback_builder(task.id)({})
+                # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
 
                 has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
                         await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
+                        # Check persistent flags of previous {TASK_READY} events
+                        # flag_exists = await wk.metadata_storage.exists(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}")
+                        # if flag_exists: 
+                        #     await _on_task_dup_callback_builder(utask, task)({})
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()

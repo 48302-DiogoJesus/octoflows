@@ -3,9 +3,19 @@ import threading
 from dataclasses import dataclass
 import time
 import re
-from typing import Any, Callable
+import uuid
+from typing import Any, Callable, Dict, List, Optional
 
 import src.storage.storage as storage
+
+@dataclass
+class SubscriptionInfo:
+    """Information about a subscription callback."""
+    subscription_id: str
+    callback: Callable[[dict, str], Any]
+    decode_responses: bool
+    coroutine_tag: str
+    worker_id: Optional[str]
 
 class InMemoryStorage(storage.Storage):
     @dataclass
@@ -19,7 +29,9 @@ class InMemoryStorage(storage.Storage):
         super().__init__()
         self._data: dict[str, Any] = {}
         self._lock = threading.RLock()
-        self._subscribers: dict[str, list[tuple[Callable[[dict], Any], bool]]] = {}
+        # Changed to store multiple subscriptions per channel
+        # Format: {channel: {subscription_id: SubscriptionInfo, ...}}
+        self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}
 
     async def get(self, key: str):
         with self._lock:
@@ -80,44 +92,101 @@ class InMemoryStorage(storage.Storage):
         Returns the number of subscribers that received the message.
         """
         with self._lock:
-            if channel not in self._subscribers:
+            if channel not in self._channel_subscriptions:
                 return 0
                 
             subscriber_count = 0
-            for callback, decode_responses in self._subscribers[channel]:
-                # Create message dict similar to Redis pub/sub format
-                message_dict = {
-                    "type": "message",
-                    "channel": channel,
-                    "data": message
-                }
-                
+            
+            # Process message for each subscription
+            for subscription_id, sub_info in self._channel_subscriptions[channel].items():
                 try:
-                    callback(message_dict)
+                    # Create message dict similar to Redis pub/sub format
+                    message_dict = {
+                        "type": "message",
+                        "channel": channel,
+                        "data": message
+                    }
+                    
+                    # Decode message if requested for this subscription
+                    if sub_info.decode_responses and isinstance(message, bytes):
+                        message_dict["data"] = message.decode("utf-8")
+                    
+                    # Call the callback with message and subscription_id
+                    sub_info.callback(message_dict, subscription_id)
                     subscriber_count += 1
+                    
                 except Exception:
-                    # Silently ignore callback errors
+                    # Silently ignore callback errors to prevent affecting other callbacks
                     pass
                     
             return subscriber_count
 
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> None:
+    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> str:
         """
         Subscribe to a channel with a callback function.
+        
+        Args:
+            channel: The channel to subscribe to
+            callback: A function that will be called with each message
+            decode_responses: Whether to decode the message payload as UTF-8
+            coroutine_tag: Tag for the coroutine (for logging/debugging)
+            worker_id: Worker identifier (for logging/debugging)
+            
+        Returns:
+            str: Unique subscription identifier that can be used to unsubscribe this specific callback
         """
         with self._lock:
-            if channel not in self._subscribers:
-                self._subscribers[channel] = []
-                
-            self._subscribers[channel].append((callback, decode_responses))
+            # Generate unique subscription ID
+            subscription_id = str(uuid.uuid4())
+            
+            # Create subscription info
+            sub_info = SubscriptionInfo(
+                subscription_id=subscription_id,
+                callback=callback,
+                decode_responses=decode_responses,
+                coroutine_tag=coroutine_tag,
+                worker_id=worker_id
+            )
+            
+            # Initialize channel subscriptions if not exists
+            if channel not in self._channel_subscriptions:
+                self._channel_subscriptions[channel] = {}
+            
+            # Add the new subscription
+            self._channel_subscriptions[channel][subscription_id] = sub_info
+            
+            return subscription_id
 
-    async def unsubscribe(self, channel: str) -> None:
+    async def unsubscribe(self, channel: str, subscription_id: Optional[str] = None):
         """
         Unsubscribe from a channel.
+        
+        Args:
+            channel: The channel to unsubscribe from
+            subscription_id: Specific subscription to remove. If None, removes all subscriptions for the channel.
+            
+        Returns:
+            bool: True if subscription was found and removed, False otherwise
         """
         with self._lock:
-            if channel in self._subscribers:
-                del self._subscribers[channel]
+            if channel not in self._channel_subscriptions:
+                return
+            
+            if subscription_id is None:
+                # Remove all subscriptions for this channel
+                removed_count = len(self._channel_subscriptions[channel])
+                del self._channel_subscriptions[channel]
+                return
+            else:
+                # Remove specific subscription
+                if subscription_id not in self._channel_subscriptions[channel]:
+                    return
+                
+                del self._channel_subscriptions[channel][subscription_id]
+                
+                # If no more subscriptions for this channel, remove the channel entry
+                if not self._channel_subscriptions[channel]:
+                    del self._channel_subscriptions[channel]
 
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
         """
@@ -210,3 +279,57 @@ class InMemoryStorage(storage.Storage):
                     results.append(e)
         
         return results
+
+    def get_channel_subscription_count(self, channel: str) -> int:
+        """
+        Get the number of active subscriptions for a channel.
+        
+        Args:
+            channel: The channel name
+            
+        Returns:
+            int: Number of active subscriptions for the channel
+        """
+        with self._lock:
+            return len(self._channel_subscriptions.get(channel, {}))
+
+    def get_all_channels_with_subscriptions(self) -> List[str]:
+        """
+        Get a list of all channels that have active subscriptions.
+        
+        Returns:
+            List[str]: List of channel names with active subscriptions
+        """
+        with self._lock:
+            return list(self._channel_subscriptions.keys())
+
+    def get_subscription_info(self, channel: str, subscription_id: str) -> Optional[SubscriptionInfo]:
+        """
+        Get information about a specific subscription.
+        
+        Args:
+            channel: The channel name
+            subscription_id: The subscription identifier
+            
+        Returns:
+            Optional[SubscriptionInfo]: Subscription information if found, None otherwise
+        """
+        with self._lock:
+            if channel in self._channel_subscriptions:
+                return self._channel_subscriptions[channel].get(subscription_id)
+            return None
+
+    def get_all_subscription_ids(self, channel: str) -> List[str]:
+        """
+        Get all subscription IDs for a channel.
+        
+        Args:
+            channel: The channel name
+            
+        Returns:
+            List[str]: List of subscription IDs for the channel
+        """
+        with self._lock:
+            if channel in self._channel_subscriptions:
+                return list(self._channel_subscriptions[channel].keys())
+            return []

@@ -2,7 +2,8 @@ from dataclasses import dataclass
 import nest_asyncio
 import asyncio
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Union
+import uuid
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from redis.asyncio import Redis
 
 import src.storage.storage as storage
@@ -11,6 +12,14 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 nest_asyncio.apply()
+
+@dataclass
+class SubscriptionInfo:
+    """Information about a subscription callback."""
+    subscription_id: str
+    callback: Callable[[dict, str], Any]
+    decode_responses: bool
+    worker_id: Optional[str]
 
 class RedisStorage(storage.Storage):
     @dataclass
@@ -31,7 +40,11 @@ class RedisStorage(storage.Storage):
         self.redis_config = config
         self._connection: Optional[Redis] = None
         self._pubsub = None
-        self._subscription_tasks: Dict[str, tuple[asyncio.Task, Any]] = {}
+        # Changed to store multiple subscriptions per channel
+        # Format: {channel: {subscription_id: SubscriptionInfo, ...}}
+        self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}
+        # Format: {channel: (task, pubsub)}
+        self._channel_tasks: Dict[str, Tuple[asyncio.Task, Any]] = {}
         
         # Don't initialize connection immediately to avoid event loop issues
         # Connection will be created lazily when first needed
@@ -72,9 +85,9 @@ class RedisStorage(storage.Storage):
     
     async def close_connection(self) -> None:
         """Close Redis connection and cancel any running subscription tasks."""
-        # Cancel all subscription tasks
-        for channel, (task, pubsub) in self._subscription_tasks.items():
-            logger.info(f"Cancelling subscription to channel: {channel}")
+        # Cancel all channel tasks
+        for channel, (task, pubsub) in self._channel_tasks.items():
+            logger.info(f"Cancelling subscription task for channel: {channel}")
             task.cancel()
             try:
                 await task
@@ -82,7 +95,8 @@ class RedisStorage(storage.Storage):
                 pass
             await pubsub.aclose()
         
-        self._subscription_tasks.clear()
+        self._channel_tasks.clear()
+        self._channel_subscriptions.clear()
         
         # Close PubSub if it exists
         if self._pubsub is not None:
@@ -132,7 +146,7 @@ class RedisStorage(storage.Storage):
         logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
 
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> None:
+    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> str:
         """
         Subscribe to a channel and process messages with a callback.
         
@@ -140,65 +154,114 @@ class RedisStorage(storage.Storage):
             channel: The channel to subscribe to
             callback: A function that will be called with each message (can be sync or async)
             decode_responses: Whether to decode the message payload as UTF-8
-        """
-        # Cancel existing subscription if any
-        if channel in self._subscription_tasks:
-            task, pubsub = self._subscription_tasks[channel]
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            await pubsub.aclose()
+            coroutine_tag: Tag for the coroutine (for logging/debugging)
+            worker_id: Worker identifier (for logging/debugging)
             
-        # Create a new connection and PubSub instance for this subscription
-        conn = await self._get_or_create_connection()
-        pubsub = conn.pubsub()
-        await pubsub.subscribe(channel)
+        Returns:
+            str: Unique subscription identifier that can be used to unsubscribe this specific callback
+        """
+        # Generate unique subscription ID
+        subscription_id = str(uuid.uuid4())
         
-        # Start a background task to process messages
-        task = asyncio.create_task(
-            self._message_handler(pubsub, channel, callback, decode_responses),
-            name=f"redis_subscribe_message_handler(coroutine_tag={coroutine_tag}, channel={channel})"
+        # Create subscription info
+        sub_info = SubscriptionInfo(
+            subscription_id=subscription_id,
+            callback=callback,
+            decode_responses=decode_responses,
+            worker_id=worker_id
         )
-        self._subscription_tasks[channel] = (task, pubsub)
         
-        logger.info(f"W({worker_id}) Subscribed to channel: {channel} | coroutine tag: {coroutine_tag}")
+        # Initialize channel subscriptions if not exists
+        if channel not in self._channel_subscriptions:
+            self._channel_subscriptions[channel] = {}
+        
+        # Add the new subscription
+        self._channel_subscriptions[channel][subscription_id] = sub_info
+        
+        # If this is the first subscription to this channel, create the task
+        if channel not in self._channel_tasks:
+            # Create a new connection and PubSub instance for this channel
+            conn = await self._get_or_create_connection()
+            pubsub = conn.pubsub()
+            await pubsub.subscribe(channel)
+            
+            # Start a background task to process messages for all callbacks on this channel
+            task = asyncio.create_task(
+                self._channel_message_handler(pubsub, channel),
+                name=f"redis_channel_message_handler(channel={channel}, coroutine_tag={coroutine_tag})"
+            )
+            self._channel_tasks[channel] = (task, pubsub)
+        
+        logger.info(f"W({worker_id}) Subscribed to channel: {channel} | coroutine tag: {coroutine_tag} | subscription_id: {subscription_id}")
+        
+        return subscription_id
 
-    async def unsubscribe(self, channel: str) -> None:
+    async def unsubscribe(self, channel: str, subscription_id: Optional[str] = None):
         """
         Unsubscribe from a channel.
         
         Args:
             channel: The channel to unsubscribe from
+            subscription_id: Specific subscription to remove. If None, removes all subscriptions for the channel.
+            
+        Returns:
+            bool: True if subscription was found and removed, False otherwise
         """
-        if channel in self._subscription_tasks:
-            task, pubsub = self._subscription_tasks[channel]
-            task.cancel()
-            try:
-                await task  # Wait for task to be cancelled
-            except asyncio.CancelledError:
-                pass
-            await pubsub.unsubscribe(channel)
-            await pubsub.aclose()
-            del self._subscription_tasks[channel]
-            logger.info(f"Unsubscribed from channel: {channel}")
-
-    async def _message_handler(
-        self, 
-        pubsub: Any,
-        channel: str, 
-        callback: Callable[[dict], Any], 
-        decode_responses: bool = False
-    ) -> None:
+        if channel not in self._channel_subscriptions:
+            logger.warning(f"No subscriptions found for channel: {channel}")
+            return
+        
+        if subscription_id is None:
+            # Remove all subscriptions for this channel
+            removed_count = len(self._channel_subscriptions[channel])
+            del self._channel_subscriptions[channel]
+            
+            # Cancel and cleanup the channel task
+            if channel in self._channel_tasks:
+                task, pubsub = self._channel_tasks[channel]
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                await pubsub.unsubscribe(channel)
+                await pubsub.aclose()
+                del self._channel_tasks[channel]
+            
+            logger.info(f"Unsubscribed all {removed_count} callbacks from channel: {channel}")
+            return
+        else:
+            # Remove specific subscription
+            if subscription_id not in self._channel_subscriptions[channel]:
+                logger.warning(f"Subscription {subscription_id} not found for channel: {channel}")
+                return
+            
+            del self._channel_subscriptions[channel][subscription_id]
+            logger.info(f"Unsubscribed callback {subscription_id} from channel: {channel}")
+            
+            # If no more subscriptions for this channel, cleanup the task
+            if not self._channel_subscriptions[channel]:
+                del self._channel_subscriptions[channel]
+                
+                if channel in self._channel_tasks:
+                    task, pubsub = self._channel_tasks[channel]
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    await pubsub.unsubscribe(channel)
+                    await pubsub.aclose()
+                    del self._channel_tasks[channel]
+                    logger.info(f"Cleaned up channel task for: {channel}")
+            
+    async def _channel_message_handler(self, pubsub: Any, channel: str) -> None:
         """
-        Background task to handle incoming messages.
+        Background task to handle incoming messages for all callbacks on a channel.
         
         Args:
-            pubsub: The PubSub instance for this subscription
+            pubsub: The PubSub instance for this channel
             channel: The channel being handled
-            callback: The callback function to process messages (can be sync or async)
-            decode_responses: Whether to decode message data as UTF-8
         """
         try:
             async for message in pubsub.listen():
@@ -206,22 +269,36 @@ class RedisStorage(storage.Storage):
                 if message["type"] == "message":
                     channel_name = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
                     if channel_name == channel:
-                        if decode_responses and isinstance(message["data"], bytes):
-                            message["data"] = message["data"].decode("utf-8")
-                        try:
-                            if asyncio.iscoroutinefunction(callback):
-                                await callback(message)
-                            else:
-                                callback(message)
-                        except Exception as e:
-                            logger.error(f"Error in callback for channel {channel}: {e}")
-                            raise e
-                            # traceback.print_exc()
+                        # Get all active subscriptions for this channel
+                        if channel in self._channel_subscriptions:
+                            # Create a snapshot of subscriptions to avoid "dictionary changed size during iteration" error
+                            subscriptions_snapshot = list(self._channel_subscriptions[channel].items())
+                            
+                            # Process message for each subscription
+                            for subscription_id, sub_info in subscriptions_snapshot:
+                                # Double-check that subscription still exists (it might have been removed)
+                                if (channel in self._channel_subscriptions and 
+                                    subscription_id in self._channel_subscriptions[channel]):
+                                    try:
+                                        # Decode message if requested for this subscription
+                                        message_data = message.copy()
+                                        if sub_info.decode_responses and isinstance(message_data["data"], bytes):
+                                            message_data["data"] = message_data["data"].decode("utf-8")
+                                        
+                                        # Call the callback with message and subscription_id
+                                        if asyncio.iscoroutinefunction(sub_info.callback):
+                                            await sub_info.callback(message_data, subscription_id)
+                                        else:
+                                            sub_info.callback(message_data, subscription_id)
+                                            
+                                    except Exception as e:
+                                        logger.error(f"Error in callback {subscription_id} for channel {channel}: {e}")
+                                        # Don't raise here - we want to continue processing other callbacks
+                                        traceback.print_exc()
         except asyncio.CancelledError:
             logger.debug(f"Message handler for {channel} was cancelled")
         except Exception as e:
-            # logger.error(f"Error in message handler for {channel}: {e}")
-            # traceback.print_exc()
+            logger.error(f"Error in message handler for {channel}: {e}")
             raise e
     
     async def _delete_matching_keys(self, conn: Redis, match_pattern: str) -> int:
@@ -321,3 +398,39 @@ class RedisStorage(storage.Storage):
         # Execute pipeline and return results
         results = await pipe.execute()
         return results
+
+    def get_channel_subscription_count(self, channel: str) -> int:
+        """
+        Get the number of active subscriptions for a channel.
+        
+        Args:
+            channel: The channel name
+            
+        Returns:
+            int: Number of active subscriptions for the channel
+        """
+        return len(self._channel_subscriptions.get(channel, {}))
+
+    def get_all_channels_with_subscriptions(self) -> List[str]:
+        """
+        Get a list of all channels that have active subscriptions.
+        
+        Returns:
+            List[str]: List of channel names with active subscriptions
+        """
+        return list(self._channel_subscriptions.keys())
+
+    def get_subscription_info(self, channel: str, subscription_id: str) -> Optional[SubscriptionInfo]:
+        """
+        Get information about a specific subscription.
+        
+        Args:
+            channel: The channel name
+            subscription_id: The subscription identifier
+            
+        Returns:
+            Optional[SubscriptionInfo]: Subscription information if found, None otherwise
+        """
+        if channel in self._channel_subscriptions:
+            return self._channel_subscriptions[channel].get(subscription_id)
+        return None

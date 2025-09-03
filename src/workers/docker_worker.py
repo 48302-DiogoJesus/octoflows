@@ -93,6 +93,7 @@ class DockerWorker(Worker):
                     if response.status != 202:
                         text = await response.text()
                         raise Exception(f"Failed to invoke worker: {text}")
+                    logger.info(f"W({worker_id}) Accepted. Status: {response.status}")
                     return response.status
         
         # Create a task for each worker_id (grouped requests)

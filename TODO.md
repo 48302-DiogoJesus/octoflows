@@ -2,14 +2,20 @@ BUG: running tree_reduction with the second planner doesn't give error but makes
     cause: root nodes start late, meaning they don't receive the READY events
         task executes too fast and emits event before other worker is ONLINE
         solution: 
-            A) events + persistent flags
+            events + persistent flags
                 emitters need to also `set` flag
                 receivers must also `check` set flag ?before? they start
                     first `subscribe`, then check flag, to avoid time gap where we loose it
                         but how to avoid same worker DOUBLE executing (on check flag + subscribe?)
                             per-task handling LOCK
-            B) use redis streams instead of pub/sub
-            
+        TREE REDUCTION NOW FAILS WITH SIMPLE + NO HISTORY (FLEX. WORKERS)
+        COMMENT THE PERSISTENT FLAG STUFF AND TEST AGAIN
+        THEN TEST WITH SECOND PLANNER AS WELL
+        THEN LEAVE ALL EXPERIMENTS RUNNING ON ALL WORKFLOWS 
+    CLEANUP
+    @worker.py
+        #!! if upload_output:
+                if True:
 
 ISSUE: a task is being executed more than once, leading to incrementing DCs wrongly
     this could also happen if a task is dupped!

@@ -160,10 +160,10 @@ class Storage(ABC):
     async def publish(self, channel: str, message: Union[str, bytes]) -> int: pass
     
     @abstractmethod
-    async def subscribe(self, channel: str, callback: Callable[[dict], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> None: pass
+    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> str: pass
     
     @abstractmethod
-    async def unsubscribe(self, channel: str) -> None: pass
+    async def unsubscribe(self, channel: str, subscription_id: Optional[str]): pass
 
     @abstractmethod
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:

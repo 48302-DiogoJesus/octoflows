@@ -4,118 +4,118 @@
   "root_count": 9,
   "hierarchical_tasks": [
     {
-      "id": "multiply_chunks+6f76c6ea-5308-4a0b-8266-ffc3e8880620",
+      "id": "multiply_chunks+d9b59257-efab-465c-9bf9-2d01f1992d0b",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+      "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+100983cc-034d-4b23-9a51-9790906e3c90",
+      "id": "multiply_chunks+d174a859-7d40-47f8-8504-72149c2e9b05",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "66abc4d13f79462baa50b613b3712df7",
+      "assigned_worker_id": "bed07fb75615416ca5e8dab582de42d1",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+a02f2681-7928-4f5c-bca7-486389b98373",
+      "id": "multiply_chunks+75ea3cd2-2792-43de-b789-8763e2172f98",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "ad5a9930919347a3a6562bc805d4840f",
+      "assigned_worker_id": "4972b185d7e84d868f91fed89927195e",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+d0e92db0-3013-4ce6-a0e9-eab1beb64a4d",
+      "id": "multiply_chunks+2808a68e-ad71-4740-81a5-b673ef5ab3e1",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "eb44cfdf571c40969d842b2c3e85bedf",
+      "assigned_worker_id": "e31d42ef3a9740c2a58675da22ede0b9",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+7896bd85-a87e-4ab0-9f76-61a7ccd1184f",
+      "id": "multiply_chunks+7cde6def-23ed-4ab7-9a7c-f260bf4ab80e",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "7eb9bd0ade54493b8aa970ddd1ccdbd1",
+      "assigned_worker_id": "0739053ff3e8470590c15e7ee839b65e",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+ba30b839-6d5c-4f93-b5a9-64e3dd1a61ef",
+      "id": "multiply_chunks+23aabf0f-6469-4ab3-8df3-e6af82ebb5f4",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "48f2b95469fc421a9970cdc967f2a11c",
+      "assigned_worker_id": "b02c6efabe884b53bac77a9ae77b2dfe",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+dc66ca83-a67b-4121-b184-8e4fbf4844d1",
+      "id": "multiply_chunks+16e49eef-0344-4978-b135-9264003c57b7",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "a597ff9ee3f240fc9d8a32586ffd5774",
+      "assigned_worker_id": "e2f069e8643f44999520053d34462daf",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+13650350-b485-4466-80dd-7f8746c7a845",
+      "id": "multiply_chunks+e1db8e1a-8122-4948-910e-bc7011aff534",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "c851cf1c3f4f487db3fe855a75f5a77e",
+      "assigned_worker_id": "2c21aeff22174bd5ad3aa9b157d2725b",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+05541e65-945a-4667-89a3-e21fe4a9bf01",
+      "id": "multiply_chunks+8956bd81-2ecf-46c2-8d79-39e68980174f",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "fc08e92cc21e485c8e7045c394057fa1",
+      "assigned_worker_id": "6b2487e04b754281a2866691f99b7977",
       "children": [
         {
-          "id": "aggregate_results+774c466c-18cb-4541-b05f-ecde46207ba1",
+          "id": "aggregate_results+79ca9300-6c99-4d60-8c34-790cfdc708f3",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "6f15c763271f4f7eaf494f40dd54ff9e",
+          "assigned_worker_id": "7e7d1a4a35104273a7064222c39d95b8",
           "children": []
         }
       ]

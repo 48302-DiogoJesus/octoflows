@@ -10,6 +10,7 @@ from typing import Any, Callable, Generic, Type, TypeVar
 import uuid
 
 from src.dag_task_annotation import TaskAnnotation
+from src.utils.atomic_flag import AtomicFlag
 from src.utils.timer import Timer
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
@@ -70,6 +71,7 @@ class DAGTaskNode(Generic[R]):
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
+        self.is_handling: AtomicFlag = AtomicFlag() # used to prevent multiple invocations of the same task in the same worker
         self._register_dependencies()
         self.third_party_libs: set[str] = self._find_third_party_libraries(exlude_libs=set(["src", "tests", "_examples", "common"]))
 

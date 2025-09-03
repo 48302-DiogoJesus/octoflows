@@ -73,6 +73,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
 
+                if not await current_task.is_handling.set_if_not_set():
+                    raise CancelCurrentWorkerLoopException("Task is already being handled by this worker on another coroutine. Aborting")
+
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 task_dependencies: dict[str, Any] = {}
@@ -171,6 +174,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
                 
+                # if True: # !!
                 if upload_output:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
@@ -199,9 +203,17 @@ class Worker(ABC, WorkerExecutionLogic):
                     if dependencies_met == downstream_task_total_dependencies:
                         if self.my_resource_configuration.worker_id is not None and self.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                             # avoids double-execution (one by following the execution branch, and another by the READY event callback)
-                            await self.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                            await self.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
-                        await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                        receivers = await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                        logger.info(f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
+                        
+                        # if expected_receivers != receivers:
+                            # logger.info(f"Not all receivers were active to receive the READY event for {downstream_task.id.get_full_id()}. Setting a persistent flag")
+                            # persistent flag
+                            # to prevent against late receivers (workers that may not be active at the time of the publish)
+                        # await self.metadata_storage.set(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", 1)
+
                         downstream_tasks_ready.append(downstream_task)
                 
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
@@ -245,6 +257,8 @@ class Worker(ABC, WorkerExecutionLogic):
         except Exception as e:
             self.log(current_task.id.get_full_id(), f"ExecuteBranch Error: {str(e)}") # type: ignore
             raise e
+        finally:
+            await current_task.is_handling.clear()
 
         # Wait for my other coroutines executing other tasks
         if len(other_coroutines_i_launched) > 0: 
@@ -293,7 +307,7 @@ class Worker(ABC, WorkerExecutionLogic):
         message_received = asyncio.Event()
         result = None
         
-        def callback(msg: dict):
+        def callback(msg: dict, _):
             nonlocal result
             message_received.set()
         
@@ -307,7 +321,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 final_result = cloudpickle.loads(final_result) # type: ignore
                 return final_result
         finally:
-            await metadata_storage.unsubscribe(channel)
+            await metadata_storage.unsubscribe(channel, None)
 
 
     def log(self, task_id: str, message: str):

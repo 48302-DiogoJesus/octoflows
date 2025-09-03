@@ -37,9 +37,9 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
 
         # Only executes once, even if there are multiple tasks with this annotation
         def _on_preload_task_completed_builder(dependent_task: DAGTaskNode, upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, dag: FullDAG):
-            async def _callback(_: dict):
+            async def _callback(_: dict, subscription_id: str | None = None):
                 async with annotation._lock:
-                    await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}")
+                    await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
@@ -107,11 +107,11 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
 
         for t in task.upstream_nodes:
             if t.cached_result:
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
             elif t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
                 # unsubscribe because we are going to fetch it, in the future it won't matter
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}")
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
                 upstream_tasks_to_fetch.append(t)
 
         async def _wait_all_preloads_coroutine():
