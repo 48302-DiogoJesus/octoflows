@@ -39,7 +39,8 @@ class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
         def _on_preload_task_completed_builder(dependent_task: DAGTaskNode, upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, dag: FullDAG):
             async def _callback(_: dict, subscription_id: str | None = None):
                 async with annotation._lock:
-                    await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
+                    if subscription_id is not None:
+                        await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")

@@ -49,14 +49,34 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
             node.worker_config = resource_config
-            
-            if not self.config.all_flexible_workers:
-                if len(node.upstream_nodes) == 0:
-                    # Give each root node a unique worker id
-                    resource_config.worker_id = uuid.uuid4().hex
-                else:
-                    # Use same worker id as its first upstream node
-                    resource_config.worker_id = node.upstream_nodes[0].worker_config.worker_id
+            if len(node.upstream_nodes) == 0:
+                resource_config.worker_id = uuid.uuid4().hex
+            else:
+                # Count worker usage among downstream nodes of upstream nodes
+                same_level_worker_usage = {}
+                for upstream_node in node.upstream_nodes:
+                    worker_id = upstream_node.worker_config.worker_id
+                    if not worker_id: continue
+                    same_level_worker_usage[worker_id] = 0
+
+                for upstream_node in node.upstream_nodes:
+                    # Get all downstream nodes of this upstream node
+                    for downstream_node in upstream_node.downstream_nodes:
+                        if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
+                        downstream_worker_id = downstream_node.worker_config.worker_id
+                        if not downstream_worker_id: continue
+                        same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
+
+                # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
+                best_worker_id = None
+                best_usage = -1
+                for worker_id, usage in same_level_worker_usage.items():
+                    if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
+                        best_worker_id = worker_id
+                        best_usage = usage
+                
+                # If no suitable worker found, create a new one
+                resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
         # Final statistics
         final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)

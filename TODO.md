@@ -1,31 +1,7 @@
-BUG: running tree_reduction with the second planner doesn't give error but makes it stall 
-    cause: root nodes start late, meaning they don't receive the READY events
-        task executes too fast and emits event before other worker is ONLINE
-        solution: 
-            events + persistent flags
-                emitters need to also `set` flag
-                receivers must also `check` set flag ?before? they start
-                    first `subscribe`, then check flag, to avoid time gap where we loose it
-                        but how to avoid same worker DOUBLE executing (on check flag + subscribe?)
-                            per-task handling LOCK
-        TREE REDUCTION NOW FAILS WITH SIMPLE + NO HISTORY (FLEX. WORKERS)
-        COMMENT THE PERSISTENT FLAG STUFF AND TEST AGAIN
-        THEN TEST WITH SECOND PLANNER AS WELL
-        THEN LEAVE ALL EXPERIMENTS RUNNING ON ALL WORKFLOWS 
-    CLEANUP
-    @worker.py
-        #!! if upload_output:
-                if True:
-
-ISSUE: a task is being executed more than once, leading to incrementing DCs wrongly
-    this could also happen if a task is dupped!
-    MAIN ISSUE: double execution on same worker should not happen
-    ROOT ISSUE: DC being a counter makes running tasks **non-idempotent**
-
 Start writing small 10 page paper
 
 [NEW_ISSUES_FOUND]
-- [BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
+- [SEMI_BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
     requires: rethinking order of actions by the planner algorithm
