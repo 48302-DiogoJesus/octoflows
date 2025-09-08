@@ -33,7 +33,6 @@ a6 = task(a5)
 a7 = task(a6)
 a8 = task(a7)
 
-for i in range(1):
-    start_time = time.time()
-    result = a8.compute(dag_name="simpledag", config=WORKER_CONFIG)
-    print(f"[{i} Result: {result} | Makespan: {time.time() - start_time}s")
+start_time = time.time()
+result = a8.compute(dag_name="simpledag", config=WORKER_CONFIG)
+print(f"Result: {result} | Makespan: {time.time() - start_time}s")

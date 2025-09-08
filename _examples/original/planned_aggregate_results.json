@@ -1,0 +1,124 @@
+{
+  "dag_name": "aggregate_results",
+  "total_tasks": 10,
+  "root_count": 9,
+  "hierarchical_tasks": [
+    {
+      "id": "multiply_chunks+c13e82be-d7be-4779-a534-1a4dd222477d",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+6c8ef308-4745-4ba8-8543-f3968cb016b7",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "e0fa6ccd18654c9897d705d04b926a08",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+133e0a8e-8543-4c35-9e6d-cec01dcc301d",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "99a9bc99e4354f2484cb8a2b74f16b78",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+4c07c5f4-1583-4a98-97bc-7a8345873eac",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "4bf554cca79a4ad296f067dfe0691a41",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+41e118f5-a211-4e05-bbac-a22b3989058a",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "4c6ef1a28c424311891ff6a48d7015c9",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+d01457b1-dbad-4800-8dae-fb31ab55d36e",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "b0ba465a8d3940febd8407c2ce7f1065",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+601ebfd4-7c7f-4342-84ce-21cc6a7cdc2f",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "7b6eaaa543264fe2a90661d27b7aad1e",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+75b9d616-efd2-4d6c-845a-c1b3b54bd727",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "69932567872944dbaa8cdd1e7c914dc8",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "multiply_chunks+01e23585-a606-489d-8fe1-2f8be0d707ce",
+      "function_name": "multiply_chunks",
+      "assigned_worker_id": "a928c355f28343dba7e15c3ea7f79c1b",
+      "children": [
+        {
+          "id": "aggregate_results+254c20a3-e839-4a52-8a29-b6532569140c",
+          "function_name": "aggregate_results",
+          "assigned_worker_id": "5063d4348c114dcb810bfaf9e119b813",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

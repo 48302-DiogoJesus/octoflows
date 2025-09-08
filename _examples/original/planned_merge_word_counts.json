@@ -1,0 +1,127 @@
+{
+  "dag_name": "merge_word_counts",
+  "total_tasks": 13,
+  "root_count": 6,
+  "hierarchical_tasks": [
+    {
+      "id": "preprocess_text+2012fc2f-e209-441e-9d07-b8ed18eea43b",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+      "children": [
+        {
+          "id": "count_words_in_chunk+16881803-3d29-46f4-a82c-5691a8769a01",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "preprocess_text+b3282a04-cd60-4184-bea2-22724e370ee4",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "0ac22a1ebae946f387cdfae175b86fea",
+      "children": [
+        {
+          "id": "count_words_in_chunk+a67234f5-6859-41c5-9b25-398d439c5f16",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "0ac22a1ebae946f387cdfae175b86fea",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "preprocess_text+1ae8b3f0-7f52-4c91-bb5b-49416eea9ce1",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "0629be095117434ca3ddb796d0745b9f",
+      "children": [
+        {
+          "id": "count_words_in_chunk+8c7c909c-c37e-4397-80e2-3242740730cd",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "0629be095117434ca3ddb796d0745b9f",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "preprocess_text+a09a8314-d221-46d9-bad9-67d8bec4d67e",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "30261fe57fa24912aa196db42541d645",
+      "children": [
+        {
+          "id": "count_words_in_chunk+cbc8cd36-5d13-40c2-bfb1-57fca60f04ec",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "30261fe57fa24912aa196db42541d645",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "preprocess_text+97cd70b5-42d4-400a-9fca-3a73f58fb5bc",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "791a0e1291504252b794415e671d1668",
+      "children": [
+        {
+          "id": "count_words_in_chunk+0ea666cc-0018-4749-a9b4-6f791affd399",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "791a0e1291504252b794415e671d1668",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "preprocess_text+41f3f4b8-7276-4b4b-8a44-a24906278068",
+      "function_name": "preprocess_text",
+      "assigned_worker_id": "2dc24527810b4d2ea7e661d875fc56b6",
+      "children": [
+        {
+          "id": "count_words_in_chunk+c64f858d-4474-4c3c-af5a-58126e274b6e",
+          "function_name": "count_words_in_chunk",
+          "assigned_worker_id": "2dc24527810b4d2ea7e661d875fc56b6",
+          "children": [
+            {
+              "id": "merge_word_counts+b67521d8-1ffd-457a-a774-5407baefbbf6",
+              "function_name": "merge_word_counts",
+              "assigned_worker_id": "9325777f718b4a2b8bf9eeef3d284a82",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

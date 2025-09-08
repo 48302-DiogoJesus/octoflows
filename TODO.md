@@ -1,4 +1,8 @@
+- Replicate the Montage workflow
+
 Start writing small 10 page paper
+
+- Ensure that GEMM is actually GEMM
 
 [NEW_ISSUES_FOUND]
 - [SEMI_BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time

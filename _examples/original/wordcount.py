@@ -6,7 +6,6 @@ import time
 import re
 from collections import Counter
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
 from src.dag_task_node import DAGTask
 
 # Import common worker configurations
@@ -65,29 +64,29 @@ def hash_dict(d):
     json_string = json.dumps(sorted_dict, sort_keys=True)
     return hashlib.sha256(json_string.encode()).hexdigest()
 
-if __name__ == "__main__":
-    INPUT_FILE = os.path.join("..", "_inputs", "shakespeare.txt")
-    OUTPUT_FILE = os.path.join("..", "_outputs", "word_frequencies.txt")
-    # CHUNK_SIZE = 10_000
-    CHUNK_SIZE = 10_000_000 # results in 6 chunks
 
-    # ! Not part of the workflow (not a DAGTask, as the number of chunks is dynamic)
-    text_chunks = read_and_chunk_text(INPUT_FILE, CHUNK_SIZE)
-    print(f"Number of chunks: {len(text_chunks)}")
+INPUT_FILE = os.path.join("..", "_inputs", "shakespeare.txt")
+OUTPUT_FILE = os.path.join("..", "_outputs", "word_frequencies.txt")
+# CHUNK_SIZE = 10_000
+CHUNK_SIZE = 10_000_000 # results in 6 chunks
 
-    word_lists = [preprocess_text(chunk) for chunk in text_chunks]
-    word_counts = [count_words_in_chunk(words) for words in word_lists]
-    final_word_count = merge_word_counts(word_counts)
+# ! Not part of the workflow (not a DAGTask, as the number of chunks is dynamic)
+text_chunks = read_and_chunk_text(INPUT_FILE, CHUNK_SIZE)
+print(f"Number of chunks: {len(text_chunks)}")
 
-    start_time = time.time()
-    result = final_word_count.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
-    
-    # with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
-    #     outfile.write(str(result))
-    
-    print(f"Wordcount Hash: {hash_dict(result)} | User Waited: {time.time() - start_time}s")
+word_lists = [preprocess_text(chunk) for chunk in text_chunks]
+word_counts = [count_words_in_chunk(words) for words in word_lists]
+final_word_count = merge_word_counts(word_counts)
 
-    # top_10 = sorted(result.items(), key=lambda x: x[1], reverse=True)[:10]
-    # print("\nTop 10 Words:")
-    # for word, count in top_10:
-    #     print(f"{word}: {count}")
+start_time = time.time()
+result = final_word_count.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
+
+# with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
+#     outfile.write(str(result))
+
+print(f"Wordcount Hash: {hash_dict(result)} | User Waited: {time.time() - start_time}s")
+
+# top_10 = sorted(result.items(), key=lambda x: x[1], reverse=True)[:10]
+# print("\nTop 10 Words:")
+# for word, count in top_10:
+#     print(f"{word}: {count}")

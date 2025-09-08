@@ -1,1 +1,1 @@
-venv\Scripts\activate.bat && pipreqs src --force
+venv\Scripts\activate.bat && pipreqs . --force

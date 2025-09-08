@@ -180,7 +180,7 @@ class DAGTaskNode(Generic[R]):
         return cloned_node    
 
     def invoke(self, dependencies: dict[str, Any]):
-        self._try_install_third_party_libs()
+        # self._try_install_third_party_libs()
 
         final_func_args = []
         final_func_kwargs = {}
@@ -268,31 +268,35 @@ class DAGTaskNode(Generic[R]):
     def __repr__(self):
         return f"DAGTaskNode({self.func_name}, id={self.id})"
 
-    def _try_install_third_party_libs(self):
-        missing_modules = []
-        for module in self.third_party_libs:
-            try:
-                __import__(module)
-                # print(f"({module}) already installed")
-            except ImportError:
-                # print(f"({module}) not found, will install")
-                missing_modules.append(module)
+    # def _try_install_third_party_libs(self):
+    #     '''
+    #     Commented out because correct way would be to gather dependencies of the entire workflow and installing them before deserializting code on the workers
+    #     '''
+    #     missing_modules = []
+    #     for module in self.third_party_libs:
+    #         try:
+    #             __import__(module)
+    #             # print(f"({module}) already installed")
+    #         except ImportError:
+    #             print(f"({module}) not found, will install")
+    #             missing_modules.append(module)
         
-        if missing_modules:
-            logger.info(f"Installing missing modules: {', '.join(missing_modules)}")
-            try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to install {', '.join(missing_modules)}: {e}")
+    #     if missing_modules:
+    #         logger.info(f"Installing missing modules: {', '.join(missing_modules)}")
+    #         try:
+    #             subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_modules)
+    #         except subprocess.CalledProcessError as e:
+    #             logger.warning(f"Failed to install {', '.join(missing_modules)}: {e}")
             
-            for module in missing_modules:
-                try:
-                    __import__(module)
-                    # print(f"({module}) successfully installed")
-                except ImportError:
-                    logger.error(f"Warning: Failed to import {module} after installation")
+    #         for module in missing_modules:
+    #             try:
+    #                 __import__(module)
+    #                 # print(f"({module}) successfully installed")
+    #             except ImportError:
+    #                 logger.error(f"Warning: Failed to import {module} after installation")
+    # '''
 
-def DAGTask(func_or_params=None, forced_optimizations: list[TaskAnnotation] = []) -> Any:
+def DAGTask(func_or_params=None, forced_optimizations: list[TaskAnnotation] = []) -> Callable[..., DAGTaskNode]:
     def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> DAGTaskNode[R]:

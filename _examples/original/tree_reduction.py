@@ -23,7 +23,6 @@ while len(L) > 1:
 sink: DAGTaskNode = L[0] # type: ignore
 # sink.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "tree_reduction"), open_after=True)
 
-for i in range(1):
-    start_time = time.time()
-    result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG, open_dashboard=False)
-    print(f"[{i}] Result: {result} | Makespan: {time.time() - start_time}s")
+start_time = time.time()
+result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG, open_dashboard=False)
+print(f"Result: {result} | Makespan: {time.time() - start_time}s")

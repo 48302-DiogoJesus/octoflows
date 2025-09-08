@@ -1,0 +1,142 @@
+{
+  "dag_name": "time_task",
+  "total_tasks": 16,
+  "root_count": 5,
+  "hierarchical_tasks": [
+    {
+      "id": "time_task+ab42149c-fc95-45af-8bf0-8611c4e936bc",
+      "function_name": "time_task",
+      "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+      "children": [
+        {
+          "id": "time_task+15750dc8-284d-4bb6-afa2-a46929172a41",
+          "function_name": "time_task",
+          "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+          "children": [
+            {
+              "id": "time_task+a26bcd6a-9ffb-4925-9060-ae050a7cbdd6",
+              "function_name": "time_task",
+              "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+              "children": [
+                {
+                  "id": "time_task+2caa6304-8acb-4483-b23f-232d55327a8f",
+                  "function_name": "time_task",
+                  "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+                  "children": [
+                    {
+                      "id": "time_task+12ad7f61-b9bb-4ec0-81d0-a777a25bcbd0",
+                      "function_name": "time_task",
+                      "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+                      "children": [
+                        {
+                          "id": "time_task+1cc5ad1f-882e-4412-9756-79b97aa1c91e",
+                          "function_name": "time_task",
+                          "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "time_task+52959161-9650-4359-bc53-2cf62e702b41",
+      "function_name": "time_task",
+      "assigned_worker_id": "949b1fbe914e43eca40397008caccc01",
+      "children": [
+        {
+          "id": "time_task+e2015b72-1122-42dd-ab84-5e3c06fb0e71",
+          "function_name": "time_task",
+          "assigned_worker_id": "949b1fbe914e43eca40397008caccc01",
+          "children": [
+            {
+              "id": "time_task+9ee4c0ab-d610-484e-80e3-ca9e47a9744c",
+              "function_name": "time_task",
+              "assigned_worker_id": "949b1fbe914e43eca40397008caccc01",
+              "children": [
+                {
+                  "id": "time_task+d4827808-80cc-4ee5-8663-3ae56b72e9c0",
+                  "function_name": "time_task",
+                  "assigned_worker_id": "949b1fbe914e43eca40397008caccc01",
+                  "children": [
+                    {
+                      "id": "time_task+1cc5ad1f-882e-4412-9756-79b97aa1c91e",
+                      "function_name": "time_task",
+                      "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "time_task+5a1058ec-56d4-45d7-bde8-d6bbd6e332b3",
+      "function_name": "time_task",
+      "assigned_worker_id": "addf615562564c3993cfaedb5de8087c",
+      "children": [
+        {
+          "id": "time_task+6f53512c-af4d-4209-ab26-ce985be22729",
+          "function_name": "time_task",
+          "assigned_worker_id": "addf615562564c3993cfaedb5de8087c",
+          "children": [
+            {
+              "id": "time_task+022a10f7-d46a-4ce2-9128-c247e0862ecc",
+              "function_name": "time_task",
+              "assigned_worker_id": "addf615562564c3993cfaedb5de8087c",
+              "children": [
+                {
+                  "id": "time_task+1cc5ad1f-882e-4412-9756-79b97aa1c91e",
+                  "function_name": "time_task",
+                  "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "time_task+ccebc9bc-cd35-419c-8835-0da63c4ef58f",
+      "function_name": "time_task",
+      "assigned_worker_id": "13361550f85944c6b7e6e6d7618c484b",
+      "children": [
+        {
+          "id": "time_task+bda53512-90a1-4ea2-b96b-ae584d0f5531",
+          "function_name": "time_task",
+          "assigned_worker_id": "13361550f85944c6b7e6e6d7618c484b",
+          "children": [
+            {
+              "id": "time_task+1cc5ad1f-882e-4412-9756-79b97aa1c91e",
+              "function_name": "time_task",
+              "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "time_task+7cb83f24-943a-4de0-91c3-676ef32f8b15",
+      "function_name": "time_task",
+      "assigned_worker_id": "c00c6fde61574e638917365a47697554",
+      "children": [
+        {
+          "id": "time_task+1cc5ad1f-882e-4412-9756-79b97aa1c91e",
+          "function_name": "time_task",
+          "assigned_worker_id": "402799006c954e06bc1b9b7771afafe2",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

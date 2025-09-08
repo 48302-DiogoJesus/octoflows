@@ -1,0 +1,61 @@
+{
+  "dag_name": "coadd_task",
+  "total_tasks": 5,
+  "root_count": 1,
+  "hierarchical_tasks": [
+    {
+      "id": "extract_wcs_task+e903e561-bec6-4565-8c3f-ff90f6d45c00",
+      "function_name": "extract_wcs_task",
+      "assigned_worker_id": "Flexible",
+      "children": [
+        {
+          "id": "compute_mosaic_header+f5567138-d051-4a26-a2b5-908784b35619",
+          "function_name": "compute_mosaic_header",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "reproject_single_task+2c2c778d-f63e-418a-a5d2-d7e559967d0e",
+              "function_name": "reproject_single_task",
+              "assigned_worker_id": "Flexible",
+              "children": [
+                {
+                  "id": "background_correct_task+4aceec96-f41c-4430-a396-a8fc41ddadd9",
+                  "function_name": "background_correct_task",
+                  "assigned_worker_id": "Flexible",
+                  "children": [
+                    {
+                      "id": "coadd_task+2b202c8e-3fb1-4627-8e85-83d97bd659cc",
+                      "function_name": "coadd_task",
+                      "assigned_worker_id": "Flexible",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "reproject_single_task+2c2c778d-f63e-418a-a5d2-d7e559967d0e",
+          "function_name": "reproject_single_task",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "background_correct_task+4aceec96-f41c-4430-a396-a8fc41ddadd9",
+              "function_name": "background_correct_task",
+              "assigned_worker_id": "Flexible",
+              "children": [
+                {
+                  "id": "coadd_task+2b202c8e-3fb1-4627-8e85-83d97bd659cc",
+                  "function_name": "coadd_task",
+                  "assigned_worker_id": "Flexible",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

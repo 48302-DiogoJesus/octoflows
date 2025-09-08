@@ -1,0 +1,13 @@
+{
+  "dag_name": "split_image",
+  "total_tasks": 1,
+  "root_count": 1,
+  "hierarchical_tasks": [
+    {
+      "id": "split_image+bad62193-fef2-4c99-a41e-ad7b50eabfbd",
+      "function_name": "split_image",
+      "assigned_worker_id": "e5c9c52ecc9649e580b35ea23ec9e42b",
+      "children": []
+    }
+  ]
+}

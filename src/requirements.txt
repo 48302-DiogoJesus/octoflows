@@ -10,3 +10,5 @@ streamlit==1.43.2
 waitress==3.0.2
 plotly==6.2.0
 pytest==8.4.1
+astropy
+reproject
