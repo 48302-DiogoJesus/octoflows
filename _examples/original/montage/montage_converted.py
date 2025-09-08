@@ -52,18 +52,14 @@ def _local_scan_fits_task(input_dir: str) -> List[Dict[str, Any]]:
     
     file_data_list = []
     for file_path in files:
-        try:
-            with open(file_path, 'rb') as f:
-                binary_data = f.read()
-            
-            file_data_list.append({
-                'filename': file_path.name,
-                'original_path': str(file_path),
-                'binary_data': binary_data
-            })
-            print(f"[INFO] Loaded {file_path.name} ({len(binary_data)} bytes)")
-        except Exception as e:
-            print(f"[WARN] Failed to load {file_path}: {e}")
+        with open(file_path, 'rb') as f:
+            binary_data = f.read()
+        
+        file_data_list.append({
+            'original_path': str(file_path),
+            'binary_data': binary_data
+        })
+        print(f"[INFO] Loaded {file_path.name} ({len(binary_data)} bytes)")
     
     return file_data_list
 
@@ -86,8 +82,6 @@ def extract_wcs_task(file_data: Dict[str, Any]) -> Dict[str, Any]:
         
         # Store essential info (don't store full data array to save memory)
         return {
-            'filename': file_data['filename'],
-            'original_path': file_data['original_path'],
             'binary_data': file_data['binary_data'],  # Keep binary data for later tasks
             'shape': hdu.data.shape,
             'wcs_header': wcs.to_header(),
@@ -144,7 +138,6 @@ def reproject_single_task(file_metadata: Dict[str, Any], mosaic_header: Tuple[st
     reprojected_data, _ = reproject_interp((data, wcs), target_wcs, shape_out=shape_out)
     
     return {
-        'filename': file_metadata['filename'],
         'reprojected_data': reprojected_data.astype(np.float32),
         'valid': True
     }
@@ -166,7 +159,6 @@ def background_correct_task(reprojected_data: Dict[str, Any]) -> Dict[str, Any]:
     corrected_data = data - median_bg
     
     return {
-        'filename': reprojected_data['filename'],
         'corrected_data': corrected_data.astype(np.float32),
         'valid': True
     }
@@ -187,9 +179,8 @@ def coadd_task(corrected_data_list: List[Dict[str, Any]], method: str = "median"
     
     # Extract arrays
     arrays = [item['corrected_data'] for item in valid_data]
-    filenames = [item['filename'] for item in valid_data]
     
-    print(f"[INFO] Co-adding {len(arrays)} images: {', '.join(filenames)}")
+    print(f"[INFO] Co-adding {len(arrays)} images")
     
     # Stack and combine
     stack = np.stack(arrays, axis=0)
@@ -274,18 +265,6 @@ for reproj_data in reprojected_data_list:
 
 # Task 6: Co-add all images
 final_mosaic = coadd_task(corrected_data_list, METHOD)
-
-# final_mosaic.visualize_dag(open_after=False)
-# print third party libs of all tasks
-#! FOR DEBUG
-for data in wcs_metadata:
-    print(data.third_party_libs)
-print(mosaic_header_out.third_party_libs)
-for data in reprojected_data_list:
-    print(data.third_party_libs)
-for data in corrected_data_list:
-    print(data.third_party_libs)
-print(final_mosaic.third_party_libs)
 
 final_mosaic = final_mosaic.compute(dag_name="montage", config=WORKER_CONFIG, open_dashboard=False)
 
