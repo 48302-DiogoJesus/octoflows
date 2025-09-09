@@ -12,15 +12,11 @@ This version handles binary data directly instead of file paths:
  7) save_results_task      — Save FITS and PNG outputs
 
 Usage Examples:
-    python montage.py <planner> ./inputs/502nmos/ ./outputs/502nmos
-    python montage.py <planner> ./inputs/656nmos/ ./outputs/656nmos
-    python montage.py <planner> ./inputs/673nmos/ ./outputs/673nmos
-    python montage.py <planner> ./inputs/montage0.25/ ./montage0.25
+    python montage_converted.py simple ./inputs/1 ./outputs/1
 
 """
 
 from astropy import units as u
-import argparse
 from pathlib import Path
 import numpy as np
 from astropy.io import fits
@@ -36,13 +32,15 @@ from io import BytesIO
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 from src.dag_task_node import DAGTask
+from src.utils.logger import create_logger
 
 # Import common worker configurations
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from common.config import WORKER_CONFIG
 
+logger = create_logger(__name__)
 
-def _local_scan_fits_task(input_dir: str) -> List[Dict[str, Any]]:
+def _local_scan_fits_task(input_dir: str) -> List[bytes]:
     """
     Scan directory for FITS files matching pattern and load their binary data.
     Returns list of dicts with filename and binary data.
@@ -50,56 +48,47 @@ def _local_scan_fits_task(input_dir: str) -> List[Dict[str, Any]]:
     input_path = Path(input_dir)
     files = sorted(input_path.rglob("*.fits"))
     
-    file_data_list = []
+    file_data_list: List[bytes] = []
     for file_path in files:
         with open(file_path, 'rb') as f:
             binary_data = f.read()
         
-        file_data_list.append({
-            'original_path': str(file_path),
-            'binary_data': binary_data
-        })
-        print(f"[INFO] Loaded {file_path.name} ({len(binary_data)} bytes)")
+        file_data_list.append(binary_data)
     
     return file_data_list
 
-
 @DAGTask
-def extract_wcs_task(file_data: Dict[str, Any]) -> Dict[str, Any]:
+def extract_wcs_task(file_data: bytes) -> Dict[str, Any]:
     """
     Extract WCS and basic metadata from binary FITS data.
     Returns dict with file info or None if file is invalid.
     """
     # Create BytesIO object from binary data
-    fits_bytes = BytesIO(file_data['binary_data'])
-    
+    fits_bytes = BytesIO(file_data)
+
     with fits.open(fits_bytes) as hdul:
         hdu = hdul[0]
         if hdu.data is None:
-            return None
+            raise ValueError("Invalid FITS file: no data")
         
         wcs = WCS(hdu.header).celestial
-        
+
         # Store essential info (don't store full data array to save memory)
         return {
-            'binary_data': file_data['binary_data'],  # Keep binary data for later tasks
+            'binary_data': file_data,  # Keep binary data for later tasks
             'shape': hdu.data.shape,
-            'wcs_header': wcs.to_header(),
-            'valid': True
+            'wcs_header': wcs.to_header()
         }
 
 
 @DAGTask
-def compute_mosaic_header(wcs_metadata: List[Dict], pixscale: float = None) -> Tuple[str, Tuple[int, int]]:
+def compute_mosaic_header(wcs_metadata: List[Dict], pixscale: float | None = None) -> Tuple[str, Tuple[int, int]]:
     """
     Compute optimal mosaic WCS and shape from all valid WCS metadata.
     Returns serialized target_wcs header and output shape.
     """
-    # Filter out invalid files and reconstruct WCS objects
-    valid_metadata = [meta for meta in wcs_metadata if meta is not None and meta.get('valid', False)]
-    
     datasets = []
-    for meta in valid_metadata:
+    for meta in wcs_metadata:
         # Create dummy data array for WCS computation (we only need shapes)
         dummy_data = np.ones(meta['shape'])
         wcs = WCS(meta['wcs_header'])
@@ -110,20 +99,17 @@ def compute_mosaic_header(wcs_metadata: List[Dict], pixscale: float = None) -> T
         target_wcs, shape_out = find_optimal_celestial_wcs(datasets, resolution=resolution)
     else:
         target_wcs, shape_out = find_optimal_celestial_wcs(datasets)
-    
+
     # Return serialized WCS header and shape
     return target_wcs.to_header().tostring(), shape_out
 
 
 @DAGTask
-def reproject_single_task(file_metadata: Dict[str, Any], mosaic_header: Tuple[str, Tuple[int, int]]) -> Dict[str, Any]:
+def reproject_single_task(file_metadata: Dict[str, Any], mosaic_header: Tuple[str, Tuple[int, int]]) -> np.ndarray:
     """
     Reproject a single FITS image from binary data to target WCS.
     Returns dict with reprojected data and metadata.
     """
-    if file_metadata is None or not file_metadata.get('valid', False):
-        return None
-        
     target_wcs_header, shape_out = mosaic_header
 
     # Reconstruct target WCS
@@ -137,53 +123,33 @@ def reproject_single_task(file_metadata: Dict[str, Any], mosaic_header: Tuple[st
     
     reprojected_data, _ = reproject_interp((data, wcs), target_wcs, shape_out=shape_out)
     
-    return {
-        'reprojected_data': reprojected_data.astype(np.float32),
-        'valid': True
-    }
+    return reprojected_data.astype(np.float32)
 
 
 @DAGTask
-def background_correct_task(reprojected_data: Dict[str, Any]) -> Dict[str, Any]:
+def background_correct_task(reprojected_data: np.ndarray) -> np.ndarray:
     """
     Apply background correction to a single reprojected image.
-    Returns dict with background-corrected data.
+    Returns background-corrected data.
     """
-    if reprojected_data is None or not reprojected_data.get('valid', False):
-        return None
-        
-    data = reprojected_data['reprojected_data']
     
     # Simple median background subtraction
-    median_bg = np.nanmedian(data)
-    corrected_data = data - median_bg
+    median_bg = np.nanmedian(reprojected_data)
+    corrected_data = reprojected_data - median_bg
     
-    return {
-        'corrected_data': corrected_data.astype(np.float32),
-        'valid': True
-    }
+    return corrected_data.astype(np.float32)
 
 
 @DAGTask
-def coadd_task(corrected_data_list: List[Dict[str, Any]], method: str = "median") -> np.ndarray:
+def coadd_task(corrected_data_list: List[np.ndarray], method: str = "median") -> np.ndarray:
     """
     Co-add all background-corrected images into final mosaic.
     Returns the final mosaic array.
     """
-    # Filter out None values and invalid data
-    valid_data = [item for item in corrected_data_list 
-                  if item is not None and item.get('valid', False)]
-    
-    if not valid_data:
-        raise ValueError("No valid corrected data to co-add")
-    
     # Extract arrays
-    arrays = [item['corrected_data'] for item in valid_data]
-    
-    print(f"[INFO] Co-adding {len(arrays)} images")
     
     # Stack and combine
-    stack = np.stack(arrays, axis=0)
+    stack = np.stack(corrected_data_list, axis=0)
     
     if method == "median":
         mosaic = np.nanmedian(stack, axis=0)
@@ -216,22 +182,8 @@ def _local_save_results_task(mosaic: np.ndarray, output_dir: str):
     plt.axis("off")
     plt.savefig(png_path, dpi=200, bbox_inches="tight", pad_inches=0)
     
-    # Option 1: Show the plot (works in Jupyter notebooks and interactive environments)
     plt.show()
-    
-    # Option 2: If you want to open the saved image file with default system viewer
-    # import subprocess
-    # import sys
-    # if sys.platform == "win32":
-    #     subprocess.run(["start", str(png_path)], shell=True)
-    # elif sys.platform == "darwin":  # macOS
-    #     subprocess.run(["open", str(png_path)])
-    # else:  # Linux
-    #     subprocess.run(["xdg-open", str(png_path)])
-    
-    # Option 3: If using IPython/Jupyter, you can also use:
-    # from IPython.display import Image, display
-    # display(Image(str(png_path)))
+
 
 input_dir = sys.argv[2]
 output_dir = sys.argv[3]
@@ -269,4 +221,4 @@ final_mosaic = coadd_task(corrected_data_list, METHOD)
 final_mosaic = final_mosaic.compute(dag_name="montage", config=WORKER_CONFIG, open_dashboard=False)
 
 # Task 7: Save results Locally
-_local_save_results_task(final_mosaic, output_dir)
+# _local_save_results_task(final_mosaic, output_dir)

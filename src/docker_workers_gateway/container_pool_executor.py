@@ -96,8 +96,7 @@ class ContainerPoolExecutor:
             # Check if process has finished
             exit_code = process.poll()
             if exit_code is None:
-                # Process still running, small sleep to avoid CPU spinning
-                time.sleep(0.1)
+                time.sleep(0.4)
         
         # After process completion, read any remaining output
         if process.stdout:

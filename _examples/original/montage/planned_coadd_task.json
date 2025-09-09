@@ -4,29 +4,29 @@
   "root_count": 1,
   "hierarchical_tasks": [
     {
-      "id": "extract_wcs_task+d6e9f50f-b6f0-4140-9297-ed112d9e0cdc",
+      "id": "extract_wcs_task+0e771e52-4f2f-44cf-b51b-171680071c29",
       "function_name": "extract_wcs_task",
-      "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+      "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
       "children": [
         {
-          "id": "compute_mosaic_header+130dd9c3-5606-4d6b-821c-2ef2e4198f71",
+          "id": "compute_mosaic_header+a12789df-65c1-457f-99de-64c0f5422305",
           "function_name": "compute_mosaic_header",
-          "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+          "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
           "children": [
             {
-              "id": "reproject_single_task+a75b443c-c6d2-47dd-9be8-daa16783c391",
+              "id": "reproject_single_task+d94e7138-96cc-444b-96bc-8938761a16c9",
               "function_name": "reproject_single_task",
-              "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+              "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
               "children": [
                 {
-                  "id": "background_correct_task+31bed1b9-ffc7-445e-8de1-eefc31fb81c2",
+                  "id": "background_correct_task+5f8d03d7-14f9-4acc-9cf0-109631e90be6",
                   "function_name": "background_correct_task",
-                  "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+                  "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
                   "children": [
                     {
-                      "id": "coadd_task+fccd3aad-ed7e-4886-b015-f75e0f5675f6",
+                      "id": "coadd_task+f36948d7-899c-4b44-887a-a085d1c0cb90",
                       "function_name": "coadd_task",
-                      "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+                      "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
                       "children": []
                     }
                   ]
@@ -36,19 +36,19 @@
           ]
         },
         {
-          "id": "reproject_single_task+a75b443c-c6d2-47dd-9be8-daa16783c391",
+          "id": "reproject_single_task+d94e7138-96cc-444b-96bc-8938761a16c9",
           "function_name": "reproject_single_task",
-          "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+          "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
           "children": [
             {
-              "id": "background_correct_task+31bed1b9-ffc7-445e-8de1-eefc31fb81c2",
+              "id": "background_correct_task+5f8d03d7-14f9-4acc-9cf0-109631e90be6",
               "function_name": "background_correct_task",
-              "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+              "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
               "children": [
                 {
-                  "id": "coadd_task+fccd3aad-ed7e-4886-b015-f75e0f5675f6",
+                  "id": "coadd_task+f36948d7-899c-4b44-887a-a085d1c0cb90",
                   "function_name": "coadd_task",
-                  "assigned_worker_id": "2befd19617804b60a6402d18758b47ae",
+                  "assigned_worker_id": "2f8f321a2ce84733a8ef6467f5faa314",
                   "children": []
                 }
               ]

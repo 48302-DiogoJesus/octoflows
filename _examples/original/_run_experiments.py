@@ -4,12 +4,13 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
-    'tree_reduction.py'
-    'matrix_multiplications.py',
     'gemm.py',
-    'fixed_times.py',
     'wordcount.py',
     'image_transform.py',
+    'montage_converted.py',
+    # 'tree_reduction.py'
+    # 'matrix_multiplications.py',
+    # 'fixed_times.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 5

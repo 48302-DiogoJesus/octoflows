@@ -1,1 +1,0 @@
-python montage.py --input .\inputs\montage0.25\ --output ./m31_mosaic --pattern "*.fits" --pixscale 0.4 --method median
