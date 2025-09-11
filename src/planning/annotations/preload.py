@@ -4,7 +4,7 @@ from types import CoroutineType
 from typing import Any
 import cloudpickle
 from src.dag.dag import FullDAG, SubDAG
-from src.dag_task_annotation import TaskAnnotation
+from src.task_optimization import TaskOptimization
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
@@ -19,7 +19,7 @@ from src.utils.timer import Timer
 logger = create_logger(__name__)
 
 @dataclass
-class PreLoadOptimization(TaskAnnotation, WorkerExecutionLogic):
+class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible """
 
     # for upstream tasks

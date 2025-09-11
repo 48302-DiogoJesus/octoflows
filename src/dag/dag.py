@@ -227,13 +227,13 @@ class FullDAG(GenericDAG):
                 return "º"
             else:
                 if isinstance(arg, str):
-                    return f"hardcoded_str_len: {len(str(arg))}"
+                    return f"hc_str_len: {len(str(arg))}"
                 elif isinstance(arg, int) or isinstance(arg, float):
-                    return f"hardcoded_num: {arg}"
+                    return f"hc_num: {arg}"
                 elif isinstance(arg, bool):
-                    return f"hardcoded_bool: {arg}"
+                    return f"hc_bool: {arg}"
                 else:
-                    return f"hardcoded_data_len: {len(str(arg))}"
+                    return f"hc_data_len: {len(str(arg))}"
 
         # Add nodes
         for node_id, node in all_nodes.items():
@@ -259,7 +259,7 @@ class FullDAG(GenericDAG):
                     dependency_strs.append(f"{key}={print_argument(value)}")
             
             # Create the node label
-            label = f"{node.id.get_full_id()}({', '.join(dependency_strs)})"
+            label = f"{node.func_name}({', '.join(dependency_strs)})"
             
             # Determine node style based on whether it's a root or sink node
             node_style = "filled"

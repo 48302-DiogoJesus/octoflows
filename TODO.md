@@ -1,7 +1,3 @@
-- Replicate the Montage workflow
-
-Start writing small 10 page paper
-
 - Ensure that GEMM is actually GEMM
 
 [NEW_ISSUES_FOUND]

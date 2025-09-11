@@ -9,7 +9,7 @@ import sys
 from typing import Any, Callable, Generic, Type, TypeVar
 import uuid
 
-from src.dag_task_annotation import TaskAnnotation
+from src.task_optimization import TaskOptimization
 from src.utils.atomic_flag import AtomicFlag
 from src.utils.timer import Timer
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -67,7 +67,7 @@ class DAGTaskNode(Generic[R]):
         )
         self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         # Initialized with a dummy worker config annotation for local worker
-        self.annotations: list[TaskAnnotation] = []
+        self.annotations: list[TaskOptimization] = []
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper[R] | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
@@ -296,7 +296,7 @@ class DAGTaskNode(Generic[R]):
     #                 logger.error(f"Warning: Failed to import {module} after installation")
     # '''
 
-def DAGTask(func_or_params=None, forced_optimizations: list[TaskAnnotation] = []) -> Callable[..., DAGTaskNode]:
+def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = []) -> Callable[..., DAGTaskNode]:
     def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> DAGTaskNode[R]:

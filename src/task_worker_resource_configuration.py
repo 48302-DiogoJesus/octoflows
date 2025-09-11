@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from src.dag_task_annotation import TaskAnnotation
+from src.task_optimization import TaskOptimization
 
 
 @dataclass
-class TaskWorkerResourceConfiguration(TaskAnnotation):
+class TaskWorkerResourceConfiguration(TaskOptimization):
     """ MANDATORY annotation that doesn't conflict with other annotations """
     cpus: float
     memory_mb: int

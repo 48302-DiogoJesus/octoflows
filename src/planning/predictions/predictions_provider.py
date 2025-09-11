@@ -93,6 +93,7 @@ class PredictionsProvider:
             function_name, _, _ = self._split_task_id(task_id)
             if metrics.execution_time_per_input_byte_ms is None: continue
             
+            # EXECUTION TIME P/ BYTE
             if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
             self.cached_execution_time_per_byte[function_name].append((
                 metrics.execution_time_per_input_byte_ms,

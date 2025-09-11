@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from src.dag.dag import  SubDAG
-from src.dag_task_annotation import TaskAnnotation
+from src.task_optimization import TaskOptimization
 from src.dag_task_node import  DAGTaskNode
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.storage import Storage
@@ -11,7 +11,7 @@ from src.utils.logger import create_logger
 logger = create_logger(__name__)
 
 @dataclass
-class PreWarmOptimization(TaskAnnotation, WorkerExecutionLogic):
+class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible 
     """
 

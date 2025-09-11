@@ -2,7 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 import time
 from src.dag.dag import SubDAG
-from src.dag_task_annotation import TaskAnnotation
+from src.task_optimization import TaskOptimization
 from src.dag_task_node import DAGTaskNode
 from src.storage.storage import Storage
 from src.workers.worker_execution_logic import WorkerExecutionLogic
@@ -20,7 +20,7 @@ DUPPABLE_TASK_CANCELLATION_PREFIX = "taskdup-cancellation-"
 DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_500 # the least amount of time we need to save to justify duplication
 
 @dataclass
-class TaskDupOptimization(TaskAnnotation, WorkerExecutionLogic):
+class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
     """ 
     Indicates that this task can be duplicated IF NEEDED (decided at runtime)
     """
