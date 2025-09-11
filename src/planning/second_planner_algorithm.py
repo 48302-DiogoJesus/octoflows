@@ -44,6 +44,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             - Assign best resources to all tasks, find CP
             - Simulate downgrading resources on non-critical path tasks (w/o introducing a new CP)
             - Simulate using optimizations (preload)
+            - Uses task dupping optimization
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):
@@ -170,7 +171,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     for node in nodes_outside_critical_path:
                         if node.worker_config.worker_id != worker_id: continue
                         node.worker_config = last_successful_configs[node.id.get_full_id()]
-                    break
+                    break # try downgrading the next worker
 
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
 

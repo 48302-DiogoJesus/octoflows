@@ -10,10 +10,6 @@ This version handles binary data directly instead of file paths:
  5) background_correct_task — Apply background correction to individual images (parallel)
  6) coadd_task             — Co-add all corrected images into final mosaic
  7) save_results_task      — Save FITS and PNG outputs
-
-Usage Examples:
-    python montage_converted.py simple ./inputs/1 ./outputs/1
-
 """
 
 from astropy import units as u
@@ -185,8 +181,8 @@ def _local_save_results_task(mosaic: np.ndarray, output_dir: str):
     plt.show()
 
 
-input_dir = sys.argv[2]
-output_dir = sys.argv[3]
+input_dir = "./inputs/1"
+output_dir = "./outputs/1"
 PIXSCALE = 0.4
 METHOD = "median"
 

@@ -4,10 +4,10 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
+    'montage_converted.py',
     'gemm.py',
     'wordcount.py',
     'image_transform.py',
-    'montage_converted.py',
     # 'tree_reduction.py'
     # 'matrix_multiplications.py',
     # 'fixed_times.py',

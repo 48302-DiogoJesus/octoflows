@@ -32,7 +32,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
             workers. It would use the MetadataAccess API to predict the longest workflow path (critical path). Then it would
             simulate using the pre-load optimization on this path. If optimizing the critical path made it shorter than the
             second longest path, the algorithm would repeat the process for this new critical path. This would be repeated
-            until we can't optimize the critical path any further.
+            until we can't optimize the critical path any further. TaskDup optimization is also used.
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):

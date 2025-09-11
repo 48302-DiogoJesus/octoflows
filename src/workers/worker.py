@@ -74,6 +74,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 if not await current_task.is_handling.set_if_not_set():
+                    # avoid duplicate execution on same worker
                     raise CancelCurrentWorkerLoopException("Task is already being handled by this worker on another coroutine. Aborting")
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
@@ -174,7 +175,6 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
                 
-                # if True: # !!
                 if upload_output:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
@@ -208,11 +208,8 @@ class Worker(ABC, WorkerExecutionLogic):
                         receivers = await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         logger.info(f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
                         
-                        # if expected_receivers != receivers:
-                            # logger.info(f"Not all receivers were active to receive the READY event for {downstream_task.id.get_full_id()}. Setting a persistent flag")
-                            # persistent flag
-                            # to prevent against late receivers (workers that may not be active at the time of the publish)
-                        # await self.metadata_storage.set(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", 1)
+                        # to prevent against late receivers (workers that may not be active at the time of the publish)
+                        await self.metadata_storage.set(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", 1)
 
                         downstream_tasks_ready.append(downstream_task)
                 
