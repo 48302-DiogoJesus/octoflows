@@ -581,7 +581,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 legend.edges([])
         
         # Save to file
-        output_file_name = f"planned_{_dag.sink_node.func_name}"
+        output_file_name = f"planned_{_dag.dag_name}"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
         print(f"DAG visualization saved to {output_file_name}.png")
@@ -652,7 +652,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         }
         
         # Save to JSON file
-        output_file_name = f"planned_{_dag.sink_node.func_name}.json"
+        output_file_name = f"planned_{_dag.dag_name}.json"
         with open(output_file_name, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
         

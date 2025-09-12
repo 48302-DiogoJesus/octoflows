@@ -1,0 +1,67 @@
+{
+  "dag_name": "coadd_task",
+  "total_tasks": 7,
+  "root_count": 3,
+  "hierarchical_tasks": [
+    {
+      "id": "extract_and_reproject_task+cb42c65c-6af0-4e30-a29e-e37299378d8f",
+      "function_name": "extract_and_reproject_task",
+      "assigned_worker_id": "Flexible",
+      "children": [
+        {
+          "id": "background_correct_task+818d416c-f4aa-4b9c-9804-529ea6c2cd85",
+          "function_name": "background_correct_task",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "coadd_task+a0bf1764-a71c-4acb-8a0a-bb07d0ae4559",
+              "function_name": "coadd_task",
+              "assigned_worker_id": "Flexible",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extract_and_reproject_task+274acd7e-00bb-4161-9ed1-f4171a835e11",
+      "function_name": "extract_and_reproject_task",
+      "assigned_worker_id": "Flexible",
+      "children": [
+        {
+          "id": "background_correct_task+11fd582d-d278-4406-a340-7b58768c4395",
+          "function_name": "background_correct_task",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "coadd_task+a0bf1764-a71c-4acb-8a0a-bb07d0ae4559",
+              "function_name": "coadd_task",
+              "assigned_worker_id": "Flexible",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extract_and_reproject_task+555d630c-ae67-4c8d-b72b-6924c94b2505",
+      "function_name": "extract_and_reproject_task",
+      "assigned_worker_id": "Flexible",
+      "children": [
+        {
+          "id": "background_correct_task+678d0084-ddf1-43ca-ad98-e572b196c2ee",
+          "function_name": "background_correct_task",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "coadd_task+a0bf1764-a71c-4acb-8a0a-bb07d0ae4559",
+              "function_name": "coadd_task",
+              "assigned_worker_id": "Flexible",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

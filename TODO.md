@@ -1,4 +1,4 @@
-- Issue: gateway not printing any requests
+- move montage workflow stuff to _inputs and _outputs folder
 
 - Test montage converted alone with hardcoded inputs
     Try montage with multiple small files instead of just one .fits file

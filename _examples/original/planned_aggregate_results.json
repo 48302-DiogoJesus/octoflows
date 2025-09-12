@@ -1,589 +1,121 @@
 {
   "dag_name": "aggregate_results",
-  "total_tasks": 46,
-  "root_count": 45,
+  "total_tasks": 10,
+  "root_count": 9,
   "hierarchical_tasks": [
     {
-      "id": "multiply_chunks+4fec093a-b73d-4c8d-a602-8063619abc70",
+      "id": "multiply_chunks+53d2c17f-d1bb-4697-bbff-d66f6782a5b0",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+878be75c-5494-431c-ac7a-2aaa87aeb782",
+      "id": "multiply_chunks+e60f780f-89b6-4fb6-9c5c-3fe57ca1cad3",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "8db87ff1f9204a5bae228ba9177e185e",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+4fc4d0d8-7364-44e3-902f-f249d512d42e",
+      "id": "multiply_chunks+66d1c958-6ee6-4bae-8133-530053271901",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "abe9414ee59643659060e0ba05e5953d",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+f6d77489-1468-41c4-942c-7377241b8faa",
+      "id": "multiply_chunks+d47dd126-562c-438f-8876-ef578413ad7c",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "3d8d63a83884498e98fa754e8e56150f",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+a573e410-8b7e-4754-ade9-c40bc99b3f6c",
+      "id": "multiply_chunks+36ed7c70-b633-4d46-aa45-08974cc934c9",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "744c992642ca4217aaa4212c4c8a0b0f",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+37eec73f-0998-4da4-821d-e1d56d94f531",
+      "id": "multiply_chunks+ab231d83-fe6e-49fb-987c-6aab49e7cc2c",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "c47476e5a3c2483f9510013740c52fa2",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+0ff5008d-92de-4022-837f-639d6c2f29d3",
+      "id": "multiply_chunks+b494d37e-0d00-49b1-8e3f-6f0a079a527d",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "26b2a0f70c9e4d1489c84702dfdb1f91",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+af8ca5b6-43c9-4329-ab26-d2a4fb7c4ea4",
+      "id": "multiply_chunks+cebb39f7-c9b6-4de2-9462-6fdf5fc9ba46",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "d03b218af594442fb89ad0589921ed6c",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
     },
     {
-      "id": "multiply_chunks+e40a92ee-d64a-40c3-ae81-ce23b4ced76a",
+      "id": "multiply_chunks+2b904ca9-6855-4b31-9a96-708ab88a257d",
       "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
+      "assigned_worker_id": "e6280029e70242deb2b34ba30ab07812",
       "children": [
         {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
+          "id": "aggregate_results+8b47e731-4f4f-4e93-a8fe-b1df46c51322",
           "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+a5b72fe3-4047-4d59-997a-a9fe3408ba19",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+830d48f8-eb04-4147-b1ec-74e830f97263",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+c9cfae86-6844-4079-a848-34587c3e044b",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+2f91cc04-8814-4607-8cbb-7b622e072b1f",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+e76b29be-582f-4ff6-a0c9-38c477beb3a1",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+4c94a956-f4a8-4b15-8a43-4cd4cc9e01fe",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+3d8eb731-b063-44c8-9d18-68c4c331dda0",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+ac75f89a-3148-4041-8322-d37caadae150",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+f487b473-0a2f-4e40-97ef-35775a11912b",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+b20a6972-beb7-4905-9555-84865da66777",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+d9c1e301-cdb2-44ae-84b0-0b846b4d3bd7",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+a18e48e6-bd5d-4a0e-99c6-be271021927e",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+9c628d7b-3f23-4769-af7e-589f371d5f2b",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+b1b9a2ee-c454-4ca8-b728-aff656ad409c",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+f536895e-f55e-47a4-a520-281066f43b45",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+7841ce63-36c2-4489-823b-881d99288ef4",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+2ab9e4cc-a51d-4d87-8d2b-468d9b43a9b0",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+82ad5442-05d2-45c2-a4f7-8b350cfff976",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+dddff532-d744-4b47-8db1-dc6d26026c94",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+bcb1e23f-2142-4f71-a61f-5b0cf8481fcf",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+860d9a34-0552-48b1-ba14-e4344e3334c8",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+e0275d39-32fb-4172-ae2f-64c421f3cbed",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+251d9445-3146-48b8-b3dd-34b2cb1e82ca",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+4d101f24-1997-40b4-922f-068c789da3df",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+c5d5c6be-b9b2-4c59-bdf2-f48aace92a71",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+d5fd7877-baf8-4f83-9f8c-e629324b0195",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+a3799a78-b114-4890-890b-2a2197914819",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+28d1bf5e-5577-4525-a7ce-e19cd9c13b87",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+e2dcde9e-a69a-4cd8-96c7-d67891a70f97",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+9c35867f-781d-4476-a975-bf896a615879",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+7331f706-d3e3-4b1f-8675-fc308bc668b8",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+3cea6902-a93a-47c3-b137-7be16aeff529",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+f879cc7a-8834-4067-b2f9-36b6a7c3424c",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+8a2284f9-12e9-4dbf-90f1-2ed0275b4202",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+cf14165d-b19c-454c-b6ae-1c00c1e4f9d0",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
-          "children": []
-        }
-      ]
-    },
-    {
-      "id": "multiply_chunks+4e0fa41b-4615-4130-a584-00819f3297b5",
-      "function_name": "multiply_chunks",
-      "assigned_worker_id": "Flexible",
-      "children": [
-        {
-          "id": "aggregate_results+7aa4f171-ca77-436f-a16a-590761da59c6",
-          "function_name": "aggregate_results",
-          "assigned_worker_id": "Flexible",
+          "assigned_worker_id": "2627bb523f31415389dcf865d4625202",
           "children": []
         }
       ]
