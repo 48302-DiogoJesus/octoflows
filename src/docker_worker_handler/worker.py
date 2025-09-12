@@ -57,7 +57,7 @@ async def main():
 
     try:
         if len(sys.argv) != 4:
-            raise Exception("Usage: python script.py <b64_config> <dag_id> <task_id>")
+            raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids>")
 
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
@@ -202,8 +202,8 @@ async def main():
                 tasks_that_depend_on_other_workers.append(task)
                 await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id)
                 # Check persistent flags of previous {TASK_READY} events
-                flag_exists = await wk.metadata_storage.exists(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}")
-                if flag_exists:
+                dependencies_satisfied = await wk.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{task.id.get_full_id_in_dag(fulldag)}")
+                if dependencies_satisfied == len(task.upstream_nodes):
                     await _on_task_ready_callback_builder(task.id)({})
                 # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
 
@@ -212,8 +212,8 @@ async def main():
                     for utask in task.upstream_nodes:
                         await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
                         # Check persistent flags of previous {TASK_READY} events
-                        flag_exists = await wk.metadata_storage.exists(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}")
-                        if flag_exists: 
+                        dependencies_satisfied = await wk.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}")
+                        if dependencies_satisfied == len(utask.upstream_nodes): 
                             await _on_task_dup_callback_builder(utask, task)({})
 
         #* 3) Start executing my direct task IDs branches

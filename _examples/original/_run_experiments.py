@@ -4,7 +4,7 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
-    'montage_converted.py',
+    # 'montage/montage_converted.py',
     'gemm.py',
     'wordcount.py',
     'image_transform.py',

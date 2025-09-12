@@ -6,7 +6,7 @@ import cloudpickle
 from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.events import TASK_COMPLETION_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
+from src.storage.events import TASK_COMPLETED_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size
@@ -183,7 +183,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     self.log(current_task.id.get_full_id(), f"Won't upload output")
                 
-                await self.metadata_storage.publish(f"{TASK_COMPLETION_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+                await self.metadata_storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
@@ -208,14 +208,11 @@ class Worker(ABC, WorkerExecutionLogic):
                         receivers = await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                         logger.info(f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
                         
-                        # to prevent against late receivers (workers that may not be active at the time of the publish)
-                        await self.metadata_storage.set(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", 1)
-
                         downstream_tasks_ready.append(downstream_task)
                 
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
 
-                self.log(current_task.id.get_full_id(), f"4) Handle Fan-Out to {len(current_task.downstream_nodes)} tasks...")
+                self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
 
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
@@ -223,7 +220,7 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
-                self.log(current_task.id.get_full_id(), f"5) Handling Task Output...")
+                self.log(current_task.id.get_full_id(), f"5) Handling Downstream Tasks...")
                 if self.planner:
                     my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
                 else:
@@ -299,7 +296,7 @@ class Worker(ABC, WorkerExecutionLogic):
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):
         # Poll Storage for final result. Asynchronous wait
-        channel = f"{TASK_COMPLETION_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
+        channel = f"{TASK_COMPLETED_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
         # Use an event to signal when we've received our message
         message_received = asyncio.Event()
         result = None

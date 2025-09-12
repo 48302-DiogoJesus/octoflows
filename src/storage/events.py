@@ -1,2 +1,2 @@
-TASK_COMPLETION_EVENT_PREFIX = "notification-task-completion-"
+TASK_COMPLETED_EVENT_PREFIX = "notification-task-completed-"
 TASK_READY_EVENT_PREFIX = "notification-task-ready-"

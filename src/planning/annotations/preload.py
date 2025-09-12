@@ -7,7 +7,7 @@ from src.dag.dag import FullDAG, SubDAG
 from src.task_optimization import TaskOptimization
 from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.storage.events import TASK_COMPLETION_EVENT_PREFIX
+from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.coroutine_tags import COROTAG_PRELOAD
 from src.workers.worker_execution_logic import WorkerExecutionLogic
@@ -40,7 +40,7 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
             async def _callback(_: dict, subscription_id: str | None = None):
                 async with annotation._lock:
                     if subscription_id is not None:
-                        await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
+                        await intermediate_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
@@ -82,7 +82,7 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
                 if unode.worker_config.worker_id == this_worker_id: continue
                 logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
-                    f"{TASK_COMPLETION_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
+                    f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
                     _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag),
                     coroutine_tag=COROTAG_PRELOAD
                 )
@@ -108,11 +108,11 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
 
         for t in task.upstream_nodes:
             if t.cached_result:
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
             elif t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
                 # unsubscribe because we are going to fetch it, in the future it won't matter
-                await intermediate_storage.unsubscribe(f"{TASK_COMPLETION_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+                await intermediate_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=None)
                 upstream_tasks_to_fetch.append(t)
 
         async def _wait_all_preloads_coroutine():

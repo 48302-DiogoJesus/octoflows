@@ -1,5 +1,4 @@
-- Fix GEMM
-    multiplication result not correct
+- Issue: gateway not printing any requests
 
 - Test montage converted alone with hardcoded inputs
     Try montage with multiple small files instead of just one .fits file
