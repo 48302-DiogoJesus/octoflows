@@ -1,0 +1,551 @@
+{
+  "dag_name": "add",
+  "total_tasks": 31,
+  "root_count": 16,
+  "hierarchical_tasks": [
+    {
+      "id": "add+d88805de-5044-47e8-ae32-97699a4afd84",
+      "function_name": "add",
+      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+      "children": [
+        {
+          "id": "add+e8cf9a56-a702-45c5-8ddf-2d728f6805d5",
+          "function_name": "add",
+          "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+          "children": [
+            {
+              "id": "add+e5c3a35f-95e8-4e68-b1a6-44b788b6c9ae",
+              "function_name": "add",
+              "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+e1190fa0-aae5-4a3f-949b-ca703b0fb322",
+      "function_name": "add",
+      "assigned_worker_id": "10e1ac8c4d7b4f46b2adfe8cf6a38874",
+      "children": [
+        {
+          "id": "add+e8cf9a56-a702-45c5-8ddf-2d728f6805d5",
+          "function_name": "add",
+          "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+          "children": [
+            {
+              "id": "add+e5c3a35f-95e8-4e68-b1a6-44b788b6c9ae",
+              "function_name": "add",
+              "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+6cd8f7cb-79c2-412d-bdd7-058cfccb724d",
+      "function_name": "add",
+      "assigned_worker_id": "33f13c0423044777bfdcec0527ea06b8",
+      "children": [
+        {
+          "id": "add+0aa7113a-4931-4970-800f-5c4287336e94",
+          "function_name": "add",
+          "assigned_worker_id": "33f13c0423044777bfdcec0527ea06b8",
+          "children": [
+            {
+              "id": "add+e5c3a35f-95e8-4e68-b1a6-44b788b6c9ae",
+              "function_name": "add",
+              "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+1c0c04d9-28bf-4577-a26b-8c43de5ef73e",
+      "function_name": "add",
+      "assigned_worker_id": "9ba274a775ef4850b412047e7d1c1208",
+      "children": [
+        {
+          "id": "add+0aa7113a-4931-4970-800f-5c4287336e94",
+          "function_name": "add",
+          "assigned_worker_id": "33f13c0423044777bfdcec0527ea06b8",
+          "children": [
+            {
+              "id": "add+e5c3a35f-95e8-4e68-b1a6-44b788b6c9ae",
+              "function_name": "add",
+              "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+1e446b42-2462-49ab-ac03-c08eb4574ff2",
+      "function_name": "add",
+      "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+      "children": [
+        {
+          "id": "add+2de46444-9396-47ae-bb1c-9e6d3a00c86a",
+          "function_name": "add",
+          "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+          "children": [
+            {
+              "id": "add+665adcf6-753a-4344-9c6c-34db19fde700",
+              "function_name": "add",
+              "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+4e24e2f8-762d-471f-8a69-9de02bcfa068",
+      "function_name": "add",
+      "assigned_worker_id": "a662046189594dae9093b64bf2fb2591",
+      "children": [
+        {
+          "id": "add+2de46444-9396-47ae-bb1c-9e6d3a00c86a",
+          "function_name": "add",
+          "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+          "children": [
+            {
+              "id": "add+665adcf6-753a-4344-9c6c-34db19fde700",
+              "function_name": "add",
+              "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+ef16f187-75d2-4723-8059-21ef4b86ca37",
+      "function_name": "add",
+      "assigned_worker_id": "68b3f004156345d4b0970c12f3cfc711",
+      "children": [
+        {
+          "id": "add+9ae614e5-4a65-4784-968a-13311ed00b49",
+          "function_name": "add",
+          "assigned_worker_id": "68b3f004156345d4b0970c12f3cfc711",
+          "children": [
+            {
+              "id": "add+665adcf6-753a-4344-9c6c-34db19fde700",
+              "function_name": "add",
+              "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+9e8c3e5d-2dc7-4603-8b79-bf599428979f",
+      "function_name": "add",
+      "assigned_worker_id": "27e0c935a45649968356cc37d43c7f94",
+      "children": [
+        {
+          "id": "add+9ae614e5-4a65-4784-968a-13311ed00b49",
+          "function_name": "add",
+          "assigned_worker_id": "68b3f004156345d4b0970c12f3cfc711",
+          "children": [
+            {
+              "id": "add+665adcf6-753a-4344-9c6c-34db19fde700",
+              "function_name": "add",
+              "assigned_worker_id": "f304ffe57b3b481a857c5c6a630fb5c7",
+              "children": [
+                {
+                  "id": "add+d5396e80-354e-4d47-abfe-a90e89f3a16b",
+                  "function_name": "add",
+                  "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+73b4cf19-6a7a-4513-bde1-4b1f5bfb8b55",
+      "function_name": "add",
+      "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+      "children": [
+        {
+          "id": "add+4d5c2c0c-2e67-4928-a22f-1a0ba38794e9",
+          "function_name": "add",
+          "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+          "children": [
+            {
+              "id": "add+cca48587-7d00-4a30-9fd3-23906b95a6d4",
+              "function_name": "add",
+              "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+de8d0cdb-8734-447d-91ba-0f74af8aadb3",
+      "function_name": "add",
+      "assigned_worker_id": "3b30287924164ce7a91dda7c9a57ad70",
+      "children": [
+        {
+          "id": "add+4d5c2c0c-2e67-4928-a22f-1a0ba38794e9",
+          "function_name": "add",
+          "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+          "children": [
+            {
+              "id": "add+cca48587-7d00-4a30-9fd3-23906b95a6d4",
+              "function_name": "add",
+              "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+3de7d874-55a8-4b7e-a5a2-8b9b62961a46",
+      "function_name": "add",
+      "assigned_worker_id": "8d16e0593a224c93a7c87064c25f9e2c",
+      "children": [
+        {
+          "id": "add+1e87ab75-65f3-499a-82d9-39dfb358e105",
+          "function_name": "add",
+          "assigned_worker_id": "8d16e0593a224c93a7c87064c25f9e2c",
+          "children": [
+            {
+              "id": "add+cca48587-7d00-4a30-9fd3-23906b95a6d4",
+              "function_name": "add",
+              "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+7ba8539f-5741-4409-9b50-b8b48b3af0a1",
+      "function_name": "add",
+      "assigned_worker_id": "395fd49e7f214721b718abb97f9c015d",
+      "children": [
+        {
+          "id": "add+1e87ab75-65f3-499a-82d9-39dfb358e105",
+          "function_name": "add",
+          "assigned_worker_id": "8d16e0593a224c93a7c87064c25f9e2c",
+          "children": [
+            {
+              "id": "add+cca48587-7d00-4a30-9fd3-23906b95a6d4",
+              "function_name": "add",
+              "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+a2bb938e-5bc9-4a37-84c5-82b936a64a48",
+      "function_name": "add",
+      "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+      "children": [
+        {
+          "id": "add+63df70b0-bc70-45a3-9a17-337dd0702446",
+          "function_name": "add",
+          "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+          "children": [
+            {
+              "id": "add+d3f5f8f9-9392-493a-a415-7abb1cb0af33",
+              "function_name": "add",
+              "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+879869a0-eca3-411d-b812-1fe1d1523dde",
+      "function_name": "add",
+      "assigned_worker_id": "ecbc1203241a4be8844b79ea13fc3bb8",
+      "children": [
+        {
+          "id": "add+63df70b0-bc70-45a3-9a17-337dd0702446",
+          "function_name": "add",
+          "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+          "children": [
+            {
+              "id": "add+d3f5f8f9-9392-493a-a415-7abb1cb0af33",
+              "function_name": "add",
+              "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+b9f1af34-9d74-4201-856f-27307c5d029c",
+      "function_name": "add",
+      "assigned_worker_id": "b03cbeaf166c4c10af4a9916eda35208",
+      "children": [
+        {
+          "id": "add+5ae2012a-6891-4a89-9c58-2f9241cbd42c",
+          "function_name": "add",
+          "assigned_worker_id": "b03cbeaf166c4c10af4a9916eda35208",
+          "children": [
+            {
+              "id": "add+d3f5f8f9-9392-493a-a415-7abb1cb0af33",
+              "function_name": "add",
+              "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "add+0e50c29f-f709-471b-84a1-e233044b7012",
+      "function_name": "add",
+      "assigned_worker_id": "51f4804c9d7a4aa3b41c3275d1bd468f",
+      "children": [
+        {
+          "id": "add+5ae2012a-6891-4a89-9c58-2f9241cbd42c",
+          "function_name": "add",
+          "assigned_worker_id": "b03cbeaf166c4c10af4a9916eda35208",
+          "children": [
+            {
+              "id": "add+d3f5f8f9-9392-493a-a415-7abb1cb0af33",
+              "function_name": "add",
+              "assigned_worker_id": "bb33b4dbeb094f34a57f217453d96821",
+              "children": [
+                {
+                  "id": "add+591e6bf0-8ea7-4fec-96c0-8b5e43c729ac",
+                  "function_name": "add",
+                  "assigned_worker_id": "c84b42f39265442e98cd8c1182045178",
+                  "children": [
+                    {
+                      "id": "add+d7710eda-fb6f-4fa1-a1b5-dbad20beab26",
+                      "function_name": "add",
+                      "assigned_worker_id": "dad483339d30432abc753e5124a64f8f",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

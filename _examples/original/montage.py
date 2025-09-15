@@ -204,6 +204,8 @@ for reproj_data in reprojected_data_list:
 # Task 5: Co-add all images
 final_mosaic = coadd_task(corrected_data_list, METHOD)
 
+# final_mosaic.visualize_dag(output_file=os.path.join("_dag_visualization", "montage"), open_after=False)
+
 # Compute the DAG
 final_mosaic = final_mosaic.compute(dag_name="montage", config=WORKER_CONFIG, open_dashboard=False)
 

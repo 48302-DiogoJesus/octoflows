@@ -98,10 +98,9 @@ m15 = merge_counts([m13, m14])
 # Sink
 report = final_report(m15)
 
-# --- Run workflow ---
-# report.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "progressive_wordcount"), open_after=True)
-# exit()
+# report.visualize_dag(output_file=os.path.join("_dag_visualization", "wordcount"), open_after=False)
 
+# --- Run workflow ---
 start_time = time.time()
 result = report.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
 print(f"{result} | Makespan: {time.time() - start_time:.3f}s")

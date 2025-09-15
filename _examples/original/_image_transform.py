@@ -133,7 +133,7 @@ def merge_image_parts(processed_chunks: list[bytes]) -> bytes:
 
 
 # Read the input image
-image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
+image_data: bytes = open("../_inputs/test_image_1.jpg", "rb").read()
 
 num_chunks = 8
 
@@ -145,7 +145,11 @@ for chunk in chunks:
     grayscaled = grayscale_image_part(blurred)
     processed_chunks.append(grayscaled)
 
+
 final_image = merge_image_parts(processed_chunks)
+
+# final_image.visualize_dag(output_file=os.path.join("_dag_visualization", "image_processing_merge"), open_after=False)
+
 final_image = final_image.compute(dag_name="image_processing_merge", config=WORKER_CONFIG)
 
 # image = Image.open(io.BytesIO(final_image))
