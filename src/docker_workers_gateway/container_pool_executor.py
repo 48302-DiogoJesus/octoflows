@@ -34,7 +34,7 @@ class ContainerPoolExecutor:
         self.condition = threading.Condition(self.lock)
         self.containers: Dict[str, Container] = {}
         self.container_idle_timeout_s = TIME_UNTIL_WORKER_GOES_COLD_S
-        self.container_cleanup_interval_s = TIME_UNTIL_WORKER_GOES_COLD_S / 2
+        self.container_cleanup_interval_s = TIME_UNTIL_WORKER_GOES_COLD_S / 3
         self.cleanup_thread = threading.Thread(target=self._cleanup_idle_containers, daemon=True)
         self.shutdown_flag = threading.Event()
         self.cleanup_thread.start()

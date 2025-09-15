@@ -1,21 +1,4 @@
-#!/usr/bin/env python3
-"""
-montage_workflow_win.py — Windows-friendly Montage-like FITS mosaicking workflow.
-
-Simulates the classic Montage steps using Astropy + Reproject:
- 1) mImgtbl    — Scan directory, collect WCS metadata
- 2) mMakeHdr   — Compute mosaic header (WCS + size)
- 3) mProjExec  — Reproject all images to mosaic WCS
- 4) mBgModel   — Estimate simple background offsets
- 5) mBgExec    — Apply offsets
- 6) mAdd       — Co-add corrected images into mosaic
-
-Usage:
-    python montage.py ./inputs/1 ./outputs/1
-"""
-
 from astropy import units as u
-import argparse
 from pathlib import Path
 import numpy as np
 from astropy.io import fits
@@ -25,10 +8,6 @@ from reproject.mosaicking import find_optimal_celestial_wcs
 from astropy.visualization import ZScaleInterval, AsinhStretch, ImageNormalize
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-import sys
-from io import BytesIO
-import cloudpickle
-import tempfile
 import os
 
 # ---------- Step 1: mImgtbl ----------
@@ -124,11 +103,11 @@ def save_results(mosaic, target_wcs, out_dir: Path):
     print(f"[OUTPUT] PNG:  {png_fp}")
 
 
-parser = argparse.ArgumentParser(description="Windows-friendly Montage workflow clone")
-input_dir = sys.argv[1]
-output_dir = sys.argv[2]
+input_dir = "../_inputs/montage_heavy/"
+# input_dir = "../_inputs/montage_light/"
+output_dir = "./montage_output/"
 pattern = "*.fits"
-pixscale = None
+pixscale = 0.5
 method = "median"
 
 out_dir = Path(output_dir)

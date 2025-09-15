@@ -1,0 +1,663 @@
+{
+  "dag_name": "final_report",
+  "total_tasks": 32,
+  "root_count": 16,
+  "hierarchical_tasks": [
+    {
+      "id": "word_count_chunk+93d74663-70f0-4506-b83c-05b0b95f2e73",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+      "children": [
+        {
+          "id": "merge_counts+ad61baa6-e07f-46fe-a2b3-9cd4b82f209c",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+          "children": [
+            {
+              "id": "merge_counts+457bc3b2-a2e8-455d-b6a9-3ebdaf02e716",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+3facbc9e-29cd-42e0-a323-ac2d4917ce29",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "60ec65553a814e9e8c7453a9b0ecb578",
+      "children": [
+        {
+          "id": "merge_counts+ad61baa6-e07f-46fe-a2b3-9cd4b82f209c",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+          "children": [
+            {
+              "id": "merge_counts+457bc3b2-a2e8-455d-b6a9-3ebdaf02e716",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+53979214-2423-4863-adba-d2909a93202e",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "302a72ff738149f6928d92eabfc035c6",
+      "children": [
+        {
+          "id": "merge_counts+7dcda69f-c1d4-49de-a1f2-2ac5ae012de6",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "302a72ff738149f6928d92eabfc035c6",
+          "children": [
+            {
+              "id": "merge_counts+457bc3b2-a2e8-455d-b6a9-3ebdaf02e716",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+8715de90-509d-4c2a-86af-7570d642b951",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "d5e491470787497abc891a0c8cbcf401",
+      "children": [
+        {
+          "id": "merge_counts+7dcda69f-c1d4-49de-a1f2-2ac5ae012de6",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "302a72ff738149f6928d92eabfc035c6",
+          "children": [
+            {
+              "id": "merge_counts+457bc3b2-a2e8-455d-b6a9-3ebdaf02e716",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+c0058601-bd7d-48f2-bd75-76b08a977535",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+      "children": [
+        {
+          "id": "merge_counts+5754e0f4-5afb-4aab-b230-57ab616a0d29",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+          "children": [
+            {
+              "id": "merge_counts+b2bf5667-53c9-4fd8-9e0d-ef5e0c6a8887",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+177c5b6c-ed7d-41f7-9e3b-67ae409db526",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "614d21081fad45cfad70a20d8a9a6bf4",
+      "children": [
+        {
+          "id": "merge_counts+5754e0f4-5afb-4aab-b230-57ab616a0d29",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+          "children": [
+            {
+              "id": "merge_counts+b2bf5667-53c9-4fd8-9e0d-ef5e0c6a8887",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+403cfdd3-6ad1-4a5c-b510-5fbd27209777",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "28d8701a7dd2421ca064cc773391db45",
+      "children": [
+        {
+          "id": "merge_counts+b22424cc-acc8-473f-bf8d-5a120bbfc99e",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "28d8701a7dd2421ca064cc773391db45",
+          "children": [
+            {
+              "id": "merge_counts+b2bf5667-53c9-4fd8-9e0d-ef5e0c6a8887",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+e3503564-258b-45a3-865d-11fd7b29f26a",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "ef52b2e0dbc6458795f044dae5a40b2d",
+      "children": [
+        {
+          "id": "merge_counts+b22424cc-acc8-473f-bf8d-5a120bbfc99e",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "28d8701a7dd2421ca064cc773391db45",
+          "children": [
+            {
+              "id": "merge_counts+b2bf5667-53c9-4fd8-9e0d-ef5e0c6a8887",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "6324fa739db04692a60f279536cffcac",
+              "children": [
+                {
+                  "id": "merge_counts+a59030ad-1ab9-41e6-9d61-ff06a1ff14eb",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+bff46461-9012-4079-82a6-959124f1070e",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+      "children": [
+        {
+          "id": "merge_counts+8f508f7a-8099-47d0-a21e-a680ffedf8ce",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+          "children": [
+            {
+              "id": "merge_counts+1d217d53-833a-469f-ad29-0764711d6d2d",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+cd96c8c4-d59e-47f4-89f8-2e70e380cd2d",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "a8eb9011f619486caa3c40072717d8d3",
+      "children": [
+        {
+          "id": "merge_counts+8f508f7a-8099-47d0-a21e-a680ffedf8ce",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+          "children": [
+            {
+              "id": "merge_counts+1d217d53-833a-469f-ad29-0764711d6d2d",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+aa2793be-b5e6-4167-9848-03044914e8ce",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "261a44ae387c48d8a5aecc131da46aa9",
+      "children": [
+        {
+          "id": "merge_counts+3c2f1890-76ce-431f-aaa7-e4d3ede9cd94",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "261a44ae387c48d8a5aecc131da46aa9",
+          "children": [
+            {
+              "id": "merge_counts+1d217d53-833a-469f-ad29-0764711d6d2d",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+e9ee56b6-0dfe-4dcd-9ebe-69b693a26869",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "85005684589a40cda31b8e23fa5317d4",
+      "children": [
+        {
+          "id": "merge_counts+3c2f1890-76ce-431f-aaa7-e4d3ede9cd94",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "261a44ae387c48d8a5aecc131da46aa9",
+          "children": [
+            {
+              "id": "merge_counts+1d217d53-833a-469f-ad29-0764711d6d2d",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+62b7bc5e-09c4-4324-94a9-0d5494e915fb",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+      "children": [
+        {
+          "id": "merge_counts+c2a7c323-7faf-46a5-9c28-ec4922b0857d",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+          "children": [
+            {
+              "id": "merge_counts+8463544f-16a2-4287-8506-e95c6b61580f",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+301299af-027a-485b-9956-d13b8b76438c",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "fe34e1ac952749328a4f0af62630087f",
+      "children": [
+        {
+          "id": "merge_counts+c2a7c323-7faf-46a5-9c28-ec4922b0857d",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+          "children": [
+            {
+              "id": "merge_counts+8463544f-16a2-4287-8506-e95c6b61580f",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+420de6bb-4fd3-44c7-ba19-5880b1446055",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "228fd375975940d99a41ce2abe4979a3",
+      "children": [
+        {
+          "id": "merge_counts+4b31c630-0655-486f-af5d-a9dc9b43422c",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "228fd375975940d99a41ce2abe4979a3",
+          "children": [
+            {
+              "id": "merge_counts+8463544f-16a2-4287-8506-e95c6b61580f",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "word_count_chunk+c974f92d-c1f0-4266-86de-95a2f4af3cac",
+      "function_name": "word_count_chunk",
+      "assigned_worker_id": "c835c492cdcf4e73b914ea159229ac24",
+      "children": [
+        {
+          "id": "merge_counts+4b31c630-0655-486f-af5d-a9dc9b43422c",
+          "function_name": "merge_counts",
+          "assigned_worker_id": "228fd375975940d99a41ce2abe4979a3",
+          "children": [
+            {
+              "id": "merge_counts+8463544f-16a2-4287-8506-e95c6b61580f",
+              "function_name": "merge_counts",
+              "assigned_worker_id": "9afe9f4d6cff473e81064417b3adaffa",
+              "children": [
+                {
+                  "id": "merge_counts+5bf5d84e-47ae-463c-acd8-e756675dfdee",
+                  "function_name": "merge_counts",
+                  "assigned_worker_id": "d9e171513a094f40b90926191047f704",
+                  "children": [
+                    {
+                      "id": "merge_counts+e92090ec-ae95-4ec4-8026-620676da6098",
+                      "function_name": "merge_counts",
+                      "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                      "children": [
+                        {
+                          "id": "final_report+da750857-9076-405c-b501-cacd1de07c2e",
+                          "function_name": "final_report",
+                          "assigned_worker_id": "0addbcda027143c89c57830102af7619",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

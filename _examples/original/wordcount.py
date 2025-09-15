@@ -1,92 +1,107 @@
-import hashlib
-import json
 import os
 import sys
 import time
-import re
-from collections import Counter
+from typing import List
+
+# Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
 
-# Import common worker configurations
+# Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from common.config import WORKER_CONFIG
 
-def read_and_chunk_text(file_path: str, chunk_size: int) -> list[str]:
-    with open(file_path, 'r', encoding='utf-8') as file:
-        text = file.read()
-    
+
+def _split_text(text: str, num_chunks: int) -> List[str]:
+    """Split text into exactly num_chunks chunks (by words)."""
+    words = text.split()
+    n = len(words)
+    chunk_size = max(1, n // num_chunks)
     chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        
-        # If we're not at the end of the text, adjust end to nearest word boundary
-        if end < len(text):
-            # Look backwards to find a space or punctuation
-            while end > start and not text[end].isspace():
-                end -= 1
-        
-        chunk = text[start:end].strip()
-        
-        if chunk:
-            chunks.append(chunk)
-        
-        start = end
-    
+    for i in range(0, n, chunk_size):
+        chunks.append(" ".join(words[i:i+chunk_size]))
+        if len(chunks) == num_chunks:
+            break
+    while len(chunks) < num_chunks:
+        chunks.append("")
     return chunks
+    
+
+# --- DAG Tasks ---
 
 @DAGTask
-def preprocess_text(text: str) -> list[str]:
-    """
-    1. Convert to lowercase
-    2. Remove punctuation
-    3. Split into words
-    4. Remove empty strings
-    """
-    words = re.findall(r'\b\w+\b', text.lower())
-    return words
+def word_count_chunk(chunk: str) -> int:
+    return len([w for w in chunk.split() if w.strip()])
+
 
 @DAGTask
-def count_words_in_chunk(words: list[str]) -> dict[str, int]:
-    return dict(Counter(words))
+def merge_counts(counts: List[int]) -> int:
+    return sum(counts)
+
 
 @DAGTask
-def merge_word_counts(counts: list[dict[str, int]]) -> dict[str, int]:
-    result = {}
-    for count_dict in counts:
-        for word, count in count_dict.items():
-            result[word] = result.get(word, 0) + count
-    return result
-
-def hash_dict(d):
-    sorted_dict = dict(sorted(d.items()))
-    json_string = json.dumps(sorted_dict, sort_keys=True)
-    return hashlib.sha256(json_string.encode()).hexdigest()
+def final_report(total_count: int) -> str:
+    return f"Total word count: {total_count}"
 
 
-INPUT_FILE = os.path.join("..", "_inputs", "shakespeare.txt")
-OUTPUT_FILE = os.path.join("..", "_outputs", "word_frequencies.txt")
-# CHUNK_SIZE = 10_000
-CHUNK_SIZE = 10_000_000 # results in 6 chunks
+# --- Define Workflow ---
 
-# ! Not part of the workflow (not a DAGTask, as the number of chunks is dynamic)
-text_chunks = read_and_chunk_text(INPUT_FILE, CHUNK_SIZE)
-print(f"Number of chunks: {len(text_chunks)}")
+NUMBER_OF_CHUNKS = 16
 
-word_lists = [preprocess_text(chunk) for chunk in text_chunks]
-word_counts = [count_words_in_chunk(words) for words in word_lists]
-final_word_count = merge_word_counts(word_counts)
+input_file = "../_inputs/shakespeare.txt"
+with open(input_file, "r", encoding="utf-8") as f:
+    text_data = f.read()
+
+chunks = _split_text(text_data, NUMBER_OF_CHUNKS)
+
+# Fan-out: NUMBER_OF_CHUNKS parallel word count tasks
+wc1 = word_count_chunk(chunks[0])
+wc2 = word_count_chunk(chunks[1])
+wc3 = word_count_chunk(chunks[2])
+wc4 = word_count_chunk(chunks[3])
+wc5 = word_count_chunk(chunks[4])
+wc6 = word_count_chunk(chunks[5])
+wc7 = word_count_chunk(chunks[6])
+wc8 = word_count_chunk(chunks[7])
+wc9 = word_count_chunk(chunks[8])
+wc10 = word_count_chunk(chunks[9])
+wc11 = word_count_chunk(chunks[10])
+wc12 = word_count_chunk(chunks[11])
+wc13 = word_count_chunk(chunks[12])
+wc14 = word_count_chunk(chunks[13])
+wc15 = word_count_chunk(chunks[14])
+wc16 = word_count_chunk(chunks[15])
+
+# Level 1 merges (8 pairs)
+m1 = merge_counts([wc1, wc2])
+m2 = merge_counts([wc3, wc4])
+m3 = merge_counts([wc5, wc6])
+m4 = merge_counts([wc7, wc8])
+m5 = merge_counts([wc9, wc10])
+m6 = merge_counts([wc11, wc12])
+m7 = merge_counts([wc13, wc14])
+m8 = merge_counts([wc15, wc16])
+
+# Level 2 merges (4 groups)
+m9  = merge_counts([m1, m2])
+m10 = merge_counts([m3, m4])
+m11 = merge_counts([m5, m6])
+m12 = merge_counts([m7, m8])
+
+# Level 3 merges (2 groups)
+m13 = merge_counts([m9, m10])
+m14 = merge_counts([m11, m12])
+
+# Level 4 merge (root)
+m15 = merge_counts([m13, m14])
+
+# Sink
+report = final_report(m15)
+
+# --- Run workflow ---
+# report.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "progressive_wordcount"), open_after=True)
+# exit()
 
 start_time = time.time()
-result = final_word_count.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
-
-# with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
-#     outfile.write(str(result))
-
-print(f"Wordcount Hash: {hash_dict(result)} | User Waited: {time.time() - start_time}s")
-
-# top_10 = sorted(result.items(), key=lambda x: x[1], reverse=True)[:10]
-# print("\nTop 10 Words:")
-# for word, count in top_10:
-#     print(f"{word}: {count}")
+result = report.compute(dag_name="wordcount", config=WORKER_CONFIG, open_dashboard=False)
+print(f"{result} | Makespan: {time.time() - start_time:.3f}s")

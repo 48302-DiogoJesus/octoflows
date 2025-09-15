@@ -56,7 +56,6 @@ def determine_chunks_amount(image_data: bytes) -> int:
     return min(width // 64, 10)
 
 
-@DAGTask(forced_optimizations=[PreLoadOptimization()])
 def split_image(image_data: bytes, num_chunks: int) -> list[bytes]:
     """Split the image into chunks and return as list of bytes"""
     image = Image.open(io.BytesIO(image_data))
@@ -122,7 +121,7 @@ def blur_image_part(chunk_data: bytes, blur_radius: int = 3) -> bytes:
     return byte_arr.getvalue()
 
 
-@DAGTask
+@DAGTask(forced_optimizations=[PreLoadOptimization()])
 def merge_image_parts(processed_chunks: list[bytes]) -> bytes:
     """Combine processed image chunks back into one image"""
     images = [Image.open(io.BytesIO(chunk)) for chunk in processed_chunks]
@@ -139,13 +138,9 @@ image_data: bytes = open("../_inputs/test_image.jpg", "rb").read()
 num_chunks = 8
 
 chunks = split_image(image_data, num_chunks)
-chunks_result = chunks.compute(
-    dag_name="image_processing_split", 
-    config=WORKER_CONFIG
-)
 
 processed_chunks = []
-for chunk in chunks_result:
+for chunk in chunks:
     blurred = blur_image_part(chunk, blur_radius=2)
     grayscaled = grayscale_image_part(blurred)
     processed_chunks.append(grayscaled)
