@@ -1,0 +1,1095 @@
+{
+  "dag_name": "merge_chunks_grid",
+  "total_tasks": 113,
+  "root_count": 32,
+  "hierarchical_tasks": [
+    {
+      "id": "resize_chunk+615f0e12-f732-4ff0-b331-508ff1e6acf3",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+      "children": [
+        {
+          "id": "blur_chunk+b2b9a919-2678-4a38-8dcb-1247efb5056f",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+          "children": [
+            {
+              "id": "normalize_chunk+686d1be7-bb02-467a-91f2-35c79f4449ac",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+              "children": [
+                {
+                  "id": "sepia_chunk+176ba058-b7f2-43ac-af76-2f08ba5a88b5",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": [
+                    {
+                      "id": "combine_chunk+fdf6ff30-27bf-4e6b-ba01-15dee1437ddf",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+dd0949ca-f3f8-448b-b441-31158ad8ca28",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "5570c711155d40d0a9d94e67dbe87716",
+      "children": [
+        {
+          "id": "sharpen_chunk+8eea22e7-32c2-4547-9dc5-ba07cbd4c79c",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "5570c711155d40d0a9d94e67dbe87716",
+          "children": [
+            {
+              "id": "combine_chunk+fdf6ff30-27bf-4e6b-ba01-15dee1437ddf",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+383187a9-16c4-4f97-97e0-4964cec695aa",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+      "children": [
+        {
+          "id": "blur_chunk+71b7e877-14f1-4ef7-abee-6b53dc77fa70",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+          "children": [
+            {
+              "id": "normalize_chunk+f643b89b-9544-42df-a372-fae1b3539938",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+              "children": [
+                {
+                  "id": "sepia_chunk+c1e6ef2f-9fc3-4e80-9cef-8337b8bffaa4",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+                  "children": [
+                    {
+                      "id": "combine_chunk+2d456553-7022-44d8-966f-38d2247f2c0a",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+2b78b078-9944-42a8-9cce-f1479d33523d",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "fc7eccbaf31446d8b5016f5a60b35adc",
+      "children": [
+        {
+          "id": "sharpen_chunk+f00ede1e-d89e-485b-8dc4-f3cd8838fd1f",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "fc7eccbaf31446d8b5016f5a60b35adc",
+          "children": [
+            {
+              "id": "combine_chunk+2d456553-7022-44d8-966f-38d2247f2c0a",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "d322706fcb65439c9b4c1bec45745401",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+3a6178ac-3264-48b8-aef9-83e21ee9a9ee",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+      "children": [
+        {
+          "id": "blur_chunk+aacc12d5-421a-4edf-8134-0290163af05d",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+          "children": [
+            {
+              "id": "normalize_chunk+a8c2e26c-5f44-41ec-8848-c44d39fdd3a5",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+              "children": [
+                {
+                  "id": "sepia_chunk+812668bd-edc5-4732-b077-84ccfdbab6f9",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+                  "children": [
+                    {
+                      "id": "combine_chunk+b7bf049d-1470-4db5-b370-e37fd97e980a",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+b96959e3-9472-4ae8-bc23-a444c1792f4b",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "190fdd4f6ead4a74b7337ef7fd5c31ed",
+      "children": [
+        {
+          "id": "sharpen_chunk+40c9fe6d-9155-4bc3-ba60-8e41671233d7",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "190fdd4f6ead4a74b7337ef7fd5c31ed",
+          "children": [
+            {
+              "id": "combine_chunk+b7bf049d-1470-4db5-b370-e37fd97e980a",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "9f902dd4f88d4ea5abceba3115894a07",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+52a8d8e5-2ddd-4813-84d6-550da4175228",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+      "children": [
+        {
+          "id": "blur_chunk+be9d835f-d6e0-4889-8c86-46364121a4a6",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+          "children": [
+            {
+              "id": "normalize_chunk+6a7dd850-3a0d-46ee-b6fe-902ad522cc98",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+              "children": [
+                {
+                  "id": "sepia_chunk+d59b78e7-e7cc-48e9-830b-9e6cc140f2b8",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+                  "children": [
+                    {
+                      "id": "combine_chunk+d99c524b-d8ac-4123-bf2a-55bb0bf9272e",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+efaba289-d960-4699-9730-ec718df15699",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "156f4b3943704bd3993d1bdbdfb616d0",
+      "children": [
+        {
+          "id": "sharpen_chunk+3375dce7-f559-4988-965e-df88c2bccfbd",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "156f4b3943704bd3993d1bdbdfb616d0",
+          "children": [
+            {
+              "id": "combine_chunk+d99c524b-d8ac-4123-bf2a-55bb0bf9272e",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "1862bafcb9d24b46b8b7abc2a5aa87c3",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+c099c98b-cf55-48c0-96ae-00bd8984b14f",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+      "children": [
+        {
+          "id": "blur_chunk+50989175-d93a-4206-9623-8fb87ff92f20",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+          "children": [
+            {
+              "id": "normalize_chunk+0bc1d966-9ceb-4a7a-82a7-da21bcda1e79",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+              "children": [
+                {
+                  "id": "sepia_chunk+a9854885-5758-4bc5-8644-d7b9d1140d3d",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+                  "children": [
+                    {
+                      "id": "combine_chunk+3a5eda0b-72bf-4f7b-88b3-2cfe548f5e9e",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+28e5bd94-30ec-451e-800f-961f389c573b",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "57c91470305141e9a3a237110bf5a9a6",
+      "children": [
+        {
+          "id": "sharpen_chunk+30cbe200-17e8-4f74-9f5d-456eab9d0ab9",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "57c91470305141e9a3a237110bf5a9a6",
+          "children": [
+            {
+              "id": "combine_chunk+3a5eda0b-72bf-4f7b-88b3-2cfe548f5e9e",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "801be9e750e24fc5965dcef781e32546",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+4322293a-a2ff-4270-a782-eb7a3216ed3e",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+      "children": [
+        {
+          "id": "blur_chunk+4c27740b-bd94-40b1-ab49-45cc4d50dc54",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+          "children": [
+            {
+              "id": "normalize_chunk+d173a1b1-37d9-47a9-a72b-ac48882423cc",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+              "children": [
+                {
+                  "id": "sepia_chunk+171f675e-6372-4dec-88af-ed0b4a86a948",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+                  "children": [
+                    {
+                      "id": "combine_chunk+a2b869de-7ce3-4a92-aeb6-3598f00fea95",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+707051f6-0572-4f5e-be67-f428a65f5652",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "946318987a9b4b71bf4012b09ec5c83d",
+      "children": [
+        {
+          "id": "sharpen_chunk+c10524d7-eaa4-4fca-8d8f-821ea1ae6ff1",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "946318987a9b4b71bf4012b09ec5c83d",
+          "children": [
+            {
+              "id": "combine_chunk+a2b869de-7ce3-4a92-aeb6-3598f00fea95",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "ae7c7e3c8d654ec09c8c605b184dca38",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+f902737b-5954-4133-b612-364cf7309576",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+      "children": [
+        {
+          "id": "blur_chunk+f6699efa-b5d5-4844-a0c9-92dd21c5ff21",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+          "children": [
+            {
+              "id": "normalize_chunk+4213459b-b63b-429d-b620-8f3263256445",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+              "children": [
+                {
+                  "id": "sepia_chunk+0db2ca72-306b-485b-a1b8-d6949a86fce2",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+                  "children": [
+                    {
+                      "id": "combine_chunk+1a6b2bfa-029e-45a5-9a84-64441bf49fec",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+f104fc84-6abf-4571-9397-f90b920d9639",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "c1e01921cc8d467faccc3a50137ea6ad",
+      "children": [
+        {
+          "id": "sharpen_chunk+bafa1129-e387-4b53-9571-6723080ecbbd",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "c1e01921cc8d467faccc3a50137ea6ad",
+          "children": [
+            {
+              "id": "combine_chunk+1a6b2bfa-029e-45a5-9a84-64441bf49fec",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "dc863c7fd50c479bbaeab07766464bdf",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+122881ea-32ae-4ad5-861e-2d0467691891",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+      "children": [
+        {
+          "id": "blur_chunk+4a4fbe98-c399-443f-8361-63eb6b736c1a",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+          "children": [
+            {
+              "id": "normalize_chunk+2e42a952-a8c4-4f80-8d22-181e36fb5708",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+              "children": [
+                {
+                  "id": "sepia_chunk+f9e489b0-4cea-4e6e-809c-58761accac86",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+                  "children": [
+                    {
+                      "id": "combine_chunk+0f94107d-3b59-4279-8209-83381ab0f7da",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+025ae5ea-5df4-4797-913e-fcc5de201f0a",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "7790cdd494ca4d1081b9ee7bc2c9aa62",
+      "children": [
+        {
+          "id": "sharpen_chunk+c77c9e59-e669-44ad-944c-17cf3513dc51",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "7790cdd494ca4d1081b9ee7bc2c9aa62",
+          "children": [
+            {
+              "id": "combine_chunk+0f94107d-3b59-4279-8209-83381ab0f7da",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "e5d5e2bd468641bda12eacc446d25f59",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+0f733e6d-3e19-4b2e-b18f-33a2f3c6f777",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+      "children": [
+        {
+          "id": "blur_chunk+680ca72e-869a-42bf-bdb7-7416445a9596",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+          "children": [
+            {
+              "id": "normalize_chunk+59276d92-eaaf-42e3-9c67-9d966099c4f2",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+              "children": [
+                {
+                  "id": "sepia_chunk+f8090af3-e1fc-4633-8af1-e7df94834c66",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+                  "children": [
+                    {
+                      "id": "combine_chunk+5dec030a-911a-4795-89a2-8fa5a751e4bd",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+09a92c5d-4fc0-4ffc-b9af-846a61cdbfa5",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "073cc7189df4452db6b3b0b4632542ba",
+      "children": [
+        {
+          "id": "sharpen_chunk+c83dc1d0-9c9b-41b0-9be0-b58e0e1a99ef",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "073cc7189df4452db6b3b0b4632542ba",
+          "children": [
+            {
+              "id": "combine_chunk+5dec030a-911a-4795-89a2-8fa5a751e4bd",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "570181fc146d43cd9d5936880d181fd2",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+5cd91222-1a3a-4f26-b601-1c42c47cddf7",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+      "children": [
+        {
+          "id": "blur_chunk+7cdda8c8-a5c3-498f-905d-7737b8ecc214",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+          "children": [
+            {
+              "id": "normalize_chunk+85c28bd9-b14d-4571-bbd8-afefb7c517ae",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+              "children": [
+                {
+                  "id": "sepia_chunk+2a07500e-a16a-4ce2-befc-cdf8a1a82bad",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+                  "children": [
+                    {
+                      "id": "combine_chunk+a89d9ae7-58ec-4f2c-8e69-1003d2156fb3",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+79eb6b51-b0dd-4766-83fc-f08fb7a82d75",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "1c2e4caeb3f54979abbcd0a88fd18cd8",
+      "children": [
+        {
+          "id": "sharpen_chunk+f5b65a6d-1cef-4213-b7c2-6e9a699d75b7",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "1c2e4caeb3f54979abbcd0a88fd18cd8",
+          "children": [
+            {
+              "id": "combine_chunk+a89d9ae7-58ec-4f2c-8e69-1003d2156fb3",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "d7cfd50e5bd5488dba32b6142a00feb6",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+0f60a452-c8e9-4023-889a-d5342777a4ab",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+      "children": [
+        {
+          "id": "blur_chunk+db9f9f67-c904-44f8-8617-1ef3a92d6a42",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+          "children": [
+            {
+              "id": "normalize_chunk+d5ced6cc-add0-401e-a00f-415e52945569",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+              "children": [
+                {
+                  "id": "sepia_chunk+ad895807-4911-4f4a-adf9-61d8454679a7",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+                  "children": [
+                    {
+                      "id": "combine_chunk+75b42ed4-597a-4afe-a21b-24909ff40670",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+97ccee93-abf9-4c51-8faf-a33e671a338f",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "738c07eae0a74f82ac1831a39796f200",
+      "children": [
+        {
+          "id": "sharpen_chunk+1ecabe47-7486-4d99-8490-bd6395c53096",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "738c07eae0a74f82ac1831a39796f200",
+          "children": [
+            {
+              "id": "combine_chunk+75b42ed4-597a-4afe-a21b-24909ff40670",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "51ff2c50258b4b2ba50460c8bcc5ed64",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+afd88a3d-3277-4cd0-aa48-f68382e84a32",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+      "children": [
+        {
+          "id": "blur_chunk+f8a2c9bb-5826-4c49-89a0-b92b285a305b",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+          "children": [
+            {
+              "id": "normalize_chunk+47c76aae-ee78-4e63-adc2-c67e5c2ab0f4",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+              "children": [
+                {
+                  "id": "sepia_chunk+103eed07-0de7-4b4f-922b-4f9ea9ee828f",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+                  "children": [
+                    {
+                      "id": "combine_chunk+8a361e9e-4174-4b7d-8dbe-2043b521132e",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+a137e4d8-3415-495d-a0df-61a033c26959",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "cd35696874224ad5ac9af587497a6332",
+      "children": [
+        {
+          "id": "sharpen_chunk+dcb82297-d5dc-40da-a0c3-58c6b489792f",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "cd35696874224ad5ac9af587497a6332",
+          "children": [
+            {
+              "id": "combine_chunk+8a361e9e-4174-4b7d-8dbe-2043b521132e",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "e2119e9f408b4e7fa26f26b6b5caac58",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+d819d4f4-0fc1-4ec3-bb89-de150cf16af8",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+      "children": [
+        {
+          "id": "blur_chunk+93de804d-461d-468f-9a28-747c7c834577",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+          "children": [
+            {
+              "id": "normalize_chunk+37ec3967-de66-4e7b-95d0-f9915d849736",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+              "children": [
+                {
+                  "id": "sepia_chunk+6201b8cb-71d0-49fc-a387-b6cb9dc31f85",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+                  "children": [
+                    {
+                      "id": "combine_chunk+79ba856e-cd46-45fb-bc8e-a9ec875273d7",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+fbe7d58a-68a1-441e-877e-940f208558c4",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "81eea5e8226a4517b4ba38a7b0119232",
+      "children": [
+        {
+          "id": "sharpen_chunk+6fde8cbf-d56d-4190-99ad-4433997c9e96",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "81eea5e8226a4517b4ba38a7b0119232",
+          "children": [
+            {
+              "id": "combine_chunk+79ba856e-cd46-45fb-bc8e-a9ec875273d7",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "191beae608ce4466ae458c2c70ad6524",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+55cea818-f6f9-4e35-a439-5fa13e2e85aa",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+      "children": [
+        {
+          "id": "blur_chunk+3172d19f-7121-4dcd-98a3-ede2c8f73bdd",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+          "children": [
+            {
+              "id": "normalize_chunk+4356d1dd-cbb7-4e23-b3af-3c72ea8e27c4",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+              "children": [
+                {
+                  "id": "sepia_chunk+39d680fb-3e66-4751-a26c-1a7397c199df",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+                  "children": [
+                    {
+                      "id": "combine_chunk+b0b5d4d8-3f59-4b18-b34f-04978e7d2cc1",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+7b122feb-899b-4b5f-aca1-224162ca6ae3",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "3a9ff13132564206b73338a3b8ce907a",
+      "children": [
+        {
+          "id": "sharpen_chunk+655e56ab-59f2-4bfb-9a50-dfe75a965efd",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "3a9ff13132564206b73338a3b8ce907a",
+          "children": [
+            {
+              "id": "combine_chunk+b0b5d4d8-3f59-4b18-b34f-04978e7d2cc1",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "da9781b9fba84bc4b17b168ea76a37ed",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+82cd30f2-ac3e-4ea4-be6a-57be1c5abaeb",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+      "children": [
+        {
+          "id": "blur_chunk+69cce5f8-0842-4744-8ea1-70ca1c1bb082",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+          "children": [
+            {
+              "id": "normalize_chunk+cf02695c-0425-4714-8f3b-e3d3771d7277",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+              "children": [
+                {
+                  "id": "sepia_chunk+2592e4d8-f586-4615-a796-32f6f2f94c15",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+                  "children": [
+                    {
+                      "id": "combine_chunk+97749bf0-c922-4b31-aafe-f05b62d95ead",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+abb21aff-d9a7-4145-9fd7-7ab842a7b020",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "7b0a91a9cf0542b9b9a0235e449d8ae7",
+      "children": [
+        {
+          "id": "sharpen_chunk+9736693f-2e0d-40af-80f7-b80550896cdb",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "7b0a91a9cf0542b9b9a0235e449d8ae7",
+          "children": [
+            {
+              "id": "combine_chunk+97749bf0-c922-4b31-aafe-f05b62d95ead",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "ff3d56c8fd9a45d1bd41324d1a89ec23",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resize_chunk+85461924-b6a7-4488-84a8-ee6752ffa7f2",
+      "function_name": "resize_chunk",
+      "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+      "children": [
+        {
+          "id": "blur_chunk+6679140b-5457-47e1-8de2-5b67ea1dce03",
+          "function_name": "blur_chunk",
+          "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+          "children": [
+            {
+              "id": "normalize_chunk+0e456856-2bea-4284-99d0-c3c001610434",
+              "function_name": "normalize_chunk",
+              "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+              "children": [
+                {
+                  "id": "sepia_chunk+bbe53b64-eddd-413c-a051-9efc90c1237f",
+                  "function_name": "sepia_chunk",
+                  "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+                  "children": [
+                    {
+                      "id": "combine_chunk+3f0e50e0-2023-456a-9504-2c2e59f4a942",
+                      "function_name": "combine_chunk",
+                      "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+                      "children": [
+                        {
+                          "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                          "function_name": "merge_chunks_grid",
+                          "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "edge_detect_chunk+ac73335b-cb10-49d5-ba21-543b2fa5f9c7",
+      "function_name": "edge_detect_chunk",
+      "assigned_worker_id": "b63b47caff4f43f189ce7f4b65cfdef9",
+      "children": [
+        {
+          "id": "sharpen_chunk+252f85ae-6013-4814-97db-c448a10096df",
+          "function_name": "sharpen_chunk",
+          "assigned_worker_id": "b63b47caff4f43f189ce7f4b65cfdef9",
+          "children": [
+            {
+              "id": "combine_chunk+3f0e50e0-2023-456a-9504-2c2e59f4a942",
+              "function_name": "combine_chunk",
+              "assigned_worker_id": "931f9cb2772d41fb812084898735179b",
+              "children": [
+                {
+                  "id": "merge_chunks_grid+c6b251b5-114e-46b4-ad7a-996b0d069bf3",
+                  "function_name": "merge_chunks_grid",
+                  "assigned_worker_id": "8085c8e4c20f42e39df06bd4d5f9485a",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

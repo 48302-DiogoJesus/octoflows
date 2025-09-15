@@ -63,7 +63,8 @@ class DAGTaskNode(Generic[R]):
             update_dependency_counters_time_ms=None,
             output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, tp_time_ms=None),
             total_invocations_count=0,
-            total_invocation_time_ms=None
+            total_invocation_time_ms=None,
+            planner_used_name=None
         )
         self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         # Initialized with a dummy worker config annotation for local worker

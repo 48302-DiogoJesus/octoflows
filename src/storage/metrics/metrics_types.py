@@ -53,6 +53,8 @@ class TaskMetrics:
     total_invocations_count: int
     total_invocation_time_ms: float | None
 
+    planner_used_name: str | None
+
 
 @dataclass
 class WorkerStartupMetrics:

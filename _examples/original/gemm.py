@@ -83,9 +83,10 @@ print(f"Created {len(partial_results)} partial results in {time.time() - start_t
 
 distributed_result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1]))
 
-# distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
+distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
+exit()
 
 start_time = time.time()
 distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False)
-print(f"GEMM completed in {time.time() - start_time:.4f} seconds")
+print(f"Result: {distributed_result} | User waited: {time.time() - start_time:.2f}s")
 print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)}")

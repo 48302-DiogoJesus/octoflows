@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-"""
-parallel_montage_workflow.py — Parallelized Montage-like FITS mosaicking workflow using DAG tasks.
-
-This version handles binary data directly instead of file paths and creates a cleaner dependency graph:
- 1) scan_fits_task          — Scan directory, collect file binary data
- 2) extract_and_reproject_task — Extract WCS, compute local header, and reproject (parallel)
- 3) background_correct_task — Apply background correction to individual images (parallel)
- 4) coadd_task             — Co-add all corrected images into final mosaic
- 5) save_results_task      — Save FITS and PNG outputs
-"""
-
 from astropy import units as u
 from pathlib import Path
 import numpy as np
@@ -19,10 +7,10 @@ from reproject import reproject_interp
 from reproject.mosaicking import find_optimal_celestial_wcs
 from astropy.visualization import ZScaleInterval, AsinhStretch, ImageNormalize
 import matplotlib.pyplot as plt
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple
 import os
 import sys
-from io import BytesIO
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
@@ -204,10 +192,12 @@ for reproj_data in reprojected_data_list:
 # Task 5: Co-add all images
 final_mosaic = coadd_task(corrected_data_list, METHOD)
 
-# final_mosaic.visualize_dag(output_file=os.path.join("_dag_visualization", "montage"), open_after=False)
-
+final_mosaic.visualize_dag(output_file=os.path.join("_dag_visualization", "montage"), open_after=False)
+exit()
 # Compute the DAG
+start_time = time.time()
 final_mosaic = final_mosaic.compute(dag_name="montage", config=WORKER_CONFIG, open_dashboard=False)
+print(f"User waited: {time.time() - start_time:.3f}s")
 
 # Task 6: Save results locally
-_local_save_results_task(final_mosaic, output_dir)
+# _local_save_results_task(final_mosaic, output_dir)

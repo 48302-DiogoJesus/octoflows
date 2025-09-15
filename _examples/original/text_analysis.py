@@ -143,9 +143,10 @@ feature_report = report_features(ranked)
 # final sink
 report = final_report(word_stats, feature_report)
 
-# report.visualize_dag(output_file=os.path.join("_dag_visualization", "text_analysis"), open_after=False)
+report.visualize_dag(output_file=os.path.join("_dag_visualization", "text_analysis"), open_after=False)
+exit()
 
 # --- Run workflow ---
 start_time = time.time()
 result = report.compute(dag_name="text_analysis", config=WORKER_CONFIG)
-print(f"Final Text Analysis Report: {result} | User waited: {time.time() - start_time:.3f}s")
+print(f"Result: {result} | User waited: {time.time() - start_time:.3f}s")

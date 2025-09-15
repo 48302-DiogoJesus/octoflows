@@ -1,14 +1,3 @@
-- move montage workflow stuff to _inputs and _outputs folder
-
-- Test montage converted alone with hardcoded inputs
-    Try montage with multiple small files instead of just one .fits file
-
-- Run all 4 workflows (10 iterations each) to see which have better results
-
-- Run the best 2 workflows (20 iterations each)
-    - then run more if necessary
-
-
 - [TODO] Update dashboards:
     Compare SLAs ("global"):
     - success rate (percentage of workflows that finished below the SLA)

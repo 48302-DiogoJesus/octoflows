@@ -1,0 +1,27 @@
+{
+  "dag_name": "coadd_task",
+  "total_tasks": 3,
+  "root_count": 1,
+  "hierarchical_tasks": [
+    {
+      "id": "extract_and_reproject_task+0b29c913-7591-4fbf-9a25-20377d078877",
+      "function_name": "extract_and_reproject_task",
+      "assigned_worker_id": "Flexible",
+      "children": [
+        {
+          "id": "background_correct_task+27621987-0636-493a-935e-e218c50d144d",
+          "function_name": "background_correct_task",
+          "assigned_worker_id": "Flexible",
+          "children": [
+            {
+              "id": "coadd_task+a7c4428c-68bc-4f38-853d-7424c61026cc",
+              "function_name": "coadd_task",
+              "assigned_worker_id": "Flexible",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

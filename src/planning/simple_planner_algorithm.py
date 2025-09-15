@@ -42,7 +42,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.worker_config = unique_resources
             self._store_plan_image(dag)
-            self._store_plan_as_json(dag)
+            # self._store_plan_as_json(dag)
             return
         
         # Give same resources to all nodes and assign worker ids

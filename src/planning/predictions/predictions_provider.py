@@ -42,10 +42,10 @@ class PredictionsProvider:
     async def load_metrics_from_storage(self, planner_name: str):
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
 
+        timer = Timer()
         generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
         worker_startup_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
-        timer = Timer()
         same_workflow_same_planner_type_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
@@ -54,11 +54,8 @@ class PredictionsProvider:
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
             if self.dag_structure_hash in task_id:
-                _, _ , master_dag_id = self._split_task_id(task_id)
-                plan_output: AbstractDAGPlanner.PlanOutput | None = await self.metrics_storage.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{master_dag_id}") # type: ignore
-                if plan_output and plan_output.planner_name != planner_name:
-                    continue #! Note: it's not even collecting upload/download information (this is for easier planner comparison only)
-                same_workflow_same_planner_type_metrics[task_id] = metrics
+                if metrics.planner_used_name != planner_name: continue # only metrics grabbed from the same planner are used
+                same_workflow_same_planner_type_metrics[task_id] = metrics 
             
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
@@ -116,7 +113,7 @@ class PredictionsProvider:
             self.cached_serialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
 
         self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
-        logger.info(f"Loaded {len(generic_metrics_values)} metadata entries in {timer.stop()}ms")
+        logger.info(f"Loaded {len(same_workflow_same_planner_type_metrics.keys())}/{len(generic_metrics_keys)} useful metrics in {timer.stop()}ms")
 
     def has_required_predictions(self) -> bool:
         # print("cached upload speeds len: ", len(self.cached_upload_speeds))
@@ -131,8 +128,8 @@ class PredictionsProvider:
 
     def predict_output_size(self, function_name: str, input_size: int , sla: SLA, deserialized: bool = True, allow_cached: bool = True) -> int:
         if input_size < 0: raise ValueError("Input size cannot be negative")
-        if deserialized and function_name not in self.cached_deserialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
-        if not deserialized and function_name not in self.cached_serialized_io_ratios: raise ValueError(f"Function {function_name} not found in metadata")
+        if deserialized and function_name not in self.cached_deserialized_io_ratios: return input_size
+        if not deserialized and function_name not in self.cached_serialized_io_ratios: return input_size
         prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
@@ -295,7 +292,7 @@ class PredictionsProvider:
         if sla != "median" and (sla.value < 0 or sla.value > 100): 
             raise ValueError("SLA must be 'median' or between 0 and 100")
         if function_name not in self.cached_execution_time_per_byte: 
-            raise ValueError(f"Function {function_name} not found in metadata")
+            return 0
         
         prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{size_scaling_factor}"
         if allow_cached and prediction_key in self._cached_prediction_execution_times: 

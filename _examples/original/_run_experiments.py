@@ -4,13 +4,12 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
+    # 'tree_reduction.py',
+    # 'text_analysis.py',
+    # 'wordcount.py',
+    'image_transformer.py',
     'gemm.py',
-    'montage_converted.py',
-    'wordcount.py',
-    'image_transform.py',
-    # 'tree_reduction.py'
-    # 'matrix_multiplications.py',
-    # 'fixed_times.py',
+    'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 5
@@ -35,8 +34,8 @@ def run_experiment(script_path: str, algorithm: str, iteration: str, current: in
         sys.exit(1)
     
     # Small delay between runs to give time for the workers to go cold between diff. workflow runs
-    print(f"Sleeping for {TIME_UNTIL_WORKER_GOES_COLD_S * 1.4} seconds...")
-    time.sleep(TIME_UNTIL_WORKER_GOES_COLD_S * 1.4)
+    print(f"Sleeping for {TIME_UNTIL_WORKER_GOES_COLD_S * 1.8} seconds...")
+    time.sleep(TIME_UNTIL_WORKER_GOES_COLD_S * 1.8)
 
 def main():
     os.environ['TZ'] = 'UTC-1' # Set timezone for log timestamps consistency

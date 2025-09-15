@@ -29,6 +29,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     MAX_FAN_OUT_SIZE_W_SAME_WORKER = 4
     TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
     @dataclass
     class Config(ABC):
         sla: SLA
@@ -105,7 +109,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             return None # no plan was made
         else:
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
-            self._store_plan_as_json(_dag, plan_result.nodes_info)
+            # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
@@ -581,10 +585,10 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 legend.edges([])
         
         # Save to file
-        output_file_name = f"planned_{_dag.dag_name}"
+        output_file_name = f"./_dag_plans/{_dag.dag_name}.png"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
-        print(f"DAG visualization saved to {output_file_name}.png")
+        print(f"DAG visualization saved to {output_file_name}")
         
         return dot
 
@@ -652,7 +656,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         }
         
         # Save to JSON file
-        output_file_name = f"planned_{_dag.dag_name}.json"
+        output_file_name = f"./_dag_plans/{_dag.dag_name}.json"
         with open(output_file_name, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
         
