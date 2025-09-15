@@ -21,7 +21,7 @@ MAX_CONCURRENT_TASKS = 20
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
     logger.warning("Set the DOCKER_IMAGE environment variable to the name of the Docker image to use.")
-    sys.exit(1)
+    sys.exit(3)
 
 DOCKER_IMAGE = DOCKER_IMAGE.strip()
 logger.info(f"Using Docker image: '{DOCKER_IMAGE}'")
@@ -36,19 +36,23 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     This function will be run in a separate thread.
     """
     job_id = str(uuid.uuid4())
+    worker_id = resource_configuration.worker_id
 
     def get_time_formatted():
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
     command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids}"
+    logger.info(f"[{get_time_formatted()}] {job_id}) [INFO] Waiting for container for W({worker_id})")
 
     container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
     try:
         exit_code = container_pool.execute_command_in_container(container_id, command)
-        if exit_code != 0:
-            logger.error(f"[{get_time_formatted()}] {job_id}) [ERROR] Container {container_id} should be available but exit_code={exit_code}")
+        if exit_code == 2:
+            logger.error(f"[{get_time_formatted()}] {job_id}) W({worker_id}) [ERROR] Container {container_id} should be available but another task is using it (this should never happen!)")
+        elif exit_code != 0:
+            logger.error(f"[{get_time_formatted()}] {job_id}) W({worker_id}) [ERROR] Container {container_id} unexpected exit code={exit_code}")
     except Exception as e:
-        logger.error(f"[{get_time_formatted()}] {job_id}) [ERROR] Exception: {e}")
+        logger.error(f"[{get_time_formatted()}] {job_id}) W({worker_id}) [ERROR] Exception: {e}")
     finally:
         container_pool.release_container(container_id)
 

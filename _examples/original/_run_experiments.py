@@ -4,15 +4,15 @@ import time
 import subprocess
 
 WORKFLOWS_PATHS = [
-    # 'tree_reduction.py',
-    # 'text_analysis.py',
-    # 'wordcount.py',
+    'tree_reduction.py',
+    'text_analysis.py',
+    'wordcount.py',
     'image_transformer.py',
     'gemm.py',
     'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 4
 ALGORITHMS = ['simple', 'first', 'second']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
@@ -31,7 +31,7 @@ def run_experiment(script_path: str, algorithm: str, iteration: str, current: in
         subprocess.run(cmd, check=True, cwd=script_dir)
     except subprocess.CalledProcessError as e:
         print(f"Error running {script_path} with {algorithm}: {e}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(-1)
     
     # Small delay between runs to give time for the workers to go cold between diff. workflow runs
     print(f"Sleeping for {TIME_UNTIL_WORKER_GOES_COLD_S * 1.8} seconds...")

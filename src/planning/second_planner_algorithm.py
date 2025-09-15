@@ -371,7 +371,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Successfully downgraded resources for {successful_worker_resources_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
-        logger.info(f"Prediction samples used: {prediction_samples_used}")
+        # logger.info(f"Prediction samples used: {prediction_samples_used}")
 
         return AbstractDAGPlanner.PlanOutput(
             self.__class__.__name__, 

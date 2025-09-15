@@ -21,8 +21,7 @@ while len(L) > 1:
   L = list(map(add, L[0::2], L[1::2]))
 
 sink: DAGTaskNode = L[0] # type: ignore
-sink.visualize_dag(output_file=os.path.join("_dag_visualization", "tree_reduction"), open_after=False)
-exit()
+# sink.visualize_dag(output_file=os.path.join("_dag_visualization", "tree_reduction"), open_after=False)
 
 start_time = time.time()
 result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG, open_dashboard=False)

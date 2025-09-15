@@ -196,6 +196,7 @@ class ContainerPoolExecutor:
     def release_container(self, container_id: str):
         with self.lock:
             self.containers[container_id].is_busy = False # ready to be used again
+            self.condition.notify_all()
 
     def wait_for_container(self, cpus: float, memory: int) -> str:
         """
@@ -219,7 +220,7 @@ class ContainerPoolExecutor:
                 if len(self.containers) >= self.max_containers:
                     # print("(wait_for_container) No container available. Waiting")
                     # Wait for a container to become available. Can't launch new ones
-                    self.condition.wait()
+                    self.condition.wait(timeout=2)
                 else:
                     # Launch a new container
                     logger.info("(wait_for_container) Launching new container")

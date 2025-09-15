@@ -176,7 +176,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 else:
                     upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
                 
-                if upload_output:
+                # if upload_output:
+                if True:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                     self.log(current_task.id.get_full_id(), f"Uploaded Output")

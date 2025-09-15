@@ -16,12 +16,12 @@ def get_planner_from_sys_argv():
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
-        sys.exit(1)
+        sys.exit(-1)
         
     planner_type = sys.argv[1]
     if planner_type not in supported_planners:
         print(f"Unknown planner type: {planner_type}")
-        sys.exit(1)
+        sys.exit(-1)
 
     print(f"Using planner type: {planner_type}")
 

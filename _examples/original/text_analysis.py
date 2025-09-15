@@ -143,8 +143,7 @@ feature_report = report_features(ranked)
 # final sink
 report = final_report(word_stats, feature_report)
 
-report.visualize_dag(output_file=os.path.join("_dag_visualization", "text_analysis"), open_after=False)
-exit()
+# report.visualize_dag(output_file=os.path.join("_dag_visualization", "text_analysis"), open_after=False)
 
 # --- Run workflow ---
 start_time = time.time()

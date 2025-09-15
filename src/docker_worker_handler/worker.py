@@ -200,7 +200,7 @@ async def main():
                 if all(n.worker_config.worker_id == this_worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id)
+                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
                 # Check persistent flags of previous {TASK_READY} events
                 dependencies_satisfied = await wk.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{task.id.get_full_id_in_dag(fulldag)}")
                 if dependencies_satisfied == len(task.upstream_nodes):

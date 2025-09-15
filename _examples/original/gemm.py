@@ -83,8 +83,7 @@ print(f"Created {len(partial_results)} partial results in {time.time() - start_t
 
 distributed_result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1]))
 
-distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
-exit()
+# distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
 
 start_time = time.time()
 distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False)

@@ -98,8 +98,7 @@ m15 = merge_counts([m13, m14])
 # Sink
 report = final_report(m15)
 
-report.visualize_dag(output_file=os.path.join("_dag_visualization", "wordcount"), open_after=False)
-exit()
+# report.visualize_dag(output_file=os.path.join("_dag_visualization", "wordcount"), open_after=False)
 
 # --- Run workflow ---
 start_time = time.time()

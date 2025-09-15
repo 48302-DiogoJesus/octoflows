@@ -89,6 +89,8 @@ class DAGVisualizationDashboard:
 
     def render_agraph(self):
         from streamlit_agraph import agraph, Node, Edge, Config
+        from src.dag.dag import FullDAG
+        from src.dag_task_node import DAGTaskNode
         self.dag: FullDAG = self.dag  # type hint without circular dep
 
         nodes = []
@@ -96,7 +98,7 @@ class DAGVisualizationDashboard:
         node_levels = {}
         visited = set()
 
-        def traverse_dag(node, level=0):
+        def traverse_dag(node: DAGTaskNode, level=0):
             node_id = node.id.get_full_id()
 
             if node_id in visited:
@@ -110,8 +112,12 @@ class DAGVisualizationDashboard:
             # Get last 5 characters of task ID
             task_id_suffix = node_id[-5:] if len(node_id) >= 5 else node_id
             
-            # Create label with function name and task ID suffix on separate lines
-            node_label = f"{node.func_name}\n({task_id_suffix})"
+            # Get worker ID if available
+            worker_id = node.worker_config.worker_id or "N/A"
+            worker_id_suffix = worker_id[-5:] if worker_id != 'N/A' and len(worker_id) >= 5 else worker_id
+            
+            # Create label with function name, task ID suffix, and worker ID on separate lines
+            node_label = f"{node.func_name}\nTask: {task_id_suffix}\nWorker: {worker_id_suffix}"
 
             nodes.append(
                 Node(
