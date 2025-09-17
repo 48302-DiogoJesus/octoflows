@@ -40,7 +40,7 @@ class RedisStorage(storage.Storage):
         self.redis_config = config
         self._connection: Optional[Redis] = None
         self._pubsub = None
-        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.3
+        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.040 # ~20 ms each way (request, response)
         # Changed to store multiple subscriptions per channel
         # Format: {channel: {subscription_id: SubscriptionInfo, ...}}
         self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}

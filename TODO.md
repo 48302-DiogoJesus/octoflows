@@ -1,8 +1,8 @@
-- make SLA configurable in the config.py and make the runexperiments script try diff configs (see slack)
 - latencia manipulada (workers → storage e workers → faas gateway)
+- make SLA configurable in the config.py and make the runexperiments script try diff configs (see slack)
+- Try to reproduce "Tall-and-Skinny QR Factorization" and "Support Vector Classification (SVC)"
 - implement wukong planner
 - simplify simple planner
-- Try to reproduce "Tall-and-Skinny QR Factorization" and "Support Vector Classification (SVC)"
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them

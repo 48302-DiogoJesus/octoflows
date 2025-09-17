@@ -73,7 +73,7 @@ _LOCAL_WORKER_CONFIG = LocalWorker.Config(
 )
 
 _DOCKER_WORKER_CONFIG = DockerWorker.Config(
-    docker_gateway_address="http://localhost:5000",
+    external_docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
     metrics_storage_config=MetricsStorage.Config(storage_config=_REDIS_METRICS_STORAGE_CONFIG),
     planner_config=get_planner_from_sys_argv()

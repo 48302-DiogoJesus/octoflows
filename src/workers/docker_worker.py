@@ -17,7 +17,8 @@ logger = create_logger(__name__)
 class DockerWorker(Worker):
     @dataclass
     class Config(Worker.Config):
-        docker_gateway_address: str = "http://localhost:5000"
+        external_docker_gateway_address: str = "http://localhost:5000"
+        internal_docker_gateway_address: str = "http://host.docker.internal:5000"
         def create_instance(self) -> "DockerWorker": return DockerWorker(self)
 
     docker_config: Config
@@ -29,6 +30,10 @@ class DockerWorker(Worker):
     def __init__(self, config: Config):
         super().__init__(config)
         self.docker_config = config
+        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms
+
+    async def _simulate_network_latency(self) -> None:
+        await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
 
     async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
         '''
@@ -65,7 +70,7 @@ class DockerWorker(Worker):
         async def make_worker_request(worker_id, worker_subdags):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
-            gateway_address = "http://host.docker.internal:5000" if called_by_worker else self.docker_config.docker_gateway_address
+            gateway_address = self.docker_config.internal_docker_gateway_address if called_by_worker else self.docker_config.external_docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
             if self.metrics_storage:
                 await self.metrics_storage.store_invoker_worker_startup_metrics(
@@ -95,6 +100,8 @@ class DockerWorker(Worker):
                         raise Exception(f"Failed to invoke worker: {text}")
                     return response.status
         
+        await self._simulate_network_latency()
+
         # Create a task for each worker_id (grouped requests)
         for worker_id, worker_subdags in tasks_grouped_by_id.items():
             http_tasks.append(make_worker_request(worker_id, worker_subdags))
@@ -110,14 +117,13 @@ class DockerWorker(Worker):
         """
         Sends a warmup request to the worker with the given resource configuration.
         """
-
-        # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
-        gateway_addr = "http://host.docker.internal:5000"
+        await self._simulate_network_latency()
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    gateway_addr + "/warmup",
+                    # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
+                    self.docker_config.internal_docker_gateway_address + "/warmup",
                     data=json.dumps({
                         "resource_configurations": base64.b64encode(cloudpickle.dumps(resource_configurations)).decode('utf-8')
                     }),
