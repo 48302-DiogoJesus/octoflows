@@ -40,6 +40,7 @@ class RedisStorage(storage.Storage):
         self.redis_config = config
         self._connection: Optional[Redis] = None
         self._pubsub = None
+        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.3
         # Changed to store multiple subscriptions per channel
         # Format: {channel: {subscription_id: SubscriptionInfo, ...}}
         self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}
@@ -48,6 +49,9 @@ class RedisStorage(storage.Storage):
         
         # Don't initialize connection immediately to avoid event loop issues
         # Connection will be created lazily when first needed
+
+    async def _simulate_network_latency(self) -> None:
+        await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
         if not skip_verification and await self._verify_connection():
@@ -65,21 +69,25 @@ class RedisStorage(storage.Storage):
             return self._connection
 
     async def get(self, key: str) -> Any:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         if not await conn.exists(key):
             return None
         return await conn.get(key)
 
     async def set(self, key: str, value: Any) -> bool:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.set(key, value)
 
     async def atomic_increment_and_get(self, key: str) -> int:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         # Atomically increment and get the new value
         return await conn.incr(key, amount=1)
 
     async def exists(self, *keys: str) -> int:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.exists(*keys)
     
@@ -117,19 +125,14 @@ class RedisStorage(storage.Storage):
             return False
 
     async def keys(self, pattern: str) -> List[str]:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.keys(pattern)
 
     async def mget(self, keys: List[str]) -> List[Any]:
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.mget(keys)
-
-    async def _get_pubsub(self):
-        """Get or create the PubSub object."""
-        if self._pubsub is None:
-            conn = await self._get_or_create_connection()
-            self._pubsub = conn.pubsub()
-        return self._pubsub
     
     async def publish(self, channel: str, message: Union[str, bytes]) -> int:
         """
@@ -142,6 +145,7 @@ class RedisStorage(storage.Storage):
         Returns:
             Number of clients that received the message
         """
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         logger.info(f"Publishing message to: {channel}")
         return await conn.publish(channel, message)
@@ -160,6 +164,7 @@ class RedisStorage(storage.Storage):
         Returns:
             str: Unique subscription identifier that can be used to unsubscribe this specific callback
         """
+        await self._simulate_network_latency()
         # Generate unique subscription ID
         subscription_id = str(uuid.uuid4())
         
@@ -286,6 +291,7 @@ class RedisStorage(storage.Storage):
                                             message_data["data"] = message_data["data"].decode("utf-8")
                                         
                                         # Call the callback with message and subscription_id
+                                        await self._simulate_network_latency()
                                         if asyncio.iscoroutinefunction(sub_info.callback):
                                             await sub_info.callback(message_data, subscription_id)
                                         else:
@@ -340,6 +346,7 @@ class RedisStorage(storage.Storage):
             Only one of pattern, prefix, or suffix should be True at a time.
             If none are True, performs an exact key match delete.
         """
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         
         # Count how many of the flags are True
@@ -367,6 +374,7 @@ class RedisStorage(storage.Storage):
             return []
             
         # Get Redis connection
+        await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         
         # Create pipeline
@@ -398,39 +406,3 @@ class RedisStorage(storage.Storage):
         # Execute pipeline and return results
         results = await pipe.execute()
         return results
-
-    def get_channel_subscription_count(self, channel: str) -> int:
-        """
-        Get the number of active subscriptions for a channel.
-        
-        Args:
-            channel: The channel name
-            
-        Returns:
-            int: Number of active subscriptions for the channel
-        """
-        return len(self._channel_subscriptions.get(channel, {}))
-
-    def get_all_channels_with_subscriptions(self) -> List[str]:
-        """
-        Get a list of all channels that have active subscriptions.
-        
-        Returns:
-            List[str]: List of channel names with active subscriptions
-        """
-        return list(self._channel_subscriptions.keys())
-
-    def get_subscription_info(self, channel: str, subscription_id: str) -> Optional[SubscriptionInfo]:
-        """
-        Get information about a specific subscription.
-        
-        Args:
-            channel: The channel name
-            subscription_id: The subscription identifier
-            
-        Returns:
-            Optional[SubscriptionInfo]: Subscription information if found, None otherwise
-        """
-        if channel in self._channel_subscriptions:
-            return self._channel_subscriptions[channel].get(subscription_id)
-        return None
