@@ -388,6 +388,7 @@ def main():
                         for idx, row in df_instances.iterrows():
                             metrics = row['_metrics']
                             sla_pct = row['_sla_percentile']
+                            sla_value = row['SLA']
                             
                             # Helper function to format SLA comparison for this instance
                             def format_with_sla(metric_name: str, value: float, unit: str = 's', current_metrics: Dict[str, float] = None) -> str:
@@ -423,8 +424,8 @@ def main():
                                         continue
                                         
                                     try:
-                                        if sla_pct == 50:  # median
-                                            sla_value = float(np.median(all_previous_metrics[metric]))
+                                        if sla_value == "average":
+                                            sla_value = float(np.average(all_previous_metrics[metric]))
                                         else:  # specific percentile
                                             sla_value = float(np.percentile(all_previous_metrics[metric], sla_pct))
                                         current_sla_metrics[metric] = sla_value

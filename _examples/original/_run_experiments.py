@@ -65,8 +65,8 @@ def main():
         print(f"{'='*60}")
         
         # First run to get some history (not counted in progress)
-        print(" > [Initial run] Warming up with 'simple' algorithm and 'median' SLA...")
-        run_experiment(script_name, 'simple', 'median', iteration="initial", current=0, total=0)
+        print(" > [Initial run] Warming up with 'simple' algorithm and 'average' SLA...")
+        run_experiment(script_name, 'simple', 'average', iteration="initial", current=0, total=0)
         
         # Run experiments for each algorithm and SLA combination
         for algorithm in ALGORITHMS:
