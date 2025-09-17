@@ -296,9 +296,9 @@ def main():
                 sla_percentile = None
                 sla_value = 'N/A'
                 if instance.plan:
-                    if instance.plan.sla == 'median':
-                        sla_value = 'median (p50)'
-                        sla_percentile = 50
+                    if instance.plan.sla == 'average':
+                        sla_value = 'average'
+                        sla_percentile = None
                     else:
                         sla_value = f'p{instance.plan.sla.value}'
                         sla_percentile = instance.plan.sla.value

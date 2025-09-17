@@ -34,11 +34,13 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         return self.__class__.__name__
 
     @dataclass
-    class Config(ABC):
+    class BaseConfig(ABC):
         sla: SLA
 
         @abstractmethod
         def create_instance(self) -> "AbstractDAGPlanner": pass
+
+    config: BaseConfig
 
     @dataclass
     class DuppableTaskPrediction:
@@ -101,7 +103,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
         
-        logger.info(f"Planner: {self.__class__.__name__}")
+        logger.info(f"Planner: {self.__class__.__name__} | SLA: {self.config.sla}")
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, predictions_provider)
         if not plan_result: 

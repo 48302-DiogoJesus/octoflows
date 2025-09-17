@@ -17,7 +17,7 @@ logger = create_logger(__name__, prefix="PLANNING")
 
 class SecondPlannerAlgorithm(AbstractDAGPlanner):
     @dataclass
-    class Config(AbstractDAGPlanner.Config):
+    class Config(AbstractDAGPlanner.BaseConfig):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
         def __post_init__(self):
@@ -50,6 +50,8 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
+
+        assert isinstance(self.config, SecondPlannerAlgorithm.Config)
 
         topo_sorted_nodes = self._topological_sort(dag)
 

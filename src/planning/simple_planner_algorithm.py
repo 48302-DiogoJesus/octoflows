@@ -10,7 +10,7 @@ logger = create_logger(__name__, prefix="PLANNING")
 
 class SimplePlannerAlgorithm(AbstractDAGPlanner):
     @dataclass
-    class Config(AbstractDAGPlanner.Config):
+    class Config(AbstractDAGPlanner.BaseConfig):
         all_flexible_workers: bool
         worker_resource_configuration: TaskWorkerResourceConfiguration
 
@@ -32,6 +32,8 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         _dag: FullDAG = dag
 
         topo_sorted_nodes = self._topological_sort(dag)
+
+        assert isinstance(self.config, SimplePlannerAlgorithm.Config)
 
         if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({self.config.worker_resource_configuration}) to all nodes")

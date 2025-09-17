@@ -34,7 +34,7 @@ class Worker(ABC, WorkerExecutionLogic):
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
-        planner_config: AbstractDAGPlanner.Config | None = None
+        planner_config: AbstractDAGPlanner.BaseConfig | None = None
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass

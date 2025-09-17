@@ -138,7 +138,7 @@ class PredictionsProvider:
         if len(function_io_ratios) == 0: return 0
 
         selected_ratios, _ = self._select_related_samples(input_size, function_io_ratios, sla)
-        if sla == "median": ratio = np.median(selected_ratios)
+        if sla == "average": ratio = np.average(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
         res = math.ceil(input_size * ratio)
@@ -161,14 +161,14 @@ class PredictionsProvider:
             type: 'upload' or 'download'
             data_size_bytes: Size of data to transfer in bytes
             resource_config: Worker resource configuration (CPUs + RAM)
-            sla: Either "median" for mean prediction or percentile (0-100)
+            sla: Either "average" for mean prediction or percentile (0-100)
             allow_cached: Whether to use cached predictions
             scaling_exponent: Power-law exponent for size-time relationship (1.0=linear, <1.0=sublinear, >1.0=superlinear)
     
         Note: Not using the `related_samples` tecnique here because when the value to predict is too low, the values will include bootstraping/cold-start times massively overestimating the prediction
         """
-        if sla != "median" and (sla.value < 0 or sla.value > 100):
-            raise ValueError("SLA must be 'median' or between 0 and 100")
+        if sla != "average" and (sla.value < 0 or sla.value > 100):
+            raise ValueError("SLA must be 'average' or between 0 and 100")
         if data_size_bytes == 0: return 0
         
         cached_data = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
@@ -190,8 +190,8 @@ class PredictionsProvider:
 
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             matching_samples, _debug_samples = self._select_related_samples(data_size_bytes, matching_samples, sla)
-            if sla == "median":
-                speed_bytes_per_ms = np.median(matching_samples)
+            if sla == "average":
+                speed_bytes_per_ms = np.average(matching_samples)
             else:
                 speed_bytes_per_ms = np.percentile(matching_samples, sla.value)
             
@@ -207,8 +207,8 @@ class PredictionsProvider:
             ]
             baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples, sla)
             
-            if sla == "median":
-                baseline_speed_bytes_per_ms = np.median(baseline_normalized_samples)
+            if sla == "average":
+                baseline_speed_bytes_per_ms = np.average(baseline_normalized_samples)
             else:
                 baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, sla.value)
             
@@ -218,12 +218,6 @@ class PredictionsProvider:
             # Scale from baseline to target and apply non-linear scaling
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
             res = (data_size_bytes / actual_speed) ** scaling_exponent
-        
-        # if type == "download":
-        #     print(f"{type} | To predict: {data_size_bytes} | Result: {res} | Result W/ mean: {(data_size_bytes / np.mean(matching_samples)) ** scaling_exponent} | Median: {np.median(matching_samples)} | Used normalization: {len(matching_samples) < self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION}")
-        
-        #     for sample in _debug_samples:
-        #         print(f"Sample {sample}, to predict: {data_size_bytes}")
 
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
         return float(res)
@@ -231,7 +225,7 @@ class PredictionsProvider:
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
         samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
-        if sla != "median" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'median' or between 0 and 100")
+        if sla != "average" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'average' or between 0 and 100")
         
         if len(samples) == 0: return 0
         
@@ -249,7 +243,7 @@ class PredictionsProvider:
         
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Direct prediction using exact resource matches (no memory scaling needed)
-            if sla == "median": startup_time = np.median(matching_samples)
+            if sla == "average": startup_time = np.average(matching_samples)
             else: startup_time = np.percentile(matching_samples, sla.value)
             if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
             res = startup_time
@@ -257,7 +251,7 @@ class PredictionsProvider:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
             baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.5 for startup_time, cpus, memory_mb in samples]
-            if sla == "median":  startup_time = np.median(baseline_normalized_samples)
+            if sla == "average":  startup_time = np.average(baseline_normalized_samples)
             else: startup_time = np.percentile(baseline_normalized_samples, sla.value)
             
             if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
@@ -289,8 +283,8 @@ class PredictionsProvider:
             Predicted execution time in milliseconds
             None if no data is available
         """
-        if sla != "median" and (sla.value < 0 or sla.value > 100): 
-            raise ValueError("SLA must be 'median' or between 0 and 100")
+        if sla != "average" and (sla.value < 0 or sla.value > 100): 
+            raise ValueError("SLA must be 'average' or between 0 and 100")
         if function_name not in self.cached_execution_time_per_byte: 
             return 0
         
@@ -322,8 +316,8 @@ class PredictionsProvider:
             selected_times, _ = self._select_related_samples(input_size, full_matching_samples, sla)
             
             # Calculate prediction using the selected samples
-            if sla == "median": 
-                ms_per_byte = np.median(selected_times)
+            if sla == "average": 
+                ms_per_byte = np.average(selected_times)
             else: 
                 ms_per_byte = np.percentile(selected_times, sla.value)
             
@@ -343,8 +337,8 @@ class PredictionsProvider:
             # Select samples based on input size similarity
             baseline_normalized_samples, _ = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
             
-            if sla == "median":
-                baseline_ms_per_byte = np.median(baseline_normalized_samples) 
+            if sla == "average":
+                baseline_ms_per_byte = np.average(baseline_normalized_samples) 
             else: 
                 baseline_ms_per_byte = np.percentile(baseline_normalized_samples, sla.value)
             if baseline_ms_per_byte <= 0:  
@@ -364,7 +358,7 @@ class PredictionsProvider:
         if not all_samples:
             return [], []
         
-        if sla == "median": median_of_observed_values = np.median([size for _, size in all_samples])
+        if sla == "average": median_of_observed_values = np.average([size for _, size in all_samples])
         else: median_of_observed_values = np.percentile([size for _, size in all_samples], sla.value)
         
         # Try increasing thresholds from 5% to 100% in 5% steps

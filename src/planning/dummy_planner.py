@@ -8,7 +8,7 @@ logger = create_logger(__name__, prefix="PLANNING")
 
 class DummyDAGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
     @dataclass
-    class Config(AbstractDAGPlanner.Config):
+    class Config(AbstractDAGPlanner.BaseConfig):
         def create_instance(self) -> "DummyDAGPlanner":
             return DummyDAGPlanner(self)
         

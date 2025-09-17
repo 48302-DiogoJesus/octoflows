@@ -1,4 +1,4 @@
-from src.planning.sla import Percentile
+from src.planning.sla import Percentile, SLA
 from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.workers.docker_worker import DockerWorker
@@ -22,9 +22,15 @@ def get_planner_from_sys_argv():
         print(f"Unknown planner type: {planner_type}")
         sys.exit(-1)
 
-    print(f"Using planner type: {planner_type}")
-
-    sla = Percentile(90)
+    sla: SLA
+    sla_str: str = sys.argv[2]
+    if sla_str != "average":
+        if int(sla_str) not in range(1, 101):
+            print(f"Invalid SLA: {sla_str}. Accepted: 'average' or 0-100 (for percentile)")
+            sys.exit(-1)
+        sla = Percentile(int(sla_str))
+    else:
+        sla = "average"
 
     if planner_type == "simple":
         return SimplePlannerAlgorithm.Config(
