@@ -64,7 +64,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                     unique_resources.worker_id = uuid.uuid4().hex
                 else:
                     unique_resources.worker_id = node.upstream_nodes[0].worker_config.worker_id
-            self._store_plan_image(dag)
+            # self._store_plan_image(dag)
             # self._store_plan_as_json(dag)
             return
 
@@ -76,7 +76,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
                 unique_resources = middle_resource_config.clone()
                 node.worker_config = unique_resources
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
-            self._store_plan_image(dag)
+            # self._store_plan_image(dag)
             # self._store_plan_as_json(dag)
             return
         

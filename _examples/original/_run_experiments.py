@@ -5,11 +5,11 @@ import subprocess
 
 WORKFLOWS_PATHS = [
     'tree_reduction.py',
-    'text_analysis.py',
-    'wordcount.py',
-    'image_transformer.py',
-    'gemm.py',
-    'montage.py',
+    # 'text_analysis.py',
+    # 'wordcount.py',
+    # 'image_transformer.py',
+    # 'gemm.py',
+    # 'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 3

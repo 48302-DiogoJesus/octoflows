@@ -110,7 +110,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
             self.validate_plan(_dag.root_nodes)
             return None # no plan was made
         else:
-            self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+            # self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
@@ -454,18 +454,18 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 worker_id_to_resources_map[worker_id] = (resource_config.cpus, resource_config.memory_mb)
             
             # Validation #2 => Ensure that there are NO interrupted branches of tasks assigned to the same worker id
-            if worker_id is not None:
-                upstream_nodes_w_same_wid = [n for n in node.upstream_nodes if n.worker_config.worker_id == worker_id]
-                if worker_id in seen_worker_ids and len(upstream_nodes_w_same_wid) == 0 and node.id.get_full_id() not in [rn.id.get_full_id() for rn in root_nodes]:
-                    # could still be valid if AT LEAST 1 of its upstream tasks downstream tasks has the same worker id (meaning it was launched at the "same time")
-                    other_udtasks_w_same_wid: set[str] = set()
-                    for unode in node.upstream_nodes:
-                        for udnode in unode.downstream_nodes:
-                            if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.worker_config.worker_id:
-                                other_udtasks_w_same_wid.add(udnode.id.get_full_id())
+            # if worker_id is not None:
+            #     upstream_nodes_w_same_wid = [n for n in node.upstream_nodes if n.worker_config.worker_id == worker_id]
+            #     if worker_id in seen_worker_ids and len(upstream_nodes_w_same_wid) == 0 and node.id.get_full_id() not in [rn.id.get_full_id() for rn in root_nodes]:
+            #         # could still be valid if AT LEAST 1 of its upstream tasks downstream tasks has the same worker id (meaning it was launched at the "same time")
+            #         other_udtasks_w_same_wid: set[str] = set()
+            #         for unode in node.upstream_nodes:
+            #             for udnode in unode.downstream_nodes:
+            #                 if udnode.id.get_full_id() != node.id.get_full_id() and worker_id == udnode.worker_config.worker_id:
+            #                     other_udtasks_w_same_wid.add(udnode.id.get_full_id())
                         
-                    if len(other_udtasks_w_same_wid) > 0 and not any([other_udtask_id == seen_worker_ids[worker_id] for other_udtask_id in other_udtasks_w_same_wid]):
-                        raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()}")
+            #         if len(other_udtasks_w_same_wid) > 0 and not any([other_udtask_id == seen_worker_ids[worker_id] for other_udtask_id in other_udtasks_w_same_wid]):
+            #             raise Exception(f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()} |task name: {node.func_name}")
                 
                 seen_worker_ids[worker_id] = node.id.get_full_id()
                 

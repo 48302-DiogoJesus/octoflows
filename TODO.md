@@ -1,6 +1,4 @@
-- latencia manipulada (workers → storage e workers → faas gateway)
-- make SLA configurable in the config.py and make the runexperiments script try diff configs (see slack)
-- Try to reproduce "Tall-and-Skinny QR Factorization" and "Support Vector Classification (SVC)"
+- Try to reproduce and "Support Vector Classification (SVC)"
 - implement wukong planner
 - simplify simple planner
 
@@ -10,13 +8,15 @@
 
 - try find fix for worker active periods predictions
 
+- make the dashboards load data faster
+    log times spent fetching stuff to understand what's the heaviest op.
+
 # not so important
 
 - Don't always need to use dependency counter (if the DS task only depends on current_task)
 
 - Providing the DAG representation in worker invocations instead of having to download from storage
     - if below a certain threshold, because worker invocation data has size limits
-
 
 - [TODO] Update dashboards:
     Compare SLAs ("global"):

@@ -49,7 +49,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
                 unique_resources = self.config.worker_resource_configuration.clone()
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.worker_config = unique_resources
-            self._store_plan_image(dag)
+            # self._store_plan_image(dag)
             # self._store_plan_as_json(dag)
             return
         
