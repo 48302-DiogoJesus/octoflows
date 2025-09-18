@@ -67,7 +67,7 @@ class Worker(ABC, WorkerExecutionLogic):
             while True:
                 current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id
                 current_task.metrics.started_at_timestamp_s = time.time()
-                current_task.metrics.planner_used_name = self.planner.name if self.planner else None
+                current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
                 if self.planner:
                     await self.planner.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)

@@ -30,7 +30,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
     @property
-    def name(self) -> str:
+    def planner_name(self) -> str:
         return self.__class__.__name__
 
     @dataclass
@@ -587,7 +587,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 legend.edges([])
         
         # Save to file
-        output_file_name = f"./_dag_plans/{_dag.dag_name}.png"
+        output_file_name = f"./_dag_plans/{_dag.dag_name}_{self.planner_name}"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
         print(f"DAG visualization saved to {output_file_name}")
