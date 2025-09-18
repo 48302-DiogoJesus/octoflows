@@ -38,17 +38,18 @@ class DAGTaskNodeId:
 
 # Needed to distinguish a result=None (if R allows it) from "NO result yet"
 @dataclass
-class _CachedResultWrapper(Generic[R]):
-    result: R
+class _CachedResultWrapper:
+    result: Any
 
-class DAGTaskNode(Generic[R]):
+class DAGTaskNode:
 
-    def __init__(self, func: Callable[..., R], args: tuple, kwargs: dict):
+    def __init__(self, func: Callable, args: tuple, kwargs: dict):
         from src.storage.metrics.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
-        self.func_code = func
+        # after the DAG is optimized, this will be set to None and the code will be stored in a map on the DAG structure
+        self.func_code: Callable | None = func
         self.func_args = args
         self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None)
         self.func_kwargs = kwargs
@@ -70,7 +71,7 @@ class DAGTaskNode(Generic[R]):
         # Initialized with a dummy worker config annotation for local worker
         self.annotations: list[TaskOptimization] = []
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
-        self.cached_result: _CachedResultWrapper[R] | None = None
+        self.cached_result: _CachedResultWrapper | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
         self.is_handling: AtomicFlag = AtomicFlag() # used to prevent multiple invocations of the same task in the same worker
         self._register_dependencies()
@@ -96,6 +97,8 @@ class DAGTaskNode(Generic[R]):
                     item.downstream_nodes.append(self)
 
     def _find_third_party_libraries(self, exlude_libs: set[str] = set()) -> set[str]:
+        assert self.func_code
+
         func_file_path = inspect.getfile(self.func_code)
         with open(func_file_path, "r") as file:
             tree = ast.parse(file.read(), filename=func_file_path)
@@ -180,7 +183,7 @@ class DAGTaskNode(Generic[R]):
         # print(f"Cloned {self.func_name} in {(_clone_end_time - _clone_start_time):.4f} seconds")
         return cloned_node    
 
-    def invoke(self, dependencies: dict[str, Any]):
+    def invoke(self, dependencies: dict[str, Any], function_code: Callable):
         # self._try_install_third_party_libs()
 
         final_func_args = []
@@ -206,7 +209,7 @@ class DAGTaskNode(Generic[R]):
 
         # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
-        res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
+        res = function_code(*tuple(final_func_args), **final_func_kwargs)
         self.cached_result = _CachedResultWrapper(res)
         self.completed_event.set()
         return res
@@ -298,10 +301,10 @@ class DAGTaskNode(Generic[R]):
     # '''
 
 def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = []) -> Callable[..., DAGTaskNode]:
-    def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode[R]]:
+    def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> DAGTaskNode[R]:
-            node = DAGTaskNode[R](func, args, kwargs)
+        def wrapper(*args, **kwargs) -> DAGTaskNode:
+            node = DAGTaskNode(func, args, kwargs)
             for annotation in forced_optimizations:  node.add_annotation(annotation)
             return node
         return wrapper

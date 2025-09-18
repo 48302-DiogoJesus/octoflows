@@ -1,7 +1,6 @@
-- Only store the serialized DAG code once in the dag representation
-
 - Show not only input and output sizes but also ALL the data that travelled the network
         how?: total data uploaded + total data downloaded
+        PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
@@ -41,12 +40,11 @@
 - supporting dynamic fan-outs
         so that its possible to, for example, dynamically partition an output and process it in parallel
 
-
 # Possible extensions/improvements
     - improvements to prediction logic
     - make the metrics collection more scalable while not sacrificing predictions
     - supporting dynamic fan-outs
         so that its possible to, for example, dynamically partition an output and process it in parallel
-    - Compression of DAG serialized code and usage of a map to avoid storing repeated code on the same DAG
+    - Optimize DAG structure to make it smaller and scale better as number of tasks increase
     - ? supporting execution of generic executables as tasks, and not just python functions
         CLI program (input (stdin or cli args) => output (stdout))

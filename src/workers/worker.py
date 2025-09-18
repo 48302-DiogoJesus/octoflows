@@ -151,7 +151,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
                 exec_timer = Timer()
-                deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
+                deserialized_task_result = current_task.invoke(function_code=fulldag.get_code_of_function(current_task.func_name), dependencies=task_dependencies)
                 task_execution_time_ms = exec_timer.stop()
 
                 tasks_executed_by_this_coroutine.append(current_task)
