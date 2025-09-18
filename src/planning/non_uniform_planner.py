@@ -15,7 +15,7 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class SecondPlannerAlgorithm(AbstractDAGPlanner):
+class NonUniformPlanner(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.BaseConfig):
         available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
@@ -27,7 +27,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
             """
             self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
-        def create_instance(self) -> "SecondPlannerAlgorithm": return SecondPlannerAlgorithm(self)
+        def create_instance(self) -> "NonUniformPlanner": return NonUniformPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -36,7 +36,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
     def get_description(self) -> str: 
         return \
             """
-            The second algorithm should use non-uniform workers. It would first find the critical path by predicting
+            Uses non-uniform workers. It would first find the critical path by predicting
             times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
             on the other paths as much as possible without introducing a new critical path. After attributing tasks to workers
             (at plan-time, not run-time), it simulates using preload optimization to reduce makespan by masking dependency download time.
@@ -51,7 +51,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
 
-        assert isinstance(self.config, SecondPlannerAlgorithm.Config)
+        assert isinstance(self.config, NonUniformPlanner.Config)
 
         topo_sorted_nodes = self._topological_sort(dag)
 
@@ -376,7 +376,7 @@ class SecondPlannerAlgorithm(AbstractDAGPlanner):
         # logger.info(f"Prediction samples used: {prediction_samples_used}")
 
         return AbstractDAGPlanner.PlanOutput(
-            self.__class__.__name__, 
+            self.planner_name, 
             self.config.sla,
             final_nodes_info, 
             final_critical_path_node_ids, 

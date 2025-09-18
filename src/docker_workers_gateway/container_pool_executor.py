@@ -53,12 +53,17 @@ class ContainerPoolExecutor:
 
         # Use Popen instead of run to get real-time output
         process = subprocess.Popen(
-            ["docker", "exec", "-i", "-e", "TZ=UTC-1", container_id, "sh"],
+            [
+                "docker", "exec", "-i", 
+                "-e", "TZ=UTC-1", 
+                "-e", "LOGS=0",
+                container_id, "sh"
+            ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=0,
-            universal_newlines=False  # Keep as binary for consistent handling
+            universal_newlines=False
         )
         
         # Send the command to stdin

@@ -5,16 +5,17 @@ import subprocess
 
 WORKFLOWS_PATHS = [
     # 'tree_reduction.py',
-    'text_analysis.py',
+    # 'text_analysis.py',
     # 'wordcount.py',
-    # 'image_transformer.py',
+    'image_transformer.py',
     # 'gemm.py',
     # 'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 2
 ALGORITHMS = ['wukong', 'simple', 'first', 'second']
-SLAS = ['50']
+# ALGORITHMS = ['wukong', 'simple', 'first', 'second']
+SLAS = ['90']
 # SLAS = ['50', '75', '90', '95', '99']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5

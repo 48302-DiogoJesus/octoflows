@@ -8,13 +8,13 @@ import uuid
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class WUKONGPlannerAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
+class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
     @dataclass
     class Config(AbstractDAGPlanner.BaseConfig):
         worker_resource_configuration: TaskWorkerResourceConfiguration
 
-        def create_instance(self) -> "WUKONGPlannerAlgorithm":
-            return WUKONGPlannerAlgorithm(self)
+        def create_instance(self) -> "WUKONGPlanner":
+            return WUKONGPlanner(self)
         
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -32,11 +32,27 @@ class WUKONGPlannerAlgorithm(AbstractDAGPlanner, WorkerExecutionLogic):
 
         topo_sorted_nodes = self._topological_sort(dag)
 
-        assert isinstance(self.config, WUKONGPlannerAlgorithm.Config)
+        assert isinstance(self.config, WUKONGPlanner.Config)
 
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
             resource_config.worker_id = None # "flexible worker"
             node.worker_config = resource_config
-            
-        return None
+
+        final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
+        final_critical_path_nodes, _ = self._find_critical_path(dag, final_nodes_info)
+        final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
+
+        return AbstractDAGPlanner.PlanOutput(
+            self.planner_name, 
+            self.config.sla,
+            final_nodes_info,
+            final_critical_path_node_ids,
+            AbstractDAGPlanner.PlanPredictionSampleCounts(
+                previous_instances=0,
+                for_download_speed=0,
+                for_upload_speed=0,
+                for_execution_time=0,
+                for_output_size=0
+            )
+        )

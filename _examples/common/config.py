@@ -4,11 +4,11 @@ from src.storage.in_memory_storage import InMemoryStorage
 from src.workers.docker_worker import DockerWorker
 from src.workers.local_worker import LocalWorker
 from src.storage.metrics.metrics_storage import MetricsStorage
-from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
-from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
-from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
+from src.planning.simple_planner import SimplePlannerAlgorithm
+from src.planning.uniform_planner import UniformPlanner
+from src.planning.non_uniform_planner import NonUniformPlanner
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.planning.wukong_planner_algorithm import WUKONGPlannerAlgorithm
+from src.planning.wukong_planner import WUKONGPlanner
 import sys
 
 def get_planner_from_sys_argv():
@@ -34,7 +34,7 @@ def get_planner_from_sys_argv():
         sla = "average"
 
     if planner_type == "wukong":
-        return WUKONGPlannerAlgorithm.Config(
+        return WUKONGPlanner.Config(
             sla=sla, # won't be used
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
@@ -45,12 +45,12 @@ def get_planner_from_sys_argv():
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
     elif planner_type == "first":
-        return FirstPlannerAlgorithm.Config(
+        return UniformPlanner.Config(
             sla=sla,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
     elif planner_type == "second":
-        return SecondPlannerAlgorithm.Config(
+        return NonUniformPlanner.Config(
             sla=sla,
             available_worker_resource_configurations=[
                 TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),

@@ -110,7 +110,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         # logger.info(f"Prediction samples used: {prediction_samples_used}")
 
         return AbstractDAGPlanner.PlanOutput(
-            self.__class__.__name__, 
+            self.planner_name, 
             self.config.sla,
             final_nodes_info, 
             final_critical_path_node_ids, 

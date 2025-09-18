@@ -18,6 +18,7 @@ from src.storage.prefixes import DAG_PREFIX
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.dag.dag import FullDAG
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics
+from src.utils.timer import Timer
 
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
@@ -50,45 +51,133 @@ class WorkflowInfo:
     representative_dag: FullDAG
     instances: List[WorkflowInstanceInfo]
 
+# def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
+#     workflow_types: Dict[str, WorkflowInfo] = {}
+#     worker_startup_metrics: List[WorkerStartupMetrics] = []
+    
+#     try:
+#         all_dag_keys = [key for key in intermediate_storage_conn.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
+        
+#         for dag_key in all_dag_keys:
+#             try:
+#                 dag_data = intermediate_storage_conn.get(dag_key)
+#                 dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
+
+#                 plan_data = metrics_storage_conn.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
+#                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None # type: ignore
+
+#                 download_time_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*")
+#                 download_time_data = metrics_storage_conn.mget(download_time_data_keys) # type: ignore
+#                 dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
+
+#                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
+#                 tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
+
+#                 dag_data = metrics_storage_conn.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
+#                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
+
+#                 worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
+#                 worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
+#                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
+#                 worker_startup_metrics.extend(this_workflow_wsm) # type: ignore
+#                 total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in this_workflow_wsm if metric.end_time_ms is not None]) if this_workflow_wsm else 0
+#                 total_workers = len(this_workflow_wsm)
+
+#                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
+#                 workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
+#             except Exception as e:
+#                 print(f"Error processing DAG {dag_key}: {e}")
+#     except Exception as e:
+#         print(f"Error accessing Redis: {e}")
+    
+#     return worker_startup_metrics, workflow_types
+
 def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {}
     worker_startup_metrics: List[WorkerStartupMetrics] = []
-    
+
+    def scan_keys(conn, pattern: str):
+        """Efficiently scan Redis keys matching pattern."""
+        cursor = 0
+        keys = []
+        while True:
+            cursor, batch = conn.scan(cursor=cursor, match=pattern, count=1000)
+            keys.extend(batch)
+            if cursor == 0:
+                break
+        return keys
+
     try:
-        all_dag_keys = [key for key in intermediate_storage_conn.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
-        
+        # Scan DAG keys instead of using keys()
+        all_dag_keys = scan_keys(intermediate_storage_conn, f"{DAG_PREFIX}*")
+        from typing import Any
+
         for dag_key in all_dag_keys:
             try:
                 dag_data = intermediate_storage_conn.get(dag_key)
-                dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
+                if not dag_data: continue
+                dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
 
-                plan_data = metrics_storage_conn.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
-                plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None # type: ignore
+                # Plan output
+                plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+                plan_data: Any = metrics_storage_conn.get(plan_key)
+                plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
 
-                download_time_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*")
-                download_time_data = metrics_storage_conn.mget(download_time_data_keys) # type: ignore
-                dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
+                # DAG download stats
+                download_keys_pattern = f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*"
+                download_keys = scan_keys(metrics_storage_conn, download_keys_pattern)
+                download_data: Any = metrics_storage_conn.mget(download_keys) if download_keys else []
+                dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(d) for d in download_data]
 
-                tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
-                tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
+                # Tasks data
+                task_keys = [
+                    f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}"
+                    for t in dag._all_nodes.values()
+                ]
+                tasks_data: Any = metrics_storage_conn.mget(task_keys) if task_keys else []
+                tasks: List[WorkflowInstanceTaskInfo] = [
+                    WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(td))
+                    for t, td in zip(dag._all_nodes.values(), tasks_data) if td
+                ]
 
-                dag_data = metrics_storage_conn.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
-                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
+                # DAG submission metrics
+                submission_key = f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
+                submission_data: Any = metrics_storage_conn.get(submission_key)
+                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
 
-                worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
-                worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
-                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
-                worker_startup_metrics.extend(this_workflow_wsm) # type: ignore
-                total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in this_workflow_wsm if metric.end_time_ms is not None]) if this_workflow_wsm else 0
+                # Worker startup metrics
+                worker_keys_pattern = f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
+                worker_keys = scan_keys(metrics_storage_conn, worker_keys_pattern)
+                worker_data: Any = metrics_storage_conn.mget(worker_keys)
+                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
+                worker_startup_metrics.extend(this_workflow_wsm)
+                total_worker_startup_time_ms = sum(
+                    (metric.end_time_ms - metric.start_time_ms) for metric in this_workflow_wsm if metric.end_time_ms
+                ) if this_workflow_wsm else 0
                 total_workers = len(this_workflow_wsm)
 
-                if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-                workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
+                # Update workflow_types dict
+                if dag.dag_name not in workflow_types:
+                    workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
+                workflow_types[dag.dag_name].instances.append(
+                    WorkflowInstanceInfo(
+                        dag.master_dag_id,
+                        plan_output,
+                        dag,
+                        dag_download_stats,
+                        dag_submission_metrics.dag_submission_time_ms,
+                        total_worker_startup_time_ms,
+                        total_workers,
+                        tasks
+                    )
+                )
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
+                raise e
     except Exception as e:
         print(f"Error accessing Redis: {e}")
-    
+        raise e
+
     return worker_startup_metrics, workflow_types
 
 def format_bytes(size: float) -> str:
@@ -135,7 +224,9 @@ def main():
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
+        timer = Timer()
         st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
+        print(f"Time to load workflow information: {(timer.stop() / 1_000):.2f} s")
     
     workflow_types = st.session_state.workflow_types
     
@@ -1556,8 +1647,6 @@ def main():
                             {'Planner': planner_name, 'Metric': 'Total Execution Time (s)', 'Value': metrics['execution']},
                             {'Planner': planner_name, 'Metric': 'Total Download Time (s)', 'Value': metrics['download']},
                             {'Planner': planner_name, 'Metric': 'Total Upload Time (s)', 'Value': metrics['upload']},
-                            {'Planner': planner_name, 'Metric': 'Total Input Size (bytes)', 'Value': metrics['input_size']},
-                            {'Planner': planner_name, 'Metric': 'Total Output Size (bytes)', 'Value': metrics['output_size']},
                             {'Planner': planner_name, 'Metric': 'Total Task Invocation Time (s)', 'Value': metrics['invocation']},
                             {'Planner': planner_name, 'Metric': 'Total Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
                             {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']},

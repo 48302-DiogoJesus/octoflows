@@ -14,12 +14,12 @@ from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
 
-class FirstPlannerAlgorithm(AbstractDAGPlanner):
+class UniformPlanner(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.BaseConfig):
         worker_resource_configuration: TaskWorkerResourceConfiguration
 
-        def create_instance(self) -> "FirstPlannerAlgorithm": return FirstPlannerAlgorithm(self)
+        def create_instance(self) -> "UniformPlanner": return UniformPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -38,7 +38,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):
         from src.dag.dag import FullDAG
         _dag: FullDAG = dag
-        assert isinstance(self.config, FirstPlannerAlgorithm.Config)
+        assert isinstance(self.config, UniformPlanner.Config)
 
         topo_sorted_nodes = self._topological_sort(dag)
 
@@ -208,7 +208,7 @@ class FirstPlannerAlgorithm(AbstractDAGPlanner):
         # logger.info(f"Prediction samples used: {prediction_samples_used}")
 
         return AbstractDAGPlanner.PlanOutput(
-            self.__class__.__name__, 
+            self.planner_name, 
             self.config.sla,
             final_nodes_info,
             final_critical_path_node_ids,

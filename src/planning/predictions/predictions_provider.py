@@ -1,7 +1,6 @@
 import math
 from typing import Literal
 import numpy as np
-from collections import defaultdict
 
 from src.planning.sla import SLA
 from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStorage
@@ -358,13 +357,13 @@ class PredictionsProvider:
         if not all_samples:
             return [], []
         
-        if sla == "average": median_of_observed_values = np.average([size for _, size in all_samples])
-        else: median_of_observed_values = np.percentile([size for _, size in all_samples], sla.value)
+        if sla == "average": baseline_of_observed_values = np.average([size for _, size in all_samples])
+        else: baseline_of_observed_values = np.percentile([size for _, size in all_samples], sla.value)
         
         # Try increasing thresholds from 5% to 100% in 5% steps
         for threshold_percent in range(5, 101, 5):
             threshold = threshold_percent / 100.0
-            distance_threshold = abs(median_of_observed_values * threshold)
+            distance_threshold = abs(baseline_of_observed_values * threshold)
             
             below_samples = []
             above_samples = []

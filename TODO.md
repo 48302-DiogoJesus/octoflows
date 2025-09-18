@@ -1,11 +1,4 @@
-- rename planners to uniform and non-uniform
-
-- make the dashboards load data faster
-    log times spent fetching stuff to understand what's the heaviest op.
-
-- simplify simple planner (should be better than WUKONG's approach)
-    - show that just using uniform workers and not launching as much workers on fan-outs provides better results
-        - worker_id assignment: use predictions to better CLUSTER tasks on fan-outs
+- reduce unnecessary logs on the workers mainly
 
 - Providing the DAG representation in worker invocations instead of having to download from storage
     - if below a certain threshold, because worker invocation data has size limits
@@ -13,22 +6,33 @@
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
         then user could be able to tell the planner which optimizations they want (inclusive)
+    - simplify simple planner (should be better than WUKONG's approach)
+        - show that just using uniform workers and not launching as much workers on fan-outs provides better results
+            - worker_id assignment: use predictions to better CLUSTER tasks on fan-outs
+        - maybe the simple planner could be merged with uniform planner
+            and make it configurable by telling which optimizations to use
+- re-check planners description function
+
+- implement wukong optimizations
 
 - try find fix for worker active periods predictions
 
+- Dashboard
+    - Show not only input and output sizes but also ALL the data that travelled the network
+        how?: total data uploaded + total data downloaded
+    - Calculate a resource usage metric per workflow: sum(CPUs*memória*tempo for each task)
+    - Compare SLAs ("global"):
+        - success rate (percentage of workflows that finished below the SLA)
+        - overall prediction success rate (compared to the real values)
+        PreWarm ("individual"):
+        - how many happened, which tasks had them
+        Dup ("individual"):
+    - how many happened, which tasks were dupped?
+
 # not so important
 
-- Providing the DAG representation in worker invocations instead of having to download from storage
-    - if below a certain threshold, because worker invocation data has size limits
+- Do I always need to use the dependency counter? (it's heavy on workflows with lots of tasks)
 
-- [TODO] Update dashboards:
-    Compare SLAs ("global"):
-    - success rate (percentage of workflows that finished below the SLA)
-    - overall prediction success rate (compared to the real values)
-    PreWarm ("individual"):
-    - how many happened, which tasks had them
-    Dup ("individual"):
-    - how many happened, which tasks were dupped?
     
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id

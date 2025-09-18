@@ -84,7 +84,7 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_metrics_data)  # type: ignore
                 
                 # Get planner type from PlanOutput.planner_name
-                planner_type = "wukong"
+                planner_type = "unknown"
                 plan_data = metrics_redis.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
                 if plan_data:
                     try:
@@ -806,6 +806,7 @@ def main():
             "Data Download": total_time_downloading_data_ms,
             "Data Upload": total_time_uploading_data_ms,
             "Invocation Time": total_time_invoking_tasks_ms,
+            "Waiting for Worker Startup": total_workflow_worker_startup_time_s * 1_000,
             "DC Updates": total_time_updating_dependency_counters_ms,
             "DAG Download Time": total_dag_download_time
         }
@@ -828,6 +829,7 @@ def main():
                 "Data Download": "#EF553B",
                 "Data Upload": "#00CC96",
                 "Invocation Time": "#AB63FA",
+                "Waiting for Worker Startup": "#AB63FA",
                 "DC Updates": "#DB61CE",
                 "Unknown": "#333333"
             }

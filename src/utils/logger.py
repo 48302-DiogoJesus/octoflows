@@ -1,5 +1,10 @@
 import logging
 import sys
+import os
+
+if os.getenv("LOGS") == "0":
+    print("Logging is disabled. Use LOGS=1 environment variable to enable it.")
+    logging.disable(logging.CRITICAL)
 
 def create_logger(name: str, prefix: str = "") -> logging.Logger:
     logger = logging.getLogger(name)
