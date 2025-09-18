@@ -198,6 +198,8 @@ class Worker(ABC, WorkerExecutionLogic):
                         await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     results = await batch.execute()
                     
+                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
+
                 for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
@@ -211,8 +213,6 @@ class Worker(ABC, WorkerExecutionLogic):
                         
                         downstream_tasks_ready.append(downstream_task)
                 
-                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
-
                 self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
 
                 if len(downstream_tasks_ready) == 0:

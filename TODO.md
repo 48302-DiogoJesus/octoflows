@@ -1,21 +1,20 @@
-- implement wukong planner
-    - Test it with simple workflow and more complex workflow, then check metrics to ensure fanouts behaved properly
-
-- make other workflows have mid-workflow fan-outs
-
-
-- simplify simple planner (should be worse than WUKONG's approach)
-    - worker_id assignment: use predictions to better cluster tasks on fan-outs
 - rename planners to uniform and non-uniform
+
+- make the dashboards load data faster
+    log times spent fetching stuff to understand what's the heaviest op.
+
+- simplify simple planner (should be better than WUKONG's approach)
+    - show that just using uniform workers and not launching as much workers on fan-outs provides better results
+        - worker_id assignment: use predictions to better CLUSTER tasks on fan-outs
+
+- Providing the DAG representation in worker invocations instead of having to download from storage
+    - if below a certain threshold, because worker invocation data has size limits
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
         then user could be able to tell the planner which optimizations they want (inclusive)
 
 - try find fix for worker active periods predictions
-
-- make the dashboards load data faster
-    log times spent fetching stuff to understand what's the heaviest op.
 
 # not so important
 

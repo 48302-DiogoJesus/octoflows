@@ -84,7 +84,7 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_metrics_data)  # type: ignore
                 
                 # Get planner type from PlanOutput.planner_name
-                planner_type = "unknown"
+                planner_type = "wukong"
                 plan_data = metrics_redis.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
                 if plan_data:
                     try:
