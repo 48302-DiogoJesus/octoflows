@@ -50,7 +50,7 @@ class DAGTaskNode(Generic[R]):
         self.func_name = func.__name__
         self.func_code = func
         self.func_args = args
-        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1)
+        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None)
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []

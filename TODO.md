@@ -1,10 +1,11 @@
 - implement wukong planner
-    - don't use simulation
-    - just assign flex. workers to everyone
-        to make wukong optimizations possible I can't assign fixed workers
-    - make the flex workers logic behave like wukong basic scheduling (on fan-out, 1 worker per task)
+    - Test it with simple workflow and more complex workflow, then check metrics to ensure fanouts behaved properly
+
+- make other workflows have mid-workflow fan-outs
+
+
 - simplify simple planner (should be worse than WUKONG's approach)
-    - basic assignment
+    - worker_id assignment: use predictions to better cluster tasks on fan-outs
 - rename planners to uniform and non-uniform
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??

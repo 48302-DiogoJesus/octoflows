@@ -59,22 +59,28 @@ class WorkerExecutionLogic():
         for task in _downstream_tasks_ready:
             task_resource_config = task.worker_config
             if task_resource_config.worker_id is None:
-                # if I have the same resources, it's mine
-                if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
+                # - OLD LOGIC: if I have the same resources, it's mine. I execute all tasks with same resources as me
+                # if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
+                #     my_continuation_tasks.append(task)
+                # # else, delegate to a new worker
+                # else:
+                #     other_continuation_tasks.append(task)
+                # - WUKONG-LIKE LOGIC: I execute the first task and delegate all other tasks to other workers
+                if len(my_continuation_tasks) == 0:
                     my_continuation_tasks.append(task)
-                # else, delegate to a new worker
                 else:
+                    # delegate all other DS tasks to other workers
                     other_continuation_tasks.append(task)
             elif task_resource_config.worker_id == _this_worker.my_resource_configuration.worker_id:
                 my_continuation_tasks.append(task)
-            else:
+            else: # diff. worker id
                 requires_launching_worker = True
                 for dunode in task.upstream_nodes:
                     dunode_resource_config = dunode.worker_config
                     if dunode_resource_config.worker_id is None:
                         pass # can't reuse these, flexible workers don't subscribe to TASK_READY events
                     elif dunode_resource_config.worker_id == task_resource_config.worker_id:
-                        # => We know that the worker for the downstream task was already launched meaning
+                        # => We know that the worker for the downstream task was already launched, meaning
                         #   we don't need to launch a new worker, only send the READY event and the appropriate 
                         #   worker will handle it
                         requires_launching_worker = False

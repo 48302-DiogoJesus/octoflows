@@ -8,10 +8,11 @@ from src.planning.simple_planner_algorithm import SimplePlannerAlgorithm
 from src.planning.first_planner_algorithm import FirstPlannerAlgorithm
 from src.planning.second_planner_algorithm import SecondPlannerAlgorithm
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.planning.wukong_planner_algorithm import WUKONGPlannerAlgorithm
 import sys
 
 def get_planner_from_sys_argv():
-    supported_planners = ["simple", "first", "second"]
+    supported_planners = ["wukong", "simple", "first", "second"]
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
@@ -32,7 +33,12 @@ def get_planner_from_sys_argv():
     else:
         sla = "average"
 
-    if planner_type == "simple":
+    if planner_type == "wukong":
+        return WUKONGPlannerAlgorithm.Config(
+            sla=sla, # won't be used
+            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+        )
+    elif planner_type == "simple":
         return SimplePlannerAlgorithm.Config(
             sla=sla,
             all_flexible_workers=False,

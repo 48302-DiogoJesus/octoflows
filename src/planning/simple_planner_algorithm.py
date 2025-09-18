@@ -47,13 +47,14 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return
         
-        # Give same resources to all nodes and assign worker ids
+        # Give same resources to all nodes + assign worker ids to all tasks
         for node in topo_sorted_nodes:
             resource_config = self.config.worker_resource_configuration.clone()
             node.worker_config = resource_config
             if len(node.upstream_nodes) == 0:
                 resource_config.worker_id = uuid.uuid4().hex
             else:
+                # Tries to assign the same worker id to multiple downstream nodes
                 # Count worker usage among downstream nodes of upstream nodes
                 same_level_worker_usage = {}
                 for upstream_node in node.upstream_nodes:
