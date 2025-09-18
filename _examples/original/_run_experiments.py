@@ -13,7 +13,7 @@ WORKFLOWS_PATHS = [
 ]
 
 ITERATIONS_PER_ALGORITHM = 2
-ALGORITHMS = ['simple', 'first', 'second']
+ALGORITHMS = ['wukong', 'simple', 'first', 'second']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 
