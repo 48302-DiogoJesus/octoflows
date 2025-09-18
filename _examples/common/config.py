@@ -12,7 +12,7 @@ from src.planning.wukong_planner import WUKONGPlanner
 import sys
 
 def get_planner_from_sys_argv():
-    supported_planners = ["wukong", "simple", "first", "second"]
+    supported_planners = ["wukong", "simple", "uniform", "non-uniform"]
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
@@ -44,12 +44,12 @@ def get_planner_from_sys_argv():
             all_flexible_workers=False,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
-    elif planner_type == "first":
+    elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
         )
-    elif planner_type == "second":
+    elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
             sla=sla,
             available_worker_resource_configurations=[

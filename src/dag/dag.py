@@ -85,9 +85,6 @@ class FullDAG(GenericDAG):
         wk: Worker = _wk_config.create_instance()
         self.dag_name = dag_name
 
-        encoded_fulldag = base64.b64encode(zlib.compress(cloudpickle.dumps(self), level=9)).decode('utf-8')
-        logger.info(f"FullDAG Size: {calculate_data_structure_size(encoded_fulldag)} bytes")
-
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metrics_storage)

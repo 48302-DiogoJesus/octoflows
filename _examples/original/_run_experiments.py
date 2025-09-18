@@ -6,15 +6,16 @@ import requests
 
 WORKFLOWS_PATHS = [
     # 'text_analysis.py',
-    'tree_reduction.py',
-    'wordcount.py',
     'image_transformer.py',
+    'wordcount.py',
+    'tree_reduction.py',
     'gemm.py',
     # 'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 3
-ALGORITHMS = ['wukong', 'simple', 'first', 'second']
+ALGORITHMS = ['non-uniform']
+# ALGORITHMS = ['wukong', 'simple', 'uniform', 'non-uniform']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 

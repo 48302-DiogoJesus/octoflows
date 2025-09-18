@@ -8,8 +8,11 @@
             and make it configurable by telling which optimizations to use
 - re-check planners description function
 
-- implement wukong optimizations
+- Change one workflow to have diff types of tasks on a fan-out that fans in after
+    text analysis maybe
+    cause: I NEED PRELOAD TO BE USED SOMEWHERE
 
+- implement wukong optimizations
 
 - try find fix for worker active periods predictions
 

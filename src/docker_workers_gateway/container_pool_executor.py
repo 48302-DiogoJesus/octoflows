@@ -56,7 +56,7 @@ class ContainerPoolExecutor:
             [
                 "docker", "exec", "-i", 
                 "-e", "TZ=UTC-1", 
-                "-e", "LOGS=1",
+                "-e", "LOGS=0",
                 container_id, "sh"
             ],
             stdin=subprocess.PIPE,
