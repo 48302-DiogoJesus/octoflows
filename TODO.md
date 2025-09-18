@@ -1,8 +1,3 @@
-- Show not only input and output sizes but also ALL the data that travelled the network
-        how?: total data uploaded + total data downloaded
-        PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
-        see deepseek
-
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
         then user could be able to tell the planner which optimizations they want (inclusive)
@@ -15,9 +10,14 @@
 
 - implement wukong optimizations
 
+
 - try find fix for worker active periods predictions
 
 - Dashboard
+    - Show not only input and output sizes but also ALL the data that travelled the network
+            how?: total data uploaded + total data downloaded
+            PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
+            see deepseek: https://chat.deepseek.com/a/chat/s/955c80aa-1505-4ca5-849c-231266a413ff
     - Calculate a resource usage metric per workflow: sum(CPUs*memória*tempo for each task)
     - Compare SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
