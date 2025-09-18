@@ -1,6 +1,11 @@
-- Try to reproduce and "Support Vector Classification (SVC)"
 - implement wukong planner
-- simplify simple planner
+    - don't use simulation
+    - just assign flex. workers to everyone
+        to make wukong optimizations possible I can't assign fixed workers
+    - make the flex workers logic behave like wukong basic scheduling (on fan-out, 1 worker per task)
+- simplify simple planner (should be worse than WUKONG's approach)
+    - basic assignment
+- rename planners to uniform and non-uniform
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
@@ -12,8 +17,6 @@
     log times spent fetching stuff to understand what's the heaviest op.
 
 # not so important
-
-- Don't always need to use dependency counter (if the DS task only depends on current_task)
 
 - Providing the DAG representation in worker invocations instead of having to download from storage
     - if below a certain threshold, because worker invocation data has size limits
