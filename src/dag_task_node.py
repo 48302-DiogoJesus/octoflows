@@ -49,7 +49,7 @@ class DAGTaskNode:
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__
         # after the DAG is optimized, this will be set to None and the code will be stored in a map on the DAG structure
-        self.func_code: Callable | None = func
+        self.func_code = func
         self.func_args = args
         self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None)
         self.func_kwargs = kwargs
@@ -183,7 +183,7 @@ class DAGTaskNode:
         # print(f"Cloned {self.func_name} in {(_clone_end_time - _clone_start_time):.4f} seconds")
         return cloned_node    
 
-    def invoke(self, dependencies: dict[str, Any], function_code: Callable):
+    def invoke(self, dependencies: dict[str, Any]):
         # self._try_install_third_party_libs()
 
         final_func_args = []
@@ -209,7 +209,8 @@ class DAGTaskNode:
 
         # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
-        res = function_code(*tuple(final_func_args), **final_func_kwargs)
+        # res = function_code(*tuple(final_func_args), **final_func_kwargs)
+        res = self.func_code(*tuple(final_func_args), **final_func_kwargs)
         self.cached_result = _CachedResultWrapper(res)
         self.completed_event.set()
         return res

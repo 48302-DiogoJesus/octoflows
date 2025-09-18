@@ -86,6 +86,13 @@ def handle_warmup():
     thread_pool.submit(process_warmup_async, resource_configurations)
     return "", 202
 
+@app.route('/kill-warm', methods=['POST'])
+def handle_killwarm():
+    # Parse request data
+    logger.info("Killing warm containers")
+    container_pool._cleanup_all_containers()
+    return "", 202
+
 @app.route('/job', methods=['POST', 'GET'])
 def handle_job():
     """
@@ -123,18 +130,6 @@ def handle_job():
         thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag)
         
         return "", 202 # Immediately return 202 Accepted
-
-    # elif request.method == 'GET':
-    #     # Get all resource configurations and their containers
-    #     configurations = container_pool.get_all_resource_configurations()
-        
-    #     # Format the response
-    #     result = {}
-    #     for config_key, container_ids in configurations.items():
-    #         cpus, memory = map(float, config_key.split('_'))
-    #         result[f"{cpus};{memory}"] = container_ids
-        
-    #     return jsonify({"configurations": result}), 200
 
 if __name__ == '__main__':
     is_shutting_down_flag = threading.Event()

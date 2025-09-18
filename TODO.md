@@ -1,6 +1,7 @@
 - Show not only input and output sizes but also ALL the data that travelled the network
         how?: total data uploaded + total data downloaded
         PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
+        see deepseek
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them

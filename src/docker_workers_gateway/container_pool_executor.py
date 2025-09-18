@@ -153,6 +153,16 @@ class ContainerPoolExecutor:
         except subprocess.CalledProcessError as e:
             print(f"Error listing containers: {e}")
 
+    def _cleanup_all_containers(self):
+        containers_to_remove = []
+        with self.lock:
+            for container_id, container in list(self.containers.items()):
+                container.is_busy = True
+                containers_to_remove.append(container_id)
+                
+        for container_id in containers_to_remove:
+            self._remove_container(container_id)
+
     def _cleanup_idle_containers(self):
         """Periodically check for and remove idle containers."""
         while not self.shutdown_flag.is_set():

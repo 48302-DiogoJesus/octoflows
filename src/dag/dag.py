@@ -25,7 +25,6 @@ class GenericDAG(ABC):
     master_dag_structure_hash: str
     master_dag_id: str
     dag_name: str
-    code_map: dict[str, Callable]
 
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
         return self._all_nodes[node_id.get_full_id()]
@@ -165,16 +164,6 @@ class FullDAG(GenericDAG):
             node.func_args = tuple(optimized_args)
             node.func_kwargs = optimized_kwargs
 
-        # Optimize DAG size by storing task function code only once 
-        self.code_map = { }
-        for node in self._all_nodes.values():
-            if node.func_name not in self.code_map:
-                assert node.func_code
-                self.code_map[node.func_name] = node.func_code
-                node.func_code = None
-
-    def get_code_of_function(self, func_name: str) -> Callable:
-        return self.code_map[func_name]
 
     @staticmethod
     def _find_all_nodes_and_root_nodes_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:
