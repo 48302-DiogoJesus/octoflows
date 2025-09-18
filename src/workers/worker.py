@@ -47,7 +47,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
         self.planner = config.planner_config.create_instance() if config.planner_config else None
 
-    async def execute_branch(self, subdag: dag.SubDAG, my_worker_id: str, is_dupping: bool = False) -> None:
+    async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG, my_worker_id: str, is_dupping: bool = False) -> None:
         """
         Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
 
@@ -223,9 +223,9 @@ class Worker(ABC, WorkerExecutionLogic):
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id(), f"5) Handling Downstream Tasks...")
                 if self.planner:
-                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
+                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(fulldag, current_task, self, downstream_tasks_ready, subdag, is_dupping)
                 else:
-                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(current_task, self, downstream_tasks_ready, subdag, is_dupping)
+                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(fulldag, current_task, self, downstream_tasks_ready, subdag, is_dupping)
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
@@ -238,7 +238,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     my_other_tasks = my_continuation_tasks[1:]
                     # Execute other tasks on coroutines in this worker
                     for t in my_other_tasks:
-                        other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
+                        other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
         except CancelCurrentWorkerLoopException as e:
             self.log(current_task.id.get_full_id(), f"CancelCurrentWorkerLoopException: {str(e)}")
             pass
@@ -270,7 +270,7 @@ class Worker(ABC, WorkerExecutionLogic):
         return None
 
     @abstractmethod
-    async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = False): 
+    async def delegate(self, subdags: list[dag.SubDAG], fulldag: dag.FullDAG, called_by_worker: bool = False): 
         """
         {called_by_worker}: indicates if it's a worker invoking another worker, or the Client beggining the execution
         """

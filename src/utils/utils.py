@@ -4,12 +4,8 @@ import numpy as np
 
 def calculate_data_structure_size(obj, fast=True, sample_size=50) -> int:
     """
-    Calculate size of data structure with optional fast mode
-    
-    Args:
-        obj: Object to measure
-        fast: If True, use sampling for large collections
-        sample_size: Number of items to sample for estimation
+    Calculate size of data structure
+    returns in bytes
     """
     if isinstance(obj, np.ndarray):
         return obj.nbytes

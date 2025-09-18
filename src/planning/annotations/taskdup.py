@@ -69,6 +69,6 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         return has_any_duppable_downstream or subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker is None or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes))
 
     @staticmethod
-    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+    async def wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
         if is_dupping: raise CancelCurrentWorkerLoopException("This task was dupped, don't continue branch")
-        return await WorkerExecutionLogic.wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+        return await WorkerExecutionLogic.wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)

@@ -7,6 +7,7 @@ import os
 import platform
 import tempfile
 import time
+import zlib
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
@@ -22,6 +23,7 @@ from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
+from src.utils.utils import calculate_data_structure_size
 
 from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
 
@@ -56,22 +58,33 @@ async def main():
         raise e
 
     try:
-        if len(sys.argv) != 4:
-            raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids>")
+        if len(sys.argv) < 4:
+            raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids> <b64_fulldag_optional>")
 
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
         dag_id = str(sys.argv[2])
         b64_task_ids = str(sys.argv[3])
+        b64_fulldag = None
+        if len(sys.argv) == 5:
+            b64_fulldag = str(sys.argv[4])
         
         if not isinstance(config, DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
     
         wk = DockerWorker(config)
 
-        dag_download_time_ms = Timer()
-        serialized_dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
-        dag_download_time_ms = dag_download_time_ms.stop()
+        if b64_fulldag is not None:
+            logger.info("Received fulldag in the invocation")
+            decompressed_dag = zlib.decompress(base64.b64decode(b64_fulldag))
+            serialized_dag_size_bytes = calculate_data_structure_size(decompressed_dag)
+            fulldag = cloudpickle.loads(decompressed_dag)
+            dag_download_time_ms = 0
+        else:
+            logger.info("Didn't receive fulldag in the invocation, fetching from storage...")
+            dag_download_time_ms = Timer()
+            serialized_dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
+            dag_download_time_ms = dag_download_time_ms.stop()
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
 
@@ -116,7 +129,7 @@ async def main():
                     await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
+                asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
             return callback
         
         dupping_locks: dict[str, asyncio.Lock] = {} # ensures that only 1 dupping task is executed at a time for each main task (disalows 2 duppings while also protecting concurrent accesses to the 2 variables below)
@@ -188,7 +201,7 @@ async def main():
                         task_id = greatest_predicted_time_saved_task.id.get_full_id()
                         assert wk.my_resource_configuration.worker_id is not None
                         logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
-                        await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), wk.my_resource_configuration.worker_id, is_dupping=True)
+                        await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), fulldag, wk.my_resource_configuration.worker_id, is_dupping=True)
                     else:
                         logger.info("[TASK-DUP] No suitable task found for duplication")
             return callback
@@ -223,7 +236,7 @@ async def main():
         for task_id in immediate_task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
-            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, _debug_flexible_worker_id), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
         logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")

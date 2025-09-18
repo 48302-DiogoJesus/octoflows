@@ -1,7 +1,7 @@
-- reduce unnecessary logs on the workers mainly
+- Only store the serialized DAG code once in the dag representation
 
-- Providing the DAG representation in worker invocations instead of having to download from storage
-    - if below a certain threshold, because worker invocation data has size limits
+- Show not only input and output sizes but also ALL the data that travelled the network
+        how?: total data uploaded + total data downloaded
 
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
@@ -18,8 +18,6 @@
 - try find fix for worker active periods predictions
 
 - Dashboard
-    - Show not only input and output sizes but also ALL the data that travelled the network
-        how?: total data uploaded + total data downloaded
     - Calculate a resource usage metric per workflow: sum(CPUs*memória*tempo for each task)
     - Compare SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
@@ -42,3 +40,13 @@
 
 - supporting dynamic fan-outs
         so that its possible to, for example, dynamically partition an output and process it in parallel
+
+
+# Possible extensions/improvements
+    - improvements to prediction logic
+    - make the metrics collection more scalable while not sacrificing predictions
+    - supporting dynamic fan-outs
+        so that its possible to, for example, dynamically partition an output and process it in parallel
+    - Compression of DAG serialized code and usage of a map to avoid storing repeated code on the same DAG
+    - ? supporting execution of generic executables as tasks, and not just python functions
+        CLI program (input (stdin or cli args) => output (stdout))

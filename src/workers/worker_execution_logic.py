@@ -45,7 +45,7 @@ class WorkerExecutionLogic():
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
     @staticmethod
-    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+    async def wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
 
@@ -92,7 +92,7 @@ class WorkerExecutionLogic():
 
         if len(other_continuation_tasks) > 0:
             logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) Delegating {len(other_continuation_tasks)} tasks to other workers...")
-            coroutines.append(_this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], called_by_worker=True))
+            coroutines.append(_this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True))
             await asyncio.gather(*coroutines) # wait for the delegations to be accepted
 
         for my_task in my_continuation_tasks:

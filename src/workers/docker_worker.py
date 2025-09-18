@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from itertools import groupby
 import json
 import time
+import zlib
 
 import aiohttp
 import cloudpickle
@@ -11,6 +12,7 @@ from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
+from src.utils.utils import calculate_data_structure_size
 
 logger = create_logger(__name__)
 
@@ -31,11 +33,12 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms
+        self.MAX_DAG_SIZE_BYTES = 200 * 1024 # 200KB
 
     async def _simulate_network_latency(self) -> None:
         await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
 
-    async def delegate(self, subdags: list[dag.SubDAG], called_by_worker: bool = True):
+    async def delegate(self, subdags: list[dag.SubDAG], fulldag: dag.FullDAG, called_by_worker: bool = True):
         '''
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         All HTTP requests are executed in parallel, and the function only returns once all requests are completed
@@ -84,12 +87,17 @@ class DockerWorker(Worker):
                     ),
                     task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
                 )
+            encoded_fulldag = base64.b64encode(zlib.compress(cloudpickle.dumps(fulldag), level=9)).decode('utf-8')
+            fulldag_size = calculate_data_structure_size(encoded_fulldag)
+            fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",
                     data=json.dumps({
                         "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
                         "dag_id": _worker_subdags[0].master_dag_id,
+                        # if dag size is below 200KB, send the dag in the invocation, else, send the ID and the worker has to fetch it from storage
+                        "fulldag": encoded_fulldag if fulldag_size_below_threshold else None,
                         "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
                         "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                     }),

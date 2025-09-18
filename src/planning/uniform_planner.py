@@ -248,7 +248,7 @@ class UniformPlanner(AbstractDAGPlanner):
         return res
 
     @staticmethod
-    async def wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+    async def wel_override_handle_downstream(fulldag: FullDAG, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
         from src.planning.annotations.taskdup import TaskDupOptimization
-        res = await TaskDupOptimization.wel_override_handle_downstream(current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+        res = await TaskDupOptimization.wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
         return res
