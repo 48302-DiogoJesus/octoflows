@@ -18,16 +18,9 @@ logger = create_logger(__name__, prefix="PLANNING")
 class NonUniformPlanner(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.BaseConfig):
-        available_worker_resource_configurations: list[TaskWorkerResourceConfiguration]
-
-        def __post_init__(self):
-            """
-            Sort the available_resource_configurations by memory_mb
-            Best config first
-            """
-            self.available_worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
-
-        def create_instance(self) -> "NonUniformPlanner": return NonUniformPlanner(self)
+        def create_instance(self) -> "NonUniformPlanner": 
+            super().create_instance()
+            return NonUniformPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -55,10 +48,10 @@ class NonUniformPlanner(AbstractDAGPlanner):
 
         topo_sorted_nodes = self._topological_sort(dag)
 
-        if len(self.config.available_worker_resource_configurations) == 1:
+        if len(self.config.worker_resource_configurations) == 1:
             # If only one resource config is available, use it for all nodes
             for node in topo_sorted_nodes:
-                unique_resources = self.config.available_worker_resource_configurations[0].clone()
+                unique_resources = self.config.worker_resource_configurations[0].clone()
                 node.worker_config = unique_resources
                 if len(node.upstream_nodes) == 0:
                     unique_resources.worker_id = uuid.uuid4().hex
@@ -68,7 +61,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return
 
-        middle_resource_config = self.config.available_worker_resource_configurations[len(self.config.available_worker_resource_configurations) // 2]
+        middle_resource_config = self.config.worker_resource_configurations[len(self.config.worker_resource_configurations) // 2]
         
         if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
@@ -80,42 +73,11 @@ class NonUniformPlanner(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return
         
-        best_resource_config = self.config.available_worker_resource_configurations[0]
+        best_resource_config = self.config.worker_resource_configurations[0]
         
         # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        for node in topo_sorted_nodes:
-            resource_config = best_resource_config.clone()
-            node.worker_config = resource_config
-            
-            if len(node.upstream_nodes) == 0:
-                resource_config.worker_id = uuid.uuid4().hex
-            else:
-                # Count worker usage among downstream nodes of upstream nodes
-                same_level_worker_usage = {}
-                for upstream_node in node.upstream_nodes:
-                    worker_id = upstream_node.worker_config.worker_id
-                    if not worker_id: continue
-                    same_level_worker_usage[worker_id] = 0
-
-                for upstream_node in node.upstream_nodes:
-                    # Get all downstream nodes of this upstream node
-                    for downstream_node in upstream_node.downstream_nodes:
-                        if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
-                        downstream_worker_id = downstream_node.worker_config.worker_id
-                        if not downstream_worker_id: continue
-                        same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
-
-                # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
-                best_worker_id = None
-                best_usage = -1
-                for worker_id, usage in same_level_worker_usage.items():
-                    if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
-                        best_worker_id = worker_id
-                        best_usage = usage
-                
-                # If no suitable worker found, create a new one
-                resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
+        self._basic_worker_id_assignment(dag, best_resource_config, topo_sorted_nodes)
 
         # Calculate initial critical path with best resources
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -145,7 +107,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                 if node.worker_config.worker_id == worker_id:
                     last_successful_configs[node.id.get_full_id()] = node.worker_config
             
-            for simul_resource_config in self.config.available_worker_resource_configurations[1:]:
+            for simul_resource_config in self.config.worker_resource_configurations[1:]:
                 new_res_config = simul_resource_config.clone()
                 new_res_config.worker_id = worker_id # use same worker_id, just change the resource config
                 

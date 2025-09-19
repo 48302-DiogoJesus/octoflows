@@ -17,9 +17,9 @@ logger = create_logger(__name__, prefix="PLANNING")
 class UniformPlanner(AbstractDAGPlanner):
     @dataclass
     class Config(AbstractDAGPlanner.BaseConfig):
-        worker_resource_configuration: TaskWorkerResourceConfiguration
-
-        def create_instance(self) -> "UniformPlanner": return UniformPlanner(self)
+        def create_instance(self) -> "UniformPlanner": 
+            super().create_instance()
+            return UniformPlanner(self)
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -42,50 +42,22 @@ class UniformPlanner(AbstractDAGPlanner):
 
         topo_sorted_nodes = self._topological_sort(dag)
 
+        worker_resources = self.config.worker_resource_configurations[0]
+
         if not predictions_provider.has_required_predictions():
-            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({self.config.worker_resource_configuration}) to all nodes")
+            logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({worker_resources}) to all nodes")
             # Assign worker resources and ids
             for node in topo_sorted_nodes: 
-                unique_resources = self.config.worker_resource_configuration.clone()
+                unique_resources = worker_resources.clone()
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.worker_config = unique_resources
             # self._store_plan_image(dag)
             # self._store_plan_as_json(dag)
             return
         
-        # Step 1: Assign best resources to all nodes and find initial critical path + assign worker IDs
+        # Step 1: Assign uniform resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        for node in topo_sorted_nodes:
-            resource_config = self.config.worker_resource_configuration.clone()
-            node.worker_config = resource_config
-            if len(node.upstream_nodes) == 0:
-                resource_config.worker_id = uuid.uuid4().hex
-            else:
-                # Count worker usage among downstream nodes of upstream nodes
-                same_level_worker_usage = {}
-                for upstream_node in node.upstream_nodes:
-                    worker_id = upstream_node.worker_config.worker_id
-                    if not worker_id: continue
-                    same_level_worker_usage[worker_id] = 0
-
-                for upstream_node in node.upstream_nodes:
-                    # Get all downstream nodes of this upstream node
-                    for downstream_node in upstream_node.downstream_nodes:
-                        if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
-                        downstream_worker_id = downstream_node.worker_config.worker_id
-                        if not downstream_worker_id: continue
-                        same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
-
-                # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
-                best_worker_id = None
-                best_usage = -1
-                for worker_id, usage in same_level_worker_usage.items():
-                    if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
-                        best_worker_id = worker_id
-                        best_usage = usage
-                
-                # If no suitable worker found, create a new one
-                resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
+        self._basic_worker_id_assignment(dag, worker_resources, topo_sorted_nodes)
 
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
 
@@ -125,7 +97,7 @@ class UniformPlanner(AbstractDAGPlanner):
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path Nodes Count: {len(final_critical_path_nodes)} | Predicted Completion Time: {final_critical_path_time / 1000:.2f}s | Unique workers: {len(unique_worker_ids)}")
         logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(nodes_info)}")
-        logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={self.config.worker_resource_configuration.cpus}, memory={self.config.worker_resource_configuration.memory_mb})")
+        logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={worker_resources.cpus}, memory={worker_resources.memory_mb})")
         # logger.info(f"Prediction samples used: {prediction_samples_used}")
 
         return AbstractDAGPlanner.PlanOutput(

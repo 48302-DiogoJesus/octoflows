@@ -1,3 +1,5 @@
+- Abstract basic worker id assignment and worker resources
+
 - Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
     abstract the optimization application algorithm from the planners and then the planners just call them
         then user could be able to tell the planner which optimizations they want (inclusive)

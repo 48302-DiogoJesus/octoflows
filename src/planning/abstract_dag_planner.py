@@ -4,6 +4,7 @@ import cloudpickle
 from graphviz import Digraph
 from typing import Literal
 from collections import defaultdict
+import uuid
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
@@ -36,9 +37,15 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     @dataclass
     class BaseConfig(ABC):
         sla: SLA
+        worker_resource_configurations: list[TaskWorkerResourceConfiguration]
 
         @abstractmethod
-        def create_instance(self) -> "AbstractDAGPlanner": pass
+        def create_instance(self) -> "AbstractDAGPlanner": 
+            if len(self.worker_resource_configurations) == 0:
+                raise ValueError("No worker resource configurations provided")
+
+            # Sort the available_resource_configurations by memory_mb: best config first
+            self.worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
     config: BaseConfig
 
@@ -92,6 +99,42 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
 
         def __post_init__(self):
             self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.tp_worker_startup_time_ms, self.nodes_info.values()))
+
+    def _basic_worker_id_assignment(self, dag, resource_configuration: TaskWorkerResourceConfiguration, topo_sorted_nodes: list[DAGTaskNode]):
+        """
+        Assigns same resources {resource_configuration} to all nodes and assigns worker ids using a simple algorithm that tries to cluster up to {MAX_FAN_OUT_SIZE_W_SAME_WORKER} nodes on the same worker on fan-outs
+        """
+        for node in topo_sorted_nodes:
+            resource_config = resource_configuration.clone()
+            node.worker_config = resource_config
+            if len(node.upstream_nodes) == 0:
+                resource_config.worker_id = uuid.uuid4().hex
+            else:
+                # Count worker usage among downstream nodes of upstream nodes
+                same_level_worker_usage = {}
+                for upstream_node in node.upstream_nodes:
+                    worker_id = upstream_node.worker_config.worker_id
+                    if not worker_id: continue
+                    same_level_worker_usage[worker_id] = 0
+
+                for upstream_node in node.upstream_nodes:
+                    # Get all downstream nodes of this upstream node
+                    for downstream_node in upstream_node.downstream_nodes:
+                        if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
+                        downstream_worker_id = downstream_node.worker_config.worker_id
+                        if not downstream_worker_id: continue
+                        same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
+
+                # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
+                best_worker_id = None
+                best_usage = -1
+                for worker_id, usage in same_level_worker_usage.items():
+                    if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
+                        best_worker_id = worker_id
+                        best_usage = usage
+                
+                # If no suitable worker found, create a new one
+                resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
     def plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
