@@ -82,8 +82,8 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
                 resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
         # Final statistics
-        final_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, self.config.worker_resource_configuration, self.config.sla)
-        final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, final_nodes_info)
+        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
             
         unique_worker_ids: dict[str, int] = {}
@@ -112,7 +112,7 @@ class SimplePlannerAlgorithm(AbstractDAGPlanner):
         return AbstractDAGPlanner.PlanOutput(
             self.planner_name, 
             self.config.sla,
-            final_nodes_info, 
+            nodes_info, 
             final_critical_path_node_ids, 
             prediction_samples_used
         )

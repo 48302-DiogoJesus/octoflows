@@ -31,6 +31,91 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
     def clone(self): return PreLoadOptimization()
 
     @staticmethod
+    def planning_assignment_logic(planner, dag: FullDAG, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]): 
+        from src.planning.abstract_dag_planner import AbstractDAGPlanner
+        from src.planning.predictions.predictions_provider import PredictionsProvider
+        _planner: AbstractDAGPlanner = planner
+        _predictions_provider: PredictionsProvider = predictions_provider
+        iteration = 0
+        while True:
+            iteration += 1
+            
+            # Calculate current node timings and find critical path
+            updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, _predictions_provider, _planner.config.sla)
+            critical_path_nodes, critical_path_time = _planner._find_critical_path(dag, updated_nodes_info)
+            initial_critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
+            
+            # logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
+
+            # Try to optimize nodes in the current critical path with PreLoad
+            nodes_optimized_this_iteration = 0
+            
+            for node in critical_path_nodes:
+                if node.try_get_annotation(PreLoadOptimization): 
+                    # Skip if node already has PreLoad annotation. Either added by this planner or the user
+                    continue 
+                
+                resource_config: TaskWorkerResourceConfiguration = node.worker_config
+                if resource_config.worker_id is None: continue # flexible workers can't have preload
+
+                # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker id
+                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) == 0:
+                    continue
+
+                # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
+                
+                # Add PreLoad annotation temporarily
+                node.add_annotation(PreLoadOptimization())
+
+                # Recalculate timings with this optimization
+                updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, _planner.config.sla)
+                new_critical_path_nodes, new_critical_path_time = _planner._find_critical_path(dag, updated_nodes_info)
+                new_critical_path_node_ids = { node.id.get_full_id() for node in new_critical_path_nodes }
+
+                # Check if optimization improved performance
+                if new_critical_path_time < critical_path_time:
+                    # Optimization helped - keep it
+                    nodes_optimized_this_iteration += 1
+                    
+                    # Check if we introduced a new critical path (different set of nodes)
+                    if initial_critical_path_node_ids != new_critical_path_node_ids:
+                        # logger.info(f"New critical path introduced. Old: {critical_path_node_ids} | New: {new_critical_path_node_ids}")
+                        break  # Start new iteration with the new critical path
+                    else:
+                        # Same critical path, continue optimizing it
+                        critical_path_nodes = new_critical_path_nodes
+                        critical_path_time = new_critical_path_time
+                        initial_critical_path_node_ids = new_critical_path_node_ids
+                        continue
+                else:
+                    # Optimization didn't help, revert it
+                    node.remove_annotation(PreLoadOptimization)
+
+            # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
+            
+            # If no optimization was applied in this iteration, we're done
+            if nodes_optimized_this_iteration == 0:
+                # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
+                break
+            
+            # If we optimized nodes but didn't introduce a new critical path, we're also done
+            # (this happens when we've optimized all optimizable nodes in the current critical path)
+            updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, _planner.config.sla)
+            current_critical_path_nodes, _ = _planner._find_critical_path(dag, updated_nodes_info)
+            current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
+            
+            if initial_critical_path_node_ids == current_critical_path_node_ids:
+                # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
+                break
+                
+            # Prevent infinite loops
+            if iteration > 100:
+                logger.warning(f"Maximum iterations reached. Stopping algorithm.")
+                break
+
+        return updated_nodes_info
+
+    @staticmethod
     async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload

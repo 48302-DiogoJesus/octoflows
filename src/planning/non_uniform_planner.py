@@ -82,15 +82,11 @@ class NonUniformPlanner(AbstractDAGPlanner):
         
         best_resource_config = self.config.available_worker_resource_configurations[0]
         
-        # Step 1: Assign best resources to all nodes and find initial critical path
+        # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         for node in topo_sorted_nodes:
             resource_config = best_resource_config.clone()
             node.worker_config = resource_config
-            
-            # #!! for debugging pre-warm
-            # resource_config.worker_id = uuid.uuid4().hex
-            # continue #!! for debugging pre-warm
             
             if len(node.upstream_nodes) == 0:
                 resource_config.worker_id = uuid.uuid4().hex
@@ -122,8 +118,8 @@ class NonUniformPlanner(AbstractDAGPlanner):
                 resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
 
         # Calculate initial critical path with best resources
-        updated_nodes_info = self._calculate_node_timings_with_common_resources(topo_sorted_nodes, predictions_provider, best_resource_config, self.config.sla)
-        critical_path_nodes, critical_path_time = self._find_critical_path(dag, updated_nodes_info)
+        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
         
         # logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
@@ -158,8 +154,8 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     node.worker_config = new_res_config
                 
                 # Recalculate timings with this configuration
-                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-                new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
+                nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+                _, new_critical_path_time = self._find_critical_path(dag, nodes_info)
                 
                 # If downgrading doesn't change the critical path, allow it, else: reverse it
                 if new_critical_path_time == critical_path_time:
@@ -177,164 +173,23 @@ class NonUniformPlanner(AbstractDAGPlanner):
 
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
 
-        # OPTIMIZATION: PRE-LOAD
-        # logger.info("=== Step 3: Applying preload optimizations ===")
-        iteration = 0
-        total_preload_optimizations = 0
-        while True:
-            iteration += 1
-            # logger.info(f"=== Preload Optimization Iteration {iteration} ===")
-            
-            # Recalculate current critical path with current resource assignments
-            updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-            current_critical_path_nodes, current_critical_path_time = self._find_critical_path(dag, updated_nodes_info)
-            initial_critical_path_node_ids = {node.id.get_full_id() for node in current_critical_path_nodes}
-            
-            # logger.info(f"Current Critical Path | Nodes: {len(current_critical_path_nodes)} | Time: {current_critical_path_time} ms")
+       # OPTIMIZATIONS
+        PreLoadOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
+        TaskDupOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
+        PreWarmOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
 
-            # Try to optimize nodes in the current critical path with PreLoad
-            nodes_optimized_this_iteration = 0
-            
-            for node in current_critical_path_nodes:
-                if node.try_get_annotation(PreLoadOptimization):
-                    # Skip if node already has PreLoad annotation. Either added by this planner or the user
-                    continue 
-                    
-                resource_config = node.worker_config
-
-                if resource_config.worker_id is None: continue # flexible workers can't have preload
-
-                # Only try to apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker ids
-                if (len(node.upstream_nodes) == 0 or 
-                    len([un for un in node.upstream_nodes 
-                        if un.worker_config.worker_id != 
-                            resource_config.worker_id]) == 0):
-                    continue
-
-                # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
-                
-                # Add PreLoad annotation temporarily
-                node.add_annotation(PreLoadOptimization())
-
-                # Recalculate timings with this optimization
-                new_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-                new_critical_path_nodes, new_critical_path_time = self._find_critical_path(dag, new_nodes_info)
-                new_critical_path_node_ids = {node.id.get_full_id() for node in new_critical_path_nodes}
-
-                # Check if optimization improved performance
-                if new_critical_path_time < current_critical_path_time:
-                    # Optimization helped - keep it
-                    # logger.info(f"PreLoad optimization successful for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms")
-                    nodes_optimized_this_iteration += 1
-                    total_preload_optimizations += 1
-                    
-                    # Check if we introduced a new critical path (different set of nodes)
-                    if initial_critical_path_node_ids != new_critical_path_node_ids:
-                        # logger.info(f"New critical path introduced. Old: {current_critical_path_node_ids} | New: {new_critical_path_node_ids}")
-                        break  # Start new iteration with the new critical path
-                    else:
-                        # Same critical path, continue optimizing it
-                        current_critical_path_nodes = new_critical_path_nodes
-                        current_critical_path_time = new_critical_path_time
-                        initial_critical_path_node_ids = new_critical_path_node_ids
-                        continue
-                else:
-                    # Optimization didn't help, revert it
-                    # logger.info(f"PreLoad optimization not beneficial for node {node_id}: {current_critical_path_time} -> {new_critical_path_time} ms, reverting")
-                    node.remove_annotation(PreLoadOptimization)
-
-            # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
-            
-            # If no optimization was applied in this iteration, we're done
-            if nodes_optimized_this_iteration == 0:
-                # logger.info(f"No further optimizations possible on current critical path. Algorithm completed after {iteration} iterations.")
-                break
-            
-            # If we optimized nodes but didn't introduce a new critical path, we're also done
-            updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-            final_critical_path_nodes, _ = self._find_critical_path(dag, updated_nodes_info)
-            final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
-            
-            if initial_critical_path_node_ids == final_critical_path_node_ids:
-                # logger.info(f"Critical path unchanged after optimizations. Algorithm completed after {iteration} iterations.")
-                break
-                
-            # Prevent infinite loops
-            if iteration > 100:
-                logger.warning(f"Maximum iterations reached. Stopping algorithm.")
-                break
-
-        # OPTIMIZATION: PRE-WARM
-        total_prewarm_optimizations = 0
-        
-        # For each node that has a cold start
-        for my_node_id, node_info in updated_nodes_info.items():
-            if node_info.worker_startup_state != "cold": continue
-            if len(node_info.node_ref.upstream_nodes) == 0: continue # ignore root nodes
-
-            # Calculate sum of execution times of tasks with same worker config that start after this node
-            my_worker_config = node_info.node_ref.worker_config
-            sum_exec_times = 0
-            
-            # Get tasks with same resources that start after this node (because they could also benefit from pre-warm)
-            for other_node_id, other_node_info in updated_nodes_info.items():
-                if other_node_id == my_node_id: continue
-                other_worker_config = other_node_info.node_ref.worker_config
-                if other_worker_config.cpus != my_worker_config.cpus or other_worker_config.memory_mb != my_worker_config.memory_mb: continue
-                if other_node_info.earliest_start_ms > node_info.earliest_start_ms:
-                    sum_exec_times += other_node_info.tp_exec_time_ms
-            
-
-            if not (node_info.tp_worker_startup_time_ms > 0.15 * sum_exec_times):
-                # don't apply pre-warm if the startup time is not significant when compared to the time that worker will be executing
-                continue
-            
-            # Find the best node to add pre-warm annotation to
-            best_node = None
-            best_start_time = -1
-            time_until_worker_goes_cold_ms = AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
-            
-            for other_node_id, other_node_info in updated_nodes_info.items():
-                if other_node_id == my_node_id: continue
-                
-                # time at which the worker config I need would be available if I were to add pre-warm annotation to this node
-                my_worker_potential_ready_if_prewarmed = other_node_info.earliest_start_ms + node_info.tp_worker_startup_time_ms
-                # avoid the worker being ready but cold by the time we need it
-                min_prewarm_time = max(0, node_info.earliest_start_ms - time_until_worker_goes_cold_ms + time_until_worker_goes_cold_ms / 3)
-                max_prewarm_time = max(0, node_info.earliest_start_ms)
-                is_in_optimal_prewarm_window = min_prewarm_time < my_worker_potential_ready_if_prewarmed < max_prewarm_time
-                
-                if is_in_optimal_prewarm_window and (best_node is None or other_node_info.earliest_start_ms > best_start_time):
-                    best_node = other_node_info.node_ref
-                    best_start_time = other_node_info.earliest_start_ms
-            
-            # Add pre-warm annotation to the best node found
-            if best_node is not None:
-                annotation = best_node.try_get_annotation(PreWarmOptimization)
-                if not annotation: annotation = best_node.add_annotation(PreWarmOptimization([]))
-                # allow multiple pre-warms for the same worker config (only makes sense with local docker implementation. Lambda implementation)
-                
-                annotation.target_resource_configs.append(my_worker_config)
-                # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
-                #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
-                updated_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
+        total_duppable_tasks, total_preload_optimizations, total_prewarm_optimizations = 0, 0, 0
+        for node_info in nodes_info.values():
+            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
+                total_duppable_tasks += 1
+            if node_info.node_ref.try_get_annotation(PreLoadOptimization): 
+                total_preload_optimizations += 1
+            if node_info.node_ref.try_get_annotation(PreWarmOptimization): 
                 total_prewarm_optimizations += 1
 
-        # OPTIMIZATION: TASK-DUP
-        total_duppable_tasks = 0
-        for node_info in updated_nodes_info.values():
-            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
-                # Skip if node already has TaskDup annotation. Cloud have been added by the user
-                continue
-            if len(node_info.node_ref.downstream_nodes) == 0: continue
-            if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
-            if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
-            node_info.node_ref.add_annotation(TaskDupOptimization())
-            total_duppable_tasks += 1
-
         # Final statistics and logging
-        final_nodes_info = self._calculate_node_timings_with_custom_resources(topo_sorted_nodes, predictions_provider, self.config.sla)
-        final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, final_nodes_info)
+        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
         
         # Calculate resource distribution
@@ -369,7 +224,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time / 1000:.2f}s")
-        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(updated_nodes_info)}")
+        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(nodes_info)}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Successfully downgraded resources for {successful_worker_resources_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")
@@ -378,7 +233,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         return AbstractDAGPlanner.PlanOutput(
             self.planner_name, 
             self.config.sla,
-            final_nodes_info, 
+            nodes_info, 
             final_critical_path_node_ids, 
             prediction_samples_used
         )

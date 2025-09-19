@@ -12,9 +12,9 @@ from src.utils.errors import CancelCurrentWorkerLoopException
 logger = create_logger(__name__)
 
 # if task execution time exceeds this, don't allow dupping. Short tasks are better for dupping
-DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
-# if task input size exceeds 5MB, don't allow dupping
-DUPPABLE_TASK_MAX_INPUT_SIZE: int = 5 * 1024 * 1024
+DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_500
+# if task input size exceeds 10MB, don't allow dupping
+DUPPABLE_TASK_MAX_INPUT_SIZE: int = 10 * 1024 * 1024
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
 DUPPABLE_TASK_CANCELLATION_PREFIX = "taskdup-cancellation-"
 DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_500 # the least amount of time we need to save to justify duplication
@@ -41,6 +41,18 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         if not has_downstream_task_to_execute_locally:
             if await metadata_storage.exists(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}"): 
                 raise CancelCurrentWorkerLoopException(f"Task {current_task.id.get_full_id()} is being dupped by another worker, aborting branch with {len(current_task.downstream_nodes)} downstream tasks")
+
+    @staticmethod
+    def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
+        for node_info in nodes_info.values():
+            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
+                # Skip if node already has TaskDup annotation. Cloud have been added by the user
+                continue
+            if len(node_info.node_ref.downstream_nodes) == 0: continue
+            if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
+            if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
+            node_info.node_ref.add_annotation(TaskDupOptimization())
+        return nodes_info
 
     @staticmethod
     async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):

@@ -351,30 +351,15 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
                 node_info.earliest_start_ms = max(node_info.earliest_start_ms, nodes_info[unode.id.get_full_id()].task_completion_time_ms)
             node_info.task_completion_time_ms = node_info.earliest_start_ms + node_info.tp_download_time_ms + node_info.tp_exec_time_ms + node_info.tp_upload_time_ms
 
-    def _calculate_node_timings_with_common_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, resource_config: TaskWorkerResourceConfiguration, sla: SLA):
-        """
-        Calculate timing information for all nodes using the same resource configuration
-        """
-        nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
-        for node in topo_sorted_nodes:
-            # note: modifies `nodes_info`
-            self.__calculate_node_timings(nodes_info, node, resource_config, predictions_provider, sla)
-            
-        # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
-        self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
-
-        return nodes_info
-    
-    def _calculate_node_timings_with_custom_resources(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, sla: SLA):
+    def _calculate_workflow_timings(self, topo_sorted_nodes: list[DAGTaskNode], predictions_provider: PredictionsProvider, sla: SLA):
         """
         Calculate timing information for all nodes using custom resource configurations
         """
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
 
         for node in topo_sorted_nodes:
-            resource_config = node.worker_config
             # note: modifies `nodes_info`
-            self.__calculate_node_timings(nodes_info, node, resource_config, predictions_provider, sla)
+            self.__calculate_node_timings(nodes_info, node, node.worker_config, predictions_provider, sla)
 
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
         self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
