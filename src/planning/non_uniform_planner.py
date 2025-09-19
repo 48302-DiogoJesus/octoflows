@@ -1,12 +1,8 @@
 from dataclasses import dataclass
-from types import CoroutineType
-from typing import Any
 import uuid
 
-from src.dag.dag import FullDAG, SubDAG
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.prewarm import PreWarmOptimization
-from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_MAX_EXEC_TIME_MS, DUPPABLE_TASK_MAX_INPUT_SIZE
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -136,9 +132,8 @@ class NonUniformPlanner(AbstractDAGPlanner):
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
 
        # OPTIMIZATIONS
-        PreLoadOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
-        TaskDupOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
-        PreWarmOptimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
+        for optimization in self.config.optimizations:
+            optimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
 
         total_duppable_tasks, total_preload_optimizations, total_prewarm_optimizations = 0, 0, 0
         for node_info in nodes_info.values():
@@ -199,43 +194,3 @@ class NonUniformPlanner(AbstractDAGPlanner):
             final_critical_path_node_ids, 
             prediction_samples_used
         )
-
-    @staticmethod
-    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
-        from src.planning.annotations.preload import PreLoadOptimization
-        await PreLoadOptimization.wel_on_worker_ready(intermediate_storage, dag, this_worker_id)
-
-    @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool = False):
-        from src.planning.annotations.prewarm import PreWarmOptimization
-        await PreWarmOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task, is_dupping)
-        from src.planning.annotations.taskdup import TaskDupOptimization
-        await TaskDupOptimization.wel_before_task_handling(this_worker, metadata_storage, subdag, current_task, is_dupping)
-
-    @staticmethod
-    async def wel_before_task_execution(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
-        from src.planning.annotations.taskdup import TaskDupOptimization
-        await TaskDupOptimization.wel_before_task_execution(this_worker, metadata_storage, subdag, current_task, is_dupping)
-
-    @staticmethod
-    async def wel_override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
-        """
-        returns (
-            tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),
-            wait_until_coroutine: list[TaskInputMetrics] (so that the caller can fetch the tasks in parallel)
-        )
-        """
-        res = await PreLoadOptimization.wel_override_handle_inputs(intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
-        return res
-
-    @staticmethod
-    async def wel_override_should_upload_output(current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
-        from src.planning.annotations.taskdup import TaskDupOptimization
-        res = await TaskDupOptimization.wel_override_should_upload_output(current_task, subdag, this_worker, metadata_storage, is_dupping)
-        return res
-
-    @staticmethod
-    async def wel_override_handle_downstream(fulldag: FullDAG, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
-        from src.planning.annotations.taskdup import TaskDupOptimization
-        res = await TaskDupOptimization.wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
-        return res

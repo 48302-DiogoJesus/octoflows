@@ -55,13 +55,13 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         return nodes_info
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
         is_duppable = current_task.try_get_annotation(TaskDupOptimization) is not None
         if not is_dupping and is_duppable: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, current_task)
         if is_duppable: await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
 
     @staticmethod
-    async def wel_before_task_execution(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
+    async def wel_before_task_execution(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
         is_duppable = current_task.try_get_annotation(TaskDupOptimization) is not None
         # set the cancellation flag to notify other workers to not execute this task. if all inputs are available, then we can dup the task. Warn others that they MAY NOT need to execute it
         if is_dupping: await metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", 1)
@@ -69,9 +69,8 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         if not is_dupping and is_duppable: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, current_task)
 
     @staticmethod
-    async def wel_override_should_upload_output(current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
+    async def wel_override_should_upload_output(planner, current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
         from src.dag_task_node import DAGTaskNode
-        from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
         _task: DAGTaskNode = current_task
 
         if not is_dupping and _task.try_get_annotation(TaskDupOptimization) is not None: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, _task)
@@ -81,6 +80,6 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         return has_any_duppable_downstream or subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or (this_worker is None or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes))
 
     @staticmethod
-    async def wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool):
         if is_dupping: raise CancelCurrentWorkerLoopException("This task was dupped, don't continue branch")
-        return await WorkerExecutionLogic.wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+        return None

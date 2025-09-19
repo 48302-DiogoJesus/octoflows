@@ -76,7 +76,6 @@ class FullDAG(GenericDAG):
 
     async def compute(self, config, dag_name: str, open_dashboard: bool = False):
         from src.workers.worker import Worker
-        from src.workers.local_worker import LocalWorker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.predictions.predictions_provider import PredictionsProvider
         from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics
@@ -95,9 +94,8 @@ class FullDAG(GenericDAG):
             if plan_result:
                 wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
 
-        if not isinstance(wk, LocalWorker):
-            # ! Need to STORE after PLANNING because after the full dag is stored on redis, workers might use that!
-            _ = await Worker.store_full_dag(wk.metadata_storage, self)
+        # ! Need to STORE after PLANNING because after the full dag is stored on redis, workers might use that!
+        _ = await Worker.store_full_dag(wk.metadata_storage, self)
 
         if open_dashboard:
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):

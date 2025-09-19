@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from src.task_optimization import TaskOptimization
 
 
 @dataclass
-class TaskWorkerResourceConfiguration(TaskOptimization):
+class TaskWorkerResourceConfiguration:
     """ MANDATORY annotation that doesn't conflict with other annotations """
     cpus: float
     memory_mb: int

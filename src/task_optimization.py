@@ -1,8 +1,28 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
+from types import CoroutineType
+from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 @dataclass
-class TaskOptimization(ABC):
+class TaskOptimization(WorkerExecutionLogic):
     @staticmethod
     @abstractmethod
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list) -> dict : pass
+
+    @staticmethod
+    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None): pass
+
+    @staticmethod
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass
+
+    @staticmethod
+    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], CoroutineType | None] | None: return None
+    
+    @staticmethod
+    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass
+    
+    @staticmethod
+    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool) -> bool | None: return None
+    
+    @staticmethod
+    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool) -> list | None: return None

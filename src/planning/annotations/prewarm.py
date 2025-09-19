@@ -81,7 +81,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         return nodes_info
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         

@@ -1,10 +1,11 @@
+from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.annotations.prewarm import PreWarmOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization
 from src.planning.sla import Percentile, SLA
 from src.storage.redis_storage import RedisStorage
 from src.storage.in_memory_storage import InMemoryStorage
 from src.workers.docker_worker import DockerWorker
-from src.workers.local_worker import LocalWorker
 from src.storage.metrics.metrics_storage import MetricsStorage
-from src.planning.simple_planner import SimplePlannerAlgorithm
 from src.planning.uniform_planner import UniformPlanner
 from src.planning.non_uniform_planner import NonUniformPlanner
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -36,27 +37,30 @@ def get_planner_from_sys_argv():
     if planner_type == "wukong":
         return WUKONGPlanner.Config(
             sla=sla, # won't be used
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            optimizations=[],
         )
     elif planner_type == "simple":
-        return SimplePlannerAlgorithm.Config(
+        return UniformPlanner.Config(
             sla=sla,
-            all_flexible_workers=False,
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
             sla=sla,
-            available_worker_resource_configurations=[
+            worker_resource_configurations=[
                 TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
                 TaskWorkerResourceConfiguration(cpus=2, memory_mb=1024),
                 TaskWorkerResourceConfiguration(cpus=2, memory_mb=2048),
-            ]
+            ],
+            optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )
     else:
         raise ValueError(f"Unhandled planner type: {planner_type}")
@@ -74,21 +78,10 @@ _REDIS_METRICS_STORAGE_CONFIG = RedisStorage.Config(
     password="redisdevpwd123"
 )
 
-_IN_MEMORY_STORAGE_CONFIG = InMemoryStorage.Config()
-
-_IN_MEMORY_CONFIG = _IN_MEMORY_STORAGE_CONFIG
-
 # WORKER CONFIGS
-_LOCAL_WORKER_CONFIG = LocalWorker.Config(
-    intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    metadata_storage_config=_REDIS_METRICS_STORAGE_CONFIG,
-)
-
-_DOCKER_WORKER_CONFIG = DockerWorker.Config(
+WORKER_CONFIG = DockerWorker.Config(
     external_docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
     metrics_storage_config=MetricsStorage.Config(storage_config=_REDIS_METRICS_STORAGE_CONFIG),
     planner_config=get_planner_from_sys_argv()
 )
-
-WORKER_CONFIG = _DOCKER_WORKER_CONFIG

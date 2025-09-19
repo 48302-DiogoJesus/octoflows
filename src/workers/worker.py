@@ -28,13 +28,13 @@ class TaskOutputNotAvailableException(Exception):
         message = f"Task {task_id}'s data is not available yet!"
         super().__init__(message)
 
-class Worker(ABC, WorkerExecutionLogic):
+class Worker(ABC):
     @dataclass
     class Config(ABC):
+        planner_config: AbstractDAGPlanner.BaseConfig
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: storage_module.Storage.Config | None = None
         metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
-        planner_config: AbstractDAGPlanner.BaseConfig | None = None
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -45,7 +45,7 @@ class Worker(ABC, WorkerExecutionLogic):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
         self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
-        self.planner = config.planner_config.create_instance() if config.planner_config else None
+        self.planner = config.planner_config.create_instance()
 
     async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG, my_worker_id: str, is_dupping: bool = False) -> None:
         """
@@ -69,10 +69,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
-                if self.planner:
-                    await self.planner.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
-                else:
-                    await WorkerExecutionLogic.wel_before_task_handling(self, self.metadata_storage, subdag, current_task, is_dupping)
+                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 if not await current_task.is_handling.set_if_not_set():
                     # avoid duplicate execution on same worker
@@ -89,10 +86,9 @@ class Worker(ABC, WorkerExecutionLogic):
 
                 _download_dependencies_timer = Timer()
 
-                if self.planner:
-                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await self.planner.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
-                else:
-                    tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = await WorkerExecutionLogic.wel_override_handle_inputs(self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                assert res is not None
+                tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = res
 
                 tasks_with_cached_results = list(
                     set([un.id.get_full_id() for un in current_task.upstream_nodes]) - 
@@ -143,10 +139,7 @@ class Worker(ABC, WorkerExecutionLogic):
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
 
-                if self.planner:
-                    await self.planner.wel_before_task_execution(self, self.metadata_storage, subdag, current_task, is_dupping)
-                else:
-                    await WorkerExecutionLogic.wel_before_task_execution(self, self.metadata_storage, subdag, current_task, is_dupping)
+                await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...")
@@ -171,10 +164,7 @@ class Worker(ABC, WorkerExecutionLogic):
                 )
 
                 self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
-                if self.planner:
-                    upload_output = await self.planner.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
-                else:
-                    upload_output = await WorkerExecutionLogic.wel_override_should_upload_output(current_task, subdag, self, self.metadata_storage, is_dupping)
+                upload_output = await self.planner.wel_override_should_upload_output(self.planner, current_task, subdag, self, self.metadata_storage, is_dupping)
                 
                 if upload_output:
                     output_upload_timer = Timer()
@@ -222,10 +212,8 @@ class Worker(ABC, WorkerExecutionLogic):
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id(), f"5) Handling Downstream Tasks...")
-                if self.planner:
-                    my_continuation_tasks = await self.planner.wel_override_handle_downstream(fulldag, current_task, self, downstream_tasks_ready, subdag, is_dupping)
-                else:
-                    my_continuation_tasks = await WorkerExecutionLogic.wel_override_handle_downstream(fulldag, current_task, self, downstream_tasks_ready, subdag, is_dupping)
+                my_continuation_tasks = await self.planner.wel_override_handle_downstream(self.planner, fulldag, current_task, self, downstream_tasks_ready, subdag, is_dupping)
+                assert my_continuation_tasks is not None
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:

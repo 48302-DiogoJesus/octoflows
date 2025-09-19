@@ -4,6 +4,7 @@ import cloudpickle
 from graphviz import Digraph
 from typing import Literal
 from collections import defaultdict
+from typing import Type
 import uuid
 
 from src import dag_task_node
@@ -18,10 +19,13 @@ from src.utils.utils import calculate_data_structure_size
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
+# ?? will give circular import error??
+from src.task_optimization import TaskOptimization
+
 logger = create_logger(__name__, prefix="PLANNING")
 
 
-class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
+class AbstractDAGPlanner(WorkerExecutionLogic):
     """
     A planner should override WorkerExecutionLogic methods if it uses annotations that may conflict with each other.
     This way, the planner can specify the desired behavior.
@@ -38,6 +42,7 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
     class BaseConfig(ABC):
         sla: SLA
         worker_resource_configurations: list[TaskWorkerResourceConfiguration]
+        optimizations: list[Type[TaskOptimization]]
 
         @abstractmethod
         def create_instance(self) -> "AbstractDAGPlanner": 
@@ -693,3 +698,72 @@ class AbstractDAGPlanner(ABC, WorkerExecutionLogic):
         print(f"DAG task information saved to {output_file_name}")
         
         return output_data
+
+    @staticmethod
+    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None):
+        _planner: AbstractDAGPlanner = planner
+        for optimization in _planner.config.optimizations:
+            await optimization.wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id)
+
+    @staticmethod
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool = False):
+        _planner: AbstractDAGPlanner = planner
+        for optimization in _planner.config.optimizations:
+            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+
+    @staticmethod
+    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+        _planner: AbstractDAGPlanner = planner
+        for optimization in _planner.config.optimizations:
+            await optimization.wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+
+    @staticmethod
+    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict):
+        """
+        returns (
+            tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),
+            wait_until_coroutine: list[TaskInputMetrics] (so that the caller can fetch the tasks in parallel)
+        )
+        """
+        from src.workers.worker_execution_logic import WorkerExecutionLogic
+        _planner: AbstractDAGPlanner = planner
+
+        res = None
+        for optimization in _planner.config.optimizations:
+            opt_res = await optimization.wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+            if opt_res is not None: res = opt_res
+        
+        # fallback to default logic
+        if res is None:
+            res = await WorkerExecutionLogic.wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+        return res
+
+    @staticmethod
+    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool):
+        from src.workers.worker_execution_logic import WorkerExecutionLogic
+        _planner: AbstractDAGPlanner = planner
+
+        res = None
+        for optimization in _planner.config.optimizations:
+            opt_res = await optimization.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping)
+            if opt_res is not None: res = opt_res
+        
+        # fallback to default logic
+        if res is None:
+            res = await WorkerExecutionLogic.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping)
+        return res
+
+    @staticmethod
+    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool):
+        from src.workers.worker_execution_logic import WorkerExecutionLogic
+        _planner: AbstractDAGPlanner = planner
+
+        res = None
+        for optimization in _planner.config.optimizations:
+            opt_res = await optimization.wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+            if opt_res is not None: res = opt_res
+        
+        # fallback to default logic
+        if res is None:
+            res = await WorkerExecutionLogic.wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+        return res

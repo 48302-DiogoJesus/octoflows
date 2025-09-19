@@ -1,25 +1,24 @@
 import asyncio
 from types import CoroutineType
 from typing import Any
+from abc import ABC
 
-from src.dag.dag import FullDAG, SubDAG
-from src.storage.storage import Storage
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 
 logger = create_logger(__name__)
 
-class WorkerExecutionLogic():
+class WorkerExecutionLogic(ABC):
     @staticmethod
-    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None):
         pass
 
     @staticmethod
-    async def wel_before_task_handling(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
         pass
 
     @staticmethod
-    async def wel_override_handle_inputs(intermediate_storage: Storage, task, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
+    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None] | None:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
@@ -30,11 +29,11 @@ class WorkerExecutionLogic():
         return (upstream_tasks_without_cached_results, [], None)
 
     @staticmethod
-    async def wel_before_task_execution(this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
+    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
         pass
 
     @staticmethod
-    async def wel_override_should_upload_output(current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool) -> bool:
+    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool) -> bool | None:
         """
         return value indicates if the task result was uploaded or not 
         """
@@ -45,7 +44,7 @@ class WorkerExecutionLogic():
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
     @staticmethod
-    async def wel_override_handle_downstream(fulldag, current_task, this_worker, downstream_tasks_ready, subdag: SubDAG, is_dupping: bool) -> list:
+    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool) -> list | None:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
 

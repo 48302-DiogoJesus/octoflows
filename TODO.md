@@ -1,13 +1,7 @@
-- Abstract basic worker id assignment and worker resources
+- improve `_basic_worker_id_assignment()`: use predictions to better CLUSTER tasks on fan-outs
+- remove simple planner (merge with uniform planner; becomes the uniform without optimizations)
+- simplify simple planner (should be better than WUKONG's approach)
 
-- Algorithmos NÃO devem ter otimizações implicitamente, devia ser lógica comum correr a lógica de aplicação de otimizações??
-    abstract the optimization application algorithm from the planners and then the planners just call them
-        then user could be able to tell the planner which optimizations they want (inclusive)
-    - simplify simple planner (should be better than WUKONG's approach)
-        - show that just using uniform workers and not launching as much workers on fan-outs provides better results
-            - worker_id assignment: use predictions to better CLUSTER tasks on fan-outs
-        - maybe the simple planner could be merged with uniform planner
-            and make it configurable by telling which optimizations to use
 - re-check planners description function
 
 - Change one workflow to have diff types of tasks on a fan-out that fans in after

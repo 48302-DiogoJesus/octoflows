@@ -10,7 +10,6 @@ from src.task_worker_resource_configuration import TaskWorkerResourceConfigurati
 from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.coroutine_tags import COROTAG_PRELOAD
-from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size
@@ -19,7 +18,7 @@ from src.utils.timer import Timer
 logger = create_logger(__name__)
 
 @dataclass
-class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
+class PreLoadOptimization(TaskOptimization):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible """
 
     # for upstream tasks
@@ -116,7 +115,7 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
         return updated_nodes_info
 
     @staticmethod
-    async def wel_on_worker_ready(intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
@@ -173,7 +172,7 @@ class PreLoadOptimization(TaskOptimization, WorkerExecutionLogic):
                 )
 
     @staticmethod
-    async def wel_override_handle_inputs(intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
+    async def wel_override_handle_inputs(planner, intermediate_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None]:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
