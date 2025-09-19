@@ -3,10 +3,10 @@ import uuid
 
 from src.planning.annotations.preload import PreLoadOptimization
 from src.planning.annotations.prewarm import PreWarmOptimization
+from src.planning.annotations.taskdup import TaskDupOptimization
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
-from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__, prefix="PLANNING")
