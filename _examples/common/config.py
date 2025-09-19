@@ -44,13 +44,13 @@ def get_planner_from_sys_argv():
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
-            optimizations=[PreLoadOptimization, TaskDupOptimization],
+            optimizations=[],
         )
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
-            optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization],
+            optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(

@@ -1,6 +1,4 @@
 - improve `_basic_worker_id_assignment()`: use predictions to better CLUSTER tasks on fan-outs
-- remove simple planner (merge with uniform planner; becomes the uniform without optimizations)
-- simplify simple planner (should be better than WUKONG's approach)
 
 - re-check planners description function
 
