@@ -214,7 +214,7 @@ class RedisStorage(storage.Storage):
             bool: True if subscription was found and removed, False otherwise
         """
         if channel not in self._channel_subscriptions:
-            logger.warning(f"No subscriptions found for channel: {channel}")
+            # logger.info(f"No subscriptions found for channel: {channel}")
             return
         
         if subscription_id is None:

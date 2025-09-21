@@ -69,8 +69,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             
             # Add pre-warm annotation to the best node found
             if best_node is not None:
-                annotation = best_node.try_get_annotation(PreWarmOptimization)
-                if not annotation: annotation = best_node.add_annotation(PreWarmOptimization([]))
+                annotation = best_node.try_get_optimization(PreWarmOptimization)
+                if not annotation: annotation = best_node.add_optimization(PreWarmOptimization([]))
                 # allow multiple pre-warms for the same worker config (only makes sense with local docker implementation. Lambda implementation)
                 
                 annotation.target_resource_configs.append(my_worker_config)
@@ -85,8 +85,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         
-        prewarm_annotation = current_task.try_get_optimization(PreWarmOptimization)
-        if prewarm_annotation is None: return
+        prewarm_optimization = current_task.try_get_optimization(PreWarmOptimization)
+        if prewarm_optimization is None: return
 
         # "fire-and-forget" / non-blocking
-        asyncio.create_task(_this_worker.warmup(prewarm_annotation.target_resource_configs))
+        asyncio.create_task(_this_worker.warmup(prewarm_optimization.target_resource_configs))

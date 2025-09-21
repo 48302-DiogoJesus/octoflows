@@ -50,7 +50,7 @@ class PreLoadOptimization(TaskOptimization):
             nodes_optimized_this_iteration = 0
             
             for node in critical_path_nodes:
-                if node.try_get_annotation(PreLoadOptimization): 
+                if node.try_get_optimization(PreLoadOptimization): 
                     # Skip if node already has PreLoad annotation. Either added by this planner or the user
                     continue 
                 
@@ -64,7 +64,7 @@ class PreLoadOptimization(TaskOptimization):
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
                 
                 # Add PreLoad annotation temporarily
-                node.add_annotation(PreLoadOptimization())
+                node.add_optimization(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
                 updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, _planner.config.sla)
@@ -88,7 +88,7 @@ class PreLoadOptimization(TaskOptimization):
                         continue
                 else:
                     # Optimization didn't help, revert it
-                    node.remove_annotation(PreLoadOptimization)
+                    node.remove_optimization(PreLoadOptimization)
 
             # logger.info(f"Optimized {nodes_optimized_this_iteration} nodes in iteration {iteration}")
             
@@ -159,15 +159,15 @@ class PreLoadOptimization(TaskOptimization):
             # MY Logic
             # 1) tasks assigned to me
             if current_node.worker_config.worker_id != this_worker_id: continue
-            preload_annotation = current_node.try_get_optimization(PreLoadOptimization)
+            preload_optimization = current_node.try_get_optimization(PreLoadOptimization)
             # 2) that should preload
-            if not preload_annotation: continue
+            if not preload_optimization: continue
             for unode in current_node.upstream_nodes:
                 if unode.worker_config.worker_id == this_worker_id: continue
                 logger.info(f"[PRELOADING - SUBSCRIBING] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                 await intermediate_storage.subscribe(
                     f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                    _on_preload_task_completed_builder(current_node, unode, preload_annotation, intermediate_storage, dag),
+                    _on_preload_task_completed_builder(current_node, unode, preload_optimization, intermediate_storage, dag),
                     coroutine_tag=COROTAG_PRELOAD
                 )
 
@@ -181,12 +181,12 @@ class PreLoadOptimization(TaskOptimization):
         """
         upstream_tasks_to_fetch = []
         
-        preload_annotation = task.try_get_optimization(PreLoadOptimization)
+        preload_optimization = task.try_get_optimization(PreLoadOptimization)
         __tasks_preloading_coroutines: dict[str, CoroutineType] = {}
-        if preload_annotation:
-            async with preload_annotation._lock:
-                preload_annotation.allow_new_preloads = False
-                for utask_id, preloading_event in preload_annotation.preloading_complete_events.items():
+        if preload_optimization:
+            async with preload_optimization._lock:
+                preload_optimization.allow_new_preloads = False
+                for utask_id, preloading_event in preload_optimization.preloading_complete_events.items():
                     logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
                     __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
 

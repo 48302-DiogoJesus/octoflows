@@ -20,8 +20,10 @@ SLAS = ['50']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
+DOCKER_FAAS_GATEWAY_IP = "localhost"
+
 def kill_warm():
-    url = "http://localhost:5000/kill-warm"
+    url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/kill-warm"
     try:
         response = requests.post(url)
         if response.status_code == 202:

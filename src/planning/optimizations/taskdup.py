@@ -45,13 +45,13 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
     @staticmethod
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
         for node_info in nodes_info.values():
-            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
+            if node_info.node_ref.try_get_optimization(TaskDupOptimization): 
                 # Skip if node already has TaskDup annotation. Cloud have been added by the user
                 continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
             if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
-            node_info.node_ref.add_annotation(TaskDupOptimization())
+            node_info.node_ref.add_optimization(TaskDupOptimization())
         return nodes_info
 
     @staticmethod
@@ -62,7 +62,7 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
 
     @staticmethod
     async def wel_before_task_execution(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
-        is_duppable = current_task.try_get_annotation(TaskDupOptimization) is not None
+        is_duppable = current_task.try_get_optimization(TaskDupOptimization) is not None
         # set the cancellation flag to notify other workers to not execute this task. if all inputs are available, then we can dup the task. Warn others that they MAY NOT need to execute it
         if is_dupping: await metadata_storage.set(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", 1)
 
