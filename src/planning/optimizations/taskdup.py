@@ -12,7 +12,7 @@ from src.utils.errors import CancelCurrentWorkerLoopException
 logger = create_logger(__name__)
 
 # if task execution time exceeds this, don't allow dupping. Short tasks are better for dupping
-DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_500
+DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
 # if task input size exceeds 10MB, don't allow dupping
 DUPPABLE_TASK_MAX_INPUT_SIZE: int = 10 * 1024 * 1024
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
@@ -56,7 +56,7 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
-        is_duppable = current_task.try_get_annotation(TaskDupOptimization) is not None
+        is_duppable = current_task.try_get_optimization(TaskDupOptimization) is not None
         if not is_dupping and is_duppable: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, current_task)
         if is_duppable: await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
 
@@ -73,7 +73,7 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         from src.dag_task_node import DAGTaskNode
         _task: DAGTaskNode = current_task
 
-        if not is_dupping and _task.try_get_annotation(TaskDupOptimization) is not None: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, _task)
+        if not is_dupping and _task.try_get_optimization(TaskDupOptimization) is not None: await TaskDupOptimization._check_cancellation_flag(this_worker, metadata_storage, subdag, _task)
 
         has_any_duppable_downstream = any(dt.worker_config is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 

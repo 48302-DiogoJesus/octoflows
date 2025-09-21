@@ -5,16 +5,15 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    # 'text_analysis.py',
+    'text_analysis.py',
     'image_transformer.py',
     'wordcount.py',
     'gemm.py',
     'tree_reduction.py',
-    # 'montage.py',
+    'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 2
-# ALGORITHMS = ['non-uniform']
+ITERATIONS_PER_ALGORITHM = 3
 ALGORITHMS = ['wukong', 'simple', 'uniform', 'non-uniform']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
@@ -36,7 +35,7 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
     """Run the specified Python script with the given algorithm and SLA parameters."""
     kill_warm()
     print(f"Waiting while warm containers are being killed...")
-    time.sleep(1.4)
+    time.sleep(1.6)
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
@@ -44,7 +43,7 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
     cmd = [sys.executable, full_script_path, algorithm, sla]
     
     percentage = (current / total) * 100 if total > 0 else 0
-    print(f" > [{percentage:5.1f}%] Running {os.path.basename(script_path)} with {algorithm.upper()} algorithm, SLA {sla} (iteration: {iteration}) [{current}/{total}]")
+    print(f" > [{percentage:5.1f}%] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}) [{current}/{total}]")
     
     try:
         subprocess.run(cmd, check=True, cwd=script_dir)
@@ -79,8 +78,8 @@ def main():
         print(f"{'='*60}")
         
         # First run to get some history (not counted in progress)
-        print(" > [Initial run] Runnin with 'simple' algorithm and 'average' SLA to get some history...")
-        run_experiment(script_name, 'simple', 'average', iteration="initial", current=0, total=0)
+        print(" > [Initial run] Algorithm: simple | SLA: average | Iteration: -1")
+        run_experiment(script_name, 'simple', 'average', iteration="-1", current=0, total=0)
         
         # Run experiments for each algorithm and SLA combination
         for algorithm in ALGORITHMS:

@@ -69,7 +69,7 @@ class DAGTaskNode:
         )
         self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         # Initialized with a dummy worker config annotation for local worker
-        self.annotations: list[TaskOptimization] = []
+        self.optimizations: list[TaskOptimization] = []
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
@@ -155,7 +155,7 @@ class DAGTaskNode:
         cloned_nodes[self.id.task_id] = cloned_node
 
         # Clone the upstream and downstream nodes
-        cloned_node.annotations = copy.copy(self.annotations)
+        cloned_node.optimizations = copy.copy(self.optimizations)
         cloned_node.upstream_nodes = [node.clone(cloned_nodes) for node in self.upstream_nodes]
         cloned_node.downstream_nodes = [node.clone(cloned_nodes) for node in self.downstream_nodes]
         # cloned_node.cached_result = self.cached_result
@@ -215,33 +215,33 @@ class DAGTaskNode:
         self.completed_event.set()
         return res
 
-    T = TypeVar('T', bound='TaskAnnotation')
+    T = TypeVar('T', bound='TaskOptimization')
 
-    def add_annotation(self, annotation: T) -> T:
-        for existing in self.annotations:
-            if type(existing) is type(annotation): 
-                self.annotations.remove(existing) # replace annotation
+    def add_optimization(self, optimization: T) -> T:
+        for existing in self.optimizations:
+            if type(existing) is type(optimization): 
+                self.optimizations.remove(existing) # replace annotation
                 break
         
-        self.annotations.append(annotation)
-        return annotation
+        self.optimizations.append(optimization)
+        return optimization
 
-    def remove_annotation(self, annotation_type: Type[T]):
-        for annotation in self.annotations:
-            if isinstance(annotation, annotation_type):
-                self.annotations.remove(annotation)
+    def remove_optimization(self, optimization_type: Type[T]):
+        for optimization in self.optimizations:
+            if isinstance(optimization, optimization_type):
+                self.optimizations.remove(optimization)
     
-    def try_get_annotation(self, annotation_type: Type[T]) -> T | None:
-        for annotation in self.annotations:
-            if isinstance(annotation, annotation_type):
-                return annotation
+    def try_get_optimization(self, optimization_type: Type[T]) -> T | None:
+        for optimization in self.optimizations:
+            if isinstance(optimization, optimization_type):
+                return optimization
         return None
     
-    def get_annotation(self, annotation_type: Type[T]) -> T:
-        for annotation in self.annotations:
-            if isinstance(annotation, annotation_type):
-                return annotation
-        raise ValueError(f"Mandatory annotation of type {annotation_type} not found on task {self.id}")
+    def get_optimization(self, optimization_type: Type[T]) -> T:
+        for optimization in self.optimizations:
+            if isinstance(optimization, optimization_type):
+                return optimization
+        raise ValueError(f"Mandatory optimization of type {optimization_type} not found on task {self.id}")
 
     def _try_convert_node_func_args_to_ids(self):
         """
@@ -306,11 +306,11 @@ def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = 
         @wraps(func)
         def wrapper(*args, **kwargs) -> DAGTaskNode:
             node = DAGTaskNode(func, args, kwargs)
-            for annotation in forced_optimizations:  node.add_annotation(annotation)
+            for annotation in forced_optimizations:  node.add_optimization(annotation)
             return node
         return wrapper
     
-    # @DAGTaskFlexible(annotations={...})
+    # @DAGTaskFlexible(forced_optimizations={...})
     if func_or_params is None:
         return decorator
     # @DAGTaskFlexible

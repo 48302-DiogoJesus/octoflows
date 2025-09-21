@@ -9,9 +9,9 @@ import uuid
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
-from src.planning.annotations.preload import PreLoadOptimization
-from src.planning.annotations.prewarm import PreWarmOptimization
-from src.planning.annotations.taskdup import TaskDupOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
+from src.planning.optimizations.prewarm import PreWarmOptimization
+from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
@@ -19,7 +19,6 @@ from src.utils.utils import calculate_data_structure_size
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
-# ?? will give circular import error??
 from src.task_optimization import TaskOptimization
 
 logger = create_logger(__name__, prefix="PLANNING")
@@ -27,7 +26,7 @@ logger = create_logger(__name__, prefix="PLANNING")
 
 class AbstractDAGPlanner(WorkerExecutionLogic):
     """
-    A planner should override WorkerExecutionLogic methods if it uses annotations that may conflict with each other.
+    A planner should override WorkerExecutionLogic methods if it uses optimizations that may conflict with each other.
     This way, the planner can specify the desired behavior.
     """
 
@@ -263,7 +262,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.serialized_output_size, resource_config, sla)
             downloadable_input_size += unode_info.serialized_output_size
             
-            if node.try_get_annotation(PreLoadOptimization):
+            if node.try_get_optimization(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
                 download_start = unode_info.task_completion_time_ms # Data available time
             else:
@@ -292,7 +291,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
 
         for u_task in node.upstream_nodes:
-            if not u_task.try_get_annotation(TaskDupOptimization): continue
+            if not u_task.try_get_optimization(TaskDupOptimization): continue
             node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
                 original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, u_task.worker_config, sla),
                 original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.worker_config, sla),
@@ -339,7 +338,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
                 ))
             # register when the worker config I PRE-WARM should be active
-            prewarm_optimization = node.try_get_annotation(PreWarmOptimization)
+            prewarm_optimization = node.try_get_optimization(PreWarmOptimization)
             if prewarm_optimization:
                 time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 for target_resource_config in prewarm_optimization.target_resource_configs:
@@ -475,8 +474,8 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             resource_config = node.worker_config
             worker_id = resource_config.worker_id
 
-            if worker_id is None and node.try_get_annotation(PreLoadOptimization):
-                node.remove_annotation(PreLoadOptimization)
+            if worker_id is None and node.try_get_optimization(PreLoadOptimization):
+                node.remove_optimization(PreLoadOptimization)
                 logger.warning(f"Task {node.id.get_full_id()} has a 'PreLoadOptimization' optimization but since it's assigned to a flexible worker (worker_id=None), this optimization will be ignored in this run")
             
             # Validation #1 => Similar Worker IDs have same resources
@@ -562,9 +561,9 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             # Create node label with task name in bold and larger font
             # Use HTML formatting to better control spacing and prevent text cutoff
             # Added extra <BR/> spacing between lines and smaller font for details
-            has_optimization_preload = node.try_get_annotation(PreLoadOptimization) is not None
-            has_optimization_prewarm = node.try_get_annotation(PreWarmOptimization) is not None
-            has_optimization_taskdup = node.try_get_annotation(TaskDupOptimization) is not None
+            has_optimization_preload = node.try_get_optimization(PreLoadOptimization) is not None
+            has_optimization_prewarm = node.try_get_optimization(PreWarmOptimization) is not None
+            has_optimization_taskdup = node.try_get_optimization(TaskDupOptimization) is not None
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.deserialized_input_size if node_info else 0} - {node_info.deserialized_output_size if node_info else 0} bytes</FONT></TD></TR>" \
@@ -623,7 +622,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         output_file_name = f"./_dag_plans/{_dag.dag_name}_{self.planner_name}"
         dot.render(output_file_name, format='png', cleanup=True)
         # dot.render(output_file_name, format='png', cleanup=True, view=True)
-        print(f"DAG visualization saved to {output_file_name}")
+        print(f"DAG Plan saved to {output_file_name}")
         
         return dot
 

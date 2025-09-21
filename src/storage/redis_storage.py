@@ -64,7 +64,8 @@ class RedisStorage(storage.Storage):
                 password=self.redis_config.password,
                 decode_responses=False,  # Necessary to allow serialized bytes
                 socket_connect_timeout=self.redis_config.socket_connect_timeout,
-                socket_timeout=self.redis_config.socket_timeout
+                socket_timeout=self.redis_config.socket_timeout,
+                retry_on_timeout=True
             )
             return self._connection
 

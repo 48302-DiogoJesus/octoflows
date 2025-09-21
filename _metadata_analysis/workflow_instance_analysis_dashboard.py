@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Dict, List
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
@@ -533,7 +533,7 @@ def main():
                     small_metric("DC Updates Time", f"{(metrics.update_dependency_counters_time_ms or 0):.2f} ms")
                     small_metric("Downstream Invocations Time", f"{(metrics.total_invocation_time_ms or 0):.2f} ms")
                     
-                    small_metric("Preload ?:", f"{task_node.try_get_annotation(PreLoadOptimization) is not None}")
+                    small_metric("Preload ?:", f"{task_node.try_get_optimization(PreLoadOptimization) is not None}")
                     
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available

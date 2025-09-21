@@ -159,7 +159,7 @@ class PreLoadOptimization(TaskOptimization):
             # MY Logic
             # 1) tasks assigned to me
             if current_node.worker_config.worker_id != this_worker_id: continue
-            preload_annotation = current_node.try_get_annotation(PreLoadOptimization)
+            preload_annotation = current_node.try_get_optimization(PreLoadOptimization)
             # 2) that should preload
             if not preload_annotation: continue
             for unode in current_node.upstream_nodes:
@@ -181,7 +181,7 @@ class PreLoadOptimization(TaskOptimization):
         """
         upstream_tasks_to_fetch = []
         
-        preload_annotation = task.try_get_annotation(PreLoadOptimization)
+        preload_annotation = task.try_get_optimization(PreLoadOptimization)
         __tasks_preloading_coroutines: dict[str, CoroutineType] = {}
         if preload_annotation:
             async with preload_annotation._lock:

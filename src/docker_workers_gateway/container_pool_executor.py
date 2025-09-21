@@ -9,8 +9,8 @@ import time
 import uuid
 
 from src.utils.logger import create_logger
-logger = create_logger(__name__)
 
+logger = create_logger(__name__)
 ALLOW_CONTAINER_REUSAGE = True
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
@@ -56,7 +56,7 @@ class ContainerPoolExecutor:
             [
                 "docker", "exec", "-i", 
                 "-e", "TZ=UTC-1", 
-                "-e", "LOGS=1",
+                "-e", "LOGS=0",
                 container_id, "sh"
             ],
             stdin=subprocess.PIPE,
@@ -80,7 +80,7 @@ class ContainerPoolExecutor:
         if process.stderr: os.set_blocking(process.stderr.fileno(), False)
         
         # Read and print output streams while process is running
-        print("STDOUT (streaming):")
+        # logger.info("STDOUT (streaming):")
         
         exit_code = None
         while exit_code is None:
@@ -89,7 +89,7 @@ class ContainerPoolExecutor:
                 stdout_data = process.stdout.read(4096)
                 if stdout_data:
                     stdout_text = stdout_data.decode(errors='replace')
-                    print(stdout_text, end='', flush=True)
+                    logger.info(stdout_text)
             
             # Read from stderr
             if process.stderr:
@@ -107,14 +107,14 @@ class ContainerPoolExecutor:
         if process.stdout:
             remaining_stdout = process.stdout.read()
             if remaining_stdout:
-                print(remaining_stdout.decode(errors='replace'), end='', flush=True)
+                logger.info(remaining_stdout.decode(errors='replace'))
         
         if process.stderr:
             remaining_stderr = process.stderr.read()
             if remaining_stderr:
                 logger.error(f"STDERR: {remaining_stderr.decode(errors='replace')}")
         
-        print(f"\nExit Code: {exit_code}")
+        logger.info(f"\nExit Code: {exit_code}")
 
         # Keep the original behavior of exiting on stderr
         if process.stderr and process.stderr.read():
@@ -151,7 +151,7 @@ class ContainerPoolExecutor:
             
             logger.info(f"All containers running image '{self.docker_image}' have been removed.")
         except subprocess.CalledProcessError as e:
-            print(f"Error listing containers: {e}")
+            logger.error(f"Error listing containers: {e}")
 
     def _cleanup_all_containers(self):
         containers_to_remove = []
@@ -246,15 +246,6 @@ class ContainerPoolExecutor:
         # Generate a random 16-digit ID
         container_name = f"CPUS_{cpus}--MEMORY_{memory}--ID_{uuid.uuid4()}"
 
-        # logger.info(f"(launch_container) Launching container {" ".join([
-        #         "docker", "run", "-d",
-        #         "--name", container_name,
-        #         "--cpus", str(cpus),
-        #         "--memory", f"{memory}m",
-        #         "--network", "host",
-        #         self.docker_image
-        #     ])}")
-        
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(
             [

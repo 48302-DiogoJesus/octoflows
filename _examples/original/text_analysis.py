@@ -111,8 +111,8 @@ input_file = "../_inputs/shakespeare.txt"
 text = _read_file(input_file)
 
 # Initial fan-out group (3 word count tasks)
-chunk_size = 500
-num_chunks = 14
+chunk_size = 200
+num_chunks = 10
 word_counts = []
 
 for i in range(num_chunks):

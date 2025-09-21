@@ -1,9 +1,8 @@
-from src.planning.annotations.preload import PreLoadOptimization
-from src.planning.annotations.prewarm import PreWarmOptimization
-from src.planning.annotations.taskdup import TaskDupOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
+from src.planning.optimizations.prewarm import PreWarmOptimization
+from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.planning.sla import Percentile, SLA
 from src.storage.redis_storage import RedisStorage
-from src.storage.in_memory_storage import InMemoryStorage
 from src.workers.docker_worker import DockerWorker
 from src.storage.metrics.metrics_storage import MetricsStorage
 from src.planning.uniform_planner import UniformPlanner
@@ -37,28 +36,28 @@ def get_planner_from_sys_argv():
     if planner_type == "wukong":
         return WUKONGPlanner.Config(
             sla=sla, # won't be used
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[],
         )
     elif planner_type == "simple":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[],
         )
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=2, memory_mb=512)],
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[
-                TaskWorkerResourceConfiguration(cpus=2, memory_mb=512),
-                TaskWorkerResourceConfiguration(cpus=2, memory_mb=1024),
-                TaskWorkerResourceConfiguration(cpus=2, memory_mb=2048),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=2048),
             ],
             optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )

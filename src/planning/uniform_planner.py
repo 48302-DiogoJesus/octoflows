@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from src.planning.annotations.taskdup import TaskDupOptimization
-from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.optimizations.taskdup import TaskDupOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.utils.logger import create_logger
@@ -58,12 +58,10 @@ class UniformPlanner(AbstractDAGPlanner):
         for optimization in self.config.optimizations:
             optimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
 
-        total_duppable_tasks, total_preload_optimizations = 0, 0
+        optimizations_count: dict[str, int] = {}
         for node_info in nodes_info.values():
-            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
-                total_duppable_tasks += 1
-            if node_info.node_ref.try_get_annotation(PreLoadOptimization): 
-                total_preload_optimizations += 1
+            for optimization in node_info.node_ref.optimizations: 
+                optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -89,7 +87,7 @@ class UniformPlanner(AbstractDAGPlanner):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path Nodes Count: {len(final_critical_path_nodes)} | Predicted Completion Time: {final_critical_path_time / 1000:.2f}s | Unique workers: {len(unique_worker_ids)}")
-        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(nodes_info)}")
+        logger.info(f"Optimizations: {optimizations_count}")
         logger.info(f"Worker Resource Configuration (same for all tasks): (cpus={worker_resources.cpus}, memory={worker_resources.memory_mb})")
         # logger.info(f"Prediction samples used: {prediction_samples_used}")
 

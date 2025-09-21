@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 import uuid
 
-from src.planning.annotations.preload import PreLoadOptimization
-from src.planning.annotations.prewarm import PreWarmOptimization
-from src.planning.annotations.taskdup import TaskDupOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
+from src.planning.optimizations.prewarm import PreWarmOptimization
+from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -135,14 +135,10 @@ class NonUniformPlanner(AbstractDAGPlanner):
         for optimization in self.config.optimizations:
             optimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
 
-        total_duppable_tasks, total_preload_optimizations, total_prewarm_optimizations = 0, 0, 0
+        optimizations_count: dict[str, int] = {}
         for node_info in nodes_info.values():
-            if node_info.node_ref.try_get_annotation(TaskDupOptimization): 
-                total_duppable_tasks += 1
-            if node_info.node_ref.try_get_annotation(PreLoadOptimization): 
-                total_preload_optimizations += 1
-            if node_info.node_ref.try_get_annotation(PreWarmOptimization): 
-                total_prewarm_optimizations += 1
+            for optimization in node_info.node_ref.optimizations: 
+                optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics and logging
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
@@ -166,7 +162,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                 unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1
             
-            if node.try_get_annotation(PreLoadOptimization):
+            if node.try_get_optimization(PreLoadOptimization):
                 nodes_with_preload += 1
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
@@ -181,7 +177,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Critical Path | Nr. Nodes: {len(final_critical_path_nodes)}, Predicted Completion Time: {final_critical_path_time / 1000:.2f}s")
-        logger.info(f"Number of PreLoad optimizations: {total_preload_optimizations} | Number of PreWarm optimizations: {total_prewarm_optimizations} | Number of duppable tasks: {total_duppable_tasks}/{len(nodes_info)}")
+        logger.info(f"Optimizations: {optimizations_count}")
         logger.info(f"Number of unique workers: {len(unique_worker_ids)}")
         logger.info(f"Successfully downgraded resources for {successful_worker_resources_downgrades}/{len(_dag._all_nodes)} nodes")
         logger.info(f"Worker Resource Configuration Distribution: {resource_distribution}")

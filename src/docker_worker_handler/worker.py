@@ -25,7 +25,7 @@ from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.utils.utils import calculate_data_structure_size
 
-from src.planning.annotations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
+from src.planning.optimizations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
 
 logger = create_logger(__name__)
 
@@ -122,7 +122,7 @@ async def main():
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             async def callback(_: dict, subscription_id: str | None = None):
-                if subscription_id is not None: 
+                if subscription_id is not None:
                     await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
@@ -146,12 +146,12 @@ async def main():
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
                 async with dupping_locks[main_task.id.get_full_id()]:
-                    if one_of_the_upsteam_tasks.try_get_annotation(TaskDupOptimization) is not None:
+                    if one_of_the_upsteam_tasks.try_get_optimization(TaskDupOptimization) is not None:
                         finished_or_pending_duppable_tasks\
                             .setdefault(main_task.id.get_full_id(), set())\
                             .add(one_of_the_upsteam_tasks.id.get_full_id())
                     
-                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_annotation(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set())]
+                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_optimization(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set())]
 
                     if len(unfinished_duppable_tasks) == 0:
                         # logger.info(f"[TASK-DUP] No unfinished duppable tasks for main task {main_task.id.get_full_id()}")
@@ -217,7 +217,7 @@ async def main():
                     await _on_task_ready_callback_builder(task.id)({})
                 # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
 
-                has_duppable_upstream_tasks = any(n.try_get_annotation(TaskDupOptimization) is not None for n in task.upstream_nodes)
+                has_duppable_upstream_tasks = any(n.try_get_optimization(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
                         await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)

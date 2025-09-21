@@ -6,7 +6,7 @@ import numpy as np
 # Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 from src.dag_task_node import DAGTask
-from src.planning.annotations.preload import PreLoadOptimization
+from src.planning.optimizations.preload import PreLoadOptimization
 
 # Import centralized configuration
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
