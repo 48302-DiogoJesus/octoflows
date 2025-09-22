@@ -48,7 +48,7 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
         
     logger.info(f"[{get_time_formatted()}] {job_id}) [INFO] Waiting for container for W({worker_id})")
 
-    container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+    container_id = container_pool.wait_for_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id)
     try:
         exit_code = container_pool.execute_command_in_container(container_id, command)
         if exit_code == 2:
@@ -60,14 +60,14 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     finally:
         container_pool.release_container(container_id)
 
-def process_warmup_async(resource_configurations: list[TaskWorkerResourceConfiguration]):
+def process_warmup_async(dag_id: str, resource_configurations: list[TaskWorkerResourceConfiguration]):
     """
     Process a warmup request asynchronously.
     Waits for a container with the requested resource configuration to be available and leaves it available for later re-use for {container_pool_executor.container_idle_timeout} seconds
     """
     for resource_configuration in resource_configurations:
         print("Warming up resource configuration: ", resource_configuration)
-        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb)
+        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id)
         container_pool.release_container(container_id)
 
 @app.route('/warmup', methods=['POST'])
@@ -76,14 +76,19 @@ def handle_warmup():
     if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
     data = request.get_json()
 
+    dag_id = data.get('dag_id', None)
+    if dag_id is None: 
+        logger.error("'dag_id' field is required")
+        return jsonify({"error": "'dag_id' field is required"}), 400
+
     resource_config_key = data.get('resource_configurations', None)
     if resource_config_key is None: 
         logger.error("'resource_configurations' field is required")
         return jsonify({"error": "'resource_configurations' field is required"}), 400
-    
+
     resource_configurations: list[TaskWorkerResourceConfiguration] = cloudpickle.loads(base64.b64decode(resource_config_key))
 
-    thread_pool.submit(process_warmup_async, resource_configurations)
+    thread_pool.submit(process_warmup_async, dag_id, resource_configurations)
     return "", 202
 
 @app.route('/kill-warm', methods=['POST'])

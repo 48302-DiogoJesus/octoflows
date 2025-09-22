@@ -122,7 +122,7 @@ class DockerWorker(Worker):
         # Wait for all HTTP requests to complete
         await asyncio.gather(*http_tasks)
 
-    async def warmup(self, resource_configurations: list[TaskWorkerResourceConfiguration]):
+    async def warmup(self, dag_id: str, resource_configurations: list[TaskWorkerResourceConfiguration]):
         """
         Sends a warmup request to the worker with the given resource configuration.
         """
@@ -134,6 +134,7 @@ class DockerWorker(Worker):
                     # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
                     self.docker_config.internal_docker_gateway_address + "/warmup",
                     data=json.dumps({
+                        "dag_id": dag_id,
                         "resource_configurations": base64.b64encode(cloudpickle.dumps(resource_configurations)).decode('utf-8')
                     }),
                     headers={"Content-Type": "application/json"}

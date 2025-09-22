@@ -24,6 +24,7 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             - Uses uniform resources
             - Assigns flexible workers to all tasks
             - Doesn't use predictions
+            - Doesn't use optimizations
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):

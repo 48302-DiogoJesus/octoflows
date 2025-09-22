@@ -213,7 +213,7 @@ class ContainerPoolExecutor:
             self.containers[container_id].is_busy = False # ready to be used again
             self.condition.notify_all()
 
-    def wait_for_container(self, cpus: float, memory: int) -> str:
+    def wait_for_container(self, cpus: float, memory: int, dag_id: str) -> str:
         """
         Wait for a container with the specified resources to become available,
         mark it as busy, and return its ID.
@@ -238,13 +238,13 @@ class ContainerPoolExecutor:
                     self.condition.wait(timeout=2)
                 else:
                     # Launch a new container
-                    logger.info("(wait_for_container) Launching new container")
-                    container_id = self._launch_container(cpus, memory)
+                    logger.info(f"(wait_for_container) Launching new container for DAG: {dag_id}")
+                    container_id = self._launch_container(cpus, memory, dag_id)
                     return container_id
     
-    def _launch_container(self, cpus, memory):
+    def _launch_container(self, cpus, memory, dag_id):
         # Generate a random 16-digit ID
-        container_name = f"CPUS_{cpus}--MEMORY_{memory}--ID_{uuid.uuid4()}"
+        container_name = f"{cpus}x{memory}-DAG_{dag_id}-RAND_{uuid.uuid4()}"
 
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(

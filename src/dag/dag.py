@@ -4,10 +4,6 @@ import hashlib
 import time
 import uuid
 import graphviz
-import base64
-import zlib
-import cloudpickle
-from typing import Callable
 
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.utils.logger import create_logger
@@ -15,6 +11,7 @@ import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
 from src.utils.utils import calculate_data_structure_size
 from src.utils.timer import Timer
+from src.docker_workers_gateway.container_resource_usage_monitor import DockerContainerUsageMonitor
 
 logger = create_logger(__name__)
 
@@ -84,6 +81,9 @@ class FullDAG(GenericDAG):
         wk: Worker = _wk_config.create_instance()
         self.dag_name = dag_name
 
+        if wk.metrics_storage:
+            DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
+
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
             predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metrics_storage)
@@ -115,6 +115,10 @@ class FullDAG(GenericDAG):
             self
         )
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
+
+        if wk.metrics_storage:
+            metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
+            wk.metrics_storage.store_dag_resource_usage_metrics(metrics)
 
         if wk.metrics_storage: await wk.metrics_storage.flush()
 

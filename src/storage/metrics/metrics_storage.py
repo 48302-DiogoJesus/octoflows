@@ -19,6 +19,7 @@ class MetricsStorage():
     PLAN_KEY_PREFIX = "metrics-storage-plan+"
     WORKER_STARTUP_PREFIX = "metrics-storage-worker-startup+"
     USER_DAG_SUBMISSION_PREFIX = "metrics-storage-user-dag-submission+"
+    DAG_RESOURCE_USAGE_PREFIX = "metrics-storage-dag-resource-usage+"
 
     @dataclass
     class Config:
@@ -55,6 +56,9 @@ class MetricsStorage():
     
     def store_plan(self, master_dag_id: str, plan):
         self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{master_dag_id}"] = plan
+
+    def store_dag_resource_usage_metrics(self, metrics):
+        self.cached_metrics[f"{self.DAG_RESOURCE_USAGE_PREFIX}{metrics.master_dag_id}"] = metrics
 
     async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics, task_ids: list[str]):
         """ direct upload to storage so that the INVOKED can find it and complete the missing fields """
