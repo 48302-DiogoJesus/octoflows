@@ -19,6 +19,7 @@ from src.storage.metrics.metrics_storage import MetricsStorage
 from src.dag.dag import FullDAG
 from src.storage.metrics.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics
 from src.utils.timer import Timer
+from src.storage.metrics.metrics_types import DAGResourceUsageMetrics
 
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
@@ -44,6 +45,7 @@ class WorkflowInstanceInfo:
     total_worker_startup_time_ms: float
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
+    resource_usage: DAGResourceUsageMetrics
 
 @dataclass
 class WorkflowInfo:
@@ -51,46 +53,6 @@ class WorkflowInfo:
     representative_dag: FullDAG
     instances: List[WorkflowInstanceInfo]
 
-# def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
-#     workflow_types: Dict[str, WorkflowInfo] = {}
-#     worker_startup_metrics: List[WorkerStartupMetrics] = []
-    
-#     try:
-#         all_dag_keys = [key for key in intermediate_storage_conn.keys() if key.decode('utf-8').startswith(DAG_PREFIX)] # type: ignore
-        
-#         for dag_key in all_dag_keys:
-#             try:
-#                 dag_data = intermediate_storage_conn.get(dag_key)
-#                 dag: FullDAG = cloudpickle.loads(dag_data) # type: ignore
-
-#                 plan_data = metrics_storage_conn.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
-#                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None # type: ignore
-
-#                 download_time_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*")
-#                 download_time_data = metrics_storage_conn.mget(download_time_data_keys) # type: ignore
-#                 dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(download_time_data) for download_time_data in download_time_data] if download_time_data else [] # type: ignore
-
-#                 tasks_data = metrics_storage_conn.mget([f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}" for t in dag._all_nodes.values()])
-#                 tasks: List[WorkflowInstanceTaskInfo] = [WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(task_data)) for t, task_data in zip(dag._all_nodes.values(), tasks_data)] # type: ignore  
-
-#                 dag_data = metrics_storage_conn.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
-#                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(dag_data) # type: ignore
-
-#                 worker_startup_data_keys = metrics_storage_conn.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*")
-#                 worker_startup_data = metrics_storage_conn.mget(worker_startup_data_keys) # type: ignore
-#                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(worker_startup_data) for worker_startup_data in worker_startup_data] if worker_startup_data else [] # type: ignore
-#                 worker_startup_metrics.extend(this_workflow_wsm) # type: ignore
-#                 total_worker_startup_time_ms = sum([metric.end_time_ms - metric.start_time_ms for metric in this_workflow_wsm if metric.end_time_ms is not None]) if this_workflow_wsm else 0
-#                 total_workers = len(this_workflow_wsm)
-
-#                 if dag.dag_name not in workflow_types: workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
-#                 workflow_types[dag.dag_name].instances.append(WorkflowInstanceInfo(dag.master_dag_id, plan_output, dag, dag_download_stats, dag_submission_metrics.dag_submission_time_ms, total_worker_startup_time_ms, total_workers, tasks))
-#             except Exception as e:
-#                 print(f"Error processing DAG {dag_key}: {e}")
-#     except Exception as e:
-#         print(f"Error accessing Redis: {e}")
-    
-#     return worker_startup_metrics, workflow_types
 
 def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {}
@@ -156,6 +118,11 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 ) if this_workflow_wsm else 0
                 total_workers = len(this_workflow_wsm)
 
+                # Resource usage metrics
+                resource_usage_key = f"{MetricsStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
+                resource_usage_data: Any = metrics_storage_conn.get(resource_usage_key)
+                resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
+
                 # Update workflow_types dict
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
@@ -168,7 +135,8 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                         dag_submission_metrics.dag_submission_time_ms,
                         total_worker_startup_time_ms,
                         total_workers,
-                        tasks
+                        tasks,
+                        resource_usage
                     )
                 )
             except Exception as e:
@@ -336,6 +304,9 @@ def main():
                     'worker_startup': actual_total_worker_startup_time_s
                 }
                 
+                def convert_bytes_to_GB(bytes):
+                    return bytes / (1024 * 1024 * 1024)
+
                 # Calculate differences and percentages with sample counts
                 def format_metric(actual, predicted, metric_name=None, samples=None):
                     # Store the actual value for SLA comparison
@@ -422,6 +393,10 @@ def main():
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
                     'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, predicted_total_worker_startup_time_s, 'worker_startup'),
+                    'Run Time': f"{instance.resource_usage.run_time_seconds:.3f}",
+                    'CPU Time': f"{instance.resource_usage.cpu_seconds:.3f}",
+                    'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.3f} GB",
+                    'Resources Cost': f"{instance.resource_usage.cost:.3f}",
                     '_actual_worker_startup': actual_total_worker_startup_time_s,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
@@ -623,6 +598,10 @@ def main():
                         'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
                         'Total DAG Download Time': "Total DAG Download Time",
                         'Total Worker Startup Time': "Total Worker Startup Time (Predicted → Actual)",
+                        'Run Time': "Run Time",
+                        'CPU Time': "CPU Time",
+                        'Memory Usage': "Memory Usage",
+                        'Resources Cost': "Resources Cost",
                     },
                     use_container_width=True,
                     height=min(400, 35 * (len(df_instances) + 1)),
@@ -643,6 +622,10 @@ def main():
                         'Total Dependency Counter Update Time',
                         'Total DAG Download Time',
                         'Total Worker Startup Time',
+                        'Run Time',
+                        'CPU Time',
+                        'Memory Usage',
+                        'Resources Cost',
                     ]
                 )
 
@@ -1387,7 +1370,8 @@ def main():
                             for task in instance.tasks
                         ) / (1024 * 1024),  # Convert to MB
                         'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                        'Avg Memory Allocation [MB]': avg_memory_mb
+                        'Avg Memory Allocation [MB]': avg_memory_mb,
+                        'Resource Usage': instance.resource_usage.cost
                     }
                     
                     # Add all metrics to the data list
@@ -1582,7 +1566,8 @@ def main():
                             'invocation': 0,
                             'dependency_update': 0,
                             'dag_download': 0,
-                            'worker_startup': 0
+                            'worker_startup': 0,
+                            'resource_usage': instance.resource_usage.cost
                         }
                     
                     # Calculate metrics for this instance
@@ -1651,6 +1636,7 @@ def main():
                             {'Planner': planner_name, 'Metric': 'Total Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
                             {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']},
                             {'Planner': planner_name, 'Metric': 'Total Worker Startup Time (s)', 'Value': metrics['worker_startup']},
+                            {'Planner': planner_name, 'Metric': 'Total Resource Usage', 'Value': metrics['resource_usage']},
                         ])
                     
                     df_planner_metrics = pd.DataFrame(plot_data)
