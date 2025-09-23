@@ -7,7 +7,7 @@ from typing import Any, Optional, Tuple
 from src.storage.metrics.metrics_types import DAGResourceUsageMetrics
 
 DOCKER_API = "http://localhost:2375"
-SAMPLE_INTERVAL = 1  # seconds
+SAMPLE_INTERVAL_S = .8
 
 class DockerContainerUsageMonitor:
     _dag_data: dict[str, dict[str, Any]] = {}
@@ -66,10 +66,10 @@ class DockerContainerUsageMonitor:
                     if limits is not None:
                         mem_limit, num_cpus = limits
                         # Lambda-like cost: allocated memory × 1s + CPU × 1s
-                        memory_seconds[cid] += mem_limit * SAMPLE_INTERVAL
+                        memory_seconds[cid] += mem_limit * SAMPLE_INTERVAL_S
                     # If limits is None, container was removed - skip but keep accumulated data
                     
-            await asyncio.sleep(SAMPLE_INTERVAL)
+            await asyncio.sleep(SAMPLE_INTERVAL_S)
             
         end_time = time.time()
         data["end_time"] = end_time
