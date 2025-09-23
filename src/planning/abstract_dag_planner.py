@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import Type
 import uuid
 import statistics
-from collections import deque
+from typing import Callable
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
@@ -106,144 +106,150 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         def __post_init__(self):
             self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.tp_worker_startup_time_ms, self.nodes_info.values()))
 
-    # def _basic_worker_id_assignment(self, dag, resource_configuration: TaskWorkerResourceConfiguration, topo_sorted_nodes: list[DAGTaskNode]):
-    #     """
-    #     Assigns same resources {resource_configuration} to all nodes and assigns worker ids using a simple algorithm that tries to cluster up to {MAX_FAN_OUT_SIZE_W_SAME_WORKER} nodes on the same worker on fan-outs
-    #     """
-
-    #     for node in topo_sorted_nodes:
-    #         resource_config = resource_configuration.clone()
-    #         node.worker_config = resource_config
-    #         if len(node.upstream_nodes) == 0:
-    #             resource_config.worker_id = uuid.uuid4().hex
-    #         else:
-    #             # Count worker usage among downstream nodes of upstream nodes
-    #             same_level_worker_usage = {}
-    #             for upstream_node in node.upstream_nodes:
-    #                 worker_id = upstream_node.worker_config.worker_id
-    #                 if not worker_id: continue
-    #                 same_level_worker_usage[worker_id] = 0
-
-    #             for upstream_node in node.upstream_nodes:
-    #                 # Get all downstream nodes of this upstream node
-    #                 for downstream_node in upstream_node.downstream_nodes:
-    #                     if downstream_node.id.get_full_id() == node.id.get_full_id(): continue
-    #                     downstream_worker_id = downstream_node.worker_config.worker_id
-    #                     if not downstream_worker_id: continue
-    #                     same_level_worker_usage[downstream_worker_id] = same_level_worker_usage.get(downstream_worker_id, 0) + 1
-
-    #             # Get the most used worker ID that doesn't exceed MAX_FAN_OUT_SIZE_W_SAME_WORKER
-    #             best_worker_id = None
-    #             best_usage = -1
-    #             for worker_id, usage in same_level_worker_usage.items():
-    #                 if usage > best_usage and usage < AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:
-    #                     best_worker_id = worker_id
-    #                     best_usage = usage
-                
-    #             # If no suitable worker found, create a new one
-    #             resource_config.worker_id = best_worker_id if best_worker_id else uuid.uuid4().hex
-
-    def _basic_worker_id_assignment(self, dag, predictions_provider: PredictionsProvider, resource_configuration: TaskWorkerResourceConfiguration, topo_sorted_nodes: list[DAGTaskNode]):
+    def _basic_worker_id_assignment(
+        self,
+        predictions_provider: PredictionsProvider,
+        resource_configuration: TaskWorkerResourceConfiguration,
+        topo_sorted_nodes: list[DAGTaskNode]
+    ):
         """
         Assign worker IDs using a BFS traversal with prediction-aware heuristics:
+        - Root nodes: cluster short, big-output tasks together, isolate long tasks
         - 1→1 : reuse upstream worker
         - 1→N : cluster short, big-output tasks on origin worker, isolate long tasks
         - N→1 : assign to worker of upstreams with largest total output
         """
-        from src.dag.dag import GenericDAG
-        _dag: GenericDAG = dag
-
-        MAX_CLUSTER = AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER
 
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
 
-        for node in topo_sorted_nodes:
-            # --- Determine worker assignment ---
-            resource_config = resource_configuration.clone()
+        assigned_nodes = set()
 
-            #! TODO: change this to be similar to fan-out handling
-            if len(node.upstream_nodes) == 0:
-                # Root node → always new worker
+        # -----------------------------------------------------------
+        # --- Helper for fan-out assignment with grouping logic
+        # -----------------------------------------------------------
+        def _assign_fanout_group(
+            upstream_worker_id: str | None,
+            candidates: list[DAGTaskNode]
+        ):
+            """
+            Assign worker IDs to a fan-out group of candidates according to:
+            - Short tasks (<= median exec time) grouped first (big output first).
+            - Remaining shorts + longs grouped together: 1 long + (cluster_size-1) shorts per group.
+            - Remaining shorts grouped in cluster_size groups.
+            - Remaining longs grouped in (cluster_size//2) groups.
+            """
+            if not candidates: 
+                return
+
+            exec_times: dict[str, float] = {}
+            outputs: dict[str, int] = {}
+
+            # predict exec/output
+            for c in candidates:
+                input_size = nodes_info[c.id.get_full_id()].deserialized_input_size
+                exec_times[c.id.get_full_id()] = predictions_provider.predict_execution_time(
+                    c.func_name, input_size, resource_configuration, self.config.sla
+                )
+                outputs[c.id.get_full_id()] = predictions_provider.predict_output_size(
+                    c.func_name, input_size, self.config.sla, deserialized=True
+                )
+
+            median_exec = statistics.median(exec_times.values())
+            long_tasks = [c for c in candidates if exec_times[c.id.get_full_id()] > median_exec]
+            short_tasks = [c for c in candidates if exec_times[c.id.get_full_id()] <= median_exec]
+
+            # Sort short tasks by descending output
+            short_tasks.sort(key=lambda c: outputs[c.id.get_full_id()], reverse=True)
+
+            # 1) Cluster short tasks first (big output first) on upstream worker if provided
+            if upstream_worker_id and short_tasks:
+                n_cluster = min(AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER, len(short_tasks))
+                for c in short_tasks[:n_cluster]:
+                    rc = resource_configuration.clone()
+                    rc.worker_id = upstream_worker_id
+                    c.worker_config = rc
+                    assigned_nodes.add(c.id.get_full_id())
+                short_tasks = short_tasks[n_cluster:]
+
+            # 2) Pair remaining longs with remaining shorts (1 long per group)
+            while long_tasks and short_tasks:
+                long_task = long_tasks.pop(0)
+                n_cluster = min(AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER - 1, len(short_tasks))
+                group = [long_task] + short_tasks[:n_cluster]
+                short_tasks = short_tasks[n_cluster:]
                 wid = uuid.uuid4().hex
-                resource_config.worker_id = wid
-                node.worker_config = resource_config
+                for t in group:
+                    rc = resource_configuration.clone()
+                    rc.worker_id = wid
+                    t.worker_config = rc
+                    assigned_nodes.add(t.id.get_full_id())
 
-            elif len(node.upstream_nodes) == 1 and len(node.upstream_nodes[0].downstream_nodes) == 1:
-                # 1→1 → reuse upstream worker
-                origin_worker_id = node.upstream_nodes[0].worker_config.worker_id
-                resource_config.worker_id = origin_worker_id
-                node.worker_config = resource_config
+            # 3) Group remaining short tasks
+            while short_tasks:
+                group = short_tasks[:AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER]
+                short_tasks = short_tasks[AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER:]
+                wid = uuid.uuid4().hex
+                for t in group:
+                    rc = resource_configuration.clone()
+                    rc.worker_id = wid
+                    t.worker_config = rc
+                    assigned_nodes.add(t.id.get_full_id())
 
+            # 4) Group remaining long tasks (half-size groups)
+            long_cluster = max(1, AbstractDAGPlanner.MAX_FAN_OUT_SIZE_W_SAME_WORKER // 2)
+            while long_tasks:
+                group = long_tasks[:long_cluster]
+                long_tasks = long_tasks[long_cluster:]
+                wid = uuid.uuid4().hex
+                for t in group:
+                    rc = resource_configuration.clone()
+                    rc.worker_id = wid
+                    t.worker_config = rc
+                    assigned_nodes.add(t.id.get_full_id())
+
+        # Process nodes in topological order
+        for node in topo_sorted_nodes:
+            if node.id.get_full_id() in assigned_nodes: continue
+
+            # Determine this node's assignment based on its upstream pattern
+            if not node.upstream_nodes:
+                # ROOT NODE: Handle as part of root fanout group
+                remaining_roots = [n for n in topo_sorted_nodes 
+                                 if not n.upstream_nodes and n.id.get_full_id() not in assigned_nodes]
+                _assign_fanout_group(upstream_worker_id=None, candidates=remaining_roots)
+            # 1→1 or 1→N
             elif len(node.upstream_nodes) == 1:
-                # -------- 1→N fan-out --------
-                origin = node.upstream_nodes[0]
-                origin_worker_id = origin.worker_config.worker_id
-                siblings = [d for d in origin.downstream_nodes]
-
-                # Only process fan-out once, when we reach the first sibling
-                # Check if any sibling already assigned; if yes, reuse existing assignment.
-                # ??
-                if any(s.worker_config.worker_id for s in siblings):
-                    # reuse what earlier sibling decisions already set
-                    resource_config.worker_id = node.worker_config.worker_id or siblings[0].worker_config.worker_id
-                    node.worker_config = resource_config
+                upstream = node.upstream_nodes[0]
+                
+                # Check if this is a 1→1 or 1→N situation
+                if len(upstream.downstream_nodes) == 1:
+                    # 1→1: reuse upstream worker
+                    rc = resource_configuration.clone()
+                    rc.worker_id = upstream.worker_config.worker_id
+                    node.worker_config = rc
+                    assigned_nodes.add(node.id.get_full_id())
                 else:
-                    # Predict exec times and outputs for all siblings
-                    input_size = nodes_info[node.id.get_full_id()].deserialized_input_size
-                    exec_times = { s.id.get_full_id(): predictions_provider.predict_execution_time(s.func_name, input_size, resource_config, self.config.sla) for s in siblings }
-                    outputs = { s.id.get_full_id(): predictions_provider.predict_output_size(s.func_name, input_size, self.config.sla, deserialized=True)  for s in siblings }
-
-                    # Compute median execution time
-                    median_exec = statistics.median(exec_times.values())
-
-                    # Separate long vs short tasks
-                    long_tasks  = [s for s in siblings if exec_times[s.id.get_full_id()] > median_exec]
-                    short_tasks = [s for s in siblings if exec_times[s.id.get_full_id()] <= median_exec]
-
-                    # Sort short tasks: big output first
-                    short_tasks.sort(key=lambda s: outputs[s.id.get_full_id()], reverse=True)
-
-                    # Assign short tasks to origin worker (up to MAX_CLUSTER)
-                    cluster_size = min(MAX_CLUSTER, len(short_tasks))
-                    for s in short_tasks[:cluster_size]:
-                        rc = resource_configuration.clone()
-                        rc.worker_id = origin_worker_id
-                        s.worker_config = rc
-
-                    # Remaining short tasks → each gets a new worker
-                    for s in short_tasks[cluster_size:]:
-                        rc = resource_configuration.clone()
-                        rc.worker_id = uuid.uuid4().hex
-                        s.worker_config = rc
-
-                    # Long tasks → each gets its own new worker
-                    for s in long_tasks:
-                        rc = resource_configuration.clone()
-                        rc.worker_id = uuid.uuid4().hex
-                        s.worker_config = rc
-
-                    # Nothing more to do here for the current node,
-                    # because all siblings (including `node`) are now assigned.
-                    # We'll continue BFS to their children below.
-                    # So just continue to enqueue downstream later
-                    # (skip node.worker_config assignment because already set).
-                    # Mark as already processed to avoid double-assignment.
-                    resource_config = node.worker_config  # use what we just set
-
+                    # 1→N: Handle my entire fanout group
+                    remaining_fanout = [n for n in upstream.downstream_nodes if n.id.get_full_id() not in assigned_nodes]
+                    _assign_fanout_group(upstream_worker_id=upstream.worker_config.worker_id, candidates=remaining_fanout)
+            # N→1: assign to worker of upstream with largest total output
             else:
-                # -------- N→1 fan-in --------
-                upstreams = node.upstream_nodes
-                # Compute predicted output size per upstream worker
-                worker_output = {}
-                for up in upstreams:
+                rc = resource_configuration.clone()
+                worker_output: dict[str, int] = {}
+                
+                for up in node.upstream_nodes:
                     wid = up.worker_config.worker_id
-                    out_size = predictions_provider.predict_output_size(up)
-                    worker_output[wid] = worker_output.get(wid, 0.0) + out_size
-
-                # Pick worker with largest total output
-                best_worker = max(worker_output.items(), key=lambda kv: kv[1])[0]
-                resource_config.worker_id = best_worker
-                node.worker_config = resource_config
+                    assert wid is not None, f"Upstream node {up.id.get_full_id()} must have worker_id assigned"
+                    
+                    inp_size = nodes_info[up.id.get_full_id()].deserialized_input_size
+                    out_size = predictions_provider.predict_output_size(
+                        up.func_name, inp_size, self.config.sla, deserialized=True
+                    )
+                    worker_output[wid] = worker_output.get(wid, 0) + out_size
+                
+                rc.worker_id = max(worker_output.items(), key=lambda kv: kv[1])[0]
+                node.worker_config = rc
+                assigned_nodes.add(node.id.get_full_id())
 
     def plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
@@ -262,7 +268,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self.validate_plan(_dag.root_nodes)
             return None # no plan was made
         else:
-            # self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
+            self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
         # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!

@@ -195,10 +195,11 @@ class PredictionsProvider:
                 speed_bytes_per_ms = np.percentile(matching_samples, sla.value)
             
             if speed_bytes_per_ms <= 0:
-                raise ValueError(f"No data available for {type}")
+                raise ValueError(f"No data available for {type} or invalid speed data")
             
-            # Apply non-linear scaling directly
-            res = (data_size_bytes / speed_bytes_per_ms) ** scaling_exponent
+            # Apply non-linear scaling with protection against complex numbers
+            base_time = data_size_bytes / speed_bytes_per_ms
+            res = abs(base_time) ** scaling_exponent
         else:
             baseline_normalized_samples = [
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
@@ -212,14 +213,16 @@ class PredictionsProvider:
                 baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, sla.value)
             
             if baseline_speed_bytes_per_ms <= 0:
-                raise ValueError(f"No data available for {type}")
+                raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
-            # Scale from baseline to target and apply non-linear scaling
+            # Scale from baseline to target and apply non-linear scaling with protection
             actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
-            res = (data_size_bytes / actual_speed) ** scaling_exponent
+            base_time = data_size_bytes / actual_speed
+            res = abs(base_time) ** scaling_exponent
 
-        self._cached_prediction_data_transfer_times[prediction_key] = float(res)
-        return float(res)
+        _res = float(res)
+        self._cached_prediction_data_transfer_times[prediction_key] = _res
+        return _res
 
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""

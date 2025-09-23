@@ -1,5 +1,3 @@
-- improve `_basic_worker_id_assignment()`: use predictions to better CLUSTER tasks on fan-outs
-
 - re-check planners description function
 
 - Change one workflow to have diff types of tasks on a fan-out that fans in after

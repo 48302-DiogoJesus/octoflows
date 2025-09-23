@@ -50,7 +50,7 @@ class UniformPlanner(AbstractDAGPlanner):
         
         # Step 1: Assign uniform resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        self._basic_worker_id_assignment(dag, predictions_provider, worker_resources, topo_sorted_nodes)
+        self._basic_worker_id_assignment(predictions_provider, worker_resources, topo_sorted_nodes)
 
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
 
