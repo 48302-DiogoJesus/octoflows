@@ -15,7 +15,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 LOCK_FILE = os.path.join(tempfile.gettempdir(), "script.lock")
 
 from src.utils.coroutine_tags import COROTAG_DUP
-from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
 from src.storage.metrics.metrics_types import FullDAGPrepareTime
@@ -211,9 +210,10 @@ async def main():
                     continue
                 tasks_that_depend_on_other_workers.append(task)
                 await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
-                # Check persistent flags of previous {TASK_READY} events
-                dependencies_satisfied = await wk.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{task.id.get_full_id_in_dag(fulldag)}")
-                if dependencies_satisfied == len(task.upstream_nodes):
+
+                upstream_dependencies = [utask.id.get_full_id_in_dag(fulldag) for utask in task.upstream_nodes]
+                dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                if dependencies_satisfied == len(upstream_dependencies):
                     await _on_task_ready_callback_builder(task.id)({})
                 # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
 
@@ -221,9 +221,10 @@ async def main():
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
                         await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
-                        # Check persistent flags of previous {TASK_READY} events
-                        dependencies_satisfied = await wk.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}")
-                        if dependencies_satisfied == len(utask.upstream_nodes): 
+
+                        upstream_dependencies = [uutask.id.get_full_id_in_dag(fulldag) for uutask in utask.upstream_nodes]
+                        dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                        if dependencies_satisfied == len(upstream_dependencies): 
                             await _on_task_dup_callback_builder(utask, task)({})
 
         #* 3) Start executing my direct task IDs branches
@@ -264,7 +265,7 @@ async def main():
             # logger.info(f"Deleting {len(fulldag._all_nodes.keys()) - 1} intermediate results for dag id: {fulldag.master_dag_id}")
             # Delete intermediate results
             for t in fulldag._all_nodes.values():
-                # note: don't delete final result because client needs it
+                # note: don't delete final result because client needs it, but delete its DC if exists
                 if t.id.get_full_id() == fulldag.sink_node.id.get_full_id():
                     await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_full_id_in_dag(fulldag)}")
                     continue

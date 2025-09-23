@@ -185,6 +185,10 @@ class Worker(ABC):
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 async with self.metadata_storage.batch() as batch:
                     for downstream_task in current_task.downstream_nodes:
+                        if len(downstream_task.upstream_nodes) == 1 and downstream_task.upstream_nodes[0].worker_config.worker_id is not None and downstream_task.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id:
+                            # if the DS task only dependeds on this task and it will run on this worker, don't use DC
+                            continue
+
                         await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     results = await batch.execute()
                     
