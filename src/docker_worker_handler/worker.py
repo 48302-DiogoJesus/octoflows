@@ -212,9 +212,10 @@ async def main():
                 await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
 
                 upstream_dependencies = [utask.id.get_full_id_in_dag(fulldag) for utask in task.upstream_nodes]
-                dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
-                if dependencies_satisfied == len(upstream_dependencies):
-                    await _on_task_ready_callback_builder(task.id)({})
+                if len(upstream_dependencies) > 0:
+                    dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                    if dependencies_satisfied == len(upstream_dependencies):
+                        await _on_task_ready_callback_builder(task.id)({})
                 # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
 
                 has_duppable_upstream_tasks = any(n.try_get_optimization(TaskDupOptimization) is not None for n in task.upstream_nodes)
@@ -223,9 +224,10 @@ async def main():
                         await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
 
                         upstream_dependencies = [uutask.id.get_full_id_in_dag(fulldag) for uutask in utask.upstream_nodes]
-                        dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
-                        if dependencies_satisfied == len(upstream_dependencies): 
-                            await _on_task_dup_callback_builder(utask, task)({})
+                        if len(upstream_dependencies) > 0:
+                            dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                            if dependencies_satisfied == len(upstream_dependencies): 
+                                await _on_task_dup_callback_builder(utask, task)({})
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()

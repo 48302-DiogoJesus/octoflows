@@ -65,7 +65,11 @@ class RedisStorage(storage.Storage):
                 decode_responses=False,  # Necessary to allow serialized bytes
                 socket_connect_timeout=self.redis_config.socket_connect_timeout,
                 socket_timeout=self.redis_config.socket_timeout,
-                retry_on_timeout=True
+                retry_on_timeout=True,
+                retry_on_error=[ConnectionError, TimeoutError, OSError],
+                max_connections=20,
+                health_check_interval=15,
+                socket_keepalive=True
             )
             return self._connection
 
@@ -88,6 +92,7 @@ class RedisStorage(storage.Storage):
         return await conn.incr(key, amount=1)
 
     async def exists(self, *keys: str) -> int:
+        logger.info(f"[REDIS_DEBUG] EXISTS: {len(keys)} keys: {str(keys)}")
         await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.exists(*keys)

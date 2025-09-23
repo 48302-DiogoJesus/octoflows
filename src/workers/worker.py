@@ -184,17 +184,18 @@ class Worker(ABC):
                 updating_dependency_counters_timer = Timer()
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 async with self.metadata_storage.batch() as batch:
+                    downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id)]
                     for downstream_task in current_task.downstream_nodes:
-                        if len(downstream_task.upstream_nodes) == 1 and downstream_task.upstream_nodes[0].worker_config.worker_id is not None and downstream_task.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id:
-                            # if the DS task only dependeds on this task and it will run on this worker, don't use DC
-                            continue
+                        if downstream_task in downstream_tasks_that_depend_on_other_tasks:
+                            await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        else:
+                            downstream_tasks_ready.append(downstream_task)
 
-                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     results = await batch.execute()
                     
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
 
-                for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
+                for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
