@@ -21,7 +21,7 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
     def get_description(self) -> str:
         return \
             """
-            - Uses uniform resources
+            - Uses uniform resources (specified in config)
             - Assigns flexible workers to all tasks
             - Doesn't use predictions
             - Doesn't use optimizations

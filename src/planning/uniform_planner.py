@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-from src.planning.optimizations.taskdup import TaskDupOptimization
-from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.utils.logger import create_logger
@@ -21,11 +19,9 @@ class UniformPlanner(AbstractDAGPlanner):
     def get_description(self) -> str: 
         return \
             """
-            The first algorithm would target uniform Lambda
-            workers. It would use the MetadataAccess API to predict the longest workflow path (critical path). Then it would
-            simulate using the pre-load optimization on this path. If optimizing the critical path made it shorter than the
-            second longest path, the algorithm would repeat the process for this new critical path. This would be repeated
-            until we can't optimize the critical path any further. TaskDup optimization is also used.
+            - Uses uniform workers (specified in config)
+            - Uses algorithm to assign worker_ids to tasks
+            - Tries to apply optimizations (specified in config)
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):

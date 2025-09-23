@@ -1,10 +1,14 @@
-- re-check planners description function
-
 - Change one workflow to have diff types of tasks on a fan-out that fans in after
     text analysis maybe
     cause: I NEED PRELOAD TO BE USED SOMEWHERE
+- Change one workflow to have a fan-out where one of the target tasks depends on another task (to see Delayed IO vs PreLoad in action)
 
-- implement wukong optimizations
+- Implement wukong optimizations
+    Delayed I/O
+        on fan-outs
+    Task Clustering
+        on fan-ins
+        on fan-outs
 
 - try find fix for worker active periods predictions
 

@@ -2,8 +2,6 @@ from dataclasses import dataclass
 import uuid
 
 from src.planning.optimizations.preload import PreLoadOptimization
-from src.planning.optimizations.prewarm import PreWarmOptimization
-from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -25,15 +23,11 @@ class NonUniformPlanner(AbstractDAGPlanner):
     def get_description(self) -> str: 
         return \
             """
-            Uses non-uniform workers. It would first find the critical path by predicting
-            times of all workflow tasks running on the best worker configuration. Then, it would downgrade resources
-            on the other paths as much as possible without introducing a new critical path. After attributing tasks to workers
-            (at plan-time, not run-time), it simulates using preload optimization to reduce makespan by masking dependency download time.
-
-            - Assign best resources to all tasks, find CP
-            - Simulate downgrading resources on non-critical path tasks (w/o introducing a new CP)
-            - Simulate using optimizations (preload)
-            - Uses task dupping optimization
+            - Uses non-uniform workers (list is specified in config)
+            - Uses algorithm to assign worker_ids to tasks
+            - Assign best resources to all tasks and find critical path
+            - Iterative algorithm that simulates downgrading resources of non-critical workers (without introducing a new critical path)
+            - Tries to apply optimizations (specified in config)
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):
@@ -148,7 +142,6 @@ class NonUniformPlanner(AbstractDAGPlanner):
         # Calculate resource distribution
         resource_distribution = {}
         unique_worker_ids: dict[str, int] = {}
-        nodes_with_preload = 0
         
         for node_id, node in _dag._all_nodes.items():
             resource_config = node.worker_config
@@ -161,9 +154,6 @@ class NonUniformPlanner(AbstractDAGPlanner):
             if resource_config.worker_id not in unique_worker_ids:
                 unique_worker_ids[resource_config.worker_id] = 0
             unique_worker_ids[resource_config.worker_id] += 1
-            
-            if node.try_get_optimization(PreLoadOptimization):
-                nodes_with_preload += 1
 
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
             previous_instances=predictions_provider.nr_of_previous_instances,
