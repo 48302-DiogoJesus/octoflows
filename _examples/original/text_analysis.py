@@ -46,61 +46,57 @@ def create_text_segments(text: str, total_word_count: int) -> List[str]:
 @DAGTask
 def compute_text_statistics(text: str, total_word_count: int) -> Dict[str, Any]:
     """Heavy computational task - compute comprehensive text statistics"""
-    import re
-    from collections import Counter
+    import time
     
-    # Simulate heavy computation with detailed analysis
+    # Simulate heavy computation with simple but time-consuming operations
     words = text.split()
     
-    # Character-level analysis
-    char_freq = Counter(text.lower())
-    vowels = sum(char_freq[v] for v in 'aeiou')
-    consonants = sum(char_freq[c] for c in 'bcdfghjklmnpqrstvwxyz')
+    # Simplified character counting (only vowels and consonants)
+    vowel_count = 0
+    consonant_count = 0
+    for char in text.lower():
+        if char in 'aeiou':
+            vowel_count += 1
+        elif char.isalpha():
+            consonant_count += 1
     
-    # Word length distribution
-    word_lengths = [len(w.strip('.,!?;:"()')) for w in words]
-    length_distribution = Counter(word_lengths)
+    # Word length analysis with reduced artificial delay
+    word_lengths = []
+    for i, word in enumerate(words):
+        clean_word = word.strip('.,!?;:"()')
+        word_lengths.append(len(clean_word))
+        # Reduced delay - only every 2000 words instead of 1000
+        if i % 2000 == 0 and i > 0:
+            time.sleep(0.001)  # 1ms delay every 2000 words
     
-    # Sentence analysis (heavy regex processing)
-    sentences = re.split(r'[.!?]+', text)
-    sentences = [s.strip() for s in sentences if s.strip()]
+    # Simple sentence counting
+    sentence_count = text.count('.')
     
-    # Word frequency analysis (computationally intensive)
-    clean_words = [w.lower().strip('.,!?;:"()') for w in words]
-    word_freq = Counter(clean_words)
+    # Basic word frequency for top 10 words only (reduced from 20)
+    word_freq = {}
+    for word in words:
+        clean_word = word.lower().strip('.,!?;:"()')
+        if len(clean_word) > 4:  # Only count words longer than 4 chars (reduced work)
+            word_freq[clean_word] = word_freq.get(clean_word, 0) + 1
     
-    # Language pattern analysis
-    capitalized_words = [w for w in words if w[0].isupper() and len(w) > 1]
+    # Get top 10 most common words only
+    most_common = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10]
     
-    # Syllable estimation (heavy computation)
-    def estimate_syllables(word):
-        word = word.lower()
-        vowel_groups = re.findall(r'[aeiouy]+', word)
-        syllables = len(vowel_groups)
-        if word.endswith('e') and syllables > 1:
-            syllables -= 1
-        return max(1, syllables)
-    
-    total_syllables = sum(estimate_syllables(w.strip('.,!?;:"()')) for w in words)
-    
-    # Advanced readability metrics
-    flesch_reading_ease = 206.835 - (1.015 * (len(words) / len(sentences))) - (84.6 * (total_syllables / len(words))) if sentences and words else 0
+    # Basic calculations
+    avg_word_length = sum(word_lengths) / len(word_lengths) if word_lengths else 0
+    avg_sentence_length = len(words) / sentence_count if sentence_count > 0 else 0
+    simple_readability = avg_word_length + (avg_sentence_length / 10)
     
     return {
-        "char_frequency": dict(char_freq.most_common(10)),
-        "vowel_count": vowels,
-        "consonant_count": consonants,
-        "word_length_distribution": dict(length_distribution),
-        "avg_word_length": sum(word_lengths) / len(word_lengths) if word_lengths else 0,
-        "sentence_count": len(sentences),
-        "avg_sentence_length": len(words) / len(sentences) if sentences else 0,
-        "most_common_words": word_freq.most_common(20),
-        "hapax_legomena": len([w for w, count in word_freq.items() if count == 1]),
-        "vocabulary_size": len(word_freq),
-        "capitalized_word_count": len(capitalized_words),
-        "total_syllables": total_syllables,
-        "flesch_reading_ease": flesch_reading_ease,
-        "type_token_ratio": len(word_freq) / len(clean_words) if clean_words else 0
+        "vowel_count": vowel_count,
+        "consonant_count": consonant_count,
+        "avg_word_length": avg_word_length,
+        "sentence_count": sentence_count,
+        "avg_sentence_length": avg_sentence_length,
+        "most_common_words": most_common,
+        "unique_word_count": len(word_freq),
+        "simple_readability_score": simple_readability,
+        "processing_time_simulation": "Heavy computation completed"
     }
 
 
@@ -129,20 +125,15 @@ def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) ->
     words = [w.lower().strip('.,!?;:"()') for w in all_text.split()]
     
     # Use text statistics to inform keyword extraction
-    common_words = {word for word, _ in text_stats["most_common_words"][:50]}
+    common_words = {word for word, _ in text_stats["most_common_words"]}
     
     # Enhanced keyword extraction using statistical data
-    keywords = []
-    for w in words:
-        if (len(w) > 5 and w not in common_words and 
-            text_stats["word_length_distribution"].get(len(w), 0) < len(words) * 0.1):
-            keywords.append(w)
-    
+    keywords = [w for w in words if len(w) > 5 and w not in common_words]
     keyword_freq = {}
     for word in keywords:
         keyword_freq[word] = keyword_freq.get(word, 0) + 1
     
-    # Get top keywords by frequency, filtered by statistical significance
+    # Get top keywords by frequency
     sorted_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)
     
     return {
@@ -150,7 +141,7 @@ def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) ->
         "top_keywords": sorted_keywords[:20],
         "total_keywords": len(keyword_freq),
         "keyword_density": len(keywords) / len(words) if words else 0,
-        "statistical_enhancement": f"Filtered using {len(common_words)} common words from text statistics"
+        "avg_word_length_context": text_stats["avg_word_length"]
     }
 
 @DAGTask
@@ -158,7 +149,6 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
     """Analyze punctuation patterns across all segments, enhanced with character frequency data"""
     all_text = " ".join(segments)
     
-    # Enhanced punctuation analysis using character frequency data
     punctuation_counts = {
         "periods": all_text.count('.'),
         "commas": all_text.count(','),
@@ -171,80 +161,57 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
     
     total_punct = sum(punctuation_counts.values())
     
-    # Use character frequency data for additional insights
-    total_chars = sum(text_stats["char_frequency"].values()) if text_stats["char_frequency"] else len(all_text)
-    
     return {
         "type": "overall_punctuation",
         "punctuation_counts": punctuation_counts,
         "total_punctuation": total_punct,
         "punctuation_density": total_punct / len(all_text) if all_text else 0,
-        "punctuation_to_char_ratio": total_punct / total_chars if total_chars > 0 else 0,
         "most_common_punct": max(punctuation_counts.items(), key=lambda x: x[1])[0] if punctuation_counts else "none",
-        "statistical_enhancement": f"Enhanced with character frequency analysis from {len(text_stats['char_frequency'])} character types"
+        "vowel_context": text_stats["vowel_count"],
+        "consonant_context": text_stats["consonant_count"]
     }
 
 @DAGTask
 def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate readability metrics for the entire text, enhanced with advanced statistics"""
+    """Calculate readability metrics for the entire text, enhanced with statistics"""
     all_text = " ".join(segments)
     words = all_text.split()
     
-    # Use pre-computed statistics for enhanced readability calculation
-    flesch_score = text_stats["flesch_reading_ease"]
-    type_token_ratio = text_stats["type_token_ratio"]
-    avg_syllables_per_word = text_stats["total_syllables"] / len(words) if words else 0
-    
-    # Enhanced readability metrics
-    enhanced_readability_score = (
-        text_stats["avg_word_length"] * 1.5 +
-        text_stats["avg_sentence_length"] * 0.3 +
-        avg_syllables_per_word * 2.0 +
-        (1 - type_token_ratio) * 5.0  # Lower vocabulary diversity increases complexity
-    )
+    # Use pre-computed statistics for enhanced readability
+    enhanced_score = text_stats["simple_readability_score"] + (text_stats["avg_sentence_length"] * 0.1)
     
     return {
         "type": "overall_readability",
-        "flesch_reading_ease": flesch_score,
-        "enhanced_readability_score": enhanced_readability_score,
-        "type_token_ratio": type_token_ratio,
-        "avg_syllables_per_word": avg_syllables_per_word,
-        "complexity_level": "simple" if enhanced_readability_score < 8 else "medium" if enhanced_readability_score < 12 else "complex",
-        "flesch_level": "very_easy" if flesch_score >= 90 else "easy" if flesch_score >= 80 else "fairly_easy" if flesch_score >= 70 else "standard" if flesch_score >= 60 else "fairly_difficult" if flesch_score >= 50 else "difficult",
-        "statistical_enhancement": f"Enhanced with syllable count ({text_stats['total_syllables']}) and vocabulary analysis"
+        "simple_readability_score": text_stats["simple_readability_score"],
+        "enhanced_readability_score": enhanced_score,
+        "avg_word_length": text_stats["avg_word_length"],
+        "avg_sentence_length": text_stats["avg_sentence_length"],
+        "complexity_level": "simple" if enhanced_score < 8 else "medium" if enhanced_score < 12 else "complex",
+        "sentence_context": text_stats["sentence_count"]
     }
 
 @DAGTask
 def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Detect linguistic patterns across all segments, enhanced with comprehensive statistics"""
+    """Detect linguistic patterns across all segments, enhanced with statistics"""
     all_text = " ".join(segments)
     words = all_text.split()
     
-    # Enhanced pattern detection using pre-computed statistics
     patterns = {
         "total_words": len(words),
-        "unique_words": text_stats["vocabulary_size"],
-        "hapax_legomena": text_stats["hapax_legomena"],  # Words that appear only once
+        "unique_words": text_stats["unique_word_count"],
         "avg_word_length": text_stats["avg_word_length"],
-        "long_words": sum(count for length, count in text_stats["word_length_distribution"].items() if length > 7),
-        "short_words": sum(count for length, count in text_stats["word_length_distribution"].items() if 1 <= length <= 3),
         "segment_count": len(segments),
-        "vowel_consonant_ratio": text_stats["vowel_count"] / text_stats["consonant_count"] if text_stats["consonant_count"] > 0 else 0,
-        "capitalized_words": text_stats["capitalized_word_count"]
+        "vowel_count": text_stats["vowel_count"]
     }
     
-    # Advanced vocabulary richness using multiple metrics
-    vocabulary_richness = text_stats["type_token_ratio"]
-    lexical_sophistication = patterns["long_words"] / patterns["total_words"] if patterns["total_words"] > 0 else 0
+    vocabulary_richness = patterns["unique_words"] / patterns["total_words"] if patterns["total_words"] > 0 else 0
     
     return {
         "type": "overall_patterns",
         "patterns": patterns,
         "vocabulary_richness": vocabulary_richness,
-        "lexical_sophistication": lexical_sophistication,
         "lexical_diversity": "high" if vocabulary_richness > 0.7 else "medium" if vocabulary_richness > 0.4 else "low",
-        "writing_complexity": "sophisticated" if lexical_sophistication > 0.15 else "moderate" if lexical_sophistication > 0.08 else "simple",
-        "statistical_enhancement": f"Enhanced with {len(text_stats['word_length_distribution'])} word length categories and hapax legomena analysis"
+        "readability_context": text_stats["simple_readability_score"]
     }
 
 # --- Updated merge function to handle all 20 results (8 segments + 12 processing results) ---
@@ -365,6 +332,8 @@ metrics = calculate_text_metrics(merged_analysis)
 summary = generate_text_summary(merged_analysis)
 
 final_report = final_comprehensive_report(metrics, summary, merged_analysis)
+# final_report.visualize_dag(open_after=True)
+# exit()
 
 # --- Run workflow ---
 start_time = time.time()

@@ -21,7 +21,7 @@ logger = create_logger(__name__)
 class PreLoadOptimization(TaskOptimization):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible """
 
-    MIN_FAN_OUT_SIZE_TO_APPLY_OPTIMIZATION = 10
+    MIN_DEPENDENCIES_TO_APPLY_OPTIMIZATION = 10
 
     # for upstream tasks
     preloading_complete_events: dict[str, asyncio.Event] = field(default_factory=dict)
@@ -43,7 +43,7 @@ class PreLoadOptimization(TaskOptimization):
         iteration = 0
 
         for node in topo_sorted_nodes:
-            if len(node.downstream_nodes) >= PreLoadOptimization.MIN_FAN_OUT_SIZE_TO_APPLY_OPTIMIZATION:
+            if len(node.upstream_nodes) >= PreLoadOptimization.MIN_DEPENDENCIES_TO_APPLY_OPTIMIZATION:
                 node.add_optimization(PreLoadOptimization())
 
         while True:

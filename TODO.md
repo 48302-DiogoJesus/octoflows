@@ -1,3 +1,7 @@
+- WHERE WE CAN BE BETTER THAN WUKONG
+    - On 1-1, it may compensate to swap workers if the second task benefits from running on a stronger worker and it compensates sending the data over the network
+    - On fan-out, clustering tasks that are expected to produce large outputs on the same worker will make fan-ins cheaper, because then, the worker that accumulated the most amount of data can run the fan-in task and avoid sending the data over the network
+
 - PRELOAD: Update "paper" with planning assignment logic
 
 - Confirm wukong optimizations are being applied
@@ -10,8 +14,7 @@
             how?: total data uploaded + total data downloaded
             PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
             see deepseek: https://chat.deepseek.com/a/chat/s/955c80aa-1505-4ca5-849c-231266a413ff
-    - Calculate a resource usage metric per workflow: sum(CPUs*memória*tempo for each task)
-    - Compare SLAs ("global"):
+    - Compare by SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
         - overall prediction success rate (compared to the real values)
         PreWarm ("individual"):
