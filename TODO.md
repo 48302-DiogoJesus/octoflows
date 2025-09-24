@@ -1,17 +1,18 @@
-- 
+- Instance Comparison: show total unique workers
+- Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
+
+- PRELOAD: Change preload assignment logic so that fan-ins bigger than 10 always use it
 
 - Change one workflow to have diff types of tasks on a fan-out that fans in after
     text analysis maybe
-    cause: I NEED PRELOAD TO BE USED SOMEWHERE
+    cause: easier to visualize preload's benefits (1 or 2 tasks of the fan-in that take a lot longer/have bigger output)
 - Change one workflow to have a fan-out where one of the target tasks depends on another task (to see Delayed IO vs PreLoad in action)
 
 - Find a way to know where/how many task clusterings and delayed I/Os happened
     possible just from looking at worker ids at the end?
 
-- try find fix for worker active periods predictions
-
 - Dashboard
-    - Show not only input and output sizes but also ALL the data that travelled the network
+    - [!] Show not only input and output sizes but also ALL the data that travelled the network
             how?: total data uploaded + total data downloaded
             PROMPT: ON @global_planning_analysis_dashboard.py , can you add a new metric to the dashboard: Total Transferred Data which is the sum of the data uploaded and the data downloaded. This should help understand which planners transfer more data over the network
             see deepseek: https://chat.deepseek.com/a/chat/s/955c80aa-1505-4ca5-849c-231266a413ff
@@ -24,10 +25,7 @@
         Dup ("individual"):
     - how many happened, which tasks were dupped?
 
-# not so important
-
-- Do I always need to use the dependency counter? (it's heavy on workflows with lots of tasks)
-
+- try find fix for worker active periods predictions
     
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id

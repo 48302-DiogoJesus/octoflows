@@ -103,7 +103,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         # ignore if task was already READY
                         continue
                     if len(dtask.upstream_nodes) > 1 and _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}") == len(dtask.upstream_nodes):
-                        asyncio.create_task(_this_worker.delegate([subdag.create_subdag(dtask)], fulldag, called_by_worker=True))
+                        assert _this_worker.my_resource_configuration.worker_id
+                        asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_resource_configuration.worker_id))
                         await dtask.completed_event.wait()
                         tasks_completed.add(dtask.id.get_full_id())
             
@@ -112,7 +113,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 mutable_downstream_tasks_ready = downstream_tasks_ready.copy()
                 while mutable_downstream_tasks_ready:
                     dtask_ready = mutable_downstream_tasks_ready.pop() # remove task
-                    asyncio.create_task(_this_worker.delegate([subdag.create_subdag(dtask_ready)], fulldag, called_by_worker=True))
+                    assert _this_worker.my_resource_configuration.worker_id
+                    asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_resource_configuration.worker_id))
                     await dtask_ready.completed_event.wait()
                     tasks_completed.add(dtask_ready.id.get_full_id())
 

@@ -12,7 +12,6 @@ from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
-from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__)
 

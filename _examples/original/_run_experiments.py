@@ -5,17 +5,17 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'text_analysis.py',
-    'image_transformer.py',
-    'wordcount.py',
+    # 'image_transformer.py',
     'gemm.py',
-    'tree_reduction.py',
-    'montage.py',
+    'text_analysis.py',
+    # 'tree_reduction.py',
+    # 'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 2
-ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
-SLAS = ['50']
+ITERATIONS_PER_ALGORITHM = 6
+# ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
+ALGORITHMS = ['wukong-opt']
+SLAS = ['80']
 # SLAS = ['50', '75', '90', '95', '99']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
@@ -35,9 +35,10 @@ def kill_warm():
 
 def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
     """Run the specified Python script with the given algorithm and SLA parameters."""
+    time.sleep(1) # give enough time for containers to cleanup 
     kill_warm()
     print(f"Waiting while warm containers are being killed...")
-    time.sleep(1.6)
+    time.sleep(1.5)
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
