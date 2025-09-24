@@ -26,16 +26,16 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         - If a task has large output, execute all READY tasks locally + re-check storage to see if other tasks became READY
     """
 
-    task_clustering_fan_outs: bool = False
-    task_clustering_fan_ins: bool = False
-    delayed_io: bool = False
-    large_output_b: int = 0
+    task_clustering_fan_outs: bool
+    task_clustering_fan_ins: bool
+    delayed_io: bool
+    large_output_b: int
 
-    def __init__(self):
-        self.task_clustering_fan_outs = WukongOptimizations.task_clustering_fan_outs
-        self.task_clustering_fan_ins = WukongOptimizations.task_clustering_fan_ins
-        self.delayed_io = WukongOptimizations.delayed_io
-        self.large_output_b = WukongOptimizations.large_output_b
+    def __init__(self, task_clustering_fan_outs: bool | None = None, task_clustering_fan_ins: bool | None = None, delayed_io: bool | None = None, large_output_b: int | None = None):
+        self.task_clustering_fan_outs = task_clustering_fan_outs if task_clustering_fan_outs is not None else WukongOptimizations.task_clustering_fan_outs
+        self.task_clustering_fan_ins = task_clustering_fan_ins if task_clustering_fan_ins is not None else WukongOptimizations.task_clustering_fan_ins
+        self.delayed_io = delayed_io if delayed_io is not None else WukongOptimizations.delayed_io
+        self.large_output_b = large_output_b if large_output_b is not None else WukongOptimizations.large_output_b
 
     @property
     def name(self) -> str: return f"Wukong(tco={self.task_clustering_fan_outs}, tci={self.task_clustering_fan_ins}, io={self.delayed_io}, lo={self.large_output_b / 1024 / 1024}MB)"
@@ -55,7 +55,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         for node in topo_sorted_nodes:
             is_fan_out_origin = len(node.downstream_nodes) > 1
             is_fan_in_upstream = len(node.downstream_nodes) > 0 and any([dnode for dnode in node.downstream_nodes if len(dnode.upstream_nodes) > 1])
-            if is_fan_out_origin or is_fan_in_upstream: node.add_optimization(WukongOptimizations())
+            if is_fan_out_origin or is_fan_in_upstream: 
+                node.add_optimization(WukongOptimizations(
+                    task_clustering_fan_outs=is_fan_out_origin,
+                    task_clustering_fan_ins=is_fan_in_upstream,
+                    delayed_io=is_fan_in_upstream and WukongOptimizations.delayed_io,
+                ))
 
     @staticmethod
     async def wel_override_should_upload_output(planner, current_task: DAGTaskNode, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
