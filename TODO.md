@@ -1,16 +1,9 @@
-- Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
-
-- PRELOAD: Update report planning assignment logic.
+- PRELOAD: Update "paper" with planning assignment logic
 
 - Confirm wukong optimizations are being applied
-
-- Change one workflow to have diff types of tasks on a fan-out that fans in after
-    text analysis maybe
-    cause: easier to visualize preload's benefits (1 or 2 tasks of the fan-in that take a lot longer/have bigger output)
-- Change one workflow to have a fan-out where one of the target tasks depends on another task (to see Delayed IO vs PreLoad in action)
-
-- Find a way to know where/how many task clusterings and delayed I/Os happened
-    possible just from looking at worker ids at the end?
+    - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
+    - Find a way to know where/how many task clusterings and delayed I/Os happened
+        possible just from looking at worker ids at the end?
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network

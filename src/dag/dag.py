@@ -218,7 +218,7 @@ class FullDAG(GenericDAG):
             recursive_find_invalid_sink_nodes(node)
    
     @classmethod
-    def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph.png", open_after=True):
+    def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph", open_after=True):
         # Create a new directed graph
         dot = graphviz.Digraph(
             comment="DAG Visualization",
@@ -282,4 +282,4 @@ class FullDAG(GenericDAG):
                 dot.edge(node_id, downstream_node.id.get_full_id())
         
         # Render the graph to a file and open it
-        dot.render(filename=output_file, cleanup=True, view=open_after)
+        dot.render(filename=dag_name, cleanup=True, view=open_after)

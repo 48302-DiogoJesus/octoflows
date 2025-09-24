@@ -14,8 +14,6 @@ from src.utils.atomic_flag import AtomicFlag
 from src.utils.timer import Timer
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
-R = TypeVar('R')
-S = TypeVar('S')
 from src.utils.logger import create_logger
 
 logger = create_logger(__name__)
@@ -119,7 +117,7 @@ class DAGTaskNode:
         }
 
     """ config: worker.Worker.Config """
-    def compute(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> R:
+    def compute(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> Any:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config
@@ -128,7 +126,7 @@ class DAGTaskNode:
         logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
         return asyncio.run(dag_representation.compute(_config, dag_name, open_dashboard))
 
-    async def compute_async(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> R:
+    async def compute_async(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False) -> Any:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config
@@ -138,7 +136,7 @@ class DAGTaskNode:
         res = await dag_representation.compute(_config, dag_name, open_dashboard)
         return res
 
-    def visualize_dag(self, output_file="dag_graph.png", open_after: bool = True):
+    def visualize_dag(self, output_file="dag_graph", open_after: bool = True):
         import src.dag.dag as dag
         dag.FullDAG.visualize(sink_node=self, output_file=output_file, open_after=open_after)
 
@@ -302,7 +300,7 @@ class DAGTaskNode:
     # '''
 
 def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = []) -> Callable[..., DAGTaskNode]:
-    def decorator(func: Callable[..., R]) -> Callable[..., DAGTaskNode]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., DAGTaskNode]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> DAGTaskNode:
             node = DAGTaskNode(func, args, kwargs)
@@ -312,7 +310,7 @@ def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = 
     
     # @DAGTaskFlexible(forced_optimizations={...})
     if func_or_params is None:
-        return decorator
+        return decorator # type: ignore
     # @DAGTaskFlexible
     elif callable(func_or_params):
         return decorator(func_or_params)

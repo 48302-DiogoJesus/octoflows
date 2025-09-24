@@ -59,6 +59,7 @@ def sepia_chunk(chunk: np.ndarray) -> np.ndarray:
                              [0.272, 0.534, 0.131]])
     sepia_img = img @ sepia_filter.T
     sepia_img = np.clip(sepia_img, 0, 255)
+    time.sleep(2)
     return sepia_img.astype(np.uint8)
 
 

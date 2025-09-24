@@ -6,15 +6,15 @@ import requests
 
 WORKFLOWS_PATHS = [
     # 'image_transformer.py',
-    'gemm.py',
+    # 'gemm.py',
     'text_analysis.py',
     # 'tree_reduction.py',
     # 'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 6
-# ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
-ALGORITHMS = ['wukong-opt']
+ITERATIONS_PER_ALGORITHM = 4
+ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
+# ALGORITHMS = ['wukong-opt']
 SLAS = ['80']
 # SLAS = ['50', '75', '90', '95', '99']
 
