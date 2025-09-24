@@ -74,13 +74,13 @@ async def main():
         wk = DockerWorker(config)
 
         if b64_fulldag is not None:
-            logger.info("Received fulldag in the invocation")
+            # logger.info("Received fulldag in the invocation")
             decompressed_dag = zlib.decompress(base64.b64decode(b64_fulldag))
             serialized_dag_size_bytes = calculate_data_structure_size(decompressed_dag)
             fulldag = cloudpickle.loads(decompressed_dag)
             dag_download_time_ms = 0
         else:
-            logger.info("Didn't receive fulldag in the invocation, fetching from storage...")
+            # logger.info("Didn't receive fulldag in the invocation, fetching from storage...")
             dag_download_time_ms = Timer()
             serialized_dag_size_bytes, fulldag = await wk.get_full_dag(dag_id)
             dag_download_time_ms = dag_download_time_ms.stop()

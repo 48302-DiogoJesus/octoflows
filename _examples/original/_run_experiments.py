@@ -15,7 +15,7 @@ WORKFLOWS_PATHS = [
 
 ITERATIONS_PER_ALGORITHM = 2
 ALGORITHMS = ['wukong', 'simple', 'uniform', 'non-uniform']
-SLAS = ['75']
+SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 
 TIME_UNTIL_WORKER_GOES_COLD_S = 5
