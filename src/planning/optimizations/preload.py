@@ -21,6 +21,8 @@ logger = create_logger(__name__)
 class PreLoadOptimization(TaskOptimization):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible """
 
+    MIN_FAN_OUT_SIZE_TO_APPLY_OPTIMIZATION = 10
+
     # for upstream tasks
     preloading_complete_events: dict[str, asyncio.Event] = field(default_factory=dict)
     # Flag that indicates if starting new preloading for upstream tasks of this task is allowed or not
@@ -39,6 +41,11 @@ class PreLoadOptimization(TaskOptimization):
         _planner: AbstractDAGPlanner = planner
         _predictions_provider: PredictionsProvider = predictions_provider
         iteration = 0
+
+        for node in topo_sorted_nodes:
+            if len(node.downstream_nodes) >= PreLoadOptimization.MIN_FAN_OUT_SIZE_TO_APPLY_OPTIMIZATION:
+                node.add_optimization(PreLoadOptimization())
+
         while True:
             iteration += 1
             

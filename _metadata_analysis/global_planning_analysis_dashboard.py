@@ -368,6 +368,10 @@ def main():
                 # Calculate total DAG download time across all downloads
                 total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
                 dag_download_time = f"{total_download_time / 1000:.3f}s"
+
+                unique_worker_ids = set()
+                for task_metrics in instance.tasks:
+                    unique_worker_ids.add(task_metrics.metrics.worker_resource_configuration.worker_id)
                 
                 # Store the instance data with metrics for SLA comparison
                 instance_data.append({
@@ -392,7 +396,7 @@ def main():
                     'Total Task Invocation Time': f"{actual_invocation:.3f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
                     'Total DAG Download Time': dag_download_time,
-                    'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, predicted_total_worker_startup_time_s, 'worker_startup'),
+                    'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
                     'Run Time': f"{instance.resource_usage.run_time_seconds:.3f}",
                     'CPU Time': f"{instance.resource_usage.cpu_seconds:.3f}",
                     'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.3f} GB",

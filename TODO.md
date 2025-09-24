@@ -1,7 +1,8 @@
-- Instance Comparison: show total unique workers
 - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
 
-- PRELOAD: Change preload assignment logic so that fan-ins bigger than 10 always use it
+- PRELOAD: Update report planning assignment logic.
+
+- Confirm wukong optimizations are being applied
 
 - Change one workflow to have diff types of tasks on a fan-out that fans in after
     text analysis maybe
