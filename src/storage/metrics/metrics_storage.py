@@ -2,7 +2,6 @@ import hashlib
 import json
 from typing import Literal
 import uuid
-import asyncio
 from dataclasses import dataclass
 import time
 
@@ -90,5 +89,8 @@ class MetricsStorage():
         end = time.time()
         # logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
+    async def close_connection(self):
+        await self.storage.close_connection()
 
-BASELINE_MEMORY_MB = 256 # reference value for normalization
+
+BASELINE_MEMORY_MB = 512 # reference value for normalization

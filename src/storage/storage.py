@@ -186,6 +186,9 @@ class Storage(ABC):
         pass
         
     @abstractmethod
+    async def close_connection(self): pass
+
+    @abstractmethod
     async def _execute_batch(self, operations: list[BatchOperation]) -> list[Any]:
         """Execute a batch of operations. Implementations should optimize this for their backend."""
         pass

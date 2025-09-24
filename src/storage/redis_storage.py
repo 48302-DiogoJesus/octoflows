@@ -5,6 +5,8 @@ import traceback
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from redis.asyncio import Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
 
 import src.storage.storage as storage
 from src.utils.logger import create_logger
@@ -27,10 +29,6 @@ class RedisStorage(storage.Storage):
         host: str
         port: int
         password: str
-        # Optional parameters
-        db: int = 0
-        socket_connect_timeout = 5
-        socket_timeout = None # required to allow using subscribe (pub/sub)
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -46,6 +44,7 @@ class RedisStorage(storage.Storage):
         self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}
         # Format: {channel: (task, pubsub)}
         self._channel_tasks: Dict[str, Tuple[asyncio.Task, Any]] = {}
+        self._conn_lock = asyncio.Lock()
         
         # Don't initialize connection immediately to avoid event loop issues
         # Connection will be created lazily when first needed
@@ -54,24 +53,26 @@ class RedisStorage(storage.Storage):
         await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
 
     async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
-        if not skip_verification and await self._verify_connection():
-            return self._connection # type: ignore
-        else:
-            self._connection = Redis(
-                host=self.redis_config.host,
-                port=self.redis_config.port,
-                db=self.redis_config.db,
-                password=self.redis_config.password,
-                decode_responses=False,  # Necessary to allow serialized bytes
-                socket_connect_timeout=self.redis_config.socket_connect_timeout,
-                socket_timeout=self.redis_config.socket_timeout,
-                retry_on_timeout=True,
-                retry_on_error=[ConnectionError, TimeoutError, OSError],
-                max_connections=20,
-                health_check_interval=15,
-                socket_keepalive=True
-            )
-            return self._connection
+        async with self._conn_lock: # because multiple coroutines will be doing operations with the same
+            if not skip_verification and await self._verify_connection():
+                return self._connection # type: ignore
+            else:
+                self._connection = Redis(
+                    host=self.redis_config.host,
+                    port=self.redis_config.port,
+                    db=0,
+                    password=self.redis_config.password,
+                    decode_responses=False,  # Necessary to allow serialized bytes
+                    socket_connect_timeout=5,
+                    socket_timeout=None,
+                    retry_on_timeout=True,
+                    retry_on_error=[ConnectionError, TimeoutError, OSError],
+                    retry=Retry(backoff=ExponentialBackoff(), retries=3),
+                    max_connections=20,
+                    health_check_interval=15,
+                    socket_keepalive=True
+                )
+                return self._connection
 
     async def get(self, key: str) -> Any:
         await self._simulate_network_latency()
@@ -97,7 +98,7 @@ class RedisStorage(storage.Storage):
         conn = await self._get_or_create_connection()
         return await conn.exists(*keys)
     
-    async def close_connection(self) -> None:
+    async def close_connection(self):
         """Close Redis connection and cancel any running subscription tasks."""
         # Cancel all channel tasks
         for channel, (task, pubsub) in self._channel_tasks.items():
@@ -114,18 +115,19 @@ class RedisStorage(storage.Storage):
         
         # Close PubSub if it exists
         if self._pubsub is not None:
-            await self._pubsub.aclose()
+            await self._pubsub.aclose() # type: ignore
             self._pubsub = None
         
         # Close main connection
         if self._connection is not None:
             await self._connection.aclose()
+            disconnect_from_pool = self._connection.connection_pool.disconnect(inuse_connections=True)
+            if disconnect_from_pool: await disconnect_from_pool
             self._connection = None
 
     async def _verify_connection(self) -> bool:
         try:
-            if self._connection is None:
-                return False
+            if self._connection is None: return False
             return await self._connection.ping()
         except Exception:
             return False

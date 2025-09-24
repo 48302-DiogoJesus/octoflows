@@ -282,6 +282,13 @@ async def main():
             )
             await wk.metrics_storage.flush()
 
+
+        if wk.metrics_storage:
+            await wk.metrics_storage.close_connection()
+        
+        if wk.intermediate_storage:
+            await wk.intermediate_storage.close_connection()
+
         logger.info(f"Worker({this_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:
         # Release the lock and clean up
