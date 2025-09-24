@@ -9,7 +9,7 @@ from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETED_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.metrics import metrics_storage
 from src.utils.logger import create_logger
@@ -104,8 +104,8 @@ class Worker(ABC):
                     task_dependencies[t.id.get_full_id()] = t.cached_result.result
 
                     current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
-                        serialized_size_bytes=calculate_data_structure_size(cloudpickle.dumps(t.cached_result.result)),
-                        deserialized_size_bytes=calculate_data_structure_size(t.cached_result.result),
+                        serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(t.cached_result.result)),
+                        deserialized_size_bytes=calculate_data_structure_size_bytes(t.cached_result.result),
                         time_ms=None
                     )
                 
@@ -118,8 +118,8 @@ class Worker(ABC):
                         deserialized_result = cloudpickle.loads(serialized_task_result)
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
                         current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size(serialized_task_result), 
-                            deserialized_size_bytes=calculate_data_structure_size(deserialized_result),
+                            serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result), 
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_result),
                             time_ms=time_to_fetch_ms
                         )
 
@@ -133,11 +133,11 @@ class Worker(ABC):
                 # METADATA: Register the size of hardcoded arguments as well
                 for func_arg in current_task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_arg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_arg)
 
                 for func_kwarg in current_task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size(func_kwarg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_kwarg)
 
                 await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
@@ -158,8 +158,8 @@ class Worker(ABC):
                 #* 3) HANDLE TASK OUTPUT
                 serialized_task_result = cloudpickle.dumps(deserialized_task_result)
                 current_task.metrics.output_metrics = TaskOutputMetrics(
-                    serialized_size_bytes=calculate_data_structure_size(serialized_task_result),
-                    deserialized_size_bytes=calculate_data_structure_size(deserialized_task_result),
+                    serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result),
+                    deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_task_result),
                     tp_time_ms=None
                 )
 
@@ -169,8 +169,8 @@ class Worker(ABC):
                 if upload_output:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
-                    self.log(current_task.id.get_full_id(), f"Uploaded Output")
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                    self.log(current_task.id.get_full_id(), f"Uploaded Output")
                 else:
                     self.log(current_task.id.get_full_id(), f"Won't upload output")
                 
@@ -229,7 +229,7 @@ class Worker(ABC):
                 current_task = my_continuation_tasks[0]
                 if len(my_continuation_tasks) > 1:
                     my_other_tasks = my_continuation_tasks[1:]
-                    # Execute other tasks on coroutines in this worker
+                    # Execute other tasks on separate coroutines in this worker
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
         except CancelCurrentWorkerLoopException as e:
@@ -285,7 +285,7 @@ class Worker(ABC):
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized_dag = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized_dag, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")
-        return (calculate_data_structure_size(serialized_dag), deserialized_dag)
+        return (calculate_data_structure_size_bytes(serialized_dag), deserialized_dag)
 
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG):

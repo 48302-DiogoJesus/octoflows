@@ -9,7 +9,7 @@ from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.utils.logger import create_logger
 import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 from src.utils.timer import Timer
 from src.docker_workers_gateway.container_resource_usage_monitor import DockerContainerUsageMonitor
 
@@ -115,7 +115,7 @@ class FullDAG(GenericDAG):
             self.sink_node,
             self
         )
-        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
+        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
 
         if wk.metrics_storage:
             metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)

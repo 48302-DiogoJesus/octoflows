@@ -7,17 +7,16 @@ from collections import defaultdict
 from typing import Type
 import uuid
 import statistics
-from typing import Callable
 
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.optimizations.preload import PreLoadOptimization
-from src.planning.optimizations.prewarm import PreWarmOptimization
 from src.planning.optimizations.taskdup import TaskDupOptimization
+from src.planning.optimizations.prewarm import PreWarmOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
@@ -332,7 +331,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                         output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                         total_input_size += output_size
             else:
-                total_input_size += calculate_data_structure_size(func_arg) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_arg))
+                total_input_size += calculate_data_structure_size_bytes(func_arg) if deserialized else calculate_data_structure_size_bytes(cloudpickle.dumps(func_arg))
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId): 
                 upstream_node_id = func_kwarg_val.get_full_id()
@@ -346,7 +345,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                         output_size = nodes_info[upstream_node_id].deserialized_output_size if deserialized else nodes_info[upstream_node_id].serialized_output_size
                         total_input_size += output_size
             else:
-                total_input_size += calculate_data_structure_size(func_kwarg_val) if deserialized else calculate_data_structure_size(cloudpickle.dumps(func_kwarg_val))
+                total_input_size += calculate_data_structure_size_bytes(func_kwarg_val) if deserialized else calculate_data_structure_size_bytes(cloudpickle.dumps(func_kwarg_val))
 
         return total_input_size
     
@@ -672,15 +671,12 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             # Create node label with task name in bold and larger font
             # Use HTML formatting to better control spacing and prevent text cutoff
             # Added extra <BR/> spacing between lines and smaller font for details
-            has_optimization_preload = node.try_get_optimization(PreLoadOptimization) is not None
-            has_optimization_prewarm = node.try_get_optimization(PreWarmOptimization) is not None
-            has_optimization_taskdup = node.try_get_optimization(TaskDupOptimization) is not None
             label = f"<<TABLE BORDER='0' CELLBORDER='0' CELLSPACING='0' CELLPADDING='0'>" \
                     f"<TR><TD><B><FONT POINT-SIZE='13'>{node.func_name}</FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>I/O: {node_info.deserialized_input_size if node_info else 0} - {node_info.deserialized_output_size if node_info else 0} bytes</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Time: {node_info.earliest_start_ms if node_info else 0:.2f} - {node_info.task_completion_time_ms if node_info else 0:.2f}ms</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>" \
-                    f"<TR><TD><B><FONT POINT-SIZE='11'>{"PreLoad" if has_optimization_preload else ""} {"PreWarm" if has_optimization_prewarm else ""} {"TaskDup" if has_optimization_taskdup else ""} </FONT></B></TD></TR>" \
+                    f"<TR><TD><B><FONT POINT-SIZE='11'>{[o.name for o in node.optimizations]} </FONT></B></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'} | State: {node_info.worker_startup_state if node_info and node_info.worker_startup_state else '-'}</FONT></TD></TR>" \
                     f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>" \
                     f"</TABLE>>"

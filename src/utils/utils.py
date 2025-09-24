@@ -2,7 +2,7 @@ import sys
 import random
 import numpy as np
 
-def calculate_data_structure_size(obj, fast=True, sample_size=50) -> int:
+def calculate_data_structure_size_bytes(obj, fast=True, sample_size=50) -> int:
     """
     Calculate size of data structure
     returns in bytes
@@ -23,7 +23,7 @@ def calculate_data_structure_size(obj, fast=True, sample_size=50) -> int:
             return int(container_size + avg_item_size * len(obj))
         else:
             # Regular mode: calculate all items
-            return int(container_size + sum(calculate_data_structure_size(item, fast, sample_size) for item in obj))
+            return int(container_size + sum(calculate_data_structure_size_bytes(item, fast, sample_size) for item in obj))
     
     else:
         return int(sys.getsizeof(obj))

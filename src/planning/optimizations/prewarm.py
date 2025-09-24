@@ -16,6 +16,9 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
     target_resource_configs: list[TaskWorkerResourceConfiguration]
 
+    @property
+    def name(self) -> str: return "PreWarm"
+
     def clone(self): return PreWarmOptimization([config.clone() for config in self.target_resource_configs])
 
     @staticmethod
@@ -78,7 +81,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
                 nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, _predictions_provider, _planner.config.sla)
         
-        return nodes_info
+        return
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):

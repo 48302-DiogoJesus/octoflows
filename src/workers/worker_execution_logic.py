@@ -58,13 +58,6 @@ class WorkerExecutionLogic(ABC):
         for task in _downstream_tasks_ready:
             task_resource_config = task.worker_config
             if task_resource_config.worker_id is None:
-                # - OLD LOGIC: if I have the same resources, it's mine. I execute all tasks with same resources as me
-                # if task_resource_config.cpus == _this_worker.my_resource_configuration.cpus and task_resource_config.memory_mb == _this_worker.my_resource_configuration.memory_mb:
-                #     my_continuation_tasks.append(task)
-                # # else, delegate to a new worker
-                # else:
-                #     other_continuation_tasks.append(task)
-                # - WUKONG-LIKE LOGIC: I execute the first task and delegate all other tasks to other workers
                 if len(my_continuation_tasks) == 0:
                     my_continuation_tasks.append(task)
                 else:

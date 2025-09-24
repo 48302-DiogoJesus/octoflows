@@ -12,7 +12,7 @@ from src.storage.storage import Storage
 from src.utils.coroutine_tags import COROTAG_PRELOAD
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 from src.utils.timer import Timer
 
 logger = create_logger(__name__)
@@ -26,6 +26,9 @@ class PreLoadOptimization(TaskOptimization):
     # Flag that indicates if starting new preloading for upstream tasks of this task is allowed or not
     allow_new_preloads: bool = True
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+    @property
+    def name(self): return "PreLoad"
 
     def clone(self): return PreLoadOptimization()
 
@@ -111,8 +114,7 @@ class PreLoadOptimization(TaskOptimization):
             if iteration > 100:
                 logger.warning(f"Maximum iterations reached. Stopping algorithm.")
                 break
-
-        return updated_nodes_info
+        return
 
     @staticmethod
     async def wel_on_worker_ready(planner, intermediate_storage: Storage, dag: FullDAG, this_worker_id: str | None):
@@ -134,8 +136,8 @@ class PreLoadOptimization(TaskOptimization):
                 time_to_fetch_ms = _timer.stop()
                 deserialized_task_output = cloudpickle.loads(serialized_data)
                 dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
-                    serialized_size_bytes=calculate_data_structure_size(serialized_data),
-                    deserialized_size_bytes=calculate_data_structure_size(deserialized_task_output),
+                    serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
+                    deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_task_output),
                     time_ms=time_to_fetch_ms
                 )
 

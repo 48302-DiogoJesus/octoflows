@@ -1,26 +1,12 @@
+- 
+
 - Change one workflow to have diff types of tasks on a fan-out that fans in after
     text analysis maybe
     cause: I NEED PRELOAD TO BE USED SOMEWHERE
 - Change one workflow to have a fan-out where one of the target tasks depends on another task (to see Delayed IO vs PreLoad in action)
 
-- Implement wukong optimizations
-    - Task Clustering Fan Out(large_output_b=...)
-        assigned to the fan-out originator
-        wel_override_should_upload_output()
-            if has annotation && output is large, return False
-        wel_override_handle_downstream()
-            choose one of the READY tasks and `DELEGATE()` synchronously (await in this func, Q: how to only wait for the first task to finish but let the coroutine continue?)
-            then re-check if any other tasks are/became READY and execute one by one until:
-                all tasks are COMPLETED
-                OR
-                all remaining tasks are NOT READY
-                    upload output to storage
-                always return empty task list
-    - Task Clustering Fan In(large_output_b=...)
-        assigned to the upstream tasks of a fan-in task
-
-    - Delayed I/O
-        task clustering but for fan-outs that have fan-ins
+- Find a way to know where/how many task clusterings and delayed I/Os happened
+    possible just from looking at worker ids at the end?
 
 - try find fix for worker active periods predictions
 
@@ -60,4 +46,4 @@
     - Optimize DAG structure to make it smaller and scale better as number of tasks increase
     - ? supporting execution of generic executables as tasks, and not just python functions
         CLI program (input (stdin or cli args) => output (stdout))
-    - Handle conflicting optimizations that override the same problematic (those that have return values) WEL methods
+    - Handle conflicting optimizations that override the same problematic (those that have return values) WEL methods AND have side effects (like delegating stuff inside them)

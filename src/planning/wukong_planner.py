@@ -38,15 +38,26 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             resource_config.worker_id = None # "flexible worker"
             node.worker_config = resource_config
 
+        for optimization in self.config.optimizations:
+            optimization.planning_assignment_logic(self, dag, predictions_provider, {}, topo_sorted_nodes)
+
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
-        critical_path_nodes, _ = self._find_critical_path(dag, nodes_info)
-        critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
+        final_critical_path_nodes, _ = self._find_critical_path(dag, nodes_info)
+        final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
+
+        optimizations: dict[str, int] = {}
+        for node_info in nodes_info.values():
+            for optimization in node_info.node_ref.optimizations: 
+                optimizations[optimization.__class__.__name__] = optimizations.get(optimization.__class__.__name__, 0) + 1
+
+        logger.info(f"=== FINAL RESULTS ===")
+        logger.info(f"Optimizations: {optimizations}")
 
         return AbstractDAGPlanner.PlanOutput(
             self.planner_name, 
             self.config.sla,
             nodes_info,
-            critical_path_node_ids,
+            final_critical_path_node_ids,
             AbstractDAGPlanner.PlanPredictionSampleCounts(
                 previous_instances=0,
                 for_download_speed=0,

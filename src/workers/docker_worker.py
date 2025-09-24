@@ -12,7 +12,7 @@ from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__)
 
@@ -88,7 +88,7 @@ class DockerWorker(Worker):
                     task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
                 )
             # encoded_fulldag = base64.b64encode(zlib.compress(cloudpickle.dumps(fulldag), level=6)).decode('utf-8')
-            # fulldag_size = calculate_data_structure_size(encoded_fulldag)
+            # fulldag_size = calculate_data_structure_size_bytes(encoded_fulldag)
             # fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
             async with aiohttp.ClientSession() as session:
                 async with await session.post(

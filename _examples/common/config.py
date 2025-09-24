@@ -1,6 +1,7 @@
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.optimizations.prewarm import PreWarmOptimization
 from src.planning.optimizations.taskdup import TaskDupOptimization
+from src.planning.optimizations.wukong_optimizations import WukongOptimizations
 from src.planning.sla import Percentile, SLA
 from src.storage.redis_storage import RedisStorage
 from src.workers.docker_worker import DockerWorker
@@ -12,7 +13,7 @@ from src.planning.wukong_planner import WUKONGPlanner
 import sys
 
 def get_planner_from_sys_argv():
-    supported_planners = ["wukong", "simple", "uniform", "non-uniform"]
+    supported_planners = ["wukong", "wukong-opt", "simple", "uniform", "non-uniform"]
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
@@ -38,6 +39,14 @@ def get_planner_from_sys_argv():
             sla=sla, # won't be used
             worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[],
+        )
+    elif planner_type == "wukong-opt":
+        return WUKONGPlanner.Config(
+            sla=sla,
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
+            optimizations=[
+                WukongOptimizations.configured(task_clustering_fan_outs=True, task_clustering_fan_ins=True, delayed_io=True, large_output_b=1024 * 1024 * 1024)
+            ],
         )
     elif planner_type == "simple":
         return UniformPlanner.Config(

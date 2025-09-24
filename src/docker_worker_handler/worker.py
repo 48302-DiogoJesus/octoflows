@@ -22,7 +22,7 @@ from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
-from src.utils.utils import calculate_data_structure_size
+from src.utils.utils import calculate_data_structure_size_bytes
 
 from src.planning.optimizations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
 
@@ -76,7 +76,7 @@ async def main():
         if b64_fulldag is not None:
             # logger.info("Received fulldag in the invocation")
             decompressed_dag = zlib.decompress(base64.b64decode(b64_fulldag))
-            serialized_dag_size_bytes = calculate_data_structure_size(decompressed_dag)
+            serialized_dag_size_bytes = calculate_data_structure_size_bytes(decompressed_dag)
             fulldag = cloudpickle.loads(decompressed_dag)
             dag_download_time_ms = 0
         else:
