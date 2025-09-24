@@ -89,4 +89,4 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         if prewarm_optimization is None: return
 
         # "fire-and-forget" / non-blocking
-        asyncio.create_task(_this_worker.warmup(prewarm_optimization.target_resource_configs))
+        asyncio.create_task(_this_worker.warmup(subdag.master_dag_id, prewarm_optimization.target_resource_configs))
