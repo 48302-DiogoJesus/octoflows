@@ -67,9 +67,11 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         optimization = current_task.try_get_optimization(WukongOptimizations)
         if optimization is None: return None
         if not optimization.task_clustering_fan_outs and not optimization.delayed_io and not optimization.task_clustering_fan_ins: return None
+        assert current_task.cached_result
 
-        task_output_size_b = calculate_data_structure_size_bytes(cloudpickle.dumps(current_task.cached_result))
+        task_output_size_b = calculate_data_structure_size_bytes(cloudpickle.dumps(current_task.cached_result.result))
         is_task_size_large = task_output_size_b > optimization.large_output_b
+        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {current_task.id.get_full_id()} is large?: {is_task_size_large} | size: {task_output_size_b / 1024 / 1024}MB")
         return not is_task_size_large # only upload if not large
 
     @staticmethod
@@ -78,10 +80,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         _this_worker: Worker = this_worker
 
         optimization = current_task.try_get_optimization(WukongOptimizations)
+        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {current_task.id.get_full_id()} | has optimization?: {optimization is not None} | has dtasks ready: {len(downstream_tasks_ready)}")
         if optimization is None: return None
         if not downstream_tasks_ready: return []
         if not optimization.task_clustering_fan_outs and not optimization.delayed_io and not optimization.task_clustering_fan_ins: return None
-        task_output_size_b = calculate_data_structure_size_bytes(cloudpickle.dumps(current_task.cached_result))
+        assert current_task.cached_result
+        task_output_size_b = calculate_data_structure_size_bytes(cloudpickle.dumps(current_task.cached_result.result))
         is_task_size_large = task_output_size_b > optimization.large_output_b
 
         is_fan_in_upstream = len(current_task.downstream_nodes) > 0 and any([dnode for dnode in current_task.downstream_nodes if len(dnode.upstream_nodes) > 1])
@@ -91,7 +95,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         if is_task_size_large:
             if is_fan_in_upstream:
                 # upload large output
-                serialized_task_result = cloudpickle.dumps(current_task.cached_result)
+                serialized_task_result = cloudpickle.dumps(current_task.cached_result.result)
                 output_upload_timer = Timer()
                 await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                 current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
@@ -102,19 +106,21 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     if any([dnode.id.get_full_id() == dtask.id.get_full_id() for dnode in downstream_tasks_ready]):
                         # ignore if task was already READY
                         continue
-                    if len(dtask.upstream_nodes) > 1 and _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}") == len(dtask.upstream_nodes):
-                        assert _this_worker.my_resource_configuration.worker_id
-                        asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_resource_configuration.worker_id))
+                    if len(dtask.upstream_nodes) > 1 and await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}") == len(dtask.upstream_nodes):
+                        assert _this_worker.my_worker_id
+                        asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id))
                         await dtask.completed_event.wait()
                         tasks_completed.add(dtask.id.get_full_id())
             
             # TASK-CLUSTERING ON FAN-OUTS + DELAYED I/O
             if is_fan_out_origin and (optimization.delayed_io or optimization.task_clustering_fan_outs):
+                logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {current_task.id.get_full_id()} is a fan-out origin. dio={optimization.delayed_io}, tco={optimization.task_clustering_fan_outs} | downstream_tasks_ready_count={len(downstream_tasks_ready)}")
                 mutable_downstream_tasks_ready = downstream_tasks_ready.copy()
                 while mutable_downstream_tasks_ready:
                     dtask_ready = mutable_downstream_tasks_ready.pop() # remove task
-                    assert _this_worker.my_resource_configuration.worker_id
-                    asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_resource_configuration.worker_id))
+                    assert _this_worker.my_worker_id
+                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Executing task {dtask_ready.id.get_full_id()}...")
+                    asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_worker_id))
                     await dtask_ready.completed_event.wait()
                     tasks_completed.add(dtask_ready.id.get_full_id())
 
@@ -128,13 +134,14 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         task_in_completed_list = _dtask.id.get_full_id() not in tasks_completed
                         task_in_ready_list = any([_dtask.id.get_full_id() == dtready.id.get_full_id() for dtready in downstream_tasks_ready])
                         # Check if a task that wasn't ready nor completed became ready while executing this task
-                        if not task_in_completed_list and not task_in_ready_list and _this_worker.metrics_storage and _this_worker.metrics_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}") == len(_dtask.upstream_nodes):
+                        if not task_in_completed_list and not task_in_ready_list and _this_worker.metrics_storage and await _this_worker.metrics_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}") == len(_dtask.upstream_nodes):
+                            logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Delayed IO | Task {_dtask.id.get_full_id()} became ready while executing other task ({current_task.id.get_full_id()})")
                             mutable_downstream_tasks_ready.append(_dtask)
                             break # found 1 ready task that's enough for now, execute it
             
                 # {not is_fan_in_upstream} because if it is, we already uploaded the output
                 if not is_fan_in_upstream and len(tasks_completed) != len(current_task.downstream_nodes):
-                    serialized_task_result = cloudpickle.dumps(current_task.cached_result)
+                    serialized_task_result = cloudpickle.dumps(current_task.cached_result.result)
                     output_upload_timer = Timer()
                     await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
@@ -149,7 +156,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 task_for_me_to_execute = dtask_ready
             else:
                 # 1 worker for each of the N READY task
-                asyncio.create_task(_this_worker.delegate([subdag.create_subdag(dtask_ready)], fulldag, called_by_worker=True))
+                await _this_worker.delegate([subdag.create_subdag(dtask_ready)], fulldag, called_by_worker=True)
         
         if not task_for_me_to_execute: return []
         else: return [task_for_me_to_execute]

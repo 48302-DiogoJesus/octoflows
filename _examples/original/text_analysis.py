@@ -179,7 +179,6 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
 def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate readability metrics for the entire text, enhanced with statistics"""
     all_text = " ".join(segments)
-    words = all_text.split()
     
     # Use pre-computed statistics for enhanced readability
     enhanced_score = text_stats["simple_readability_score"] + (text_stats["avg_sentence_length"] * 0.1)
@@ -341,7 +340,7 @@ final_report = final_comprehensive_report(metrics, summary, merged_analysis)
 
 # --- Run workflow ---
 start_time = time.time()
-result = final_report.compute(dag_name="text_analysis", config=WORKER_CONFIG)
+result = final_report.compute(dag_name="text_analysis", config=WORKER_CONFIG, open_dashboard=False)
 print(f"Result keys: {list(result.keys())} | User waited: {time.time() - start_time:.3f}s")
 print(f"Analysis complete - processed {result['detailed_analysis']['total_words']} words in {result['detailed_analysis']['total_segments']} segments")
 print(f"Found {result['detailed_analysis']['keywords_analysis']['total_keywords']} unique keywords")

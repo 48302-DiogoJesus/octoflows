@@ -45,7 +45,12 @@ def get_planner_from_sys_argv():
             sla=sla,
             worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[
-                WukongOptimizations.configured(task_clustering_fan_outs=True, task_clustering_fan_ins=True, delayed_io=True, large_output_b=1024 * 1024 * 1024)
+                WukongOptimizations.configured(
+                    task_clustering_fan_outs=True, 
+                    task_clustering_fan_ins=True, 
+                    delayed_io=True, 
+                    large_output_b=5 * 1024 * 1024 # 5MB
+                ) 
             ],
         )
     elif planner_type == "simple":

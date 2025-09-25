@@ -857,6 +857,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # fallback to default logic
         if res is None:
             res = await WorkerExecutionLogic.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping)
+
         return res
 
     @staticmethod
@@ -872,4 +873,5 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # fallback to default logic
         if res is None:
             res = await WorkerExecutionLogic.wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping)
+
         return res

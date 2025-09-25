@@ -1,7 +1,15 @@
 - Confirm wukong optimizations are being applied
+    - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
     - Find a way to know where/how many task clusterings and delayed I/Os happened
         possible just from looking at worker ids at the end?
+
+- Convert taskdupping to a local thing (dont upload output, dont update DC)
+    remove cancellation flag
+
+- Try deploying on remote VM
+    - git pull to get venv folder
+        continue following `deployment_notes.md`
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network

@@ -59,6 +59,7 @@ class Worker(ABC):
         # To help understand locality decisions afterwards, at the dashboard
         _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
         _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
+        self.my_worker_id = my_worker_id
         
         tasks_executed_by_this_coroutine: list[dag_task_node.DAGTaskNode] = []
         other_coroutines_i_launched = []
@@ -184,18 +185,18 @@ class Worker(ABC):
                 updating_dependency_counters_timer = Timer()
                 downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
                 async with self.metadata_storage.batch() as batch:
-                    downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id)]
+                    # downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id)]
                     for downstream_task in current_task.downstream_nodes:
-                        if downstream_task in downstream_tasks_that_depend_on_other_tasks:
-                            await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                        else:
-                            downstream_tasks_ready.append(downstream_task)
+                        # if downstream_task in current_task.downstream_nodes:
+                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        # else:
+                            # downstream_tasks_ready.append(downstream_task)
 
                     results = await batch.execute()
                     
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
 
-                for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
+                for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
                     downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
                     self.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
                     if dependencies_met == downstream_task_total_dependencies:
@@ -314,4 +315,4 @@ class Worker(ABC):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        logger.info(f"W({self.my_resource_configuration.worker_id}) T({task_id}) | {message}")
+        logger.info(f"W({self.my_worker_id}) T({task_id}) | {message}")
