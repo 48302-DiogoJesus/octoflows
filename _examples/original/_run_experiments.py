@@ -13,8 +13,8 @@ WORKFLOWS_PATHS = [
 ]
 
 ITERATIONS_PER_ALGORITHM = 3
-ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
-# ALGORITHMS = ['wukong-opt']
+# ALGORITHMS = ['wukong', 'wukong-opt', 'simple', 'uniform', 'non-uniform']
+ALGORITHMS = ['wukong-opt']
 SLAS = ['80']
 # SLAS = ['50', '75', '90', '95', '99']
 

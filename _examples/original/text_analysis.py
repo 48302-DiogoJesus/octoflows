@@ -25,14 +25,16 @@ def word_count_chunk(text: str, start: int, end: int) -> int:
     return len(words[start:end])
 
 @DAGTask
-def merge_word_counts(counts: List[int]) -> int:
-    return sum(counts)
+def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
+    return sum(counts), text
 
 # --- Single processing task that creates intermediate result ---
 
 @DAGTask
-def create_text_segments(text: str, total_word_count: int) -> List[str]:
+def create_text_segments(res: tuple[int, str]) -> List[str]:
     """Create 8 text segments for further analysis"""
+    _, text = res
+
     words = text.split()
     segment_size = len(words) // 8
 
@@ -44,10 +46,12 @@ def create_text_segments(text: str, total_word_count: int) -> List[str]:
     return segments
 
 @DAGTask
-def compute_text_statistics(text: str, total_word_count: int) -> Dict[str, Any]:
+def compute_text_statistics(res: tuple[int, str]) -> Dict[str, Any]:
     """Heavy computational task - compute comprehensive text statistics"""
     import time
     
+    _, text = res
+
     # Simulate heavy computation with simple but time-consuming operations
     words = text.split()
     
@@ -301,13 +305,13 @@ for i in range(num_chunks):
     wc = word_count_chunk(text, start, end)
     word_counts.append(wc)
 
-total_wc = merge_word_counts(word_counts)
+merge_wc_result = merge_word_counts(text, word_counts)
 
 # Single task that prepares data for middle fan-out
-segments_data = create_text_segments(text, total_wc)
+segments_data = create_text_segments(merge_wc_result)
 
 # Heavy computational task that also fans out from merge_word_counts
-text_statistics = compute_text_statistics(text, total_wc)
+text_statistics = compute_text_statistics(merge_wc_result)
 
 # FAN-OUT: Generate 8 segment analyses + 4 direct processing functions (12 total tasks)
 segment_analyses = [analyze_segment(segments_data, i) for i in range(8)]

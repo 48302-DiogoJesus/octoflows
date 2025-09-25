@@ -2,6 +2,8 @@
 - Docker
 - Python 3.12
 
+`sudo apt-get install redis-tools graphviz python3.10-venv`
+
 # Steps
 - Create **python venv**
     - `python3.12 -m venv venv`

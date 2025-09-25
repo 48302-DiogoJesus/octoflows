@@ -1,0 +1,5 @@
+[console_scripts]
+pywren = pywren.scripts.pywrencli:main
+pywren-server = pywren.scripts.standalone:server
+pywren-setup = pywren.scripts.setupscript:interactive_setup
+
