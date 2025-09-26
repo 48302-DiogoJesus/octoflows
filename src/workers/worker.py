@@ -114,7 +114,7 @@ class Worker(ABC):
                     for utask in tasks_to_fetch:
                         _timer = Timer()
                         serialized_task_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if serialized_task_result is None:  raise TaskOutputNotAvailableException(utask.id.get_full_id())
+                        if serialized_task_result is None: raise TaskOutputNotAvailableException(utask.id.get_full_id())
                         time_to_fetch_ms = _timer.stop()
                         deserialized_result = cloudpickle.loads(serialized_task_result)
                         task_dependencies[utask.id.get_full_id()] = deserialized_result

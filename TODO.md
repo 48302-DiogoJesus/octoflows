@@ -1,3 +1,7 @@
+- Run heavy montage
+
+- Fix src.workers.worker.TaskOutputNotAvailableException: Task create_text_segments+c1bf79ef-36ac-4ce8-8bda-7580e655cfbc's data is not available yet!
+
 - Confirm wukong optimizations are being applied
     - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
