@@ -7,7 +7,6 @@ import uuid
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
-from src.workers.worker import TASK_READY_EVENT_PREFIX
 
 logger = create_logger(__name__)
 
@@ -49,6 +48,7 @@ class WorkerExecutionLogic(ABC):
     @staticmethod
     async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
         from src.dag_task_node import DAGTaskNode
+        from src.workers.worker import TASK_READY_EVENT_PREFIX
 
         updating_dependency_counters_timer = Timer()
         downstream_tasks_ready: list[DAGTaskNode] = []
