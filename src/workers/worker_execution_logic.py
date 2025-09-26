@@ -16,7 +16,7 @@ class WorkerExecutionLogic(ABC):
         pass
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
         pass
 
     @staticmethod

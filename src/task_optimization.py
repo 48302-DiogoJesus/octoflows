@@ -17,7 +17,7 @@ class TaskOptimization(WorkerExecutionLogic):
     async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None): pass
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task): pass
 
     @staticmethod
     async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], CoroutineType | None] | None: return None

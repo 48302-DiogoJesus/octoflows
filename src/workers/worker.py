@@ -69,7 +69,7 @@ class Worker(ABC):
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
-                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
+                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage, subdag, current_task)
 
                 if not await current_task.is_handling.set_if_not_set():
                     # avoid duplicate execution on same worker

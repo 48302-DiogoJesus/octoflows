@@ -44,14 +44,9 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
         return
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
         is_duppable = current_task.try_get_optimization(TaskDupOptimization) is not None
         if is_duppable: await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
-
-    @staticmethod
-    async def wel_before_task_execution(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task, is_dupping: bool):
-        is_duppable = current_task.try_get_optimization(TaskDupOptimization) is not None
-        # set the cancellation flag to notify other workers to not execute this task. if all inputs are available, then we can dup the task. Warn others that they MAY NOT need to execute it
 
     @staticmethod
     async def wel_override_should_upload_output(planner, current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
