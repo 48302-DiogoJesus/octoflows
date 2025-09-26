@@ -4,7 +4,7 @@ import asyncio
 import traceback
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union, Tuple
-from redis.asyncio import Redis
+from redis.asyncio import Redis, ConnectionPool
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
 
@@ -55,7 +55,7 @@ class RedisStorage(storage.Storage):
     async def _get_or_create_connection(self) -> Redis:
         async with self._conn_lock: # because multiple coroutines will be doing operations with the same
             if not self._connection:
-                self._connection = Redis(
+                self._pool = ConnectionPool(
                     host=self.redis_config.host,
                     port=self.redis_config.port,
                     db=0,
@@ -64,11 +64,15 @@ class RedisStorage(storage.Storage):
                     socket_connect_timeout=30,
                     socket_timeout=30,
                     retry_on_timeout=True,
-                    retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
-                    retry=Retry(backoff=ExponentialBackoff(), retries=5),
                     max_connections=10,
                     health_check_interval=10,
                     socket_keepalive=True,
+                )
+
+                self._connection = Redis(
+                    connection_pool=self._pool,
+                    retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
+                    retry=Retry(backoff=ExponentialBackoff(), retries=5),
                 )
             return self._connection
 
@@ -91,7 +95,6 @@ class RedisStorage(storage.Storage):
         return await conn.incr(key, amount=1)
 
     async def exists(self, *keys: str) -> int:
-        logger.info(f"[REDIS_DEBUG] EXISTS: {len(keys)} keys: {str(keys)}")
         await self._simulate_network_latency()
         conn = await self._get_or_create_connection()
         return await conn.exists(*keys)

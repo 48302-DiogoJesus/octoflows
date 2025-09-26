@@ -99,8 +99,8 @@ async def main():
             )
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config.worker_id
-        logger.info(f"W({this_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
+        logger.info(f"W({_debug_flexible_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
@@ -239,7 +239,7 @@ async def main():
             direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
-        logger.info(f"Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
+        logger.info(f"W({_debug_flexible_worker_id}) Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
         #* 4) Wait for direct executions to finish
         await asyncio.gather(*direct_task_branches_coroutines)
 
@@ -248,17 +248,21 @@ async def main():
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
                 completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
-                logger.info(f"W({this_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
-                await asyncio.wait([asyncio.create_task(event.wait()) for event in completion_events])
-                logger.info(f"W({this_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
+                logger.info(f"W({_debug_flexible_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
+                await asyncio.wait([asyncio.create_task(event.wait(), name=f"wait_my_execution") for event in completion_events])
+                logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
-        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
-        if len(pending) > 0:
-            logger.info(f"W({this_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
+        while True:
+            pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
+            if not pending: 
+                break
+
+            logger.info(f"W({_debug_flexible_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
             await asyncio.wait(pending, timeout=None)  # Wait indefinitely
-        logger.info(f"W({this_worker_id}) DONE Waiting for all coroutines!")
+            
+        logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for all coroutines!")
 
         # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):
@@ -289,7 +293,7 @@ async def main():
         if wk.intermediate_storage:
             await wk.intermediate_storage.close_connection()
 
-        logger.info(f"Worker({this_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
+        logger.info(f"Worker({_debug_flexible_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:
         # Release the lock and clean up
         if platform.system() == "Windows":

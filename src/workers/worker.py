@@ -7,7 +7,7 @@ import cloudpickle
 from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.events import TASK_COMPLETED_EVENT_PREFIX, TASK_READY_EVENT_PREFIX
+from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
 from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size_bytes
@@ -17,7 +17,6 @@ from src.utils.logger import create_logger
 import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
 import src.storage.storage as storage_module
-from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.storage.prefixes import DAG_PREFIX
 from src.utils.errors import CancelCurrentWorkerLoopException
 
@@ -236,7 +235,7 @@ class Worker(ABC):
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print
-        logger.info(f"Coroutines still running: {[t.get_name() for t in asyncio.all_tasks()]}")
+        logger.info(f"W({self.my_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks()]}")
         return None
 
     @abstractmethod
@@ -291,4 +290,6 @@ class Worker(ABC):
 
     def log(self, task_id: str, message: str):
         """Log a message with worker ID prefix."""
-        logger.info(f"W({self.my_worker_id}) T({task_id}) | {message}")
+        curr_coro = asyncio.current_task()
+        coro_name = curr_coro.get_name() if curr_coro else "Unknown"
+        logger.info(f"Coro({coro_name}) W({self.my_worker_id}) T({task_id}) | {message}")
