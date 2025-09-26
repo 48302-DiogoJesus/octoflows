@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
+from redis.asyncio.connection import ConnectionPool
 
 import src.storage.storage as storage
 from src.utils.logger import create_logger
@@ -52,27 +53,25 @@ class RedisStorage(storage.Storage):
     async def _simulate_network_latency(self) -> None:
         await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
 
-    async def _get_or_create_connection(self, skip_verification: bool = False) -> Redis:
+    async def _get_or_create_connection(self) -> Redis:
         async with self._conn_lock: # because multiple coroutines will be doing operations with the same
-            if not skip_verification and await self._verify_connection():
-                return self._connection # type: ignore
-            else:
+            if not self._connection:
                 self._connection = Redis(
                     host=self.redis_config.host,
                     port=self.redis_config.port,
                     db=0,
                     password=self.redis_config.password,
-                    decode_responses=False,  # Necessary to allow serialized bytes
-                    socket_connect_timeout=10,
-                    socket_timeout=None,
+                    decode_responses=False,
+                    socket_connect_timeout=30,
+                    socket_timeout=30,          # Set explicit timeout instead of None
                     retry_on_timeout=True,
                     retry_on_error=[ConnectionError, TimeoutError, OSError],
                     retry=Retry(backoff=ExponentialBackoff(), retries=5),
-                    max_connections=30,
+                    max_connections=10,
                     health_check_interval=10,
-                    socket_keepalive=True
+                    socket_keepalive=True,
                 )
-                return self._connection
+            return self._connection
 
     async def get(self, key: str) -> Any:
         await self._simulate_network_latency()
@@ -124,13 +123,6 @@ class RedisStorage(storage.Storage):
             disconnect_from_pool = self._connection.connection_pool.disconnect(inuse_connections=True)
             if disconnect_from_pool: await disconnect_from_pool
             self._connection = None
-
-    async def _verify_connection(self) -> bool:
-        try:
-            if self._connection is None: return False
-            return await self._connection.ping()
-        except Exception:
-            return False
 
     async def keys(self, pattern: str) -> List[str]:
         await self._simulate_network_latency()
