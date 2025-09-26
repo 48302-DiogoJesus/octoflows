@@ -4,9 +4,8 @@ import copy
 from dataclasses import dataclass
 from functools import wraps
 import inspect
-import subprocess
 import sys
-from typing import Any, Callable, Generic, Type, TypeVar
+from typing import Any, Callable, Type, TypeVar
 import uuid
 
 from src.task_optimization import TaskOptimization

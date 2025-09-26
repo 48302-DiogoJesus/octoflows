@@ -6,7 +6,7 @@ import uuid
 
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
-from src.planning.optimizations.wukong_optimizations import DEPENDENCY_COUNTER_PREFIX
+from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.workers.worker import TASK_READY_EVENT_PREFIX
 
 logger = create_logger(__name__)
