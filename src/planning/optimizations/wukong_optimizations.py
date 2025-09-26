@@ -109,7 +109,9 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     if len(dtask.upstream_nodes) > 1 and await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}") == len(dtask.upstream_nodes):
                         assert _this_worker.my_worker_id
                         asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id))
+                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Executing task {dtask.id.get_full_id()}...")
                         await dtask.completed_event.wait()
+                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
                         tasks_completed.add(dtask.id.get_full_id())
             
             # TASK-CLUSTERING ON FAN-OUTS + DELAYED I/O
@@ -119,9 +121,11 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 while mutable_downstream_tasks_ready:
                     dtask_ready = mutable_downstream_tasks_ready.pop() # remove task
                     assert _this_worker.my_worker_id
-                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Executing task {dtask_ready.id.get_full_id()}...")
+                    # can't await `execute_branch` as it will keep on going and we only want to wait for the first task to complete
                     asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_worker_id))
+                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCO | Executing task {dtask_ready.id.get_full_id()}...")
                     await dtask_ready.completed_event.wait()
+                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCO | Task {dtask_ready.id.get_full_id()} completed")
                     tasks_completed.add(dtask_ready.id.get_full_id())
 
                     if not optimization.delayed_io: continue # only task clustering
