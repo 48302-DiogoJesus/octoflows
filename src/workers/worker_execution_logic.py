@@ -77,6 +77,8 @@ class WorkerExecutionLogic(ABC):
                 
                 downstream_tasks_ready.append(downstream_task)
 
+        return downstream_tasks_ready
+
     @staticmethod
     async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool) -> list | None:
         from src.workers.worker import Worker

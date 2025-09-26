@@ -182,7 +182,8 @@ class Worker(ABC):
                     break
 
                 # Update Dependency Counters of Downstream Tasks
-                await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task)
+                downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task)
+                assert downstream_tasks_ready
                 
                 self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
 
