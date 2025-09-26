@@ -62,7 +62,7 @@ class ContainerPoolExecutor:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            bufsize=1,
+            bufsize=0,
             universal_newlines=False
         )
         
