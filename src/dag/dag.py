@@ -116,9 +116,9 @@ class FullDAG(GenericDAG):
         )
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
 
-        if wk.metrics_storage:
-            metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
-            wk.metrics_storage.store_dag_resource_usage_metrics(metrics)
+        # if wk.metrics_storage:
+        #     metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
+        #     wk.metrics_storage.store_dag_resource_usage_metrics(metrics)
 
         if wk.metrics_storage: await wk.metrics_storage.flush()
 

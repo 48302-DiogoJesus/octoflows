@@ -23,10 +23,10 @@ def create_logger(name: str, prefix: str = "") -> logging.Logger:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
 
-        file_handler = None
-        if level == logging.INFO:
-            file_handler = logging.FileHandler("app.log")
-            file_handler.setLevel(logging.INFO) # Log everything to file
+        # file_handler = None
+        # if level == logging.INFO:
+        #     file_handler = logging.FileHandler("app.log")
+        #     file_handler.setLevel(logging.INFO) # Log everything to file
 
         # Custom formatter that includes the prefix (if provided)
         class PrefixFormatter(logging.Formatter):
@@ -50,8 +50,8 @@ def create_logger(name: str, prefix: str = "") -> logging.Logger:
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
 
-        if file_handler is not None:
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
+        # if file_handler is not None:
+        #     file_handler.setFormatter(formatter)
+        #     logger.addHandler(file_handler)
     
     return logger
