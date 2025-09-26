@@ -13,7 +13,7 @@ else:
 
 def create_logger(name: str, prefix: str = "") -> logging.Logger:
     logger = logging.getLogger(name)
-    if not logger.hasHandlers():
+    if not logger.handlers:
         level = logging.INFO
         if logs_env == "0":
             level = logging.WARNING
@@ -49,6 +49,7 @@ def create_logger(name: str, prefix: str = "") -> logging.Logger:
 
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+        logger.propagate = False
 
         # if file_handler is not None:
         #     file_handler.setFormatter(formatter)

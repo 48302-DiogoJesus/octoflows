@@ -1,5 +1,4 @@
-- Fix src.workers.worker.TaskOutputNotAvailableException: Task create_text_segments+c1bf79ef-36ac-4ce8-8bda-7580e655cfbc's data is not available yet!
-    CAUSE: updating dependency counters without uploading the output
+- BUG: fan-in not being executed (stops execution, all containers exit gracefuly)
 
 - Fix repeated prints on containers
 

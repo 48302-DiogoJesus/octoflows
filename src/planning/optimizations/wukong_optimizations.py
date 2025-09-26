@@ -91,14 +91,14 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
             downstream_tasks_ready: list[DAGTaskNode] = []
             async with metadata_storage.batch() as batch:
                 for downstream_task in current_task.downstream_nodes:
-                    await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    await batch.get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                 results = await batch.execute()
                 
             current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
             
             for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
                 downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                if dependencies_met == downstream_task_total_dependencies - 1: # -1 because we dont count our current task
+                if dependencies_met == downstream_task_total_dependencies - 1: # -1 because we dont consider our current task
                     downstream_tasks_ready.append(downstream_task)
 
             return downstream_tasks_ready

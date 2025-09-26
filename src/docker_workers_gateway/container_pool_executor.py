@@ -61,14 +61,14 @@ class ContainerPoolExecutor:
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=0,
-            universal_newlines=False
+            stderr=subprocess.STDOUT, # merge
+            bufsize=1,
+            universal_newlines=True
         )
         
         # Send the command to stdin
         if process.stdin:
-            process.stdin.write(command.encode())
+            process.stdin.write(command)
             process.stdin.close()
         
         # Set up non-blocking reading for stdout and stderr
@@ -88,15 +88,13 @@ class ContainerPoolExecutor:
             if process.stdout:
                 stdout_data = process.stdout.read(4096)
                 if stdout_data:
-                    stdout_text = stdout_data.decode(errors='replace')
-                    logger.info(stdout_text)
+                    logger.info(stdout_data)
             
             # Read from stderr
             if process.stderr:
                 stderr_data = process.stderr.read(4096)
                 if stderr_data:
-                    stderr_text = stderr_data.decode(errors='replace')
-                    logger.error(f"STDERR: {stderr_text}")
+                    logger.error(stderr_data)
             
             # Check if process has finished
             exit_code = process.poll()
@@ -107,12 +105,12 @@ class ContainerPoolExecutor:
         if process.stdout:
             remaining_stdout = process.stdout.read()
             if remaining_stdout:
-                logger.info(remaining_stdout.decode(errors='replace'))
+                logger.info(remaining_stdout)
         
         if process.stderr:
             remaining_stderr = process.stderr.read()
             if remaining_stderr:
-                logger.error(f"STDERR: {remaining_stderr.decode(errors='replace')}")
+                logger.error(remaining_stderr)
         
         logger.info(f"\nExit Code: {exit_code}")
 
