@@ -50,21 +50,16 @@ class WorkerExecutionLogic(ABC):
         from src.dag_task_node import DAGTaskNode
         from src.workers.worker import TASK_READY_EVENT_PREFIX
 
-        updating_dependency_counters_timer = Timer()
         downstream_tasks_ready: list[DAGTaskNode] = []
-        async with metadata_storage.batch() as batch:
-            downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == this_worker.my_resource_configuration.worker_id)]
-            for downstream_task in current_task.downstream_nodes:
-                if downstream_task in downstream_tasks_that_depend_on_other_tasks:
-                    await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                else:
-                    downstream_tasks_ready.append(downstream_task)
-
-            results = await batch.execute()
-            
-        current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
+        downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == this_worker.my_resource_configuration.worker_id)]
         
-        for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
+        updating_dependency_counters_timer = Timer()
+        for downstream_task in current_task.downstream_nodes:
+            if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
+                downstream_tasks_ready.append(downstream_task)
+                continue
+
+            dependencies_met = await metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
             this_worker.log(current_task.id.get_full_id(), f"rand({uuid.uuid4()}) Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
             if dependencies_met == downstream_task_total_dependencies:
@@ -77,6 +72,7 @@ class WorkerExecutionLogic(ABC):
                 
                 downstream_tasks_ready.append(downstream_task)
 
+        current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
         return downstream_tasks_ready
 
     @staticmethod

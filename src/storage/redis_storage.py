@@ -7,7 +7,6 @@ from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 from redis.asyncio import Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
-from redis.asyncio.connection import ConnectionPool
 
 import src.storage.storage as storage
 from src.utils.logger import create_logger
@@ -63,9 +62,9 @@ class RedisStorage(storage.Storage):
                     password=self.redis_config.password,
                     decode_responses=False,
                     socket_connect_timeout=30,
-                    socket_timeout=30,          # Set explicit timeout instead of None
+                    socket_timeout=30,
                     retry_on_timeout=True,
-                    retry_on_error=[ConnectionError, TimeoutError, OSError],
+                    retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
                     retry=Retry(backoff=ExponentialBackoff(), retries=5),
                     max_connections=10,
                     health_check_interval=10,

@@ -95,12 +95,10 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
             #   If no task has deps - 1, upload output, increment DC and return [] (worker exits)
             #   Else return all tasks with deps - 1 to execute locally
             downstream_tasks_ready: list[DAGTaskNode] = []
-            async with metadata_storage.batch() as batch:
-                for downstream_task in current_task.downstream_nodes:
-                    await batch.get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                results = await batch.execute()
+            for downstream_task in current_task.downstream_nodes:
+                dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
                 
-            for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
                 logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {downstream_task.id.get_full_id()} Dependencies met: {dependencies_met}/{len(downstream_task.upstream_nodes)}")
                 # dependencies_met could be none (not true when using increment_and_get)
                 if (dependencies_met or 0) == len(downstream_task.upstream_nodes) - 1: # Would be READY if we incremented DC
@@ -115,11 +113,9 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                 # Increment DCs
                 updating_dependency_counters_timer = Timer()
-                async with _this_worker.metadata_storage.batch() as batch:
-                    # update DCs of ALL my downstream
-                    for downstream_task in current_task.downstream_nodes:
-                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                    await batch.execute()
+                # update DCs of ALL my downstream
+                for downstream_task in current_task.downstream_nodes:
+                    await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
                 return [] # worker exits
             else:
@@ -152,11 +148,9 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                 # Update DCs because output is already available
                 updating_dependency_counters_timer = Timer()
-                async with this_worker.metadata_storage.batch() as batch:
-                    # update DCs of ALL my downstream
-                    for downstream_task in current_task.downstream_nodes:
-                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                    await batch.execute()
+                # update DCs of ALL my downstream
+                for downstream_task in current_task.downstream_nodes:
+                    await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 # then re-check if in the meantime other tasks became READY, if so execute them
@@ -164,13 +158,16 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     if any([dnode.id.get_full_id() == dtask.id.get_full_id() for dnode in downstream_tasks_ready]):
                         # ignore if task was already READY
                         continue
-                    if len(dtask.upstream_nodes) > 1 and (await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}") or 0) == len(dtask.upstream_nodes):
-                        assert _this_worker.my_worker_id
-                        asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id))
-                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Executing task {dtask.id.get_full_id()}...")
-                        await dtask.completed_event.wait()
-                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
-                        tasks_completed.add(dtask.id.get_full_id())
+                    if len(dtask.upstream_nodes) > 1:
+                        dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
+                        dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
+                        if dependencies_met == len(dtask.upstream_nodes):
+                            assert _this_worker.my_worker_id
+                            asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id))
+                            logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Executing task {dtask.id.get_full_id()}...")
+                            await dtask.completed_event.wait()
+                            logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
+                            tasks_completed.add(dtask.id.get_full_id())
             
             # TASK-CLUSTERING ON FAN-OUTS + DELAYED I/O
             if is_fan_out_origin and (optimization.delayed_io or optimization.task_clustering_fan_outs):
@@ -196,9 +193,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         task_in_completed_list = _dtask.id.get_full_id() not in tasks_completed
                         task_in_ready_list = any([_dtask.id.get_full_id() == dtready.id.get_full_id() for dtready in downstream_tasks_ready])
                         # Check if a task that wasn't ready nor completed became ready while executing this task
-                        if not task_in_completed_list and not task_in_ready_list and _this_worker.metrics_storage and (await _this_worker.metrics_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}") or 0) == len(_dtask.upstream_nodes):
-                            logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Delayed IO | Task {_dtask.id.get_full_id()} became ready while executing other task ({current_task.id.get_full_id()})")
-                            mutable_downstream_tasks_ready.append(_dtask)
+                        if not task_in_completed_list and not task_in_ready_list:
+                            dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}")
+                            dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
+                            if dependencies_met == len(_dtask.upstream_nodes):
+                                logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Delayed IO | Task {_dtask.id.get_full_id()} became ready while executing other task ({current_task.id.get_full_id()})")
+                                mutable_downstream_tasks_ready.append(_dtask)
                             break # found 1 ready task that's enough for now, execute it
             
                 # {not is_fan_in_upstream} because if it is, we already uploaded the output
@@ -210,11 +210,9 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                     # Update DCs because output is already available
                     updating_dependency_counters_timer = Timer()
-                    async with this_worker.metadata_storage.batch() as batch:
-                        # update DCs of ALL my downstream
-                        for downstream_task in current_task.downstream_nodes:
-                            await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                        await batch.execute()
+                    # update DCs of ALL my downstream
+                    for downstream_task in current_task.downstream_nodes:
+                        await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
         # Normal fan-out handling logic     

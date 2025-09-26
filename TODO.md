@@ -1,5 +1,7 @@
 - BUG: fan-in not being executed (stops execution, all containers exit gracefuly)
 
+- remove batching capability from storage
+
 - Fix repeated prints on containers
 
 - Run heavy montage
