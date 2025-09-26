@@ -5,9 +5,10 @@ from itertools import groupby
 import json
 import time
 import zlib
-
 import aiohttp
 import cloudpickle
+from sys import platform
+
 from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
@@ -33,6 +34,8 @@ class DockerWorker(Worker):
         self.docker_config = config
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms
         self.MAX_DAG_SIZE_BYTES = 200 * 1024 # 200KB
+        # On linux, docker containers don't have access to host.docker.internal. They can just call localhost, on Windows they have to use host.docker.internal
+        self.is_linux = platform == "linux"
 
     async def _simulate_network_latency(self) -> None:
         await asyncio.sleep(self.ARTIFICIAL_NETWORK_LATENCY_S)
@@ -72,7 +75,7 @@ class DockerWorker(Worker):
         async def make_worker_request(worker_id, worker_subdags):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
-            gateway_address = self.docker_config.internal_docker_gateway_address if called_by_worker else self.docker_config.external_docker_gateway_address
+            gateway_address = self.docker_config.internal_docker_gateway_address if called_by_worker and not self.is_linux else self.docker_config.external_docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
             if self.metrics_storage:
                 await self.metrics_storage.store_invoker_worker_startup_metrics(
@@ -131,7 +134,7 @@ class DockerWorker(Worker):
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
-                    self.docker_config.internal_docker_gateway_address + "/warmup",
+                    self.docker_config.internal_docker_gateway_address if not self.is_linux else self.docker_config.external_docker_gateway_address + "/warmup",
                     data=json.dumps({
                         "dag_id": dag_id,
                         "resource_configurations": base64.b64encode(cloudpickle.dumps(resource_configurations)).decode('utf-8')

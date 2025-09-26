@@ -253,8 +253,7 @@ class ContainerPoolExecutor:
                 "--name", container_name,
                 "--cpus", str(cpus),
                 "--memory", f"{memory}m",
-                # "--network", "host",
-                "--add-host", "host.docker.internal:host-gateway",
+                "--network", "host",
                 self.docker_image
             ],
             text=True
