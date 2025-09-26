@@ -64,26 +64,21 @@ class DAGVisualizationDashboard:
             return
 
         async def update():
-            async with self.intermediate_storage.batch() as batch:
-                for node_id, node in self.dag._all_nodes.items():
-                    if node_id in self.completed_tasks:
-                        continue
-                    await batch.exists(node.id.get_full_id_in_dag(self.dag), result_key=node_id)
+            newly_completed = []
+            for node_id, node in self.dag._all_nodes.items():
+                if node_id in self.completed_tasks:
+                    continue
+                exists = await self.intermediate_storage.exists(node.id.get_full_id_in_dag(self.dag))
+                if exists and node_id not in self.completed_tasks:
+                    self.completed_tasks.add(node_id)
+                    newly_completed.append(node_id)
 
-                await batch.execute()
+            if newly_completed:
+                self._propagate_completion_upstream(newly_completed)
 
-                newly_completed = []
-                for node_id in self.dag._all_nodes.keys():
-                    if batch.get_result(node_id) and node_id not in self.completed_tasks:
-                        newly_completed.append(node_id)
-                        self.completed_tasks.add(node_id)
-
-                if newly_completed:
-                    self._propagate_completion_upstream(newly_completed)
-
-                if len(self.completed_tasks) >= len(self.dag._all_nodes):
-                    self.all_tasks_completed = True
-                    logger.info("All DAG tasks completed. Stopping completion checks.")
+            if len(self.completed_tasks) >= len(self.dag._all_nodes):
+                self.all_tasks_completed = True
+                logger.info("All DAG tasks completed. Stopping completion checks.")
 
         asyncio.run(update())
 

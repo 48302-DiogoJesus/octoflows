@@ -233,49 +233,5 @@ class InMemoryStorage(storage.Storage):
             
             return deleted_count
 
-    async def _execute_batch(self, operations: list[storage.BatchOperation]) -> list[Any]:
-        """
-        Execute a batch of operations in sequence.
-        
-        Args:
-            operations: List of BatchOperation objects to execute
-            
-        Returns:
-            List of results in the same order as the operations
-        """
-        results = []
-        
-        with self._lock:
-            for op in operations:
-                try:
-                    if op.op_type == storage.BatchOperation.Type.GET:
-                        result = await self.get(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.MGET:
-                        result = await self.mget(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.EXISTS:
-                        result = await self.exists(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.SET:
-                        # Set operations don't return anything meaningful in Redis
-                        await self.set(*op.args, **op.kwargs)
-                        result = True
-                    elif op.op_type == storage.BatchOperation.Type.ATOMIC_INCREMENT_AND_GET:
-                        result = await self.atomic_increment_and_get(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.KEYS:
-                        result = await self.keys(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.PUBLISH:
-                        result = await self.publish(*op.args, **op.kwargs)
-                    elif op.op_type == storage.BatchOperation.Type.DELETE:
-                        result = await self.delete(*op.args, **op.kwargs)
-                    else:
-                        raise ValueError(f"Unsupported operation type: {op.op_type}")
-                    
-                    # Store the result if a result key was provided
-                    if op.result_key is not None:
-                        self._data[op.result_key] = result
-                        
-                    results.append(result)
-                except Exception as e:
-                    # If an operation fails, store the exception as the result
-                    results.append(e)
-        
-        return results
+    async def close_connection(self):
+        raise NotImplementedError

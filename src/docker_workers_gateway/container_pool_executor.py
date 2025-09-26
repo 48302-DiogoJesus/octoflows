@@ -48,6 +48,7 @@ class ContainerPoolExecutor:
         Executes a command in the specified container and returns the exit code.
         Streams stdout and stderr in real-time during execution, then prints the final exit code.
         """
+        from sys import platform
         
         logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
 
@@ -57,6 +58,7 @@ class ContainerPoolExecutor:
                 "docker", "exec", "-i", 
                 "-e", "TZ=UTC-1", 
                 "-e", "LOGS=1",
+                "-e", f"HOST_OS={platform}",
                 container_id, "sh"
             ],
             stdin=subprocess.PIPE,

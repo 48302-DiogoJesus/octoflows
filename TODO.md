@@ -1,6 +1,4 @@
-- remove batching capability from storage
-
-- BUG: now its the simple algorithm that stops in the middle
+- Try running workflows locally with other planners to ensure didn't break any previous logic
 
 - Try running heavy montage on VM
 

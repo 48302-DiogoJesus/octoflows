@@ -77,12 +77,10 @@ class MetricsStorage():
         if len_before_flush == 0: return
 
         keys_to_remove = []
-        async with self.storage.batch() as batch:
-            for key, metrics in self.cached_metrics.items():
-                await batch.set(key, cloudpickle.dumps(metrics))
-                # remove from self.cached_metrics
-                keys_to_remove.append(key)
-            await batch.execute()
+        for key, metrics in self.cached_metrics.items():
+            await self.storage.set(key, cloudpickle.dumps(metrics))
+            # remove from self.cached_metrics
+            keys_to_remove.append(key)
 
         for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
