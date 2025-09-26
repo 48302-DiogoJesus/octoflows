@@ -55,6 +55,7 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
         sys.exit(-1)
 
 def main():
+    start_time = time.time()
     os.environ['TZ'] = 'UTC-1'  # Set timezone for log timestamps consistency
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -90,8 +91,9 @@ def main():
                 for i in range(1, ITERATIONS_PER_ALGORITHM + 1):
                     current_run += 1
                     run_experiment(script_name, algorithm, sla, str(i), current_run, total_runs)
-    
-    print("All runs completed.")
+
+    total_time = time.time() - start_time    
+    print(f"All runs completed in {total_time/60:.2f}mins")
 
 if __name__ == "__main__":
     main()
