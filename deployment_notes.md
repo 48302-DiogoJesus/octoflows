@@ -2,8 +2,6 @@
 - Docker
 - Python 3.12
 
-`sudo apt-get install redis-tools graphviz python3.10-venv`
-
 # Steps
 - Create **python venv**
     - `python3.12 -m venv venv`
@@ -22,6 +20,8 @@ sudo apt-get install redis-tools
     - creates 2 redis containers, password protected and with persistence enabled
 
 - Start the docker gateway (FaaS "simulator"): `bash build_docker_worker_image.sh && bash start_gateway_docker.sh`
+
+- Enable docker API
 
 
 # See metrics dashboards

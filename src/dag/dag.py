@@ -81,9 +81,9 @@ class FullDAG(GenericDAG):
         wk: Worker = _wk_config.create_instance()
         self.dag_name = dag_name
 
-        if wk.metrics_storage:
-            #! Currently, the docker handlers needs to be running locally
-            DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
+        # if wk.metrics_storage:
+        #     #! Currently, the docker handlers needs to be running locally
+        #     DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
 
         if wk.planner:
             if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
