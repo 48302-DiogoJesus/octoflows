@@ -63,13 +63,13 @@ class RedisStorage(storage.Storage):
                     db=0,
                     password=self.redis_config.password,
                     decode_responses=False,  # Necessary to allow serialized bytes
-                    socket_connect_timeout=5,
+                    socket_connect_timeout=10,
                     socket_timeout=None,
                     retry_on_timeout=True,
                     retry_on_error=[ConnectionError, TimeoutError, OSError],
-                    retry=Retry(backoff=ExponentialBackoff(), retries=3),
-                    max_connections=20,
-                    health_check_interval=15,
+                    retry=Retry(backoff=ExponentialBackoff(), retries=5),
+                    max_connections=30,
+                    health_check_interval=10,
                     socket_keepalive=True
                 )
                 return self._connection

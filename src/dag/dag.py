@@ -75,6 +75,7 @@ class FullDAG(GenericDAG):
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.predictions.predictions_provider import PredictionsProvider
         from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics
+        from sys import platform
         
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
@@ -97,7 +98,7 @@ class FullDAG(GenericDAG):
         # ! Need to STORE after PLANNING because after the full dag is stored on redis, workers might use that!
         _ = await Worker.store_full_dag(wk.metadata_storage, self)
 
-        if open_dashboard:
+        if open_dashboard and platform != "linux":
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
                 raise Exception("Can't use dashboard when using in-memory storage!")
             vis.DAGVisualizationDashboard.start(self, _wk_config)

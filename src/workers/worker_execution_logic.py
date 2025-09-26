@@ -65,7 +65,7 @@ class WorkerExecutionLogic(ABC):
         current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
         
         for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
-            downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
+            downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
             this_worker.log(current_task.id.get_full_id(), f"rand({uuid.uuid4()}) Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
             if dependencies_met == downstream_task_total_dependencies:
                 if this_worker.my_resource_configuration.worker_id is not None and this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
