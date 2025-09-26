@@ -1,19 +1,14 @@
-- BUG: fan-in not being executed (stops execution, all containers exit gracefuly)
-
 - remove batching capability from storage
 
-- Fix repeated prints on containers
+- BUG: now its the simple algorithm that stops in the middle
 
-- Run heavy montage
+- Try running heavy montage on VM
 
 - Confirm wukong optimizations are being applied
     - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
     - Find a way to know where/how many task clusterings and delayed I/Os happened
         possible just from looking at worker ids at the end?
-
-- Convert taskdupping to a local thing (dont upload output, dont update DC)
-    remove cancellation flag
 
 - Try deploying on remote VM
     - git pull to get venv folder

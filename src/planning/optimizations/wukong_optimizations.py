@@ -122,7 +122,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 return downstream_tasks_ready
 
     @staticmethod
-    async def wel_override_handle_downstream(planner, fulldag, current_task: DAGTaskNode, this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: SubDAG, is_dupping: bool):
+    async def wel_override_handle_downstream(planner, fulldag, current_task: DAGTaskNode, this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: SubDAG):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
 

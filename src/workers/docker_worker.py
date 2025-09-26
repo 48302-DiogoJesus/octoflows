@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from itertools import groupby
 import json
 import time
-import zlib
 import aiohttp
 import cloudpickle
 from sys import platform

@@ -24,7 +24,7 @@ from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.utils.utils import calculate_data_structure_size_bytes
 
-from src.planning.optimizations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_CANCELLATION_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
+from src.planning.optimizations.taskdup import TaskDupOptimization, DUPPABLE_TASK_STARTED_PREFIX, DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS
 
 logger = create_logger(__name__)
 
@@ -160,15 +160,9 @@ async def main():
                     greatest_predicted_time_saved_task: DAGTaskNode | None = None
                     greatest_predicted_time_saved: float = -1
                     for u_task in unfinished_duppable_tasks:
-                        if u_task.worker_config.worker_id == this_worker_id: 
-                            # if the task is assigned to me, doesn't make sense for me to try dup it
-                            continue
+                        # if the task is assigned to me, doesn't make sense for me to try dup it
+                        if u_task.worker_config.worker_id == this_worker_id: continue
                         task_id = u_task.id.get_full_id()
-                        is_task_dup_cancelation_flag_set = await wk.metadata_storage.get(f"{DUPPABLE_TASK_CANCELLATION_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
-                        if is_task_dup_cancelation_flag_set:
-                            logger.info(f"[TASK-DUP] Task {task_id} was/is already being dupped/dupped, skip")
-                            finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(u_task.id.get_full_id())
-                            continue
 
                         # get REAL (not predicted ES) start time
                         if u_task.id.get_full_id() not in cached_tasks_start_time:
