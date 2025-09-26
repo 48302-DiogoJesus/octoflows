@@ -182,32 +182,7 @@ class Worker(ABC):
                     break
 
                 # Update Dependency Counters of Downstream Tasks
-                updating_dependency_counters_timer = Timer()
-                downstream_tasks_ready: list[dag_task_node.DAGTaskNode] = []
-                async with self.metadata_storage.batch() as batch:
-                    downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == self.my_resource_configuration.worker_id)]
-                    for downstream_task in current_task.downstream_nodes:
-                        if downstream_task in downstream_tasks_that_depend_on_other_tasks:
-                            await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                        else:
-                            downstream_tasks_ready.append(downstream_task)
-
-                    results = await batch.execute()
-                    
-                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
-                
-                for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
-                    downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
-                    self.log(current_task.id.get_full_id(), f"rand({uuid.uuid4()}) Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
-                    if dependencies_met == downstream_task_total_dependencies:
-                        if self.my_resource_configuration.worker_id is not None and self.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
-                            # avoids double-execution (one by following the execution branch, and another by the READY event callback)
-                            await self.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
-
-                        receivers = await self.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
-                        logger.info(f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
-                        
-                        downstream_tasks_ready.append(downstream_task)
+                await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task)
                 
                 self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
 

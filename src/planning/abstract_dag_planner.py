@@ -864,6 +864,22 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return res
 
     @staticmethod
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list[DAGTaskNode] | None:
+        from src.workers.worker_execution_logic import WorkerExecutionLogic
+        _planner: AbstractDAGPlanner = planner
+
+        res = None
+        for optimization in _planner.config.optimizations:
+            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
+            if opt_res is not None: res = opt_res
+        
+        # fallback to default logic
+        if res is None:
+            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
+
+        return res
+
+    @staticmethod
     async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool):
         from src.workers.worker_execution_logic import WorkerExecutionLogic
         _planner: AbstractDAGPlanner = planner

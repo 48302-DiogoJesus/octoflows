@@ -29,4 +29,7 @@ class TaskOptimization(WorkerExecutionLogic):
     async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool) -> bool | None: return None
     
     @staticmethod
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None: return None
+
+    @staticmethod
     async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool) -> list | None: return None

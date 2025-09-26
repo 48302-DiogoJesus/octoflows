@@ -75,12 +75,40 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         return not is_task_size_large # only upload if not large
 
     @staticmethod
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
+        optimization = current_task.try_get_optimization(WukongOptimizations)
+        if optimization is None: return None
+        if not optimization.task_clustering_fan_outs and not optimization.delayed_io and not optimization.task_clustering_fan_ins: return None
+        assert current_task.cached_result
+
+        task_output_size_b = calculate_data_structure_size_bytes(cloudpickle.dumps(current_task.cached_result.result))
+        is_task_size_large = task_output_size_b > optimization.large_output_b
+        if not is_task_size_large: return None # let the default logic update DCs
+        else: 
+            # Don't update DCs after producing large output. Update later only if needed (if we have to upload output as well)
+            # But check if our output would make them be READY and return them
+            updating_dependency_counters_timer = Timer()
+            downstream_tasks_ready: list[DAGTaskNode] = []
+            async with metadata_storage.batch() as batch:
+                for downstream_task in current_task.downstream_nodes:
+                    await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                results = await batch.execute()
+                
+            current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(current_task.downstream_nodes) > 0 else None
+            
+            for downstream_task, dependencies_met in zip(current_task.downstream_nodes, results):
+                downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
+                if dependencies_met == downstream_task_total_dependencies - 1: # -1 because we dont count our current task
+                    downstream_tasks_ready.append(downstream_task)
+
+            return downstream_tasks_ready
+
+    @staticmethod
     async def wel_override_handle_downstream(planner, fulldag, current_task: DAGTaskNode, this_worker, downstream_tasks_ready: list[DAGTaskNode], subdag: SubDAG, is_dupping: bool):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
 
         optimization = current_task.try_get_optimization(WukongOptimizations)
-        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {current_task.id.get_full_id()} | has optimization?: {optimization is not None} | has dtasks ready: {len(downstream_tasks_ready)}")
         if optimization is None: return None
         if not downstream_tasks_ready: return []
         if not optimization.task_clustering_fan_outs and not optimization.delayed_io and not optimization.task_clustering_fan_ins: return None
@@ -100,6 +128,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                 current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
                 _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
+                # Update DCs because output is already available
+                async with this_worker.metadata_storage.batch() as batch:
+                    # update DCs of ALL my downstream
+                    for downstream_task in current_task.downstream_nodes:
+                        await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    await batch.execute()
 
                 # then re-check if in the meantime other tasks became READY, if so execute them
                 for dtask in current_task.downstream_nodes:
@@ -150,6 +184,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
                     _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
+                    # Update DCs because output is already available
+                    async with this_worker.metadata_storage.batch() as batch:
+                        # update DCs of ALL my downstream
+                        for downstream_task in current_task.downstream_nodes:
+                            await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        await batch.execute()
 
         # Normal fan-out handling logic     
         task_for_me_to_execute: DAGTaskNode | None = None

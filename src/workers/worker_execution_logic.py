@@ -2,9 +2,12 @@ import asyncio
 from types import CoroutineType
 from typing import Any
 from abc import ABC
+import uuid
 
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
+from src.planning.optimizations.wukong_optimizations import DEPENDENCY_COUNTER_PREFIX
+from src.workers.worker import TASK_READY_EVENT_PREFIX
 
 logger = create_logger(__name__)
 
@@ -42,6 +45,37 @@ class WorkerExecutionLogic(ABC):
 
         # only upload if necessary
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
+
+    @staticmethod
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
+        from src.dag_task_node import DAGTaskNode
+
+        updating_dependency_counters_timer = Timer()
+        downstream_tasks_ready: list[DAGTaskNode] = []
+        async with metadata_storage.batch() as batch:
+            downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == this_worker.my_resource_configuration.worker_id)]
+            for downstream_task in current_task.downstream_nodes:
+                if downstream_task in downstream_tasks_that_depend_on_other_tasks:
+                    await batch.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                else:
+                    downstream_tasks_ready.append(downstream_task)
+
+            results = await batch.execute()
+            
+        current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
+        
+        for downstream_task, dependencies_met in zip(downstream_tasks_that_depend_on_other_tasks, results):
+            downstream_task_total_dependencies = len(subdag.get_node_by_id(downstream_task.id).upstream_nodes)
+            this_worker.log(current_task.id.get_full_id(), f"rand({uuid.uuid4()}) Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies})")
+            if dependencies_met == downstream_task_total_dependencies:
+                if this_worker.my_resource_configuration.worker_id is not None and this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
+                    # avoids double-execution (one by following the execution branch, and another by the READY event callback)
+                    await this_worker.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+
+                receivers = await this_worker.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                logger.info(f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
+                
+                downstream_tasks_ready.append(downstream_task)
 
     @staticmethod
     async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag, is_dupping: bool) -> list | None:
