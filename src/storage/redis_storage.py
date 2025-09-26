@@ -64,7 +64,7 @@ class RedisStorage(storage.Storage):
                     socket_connect_timeout=30,
                     socket_timeout=30,
                     retry_on_timeout=True,
-                    max_connections=10,
+                    max_connections=100,
                     health_check_interval=10,
                     socket_keepalive=True,
                 )
