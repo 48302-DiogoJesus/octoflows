@@ -2,6 +2,8 @@ import os
 import sys
 import time
 from typing import List, Dict, Any
+import random
+from collections import Counter
 
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -122,30 +124,37 @@ def analyze_segment(segments: List[str], segment_id: int) -> Dict[str, Any]:
 
 # --- New processing functions that work on the overall segments data ---
 
-@DAGTask
+@DAGTask  
 def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract keywords from all segments combined, enhanced with text statistics"""
-    all_text = " ".join(segments)
-    words = [w.lower().strip('.,!?;:"()') for w in all_text.split()]
+    MAX_SAMPLE_SIZE = 50
+    MAX_WORDS_PER_SEGMENT = 100
     
-    # Use text statistics to inform keyword extraction
-    common_words = {word for word, _ in text_stats["most_common_words"]}
+    if len(segments) > MAX_SAMPLE_SIZE:
+        sample_segments = random.sample(segments, MAX_SAMPLE_SIZE)
+    else:
+        sample_segments = segments
     
-    # Enhanced keyword extraction using statistical data
-    keywords = [w for w in words if len(w) > 5 and w not in common_words]
-    keyword_freq = {}
-    for word in keywords:
-        keyword_freq[word] = keyword_freq.get(word, 0) + 1
+    common_words = {word for word, _ in text_stats["most_common_words"][:50]}  # Use fewer common words
+    keyword_counter = Counter()
+    total_processed = 0
     
-    # Get top keywords by frequency
-    sorted_keywords = sorted(keyword_freq.items(), key=lambda x: x[1], reverse=True)
+    for segment in sample_segments:
+        words = segment.lower().split()[:MAX_WORDS_PER_SEGMENT]  # Limit words per segment
+        total_processed += len(words)
+        
+        for word in words:
+            clean_word = word.strip('.,!?;:"()')
+            if 5 < len(clean_word) < 20 and clean_word not in common_words:  # Add max length limit
+                keyword_counter[clean_word] += 1
     
     return {
-        "type": "overall_keywords",
-        "top_keywords": sorted_keywords[:20],
-        "total_keywords": len(keyword_freq),
-        "keyword_density": len(keywords) / len(words) if words else 0,
-        "avg_word_length_context": text_stats["avg_word_length"]
+        "type": "overall_keywords", 
+        "top_keywords": keyword_counter.most_common(10),  # Return fewer keywords
+        "total_keywords": len(keyword_counter),
+        "keyword_density": len(keyword_counter) / total_processed if total_processed > 0 else 0,
+        "avg_word_length_context": text_stats["avg_word_length"],
+        "is_sample": True,
+        "sample_size": len(sample_segments)
     }
 
 @DAGTask
@@ -340,7 +349,7 @@ final_report = final_comprehensive_report(metrics, summary, merged_analysis)
 
 # --- Run workflow ---
 start_time = time.time()
-result = final_report.compute(dag_name="text_analysis", config=WORKER_CONFIG, open_dashboard=False)
+result = final_report.compute(dag_name="text_analysis", config=WORKER_CONFIG, open_dashboard=True)
 print(f"Result keys: {list(result.keys())} | User waited: {time.time() - start_time:.3f}s")
 print(f"Analysis complete - processed {result['detailed_analysis']['total_words']} words in {result['detailed_analysis']['total_segments']} segments")
 print(f"Found {result['detailed_analysis']['keywords_analysis']['total_keywords']} unique keywords")

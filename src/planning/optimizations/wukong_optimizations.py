@@ -59,7 +59,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 node.add_optimization(WukongOptimizations(
                     task_clustering_fan_outs=is_fan_out_origin,
                     task_clustering_fan_ins=is_fan_in_upstream,
-                    delayed_io=is_fan_in_upstream and WukongOptimizations.delayed_io,
+                    delayed_io=is_fan_out_origin and WukongOptimizations.delayed_io,
                 ))
 
     @staticmethod
@@ -163,7 +163,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
                         if dependencies_met == len(dtask.upstream_nodes):
                             assert _this_worker.my_worker_id
-                            asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id))
+                            asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id), name=f"TCI_{dtask.id.get_full_id()}")
                             logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Executing task {dtask.id.get_full_id()}...")
                             await dtask.completed_event.wait()
                             logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
@@ -177,7 +177,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     dtask_ready = mutable_downstream_tasks_ready.pop() # remove task
                     assert _this_worker.my_worker_id
                     # can't await `execute_branch` as it will keep on going and we only want to wait for the first task to complete
-                    asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_worker_id))
+                    asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag, my_worker_id=_this_worker.my_worker_id), name=f"TCO_DIO_{dtask_ready.id.get_full_id()}")
                     logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCO | Executing task {dtask_ready.id.get_full_id()}...")
                     await dtask_ready.completed_event.wait()
                     logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCO | Task {dtask_ready.id.get_full_id()} completed")
@@ -220,9 +220,11 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         for dtask_ready in downstream_tasks_ready:
             if dtask_ready.id.get_full_id() in tasks_completed: continue
             if not task_for_me_to_execute:
+                logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) I will execute: {dtask_ready.id.get_full_id()}")
                 # 1 task for me to execute
                 task_for_me_to_execute = dtask_ready
             else:
+                logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Delegate: {dtask_ready.id.get_full_id()}")
                 # 1 worker for each of the N READY task
                 await _this_worker.delegate([subdag.create_subdag(dtask_ready)], fulldag, called_by_worker=True)
         
