@@ -5,17 +5,17 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'text_analysis.py',
     'image_transformer.py',
+    'text_analysis.py',
     'gemm.py',
     'tree_reduction.py',
     'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 3
-ALGORITHMS = ['simple', 'uniform', 'non-uniform']
+# ALGORITHMS = ['simple', 'uniform', 'non-uniform']
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform', 'wukong-opt', 'wukong']
-# ALGORITHMS = ['wukong-opt', 'wukong']
+ALGORITHMS = ['non-uniform']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 

@@ -1,4 +1,8 @@
 - Try running workflows locally with other planners to ensure didn't break any previous logic
+    failing on non-uniform image transformer w/ preload
+        worker remains active and workflow doesn't finish
+        only happens sometimes
+            IGNORE THIS ERROR?
 
 - Try running heavy montage on VM
 
