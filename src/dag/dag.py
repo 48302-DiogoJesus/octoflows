@@ -3,7 +3,6 @@ import asyncio
 import hashlib
 import time
 import uuid
-import graphviz
 
 from src.dag.dag_errors import NoRootNodesError, MultipleSinkNodesError
 from src.utils.logger import create_logger
@@ -220,6 +219,10 @@ class FullDAG(GenericDAG):
     @classmethod
     def visualize(cls, sink_node: dag_task_node.DAGTaskNode, output_file="dag_graph", open_after=True):
         # Create a new directed graph
+        from sys import platform
+        if platform == "linux": return
+        import graphviz
+
         dot = graphviz.Digraph(
             comment="DAG Visualization",
             format="png",

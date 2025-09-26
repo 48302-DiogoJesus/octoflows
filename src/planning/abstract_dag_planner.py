@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import cloudpickle
-from graphviz import Digraph
 from typing import Literal
 from collections import defaultdict
 from typing import Type
@@ -625,9 +624,13 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             output_file: Base filename to save the visualization (without extension)
         """
         from src.dag.dag import GenericDAG
+        from sys import platform
+        if platform == "linux": return
+        import graphviz
+        
         _dag: GenericDAG = dag
         # Create a new directed graph
-        dot = Digraph(comment='DAG Visualization')
+        dot = graphviz.Digraph(comment='DAG Visualization')
         dot.attr(rankdir='LR')  # Left to right layout
         # Set node attributes with increased height/width margins to prevent text cutoff
         dot.attr('node', shape='box', fontname='Arial', fontsize='11', margin='0.3,0.2', height='0.8')
