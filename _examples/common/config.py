@@ -11,6 +11,7 @@ from src.planning.non_uniform_planner import NonUniformPlanner
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.wukong_planner import WUKONGPlanner
 import sys
+import os
 
 def get_planner_from_sys_argv():
     supported_planners = ["wukong", "wukong-opt", "simple", "uniform", "non-uniform"]
@@ -19,7 +20,8 @@ def get_planner_from_sys_argv():
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
         sys.exit(-1)
     
-    script_name = sys.argv[0]
+    script_name = os.path.basename(sys.argv[0])
+
     planner_type = sys.argv[1]
     if planner_type not in supported_planners:
         print(f"Unknown planner type: {planner_type}")
