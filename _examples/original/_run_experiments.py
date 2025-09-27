@@ -26,6 +26,7 @@ DOCKER_FAAS_GATEWAY_IP = "localhost"
 montage_workload = "light"
 if len(sys.argv) > 1:
     montage_workload = sys.argv[1]
+print(f"Montage workload: {montage_workload}")
 
 def kill_warm():
     url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/kill-warm"
@@ -48,7 +49,8 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
     
-    if script_path == 'montage.py':
+    if os.path.basename(script_path) == 'montage.py':
+        print(f"Montage Workflow will run with workload: {montage_workload}")
         cmd = [sys.executable, full_script_path, algorithm, sla, montage_workload]
     else:
         cmd = [sys.executable, full_script_path, algorithm, sla]

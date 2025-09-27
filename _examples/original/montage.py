@@ -165,6 +165,9 @@ if len(sys.argv) > 3:
     if workload not in ["light", "heavy"]:
         print(f"Invalid workload: {workload}. Accepted: 'light' or 'heavy'")
         sys.exit(-1)
+else:
+    print("No workload specified, defaulting to 'light'")
+    workload = "light"
 
 if workload == "light":
     input_dir = "../_inputs/montage_light/"
