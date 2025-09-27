@@ -48,7 +48,7 @@ class DAGTaskNode:
         # after the DAG is optimized, this will be set to None and the code will be stored in a map on the DAG structure
         self.func_code = func
         self.func_args = args
-        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None)
+        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None, forced_by_user=False)
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
@@ -298,12 +298,17 @@ class DAGTaskNode:
     #                 logger.error(f"Warning: Failed to import {module} after installation")
     # '''
 
-def DAGTask(func_or_params=None, forced_optimizations: list[TaskOptimization] = []) -> Callable[..., DAGTaskNode]:
+def DAGTask(func_or_params=None, forced_min_worker_resource_configuration: TaskWorkerResourceConfiguration | None = None, forced_optimizations: list[TaskOptimization] = []) -> Callable[..., DAGTaskNode]:
     def decorator(func: Callable[..., Any]) -> Callable[..., DAGTaskNode]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> DAGTaskNode:
             node = DAGTaskNode(func, args, kwargs)
             for annotation in forced_optimizations:  node.add_optimization(annotation)
+            if forced_min_worker_resource_configuration is not None:
+                if forced_min_worker_resource_configuration.worker_id is not None:
+                    raise ValueError("User can't specify a 'worker_id'")
+                forced_min_worker_resource_configuration.forced_by_user = True
+                node.worker_config = forced_min_worker_resource_configuration.clone()
             return node
         return wrapper
     

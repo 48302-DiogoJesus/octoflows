@@ -81,6 +81,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         worker_ids_outside_critical_path: set[str] = set()
         for node in topo_sorted_nodes:
             node_worker_id = node.worker_config.worker_id
+            if node.worker_config.forced_by_user: continue
             if not node_worker_id: continue
             if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.worker_config.worker_id for cpnode in critical_path_nodes):
                 worker_ids_outside_critical_path.add(node_worker_id)

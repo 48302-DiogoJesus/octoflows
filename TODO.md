@@ -5,6 +5,7 @@
             IGNORE THIS ERROR?
 
 - Try running heavy montage on VM
+    - keep removing the forced flag
 
 - Allow user to also specify the minimum resource configuration for a given task (usage e.g., montage)
     - Careful on resource downgrading algorithm

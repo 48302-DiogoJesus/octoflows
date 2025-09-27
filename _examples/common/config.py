@@ -56,7 +56,7 @@ def get_planner_from_sys_argv():
     elif planner_type == "simple":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=2048)],
+            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
             optimizations=[],
         )
     elif planner_type == "uniform":

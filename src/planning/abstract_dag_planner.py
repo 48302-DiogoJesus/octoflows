@@ -121,6 +121,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
 
         assigned_nodes = set()
+        for node in topo_sorted_nodes:
+            if node.worker_config.forced_by_user:
+                assigned_nodes.add(node.id.get_full_id())
+                continue
 
         # -----------------------------------------------------------
         # --- Helper for fan-out assignment with grouping logic
@@ -212,7 +216,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             # Determine this node's assignment based on its upstream pattern
             if not node.upstream_nodes:
                 # ROOT NODE: Handle as part of root fanout group
-                remaining_roots = [n for n in topo_sorted_nodes 
+                remaining_roots = [n for n in topo_sorted_nodes
                                  if not n.upstream_nodes and n.id.get_full_id() not in assigned_nodes]
                 _assign_fanout_group(upstream_worker_id=None, candidates=remaining_roots)
             # 1→1 or 1→N

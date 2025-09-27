@@ -15,6 +15,7 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
 from src.utils.logger import create_logger
+from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 # Import common worker configurations
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -79,7 +80,9 @@ def _compute_global_wcs(file_data_list: List[bytes], pixscale: float | None = No
     
     return target_wcs, shape_out
 
-@DAGTask
+@DAGTask(
+    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
+)
 def extract_and_reproject_task(file_data: bytes, target_wcs_header: str, shape_out: Tuple[int, int]) -> np.ndarray:
     """
     Extract WCS from binary FITS data and reproject to target WCS.
@@ -106,7 +109,9 @@ def extract_and_reproject_task(file_data: bytes, target_wcs_header: str, shape_o
 
     return reprojected_data.astype(np.float32)
 
-@DAGTask
+@DAGTask(
+    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
+)
 def background_correct_task(reprojected_data: np.ndarray) -> np.ndarray:
     """
     Apply background correction to a single reprojected image.
@@ -118,7 +123,9 @@ def background_correct_task(reprojected_data: np.ndarray) -> np.ndarray:
     
     return corrected_data.astype(np.float32)
 
-@DAGTask
+@DAGTask(
+    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
+)
 def coadd_task(corrected_data_list: List[np.ndarray], method: str = "median") -> np.ndarray:
     """
     Co-add all background-corrected images into final mosaic.
