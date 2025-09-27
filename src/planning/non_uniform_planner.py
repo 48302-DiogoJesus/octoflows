@@ -41,6 +41,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         if len(self.config.worker_resource_configurations) == 1:
             # If only one resource config is available, use it for all nodes
             for node in topo_sorted_nodes:
+                if node.worker_config.forced_by_user: continue
                 unique_resources = self.config.worker_resource_configurations[0].clone()
                 node.worker_config = unique_resources
                 if len(node.upstream_nodes) == 0:

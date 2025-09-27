@@ -72,6 +72,7 @@ def get_planner_from_sys_argv():
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024),
                 TaskWorkerResourceConfiguration(cpus=3, memory_mb=2048),
+                TaskWorkerResourceConfiguration(cpus=3, memory_mb=4096),
             ],
             optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )
