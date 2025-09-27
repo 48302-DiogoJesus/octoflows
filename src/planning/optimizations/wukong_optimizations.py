@@ -158,11 +158,13 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 # then re-check if in the meantime other tasks became READY, if so execute them
                 for dtask in current_task.downstream_nodes:
                     if any([dnode.id.get_full_id() == dtask.id.get_full_id() for dnode in downstream_tasks_ready]):
+                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} was already ready")
                         # ignore if task was already READY
                         continue
                     if len(dtask.upstream_nodes) > 1:
                         dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
                         dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
+                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} dependencies met: {dependencies_met}/{len(dtask.upstream_nodes)}")
                         if dependencies_met == len(dtask.upstream_nodes):
                             assert _this_worker.my_worker_id
                             asyncio.create_task(_this_worker.execute_branch(subdag.create_subdag(dtask), fulldag, my_worker_id=_this_worker.my_worker_id), name=f"TCI_{dtask.id.get_full_id()}")
@@ -170,6 +172,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                             await dtask.completed_event.wait()
                             logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
                             tasks_completed.add(dtask.id.get_full_id())
+                    else:
+                        logger.debug(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} has less than 2 upstream nodes")
             
             # TASK-CLUSTERING ON FAN-OUTS + DELAYED I/O
             if is_fan_out_origin and (optimization.delayed_io or optimization.task_clustering_fan_outs):
