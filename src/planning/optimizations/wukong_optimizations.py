@@ -92,7 +92,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         if not is_task_size_large: return None # let the default logic update DCs
         else: 
             # Same logic for TCI, TCO and DIO
-            #   If no task has deps - 1, upload output, increment DC and return [] (worker exits)
+            #   If no task has deps - 1, upload output, increment DC, and recheck
             #   Else return all tasks with deps - 1 to execute locally
             downstream_tasks_ready: list[DAGTaskNode] = []
             for downstream_task in current_task.downstream_nodes:
@@ -116,9 +116,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
                     deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
+                    logger.info(f"[WUKONG_DBG] TCI UDC W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
+                    # need to recheck, otherwise, another worker would see 8/10 and NOT execute. No one would execute the task
+                    if deps == len(downstream_task.upstream_nodes):
+                        downstream_tasks_ready.append(downstream_task)
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
-                return [] # worker exits
+                return downstream_tasks_ready
             else:
                 return downstream_tasks_ready
 
@@ -152,13 +155,12 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
                     deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
+                    logger.info(f"[WUKONG_DBG] TCI W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 # then re-check if in the meantime other tasks became READY, if so execute them
                 for dtask in current_task.downstream_nodes:
                     if any([dnode.id.get_full_id() == dtask.id.get_full_id() for dnode in downstream_tasks_ready]):
-                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} was already ready")
                         # ignore if task was already READY
                         continue
                     if len(dtask.upstream_nodes) > 1:
@@ -172,8 +174,6 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                             await dtask.completed_event.wait()
                             logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} completed")
                             tasks_completed.add(dtask.id.get_full_id())
-                    else:
-                        logger.debug(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} has less than 2 upstream nodes")
             
             # TASK-CLUSTERING ON FAN-OUTS + DELAYED I/O
             if is_fan_out_origin and (optimization.delayed_io or optimization.task_clustering_fan_outs):
@@ -219,7 +219,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     # update DCs of ALL my downstream
                     for downstream_task in current_task.downstream_nodes:
                         deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
-                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
+                        logger.info(f"[WUKONG_DBG] DIO W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                     current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
         # Normal fan-out handling logic     
