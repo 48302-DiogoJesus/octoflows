@@ -115,7 +115,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 updating_dependency_counters_timer = Timer()
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
-                    await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
                 return [] # worker exits
             else:
@@ -150,7 +151,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 updating_dependency_counters_timer = Timer()
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
-                    await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
                 # then re-check if in the meantime other tasks became READY, if so execute them
@@ -212,7 +214,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     updating_dependency_counters_timer = Timer()
                     # update DCs of ALL my downstream
                     for downstream_task in current_task.downstream_nodes:
-                        await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                     current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
         # Normal fan-out handling logic     
