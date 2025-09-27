@@ -1,25 +1,8 @@
-- Try running workflows locally with other planners to ensure didn't break any previous logic
-    failing on non-uniform image transformer w/ preload
-        worker remains active and workflow doesn't finish
-        only happens sometimes
-            IGNORE THIS ERROR?
-
-- Try running heavy montage on VM
-    - keep removing the forced flag
-
-- Allow user to also specify the minimum resource configuration for a given task (usage e.g., montage)
-    - Careful on resource downgrading algorithm
-    - On uniforms, ensure that it gets a separate worker id
-
 - Confirm wukong optimizations are being applied
     - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
     - Find a way to know where/how many task clusterings and delayed I/Os happened
         possible just from looking at worker ids at the end?
-
-- Try deploying on remote VM
-    - git pull to get venv folder
-        continue following `deployment_notes.md`
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network
