@@ -121,10 +121,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
 
         assigned_nodes = set()
-        for node in topo_sorted_nodes:
-            if node.worker_config.forced_by_user:
-                assigned_nodes.add(node.id.get_full_id())
-                continue
 
         # -----------------------------------------------------------
         # --- Helper for fan-out assignment with grouping logic

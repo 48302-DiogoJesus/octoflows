@@ -18,11 +18,15 @@ def get_planner_from_sys_argv():
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
         sys.exit(-1)
-        
+    
+    script_name = sys.argv[0]
     planner_type = sys.argv[1]
     if planner_type not in supported_planners:
         print(f"Unknown planner type: {planner_type}")
         sys.exit(-1)
+
+    montage_min_worker_resource_config = TaskWorkerResourceConfiguration(cpus=3, memory_mb=8192)
+    min_resources = montage_min_worker_resource_config if script_name == "montage.py" else TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
 
     sla: SLA
     sla_str: str = sys.argv[2]
@@ -37,13 +41,13 @@ def get_planner_from_sys_argv():
     if planner_type == "wukong":
         return WUKONGPlanner.Config(
             sla=sla, # won't be used
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
+            worker_resource_configurations=[min_resources],
             optimizations=[],
         )
     elif planner_type == "wukong-opt":
         return WUKONGPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
+            worker_resource_configurations=[min_resources],
             optimizations=[
                 WukongOptimizations.configured(
                     task_clustering_fan_outs=True, 
@@ -56,23 +60,22 @@ def get_planner_from_sys_argv():
     elif planner_type == "simple":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
+            worker_resource_configurations=[min_resources],
             optimizations=[],
         )
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)],
+            worker_resource_configurations=[min_resources],
             optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=512),
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=1024),
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=2048),
-                TaskWorkerResourceConfiguration(cpus=3, memory_mb=4096),
+                min_resources,
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
             ],
             optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )

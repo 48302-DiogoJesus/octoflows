@@ -15,7 +15,6 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask
 from src.utils.logger import create_logger
-from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 
 # Import common worker configurations
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -80,9 +79,7 @@ def _compute_global_wcs(file_data_list: List[bytes], pixscale: float | None = No
     
     return target_wcs, shape_out
 
-@DAGTask(
-    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
-)
+@DAGTask
 def extract_and_reproject_task(file_data: bytes, target_wcs_header: str, shape_out: Tuple[int, int]) -> np.ndarray:
     """
     Extract WCS from binary FITS data and reproject to target WCS.
@@ -109,9 +106,7 @@ def extract_and_reproject_task(file_data: bytes, target_wcs_header: str, shape_o
 
     return reprojected_data.astype(np.float32)
 
-@DAGTask(
-    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
-)
+@DAGTask
 def background_correct_task(reprojected_data: np.ndarray) -> np.ndarray:
     """
     Apply background correction to a single reprojected image.
@@ -123,9 +118,7 @@ def background_correct_task(reprojected_data: np.ndarray) -> np.ndarray:
     
     return corrected_data.astype(np.float32)
 
-@DAGTask(
-    forced_min_worker_resource_configuration=TaskWorkerResourceConfiguration(cpus=4, memory_mb=8192)
-)
+@DAGTask
 def coadd_task(corrected_data_list: List[np.ndarray], method: str = "median") -> np.ndarray:
     """
     Co-add all background-corrected images into final mosaic.
@@ -166,10 +159,19 @@ def _local_save_results_task(mosaic: np.ndarray, output_dir: str):
     plt.show()
 
 # Configuration
-input_dir = "../_inputs/montage_heavy/"
-output_dir = "../_outputs/montage_heavy/"
-# input_dir = "../_inputs/montage_light/"
-# output_dir = "../_outputs/montage_light/"
+workload = "light"
+if len(sys.argv) > 3:
+    workload = sys.argv[3]
+    if workload not in ["light", "heavy"]:
+        print(f"Invalid workload: {workload}. Accepted: 'light' or 'heavy'")
+        sys.exit(-1)
+
+if workload == "light":
+    input_dir = "../_inputs/montage_light/"
+    output_dir = "../_outputs/montage_light/"
+else:
+    input_dir = "../_inputs/montage_heavy/"
+    output_dir = "../_outputs/montage_heavy/"
 PIXSCALE = 0.4
 METHOD = "median"
 
@@ -202,6 +204,7 @@ final_mosaic = coadd_task(corrected_data_list, METHOD)
 
 # Compute the DAG
 start_time = time.time()
+print(f"Starting Workflow | Workload Type: {workload}")
 final_mosaic = final_mosaic.compute(dag_name="montage", config=WORKER_CONFIG, open_dashboard=False)
 print(f"User waited: {time.time() - start_time:.3f}s")
 

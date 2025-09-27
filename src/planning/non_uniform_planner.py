@@ -38,21 +38,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
 
         topo_sorted_nodes = self._topological_sort(dag)
 
-        if len(self.config.worker_resource_configurations) == 1:
-            # If only one resource config is available, use it for all nodes
-            for node in topo_sorted_nodes:
-                if node.worker_config.forced_by_user: continue
-                unique_resources = self.config.worker_resource_configurations[0].clone()
-                node.worker_config = unique_resources
-                if len(node.upstream_nodes) == 0:
-                    unique_resources.worker_id = uuid.uuid4().hex
-                else:
-                    unique_resources.worker_id = node.upstream_nodes[0].worker_config.worker_id
-            # self._store_plan_image(dag)
-            # self._store_plan_as_json(dag)
-            return
-
-        middle_resource_config = self.config.worker_resource_configurations[len(self.config.worker_resource_configurations) // 2]
+        middle_resource_config = self.config.worker_resource_configurations[len(self.config.worker_resource_configurations) // 2] if len(self.config.worker_resource_configurations) > 1 else self.config.worker_resource_configurations[0]
         
         if not predictions_provider.has_required_predictions():
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving intermediate resources ({middle_resource_config}) to all nodes")
@@ -82,7 +68,6 @@ class NonUniformPlanner(AbstractDAGPlanner):
         worker_ids_outside_critical_path: set[str] = set()
         for node in topo_sorted_nodes:
             node_worker_id = node.worker_config.worker_id
-            if node.worker_config.forced_by_user: continue
             if not node_worker_id: continue
             if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.worker_config.worker_id for cpnode in critical_path_nodes):
                 worker_ids_outside_critical_path.add(node_worker_id)

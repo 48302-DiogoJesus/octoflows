@@ -34,7 +34,6 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         assert isinstance(self.config, WUKONGPlanner.Config)
 
         for node in topo_sorted_nodes:
-            if node.worker_config.forced_by_user: continue
             resource_config = self.config.worker_resource_configurations[0].clone()
             resource_config.worker_id = None # "flexible worker"
             node.worker_config = resource_config
