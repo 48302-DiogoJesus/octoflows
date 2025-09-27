@@ -122,9 +122,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         assigned_nodes = set()
 
-        # -----------------------------------------------------------
-        # --- Helper for fan-out assignment with grouping logic
-        # -----------------------------------------------------------
         def _assign_fanout_group(
             upstream_worker_id: str | None,
             candidates: list[DAGTaskNode]
