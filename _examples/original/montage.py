@@ -159,11 +159,10 @@ def _local_save_results_task(mosaic: np.ndarray, output_dir: str):
     plt.show()
 
 # Configuration
-# HEAVY WORKLOAD (AT LEAST 1024 per container)
-# input_dir = "../montage/in"
-# SIMPLE WORKLOAD (just 1 fits file)
-input_dir = "../_inputs/montage_heavy/"
-output_dir = "../_outputs/montage_heavy/"
+# input_dir = "../_inputs/montage_heavy/"
+# output_dir = "../_outputs/montage_heavy/"
+input_dir = "../_inputs/montage_light/"
+output_dir = "../_outputs/montage_light/"
 PIXSCALE = 0.4
 METHOD = "median"
 
