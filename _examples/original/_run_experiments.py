@@ -12,10 +12,10 @@ WORKFLOWS_PATHS = [
     'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 3
+ITERATIONS_PER_ALGORITHM = 5
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform']
-# ALGORITHMS = ['simple', 'uniform', 'non-uniform', 'wukong-opt', 'wukong']
-ALGORITHMS = ['non-uniform']
+ALGORITHMS = ['non-uniform', 'uniform', 'simple', 'wukong-opt', 'wukong']
+# ALGORITHMS = ['non-uniform']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 
