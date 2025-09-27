@@ -37,7 +37,6 @@ class UniformPlanner(AbstractDAGPlanner):
             logger.warning(f"No Metadata recorded for previous runs of the same DAG structure. Giving uniform resources ({worker_resources}) to all nodes")
             # Assign worker resources and ids
             for node in topo_sorted_nodes: 
-                if node.worker_config.forced_by_user: continue
                 unique_resources = worker_resources.clone()
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
                 node.worker_config = unique_resources
