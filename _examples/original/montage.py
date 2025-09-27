@@ -159,10 +159,10 @@ def _local_save_results_task(mosaic: np.ndarray, output_dir: str):
     plt.show()
 
 # Configuration
-# input_dir = "../_inputs/montage_heavy/"
-# output_dir = "../_outputs/montage_heavy/"
-input_dir = "../_inputs/montage_light/"
-output_dir = "../_outputs/montage_light/"
+input_dir = "../_inputs/montage_heavy/"
+output_dir = "../_outputs/montage_heavy/"
+# input_dir = "../_inputs/montage_light/"
+# output_dir = "../_outputs/montage_light/"
 PIXSCALE = 0.4
 METHOD = "median"
 
