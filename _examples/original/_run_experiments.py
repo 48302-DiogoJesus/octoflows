@@ -23,7 +23,7 @@ TIME_UNTIL_WORKER_GOES_COLD_S = 5
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
 
-montage_workload = "light"
+montage_workload = "heavy"
 if len(sys.argv) > 1:
     montage_workload = sys.argv[1]
 print(f"Montage workload: {montage_workload}")
