@@ -12,7 +12,7 @@ WORKFLOWS_PATHS = [
     'tree_reduction.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 3
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform']
 ALGORITHMS = ['wukong-opt', 'wukong', 'non-uniform', 'uniform', 'simple']
 # ALGORITHMS = ['non-uniform']
