@@ -624,8 +624,8 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             output_file: Base filename to save the visualization (without extension)
         """
         from src.dag.dag import GenericDAG
-        from sys import platform
-        if platform == "linux": return
+        # from sys import platform
+        # if platform == "linux": return
         import graphviz
         
         _dag: GenericDAG = dag
