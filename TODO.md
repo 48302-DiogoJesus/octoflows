@@ -6,6 +6,10 @@
 
 - Try running heavy montage on VM
 
+- Allow user to also specify the minimum resource configuration for a given task (usage e.g., montage)
+    - Careful on resource downgrading algorithm
+    - On uniforms, ensure that it gets a separate worker id
+
 - Confirm wukong optimizations are being applied
     - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
@@ -53,3 +57,4 @@
     - ? supporting execution of generic executables as tasks, and not just python functions
         CLI program (input (stdin or cli args) => output (stdout))
     - Handle conflicting optimizations that override the same problematic (those that have return values) WEL methods AND have side effects (like delegating stuff inside them)
+    - Workflow error handling and presentation to the user
