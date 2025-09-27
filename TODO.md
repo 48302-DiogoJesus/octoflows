@@ -1,3 +1,5 @@
+- Montage is failing on wukong-opt
+
 - Confirm wukong optimizations are being applied
     - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
     - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
