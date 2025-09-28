@@ -12,6 +12,7 @@ from src.task_optimization import TaskOptimization
 from src.utils.atomic_flag import AtomicFlag
 from src.utils.timer import Timer
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
+from src.utils.utils import calculate_data_structure_size_bytes
 
 from src.utils.logger import create_logger
 

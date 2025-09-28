@@ -67,7 +67,7 @@ class Worker(ABC):
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
-                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage, subdag, current_task)
+                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
 
                 if not await current_task.is_handling.set_if_not_set():
                     # avoid duplicate execution on same worker
@@ -81,6 +81,32 @@ class Worker(ABC):
                 for t in current_task.upstream_nodes:
                     if t.cached_result is None:
                         upstream_tasks_without_cached_results.append(t)
+
+                # Always fetch hardcoded inputs that are not present locally
+                for node in subdag._all_nodes.values():
+                    # 1️⃣ Collect all unique storage IDs to fetch
+                    storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) }
+                    storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) }
+                    if not storage_ids: continue
+
+                    logger.info(f"Fetching {len(storage_ids)} hardcoded dependencies for {node.id.get_full_id()}")
+
+                    fetched_raw = await asyncio.gather(*(self.intermediate_storage.get(sid) for sid in storage_ids))
+                    cached_data = { sid: cloudpickle.loads(raw) for sid, raw in zip(storage_ids, fetched_raw) }
+
+                    new_func_args = [
+                        cached_data[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
+                        for arg in node.func_args
+                    ]
+
+                    new_func_kwargs = {
+                        key: cached_data[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
+                        for key, arg in node.func_kwargs.items()
+                    }
+
+                    node.func_args = tuple(new_func_args)
+                    node.func_kwargs = new_func_kwargs
+
 
                 _download_dependencies_timer = Timer()
 

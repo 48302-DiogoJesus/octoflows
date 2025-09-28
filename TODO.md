@@ -1,3 +1,7 @@
+- Uncomment to allow sending DAG structure in the invocation!
+
+- Look for places with for loops where i await potentially heavy data from storage and parallelize it
+
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network
             how?: total data uploaded + total data downloaded
