@@ -4,7 +4,7 @@ import time
 from collections import defaultdict
 from typing import Any, Optional, Tuple
 
-from src.storage.metrics.metrics_types import DAGResourceUsageMetrics
+from src.storage.metadata.metrics_types import DAGResourceUsageMetrics
 
 DOCKER_API = "http://localhost:2375"
 SAMPLE_INTERVAL_S = .8

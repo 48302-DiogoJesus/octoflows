@@ -3,8 +3,8 @@ from typing import Literal
 import numpy as np
 
 from src.planning.sla import SLA
-from src.storage.metrics.metrics_storage import BASELINE_MEMORY_MB, MetricsStorage
-from src.storage.metrics.metrics_types import TaskMetrics, WorkerStartupMetrics
+from src.storage.metadata.metadata_storage import BASELINE_MEMORY_MB, MetadataStorage
+from src.storage.metadata.metrics_types import TaskMetrics, WorkerStartupMetrics
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -33,22 +33,22 @@ class PredictionsProvider:
     _cached_prediction_output_sizes: dict[str, int] = {}
     _cached_prediction_startup_times: dict[str, float] = {}
 
-    def __init__(self, nr_of_dag_nodes: int, dag_structure_hash: str, metrics_storage: MetricsStorage):
+    def __init__(self, nr_of_dag_nodes: int, dag_structure_hash: str, metadata_storage: MetadataStorage):
         self.nr_of_dag_nodes = nr_of_dag_nodes
         self.dag_structure_hash = dag_structure_hash
-        self.metrics_storage = metrics_storage
+        self.metadata_storage = metadata_storage
 
     async def load_metrics_from_storage(self, planner_name: str):
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
 
         timer = Timer()
-        generic_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}*")
+        generic_metrics_keys = await self.metadata_storage.keys(f"{MetadataStorage.TASK_MD_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
-        worker_startup_metrics_keys = await self.metrics_storage.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
+        worker_startup_metrics_keys = await self.metadata_storage.keys(f"{MetadataStorage.WORKER_STARTUP_PREFIX}*")
         same_workflow_same_planner_type_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
-        generic_metrics_values = await self.metrics_storage.mget(generic_metrics_keys)
+        generic_metrics_values = await self.metadata_storage.mget(generic_metrics_keys)
         for key, metrics in zip(generic_metrics_keys, generic_metrics_values): # type: ignore
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
@@ -78,7 +78,7 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-        worker_startup_metrics: list[WorkerStartupMetrics] = await self.metrics_storage.mget(worker_startup_metrics_keys) # type: ignore
+        worker_startup_metrics: list[WorkerStartupMetrics] = await self.metadata_storage.mget(worker_startup_metrics_keys) # type: ignore
         for wsm in worker_startup_metrics:
             if wsm.end_time_ms is None: continue
             if wsm.state == "cold": self.cached_worker_cold_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
@@ -437,7 +437,7 @@ class PredictionsProvider:
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """
-        task_id = task_id.removeprefix(MetricsStorage.TASK_METRICS_KEY_PREFIX)
+        task_id = task_id.removeprefix(MetadataStorage.TASK_MD_KEY_PREFIX)
         splits = task_id.split("+", maxsplit=1)
         function_name = splits[0]
         splits_2 = splits[1].split("+", maxsplit=1)

@@ -41,7 +41,7 @@ class _CachedResultWrapper:
 class DAGTaskNode:
 
     def __init__(self, func: Callable, args: tuple, kwargs: dict):
-        from src.storage.metrics.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
+        from src.storage.metadata.metrics_types import TaskMetrics, TaskInputMetrics, TaskOutputMetrics
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.id: DAGTaskNodeId = DAGTaskNodeId(func.__name__)
         self.func_name = func.__name__

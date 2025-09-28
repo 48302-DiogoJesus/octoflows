@@ -44,7 +44,7 @@ class DockerWorker(Worker):
         Each invocation is done inside a new Coroutine without blocking the owner Thread
         All HTTP requests are executed in parallel, and the function only returns once all requests are completed
         '''
-        from src.storage.metrics.metrics_types import WorkerStartupMetrics
+        from src.storage.metadata.metrics_types import WorkerStartupMetrics
         if len(subdags) == 0: 
             raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
         
@@ -76,18 +76,17 @@ class DockerWorker(Worker):
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
             gateway_address = self.docker_config.internal_docker_gateway_address if called_by_worker and not self.is_docker_host_linux else self.docker_config.external_docker_gateway_address
             logger.info(f"Invoking docker gateway ({gateway_address}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
-            if self.metrics_storage:
-                await self.metrics_storage.store_invoker_worker_startup_metrics(
-                    WorkerStartupMetrics(
-                        master_dag_id=_worker_subdags[0].master_dag_id,
-                        start_time_ms=time.time() * 1000,
-                        resource_configuration=targetWorkerResourcesConfig,
-                        state=None,
-                        end_time_ms=None,
-                        initial_task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
-                    ),
-                    task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
-                )
+            await self.metadata_storage.store_invoker_worker_startup_metrics(
+                WorkerStartupMetrics(
+                    master_dag_id=_worker_subdags[0].master_dag_id,
+                    start_time_ms=time.time() * 1000,
+                    resource_configuration=targetWorkerResourcesConfig,
+                    state=None,
+                    end_time_ms=None,
+                    initial_task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
+                ),
+                task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
+            )
             # encoded_fulldag = base64.b64encode(zlib.compress(cloudpickle.dumps(fulldag), level=6)).decode('utf-8')
             # fulldag_size = calculate_data_structure_size_bytes(encoded_fulldag)
             # fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES

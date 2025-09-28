@@ -19,10 +19,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
+from src.storage.metadata.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
-from src.storage.metrics.metrics_storage import MetricsStorage
+from src.storage.metadata.metadata_storage import MetadataStorage
 
 # Redis connection setup
 def get_redis_connection(port: int = 6379):
@@ -68,16 +68,27 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
     
     try:
         # Get all DAG keys
-        dag_keys = [key for key in dag_redis.keys() if key.decode('utf-8').startswith(DAG_PREFIX)]
-        
-        for dag_key in dag_keys:
+        def scan_keys(conn, pattern: str):
+            """Efficiently scan Redis keys matching pattern."""
+            cursor = 0
+            keys = []
+            while True:
+                cursor, batch = conn.scan(cursor=cursor, match=pattern, count=1000)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
+            return keys
+
+        # Scan DAG keys instead of using keys()
+        all_dag_keys = scan_keys(dag_redis, f"{DAG_PREFIX}*")
+        for dag_key in all_dag_keys:
             try:
                 # Get DAG data
                 dag_data = dag_redis.get(dag_key)
                 dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
                 
                 # Get DAG submission metrics
-                dag_metrics_data = metrics_redis.get(f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
+                dag_metrics_data = metrics_redis.get(f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}")
                 if not dag_metrics_data:
                     continue
                     
@@ -85,7 +96,7 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
                 
                 # Get planner type from PlanOutput.planner_name
                 planner_type = "unknown"
-                plan_data = metrics_redis.get(f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
+                plan_data = metrics_redis.get(f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}")
                 if plan_data:
                     try:
                         plan_output = cloudpickle.loads(plan_data)  # type: ignore
@@ -204,7 +215,7 @@ def main():
     dag = selected_dag_info.dag
     dag_submission_metrics = selected_dag_info.dag_submission_metrics
 
-    worker_startup_keys = metrics_redis.keys(f"{MetricsStorage.WORKER_STARTUP_PREFIX}*")
+    worker_startup_keys = metrics_redis.keys(f"{MetadataStorage.WORKER_STARTUP_PREFIX}*")
     worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis.get(key)) for key in worker_startup_keys] # type: ignore
     total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
 
@@ -221,7 +232,7 @@ def main():
 
     _sink_task_metrics = None
     for task_id in dag._all_nodes.keys():
-        metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
+        metrics_key = f"{MetadataStorage.TASK_MD_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
         metrics_data = metrics_redis.get(metrics_key)
         if not metrics_data: raise Exception(f"Could not find metrics for key: {metrics_key}")
         metrics: TaskMetrics = cloudpickle.loads(metrics_data) # type: ignore
@@ -267,7 +278,7 @@ def main():
     sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
     makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_time_ms
 
-    keys = metrics_redis.keys(f'{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*')
+    keys = metrics_redis.keys(f'{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*')
     total_time_downloading_dag_ms = 0
     dag_prepare_metrics = []
     for key in keys:
@@ -330,10 +341,10 @@ def main():
     dag_start_timestamp_s = dag_submission_metrics.dag_submission_time_ms / 1000
 
     # Second pass: calculate end times relative to min_start_time
-    for task_id, metrics in zip(dag._all_nodes.keys(), dag_metrics):
+    for task_id, _metrics in zip(dag._all_nodes.keys(), dag_metrics):
         # worker startup time is considered through the {metrics.started_at_timestamp_s}
-        relative_start_time_ms = (metrics.started_at_timestamp_s - dag_start_timestamp_s) * 1000  # Convert to ms
-        end_time = relative_start_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
+        relative_start_time_ms = (_metrics.started_at_timestamp_s - dag_start_timestamp_s) * 1000  # Convert to ms
+        end_time = relative_start_time_ms + (_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (_metrics.tp_execution_time_ms or 0) + (_metrics.output_metrics.tp_time_ms or 0) + (_metrics.total_invocation_time_ms or 0)
 
         task_timings[task_id] = {
             'start_time': relative_start_time_ms,
@@ -388,7 +399,7 @@ def main():
             # Get planned critical path if available
             planned_critical_edges = set()
             try:
-                plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+                plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data = metrics_redis.get(plan_key)
                 if plan_data:
                     # Ensure we have bytes before attempting to deserialize
@@ -487,7 +498,7 @@ def main():
         if hasattr(st.session_state, 'selected_task_id'):
             task_node = dag._all_nodes[st.session_state.selected_task_id]
             # Try to find metrics for this task
-            metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{st.session_state.selected_task_id}+{dag.master_dag_id}"
+            metrics_key = f"{MetadataStorage.TASK_MD_KEY_PREFIX}{st.session_state.selected_task_id}+{dag.master_dag_id}"
             metrics_data = metrics_redis.get(metrics_key)
             if not metrics_data: raise Exception(f"Metrics not found for key {metrics_key}")
             metrics = cloudpickle.loads(metrics_data) # type: ignore
@@ -538,7 +549,7 @@ def main():
         with planned_vs_observed_col:
             # Add planned vs observed metrics if available
             st.subheader("Planned vs Observed Metrics")
-            plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+            plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
             plan_data = metrics_redis.get(plan_key)
 
             if metrics and task_node:
@@ -710,7 +721,7 @@ def main():
         
         # DAG Summary Stats in columns
         # Calculate predicted makespan
-        plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+        plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
         plan_data = metrics_redis.get(plan_key)
         plan_output: AbstractDAGPlanner.PlanOutput | None = None
         if plan_data:
@@ -1011,7 +1022,7 @@ def main():
 
             # Calculate total times across all critical path tasks
             for task_id in critical_nodes:
-                metrics_key = f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
+                metrics_key = f"{MetadataStorage.TASK_MD_KEY_PREFIX}{task_id}+{dag.master_dag_id}"
                 metrics_data = metrics_redis.get(metrics_key)
                 if not metrics_data:
                     continue

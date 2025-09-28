@@ -10,7 +10,7 @@ from src.task_worker_resource_configuration import TaskWorkerResourceConfigurati
 from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
 from src.storage.storage import Storage
 from src.utils.coroutine_tags import COROTAG_PRELOAD
-from src.storage.metrics.metrics_types import TaskInputDownloadMetrics
+from src.storage.metadata.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size_bytes
 from src.utils.timer import Timer

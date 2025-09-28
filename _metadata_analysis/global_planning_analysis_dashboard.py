@@ -12,14 +12,13 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.storage.metrics.metrics_types import TaskMetrics, UserDAGSubmissionMetrics
+from src.storage.metadata.metadata_storage import MetadataStorage
+from src.storage.metadata.metrics_types import TaskMetrics, UserDAGSubmissionMetrics
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.prefixes import DAG_PREFIX
-from src.storage.metrics.metrics_storage import MetricsStorage
 from src.dag.dag import FullDAG
-from src.storage.metrics.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics
+from src.storage.metadata.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics, DAGResourceUsageMetrics
 from src.utils.timer import Timer
-from src.storage.metrics.metrics_types import DAGResourceUsageMetrics
 
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
@@ -54,7 +53,7 @@ class WorkflowInfo:
     instances: List[WorkflowInstanceInfo]
 
 
-def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
+def get_workflows_information(intermediate_storage_conn: redis.Redis, metadata_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {}
     worker_startup_metrics: List[WorkerStartupMetrics] = []
 
@@ -81,36 +80,36 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
 
                 # Plan output
-                plan_key = f"{MetricsStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
-                plan_data: Any = metrics_storage_conn.get(plan_key)
+                plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
+                plan_data: Any = metadata_storage_conn.get(plan_key)
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
 
                 # DAG download stats
-                download_keys_pattern = f"{MetricsStorage.DAG_METRICS_KEY_PREFIX}{dag.master_dag_id}*"
-                download_keys = scan_keys(metrics_storage_conn, download_keys_pattern)
-                download_data: Any = metrics_storage_conn.mget(download_keys) if download_keys else []
+                download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
+                download_keys = scan_keys(metadata_storage_conn, download_keys_pattern)
+                download_data: Any = metadata_storage_conn.mget(download_keys) if download_keys else []
                 dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(d) for d in download_data]
 
                 # Tasks data
                 task_keys = [
-                    f"{MetricsStorage.TASK_METRICS_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}"
+                    f"{MetadataStorage.TASK_MD_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}"
                     for t in dag._all_nodes.values()
                 ]
-                tasks_data: Any = metrics_storage_conn.mget(task_keys) if task_keys else []
+                tasks_data: Any = metadata_storage_conn.mget(task_keys) if task_keys else []
                 tasks: List[WorkflowInstanceTaskInfo] = [
                     WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(td))
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
 
                 # DAG submission metrics
-                submission_key = f"{MetricsStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
-                submission_data: Any = metrics_storage_conn.get(submission_key)
+                submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
+                submission_data: Any = metadata_storage_conn.get(submission_key)
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
 
                 # Worker startup metrics
-                worker_keys_pattern = f"{MetricsStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
-                worker_keys = scan_keys(metrics_storage_conn, worker_keys_pattern)
-                worker_data: Any = metrics_storage_conn.mget(worker_keys)
+                worker_keys_pattern = f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
+                worker_keys = scan_keys(metadata_storage_conn, worker_keys_pattern)
+                worker_data: Any = metadata_storage_conn.mget(worker_keys)
                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
                 worker_startup_metrics.extend(this_workflow_wsm)
                 total_worker_startup_time_ms = sum(
@@ -119,8 +118,8 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metrics_st
                 total_workers = len(this_workflow_wsm)
 
                 # Resource usage metrics
-                resource_usage_key = f"{MetricsStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
-                resource_usage_data: Any = metrics_storage_conn.get(resource_usage_key)
+                resource_usage_key = f"{MetadataStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
+                resource_usage_data: Any = metadata_storage_conn.get(resource_usage_key)
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
 
                 # Update workflow_types dict
@@ -188,12 +187,12 @@ def main():
     
     # Connect to both Redis instances
     intermediate_storage_conn = get_redis_connection(6379)
-    metrics_storage_conn = get_redis_connection(6380)
+    metadata_storage_conn = get_redis_connection(6380)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
         timer = Timer()
-        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metrics_storage_conn)
+        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metadata_storage_conn)
         print(f"Time to load workflow information: {(timer.stop() / 1_000):.2f} s")
     
     workflow_types = st.session_state.workflow_types

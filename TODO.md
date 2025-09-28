@@ -1,10 +1,7 @@
-- Montage is failing on wukong-opt
-
-- Confirm wukong optimizations are being applied
-    - Now getting "killed" error: maybe wukong is executing too many tasks in parallel (N coroutines)
-    - Check workflow dashboard to see if workers were reused on fan-outs with BIG OUTPUT
-    - Find a way to know where/how many task clusterings and delayed I/Os happened
-        possible just from looking at worker ids at the end?
+- Remove `metadata_storage`
+    rename metrics storage to metadata_storage
+    ensure that the "dag-" keys are being stored on metrics storage
+    update dashboards to ONLY use metadata storage to get "dag-" keys
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network

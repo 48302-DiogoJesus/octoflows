@@ -17,7 +17,7 @@ LOCK_FILE = os.path.join(tempfile.gettempdir(), "script.lock")
 from src.utils.coroutine_tags import COROTAG_DUP
 from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
-from src.storage.metrics.metrics_types import FullDAGPrepareTime
+from src.storage.metadata.metrics_types import FullDAGPrepareTime
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.utils.logger import create_logger
@@ -90,13 +90,12 @@ async def main():
         tmp_dir = tempfile.gettempdir()
         filepath = os.path.join(tmp_dir, "worker_startup.atomic")
         is_warm_start = create_if_not_exists(filepath)
-        if wk.metrics_storage:
-            await wk.metrics_storage.update_invoked_worker_startup_metrics(
-                end_time_ms=time.time() * 1000,
-                worker_state="warm" if is_warm_start else "cold",
-                task_ids=[id.get_full_id() for id in immediate_task_ids],
-                master_dag_id=dag_id
-            )
+        await wk.metadata_storage.update_invoked_worker_startup_metrics(
+            end_time_ms=time.time() * 1000,
+            worker_state="warm" if is_warm_start else "cold",
+            task_ids=[id.get_full_id() for id in immediate_task_ids],
+            master_dag_id=dag_id
+        )
 
         this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config.worker_id
         _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
@@ -122,7 +121,7 @@ async def main():
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             async def callback(_: dict, subscription_id: str | None = None):
                 if subscription_id is not None:
-                    await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
+                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
                 asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
@@ -140,7 +139,7 @@ async def main():
             dupping_locks.setdefault(main_task.id.get_full_id(), asyncio.Lock())
             async def callback(_: dict, subscription_id: str | None = None):
                 if subscription_id is not None:
-                    await wk.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}", subscription_id)
+                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}", subscription_id)
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
@@ -166,7 +165,7 @@ async def main():
 
                         # get REAL (not predicted ES) start time
                         if u_task.id.get_full_id() not in cached_tasks_start_time:
-                            task_started_timestamp: float | None = await wk.metadata_storage.get(f"{DUPPABLE_TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
+                            task_started_timestamp: float | None = await wk.metadata_storage.storage.get(f"{DUPPABLE_TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
                             # if the task didn't start yet, assume it would start NOW (best case scenario)
                             cached_tasks_start_time[u_task.id.get_full_id()] = float(task_started_timestamp) if task_started_timestamp else time.time()
                         real_task_start_time_ts_s = cached_tasks_start_time[u_task.id.get_full_id()]
@@ -203,11 +202,11 @@ async def main():
                 if all(n.worker_config.worker_id == this_worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
+                await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
 
                 upstream_dependencies = [utask.id.get_full_id_in_dag(fulldag) for utask in task.upstream_nodes]
                 if len(upstream_dependencies) > 0:
-                    dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                    dependencies_satisfied = await wk.metadata_storage.storage.exists(*upstream_dependencies)
                     if dependencies_satisfied == len(upstream_dependencies):
                         await _on_task_ready_callback_builder(task.id)({})
                 # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
@@ -215,11 +214,11 @@ async def main():
                 has_duppable_upstream_tasks = any(n.try_get_optimization(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
-                        await wk.metadata_storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
+                        await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
 
                         upstream_dependencies = [uutask.id.get_full_id_in_dag(fulldag) for uutask in utask.upstream_nodes]
                         if len(upstream_dependencies) > 0:
-                            dependencies_satisfied = await wk.metadata_storage.exists(*upstream_dependencies)
+                            dependencies_satisfied = await wk.metadata_storage.storage.exists(*upstream_dependencies)
                             if dependencies_satisfied == len(upstream_dependencies): 
                                 await _on_task_dup_callback_builder(utask, task)({})
 
@@ -273,16 +272,14 @@ async def main():
                 await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)
             
         #* 7) Upload metrics collected during task execution
-        if wk.metrics_storage:
-            wk.metrics_storage.store_dag_download_time(
-                fulldag.master_dag_id,
-                FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
-            )
-            await wk.metrics_storage.flush()
+        wk.metadata_storage.store_dag_download_time(
+            fulldag.master_dag_id,
+            FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
+        )
+        await wk.metadata_storage.flush()
 
 
-        if wk.metrics_storage:
-            await wk.metrics_storage.close_connection()
+        await wk.metadata_storage.close_connection()
         
         if wk.intermediate_storage:
             await wk.intermediate_storage.close_connection()

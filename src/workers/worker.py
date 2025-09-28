@@ -8,16 +8,16 @@ from abc import ABC, abstractmethod
 
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
-from src.storage.metrics.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
+from src.storage.metadata.metrics_types import TaskInputDownloadMetrics, TaskOutputMetrics
 from src.utils.timer import Timer
 from src.utils.utils import calculate_data_structure_size_bytes
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
-from src.storage.metrics import metrics_storage
 from src.utils.logger import create_logger
 import src.dag.dag as dag
 import src.dag_task_node as dag_task_node
 import src.storage.storage as storage_module
 from src.storage.prefixes import DAG_PREFIX
+from src.storage.metadata.metadata_storage import MetadataStorage
 from src.utils.errors import CancelCurrentWorkerLoopException
 
 logger = create_logger(__name__)
@@ -32,8 +32,7 @@ class Worker(ABC):
     class Config(ABC):
         planner_config: AbstractDAGPlanner.BaseConfig
         intermediate_storage_config: storage_module.Storage.Config
-        metadata_storage_config: storage_module.Storage.Config | None = None
-        metrics_storage_config: metrics_storage.MetricsStorage.Config | None = None
+        metadata_storage_config: MetadataStorage.Config
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass
@@ -42,8 +41,7 @@ class Worker(ABC):
 
     def __init__(self, config: Config):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
-        self.metadata_storage = self.intermediate_storage if not config.metadata_storage_config else config.metadata_storage_config.create_instance()
-        self.metrics_storage = config.metrics_storage_config.create_instance() if config.metrics_storage_config else None
+        self.metadata_storage = config.metadata_storage_config.create_instance()
         self.planner = config.planner_config.create_instance()
 
     async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG, my_worker_id: str, is_dupping: bool = False) -> None:
@@ -174,7 +172,7 @@ class Worker(ABC):
                 else:
                     self.log(current_task.id.get_full_id(), f"Won't upload output")
                 
-                await self.metadata_storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+                await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
@@ -229,9 +227,8 @@ class Worker(ABC):
             self.log(current_task.id.get_full_id(), f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
             await asyncio.gather(*other_coroutines_i_launched)
 
-        if self.metrics_storage:
-            for task_executed in tasks_executed_by_this_coroutine: 
-                self.metrics_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
+        for task_executed in tasks_executed_by_this_coroutine: 
+            self.metadata_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print

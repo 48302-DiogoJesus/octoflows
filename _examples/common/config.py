@@ -5,7 +5,7 @@ from src.planning.optimizations.wukong_optimizations import WukongOptimizations
 from src.planning.sla import Percentile, SLA
 from src.storage.redis_storage import RedisStorage
 from src.workers.docker_worker import DockerWorker
-from src.storage.metrics.metrics_storage import MetricsStorage
+from src.storage.metadata.metadata_storage import MetadataStorage
 from src.planning.uniform_planner import UniformPlanner
 from src.planning.non_uniform_planner import NonUniformPlanner
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -91,7 +91,7 @@ _REDIS_INTERMEDIATE_STORAGE_CONFIG = RedisStorage.Config(
     password="redisdevpwd123"
 )
 
-_REDIS_METRICS_STORAGE_CONFIG = RedisStorage.Config(
+_REDIS_METADATA_STORAGE_CONFIG = RedisStorage.Config(
     host="localhost",
     port=6380,
     password="redisdevpwd123"
@@ -101,6 +101,6 @@ _REDIS_METRICS_STORAGE_CONFIG = RedisStorage.Config(
 WORKER_CONFIG = DockerWorker.Config(
     external_docker_gateway_address="http://localhost:5000",
     intermediate_storage_config=_REDIS_INTERMEDIATE_STORAGE_CONFIG,
-    metrics_storage_config=MetricsStorage.Config(storage_config=_REDIS_METRICS_STORAGE_CONFIG),
+    metadata_storage_config=MetadataStorage.Config(storage_config=_REDIS_METADATA_STORAGE_CONFIG),
     planner_config=get_planner_from_sys_argv()
 )

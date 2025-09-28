@@ -74,29 +74,27 @@ class FullDAG(GenericDAG):
         from src.workers.worker import Worker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.predictions.predictions_provider import PredictionsProvider
-        from src.storage.metrics.metrics_types import UserDAGSubmissionMetrics
+        from src.storage.metadata.metrics_types import UserDAGSubmissionMetrics
         from sys import platform
         
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
         self.dag_name = dag_name
 
-        if wk.metrics_storage:
-            #! Currently, the docker handlers needs to be running locally
-            DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
+        #! Currently, the docker handlers needs to be running locally
+        DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
 
         if wk.planner:
-            if not wk.metrics_storage: raise Exception("You specified a Planner but not MetricsStorage!")
-            predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metrics_storage)
+            predictions_provider = PredictionsProvider(len(self._all_nodes), self.master_dag_structure_hash, wk.metadata_storage)
             planner_name = wk.planner.planner_name
             await predictions_provider.load_metrics_from_storage(planner_name=planner_name)
             logger.info(f"[PLANNING] Planner Selected: {planner_name}")
             plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result:
-                wk.metrics_storage.store_plan(self.master_dag_id, plan_result)
+                wk.metadata_storage.store_plan(self.master_dag_id, plan_result)
 
         # ! Need to STORE after PLANNING because after the full dag is stored on redis, workers might use that!
-        _ = await Worker.store_full_dag(wk.metadata_storage, self)
+        _ = await Worker.store_full_dag(wk.metadata_storage.storage, self)
 
         if open_dashboard and platform != "linux":
             if isinstance(_wk_config.intermediate_storage_config, InMemoryStorage.Config):
@@ -106,22 +104,21 @@ class FullDAG(GenericDAG):
         _start_time = Timer()
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
-        if wk.metrics_storage: wk.metrics_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
+        wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(
-            wk.metadata_storage,
+            wk.metadata_storage.storage,
             wk.intermediate_storage,
             self.sink_node,
             self
         )
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
 
-        if wk.metrics_storage:
-            metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
-            wk.metrics_storage.store_dag_resource_usage_metrics(metrics)
+        metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
+        wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
 
-        if wk.metrics_storage: await wk.metrics_storage.flush()
+        await wk.metadata_storage.flush()
 
         return res
 
