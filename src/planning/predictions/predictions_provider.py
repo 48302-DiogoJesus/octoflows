@@ -1,6 +1,7 @@
 import math
 from typing import Literal
 import numpy as np
+import cloudpickle
 
 from src.planning.sla import SLA
 from src.storage.metadata.metadata_storage import BASELINE_MEMORY_MB, MetadataStorage
@@ -39,17 +40,16 @@ class PredictionsProvider:
         self.metadata_storage = metadata_storage
 
     async def load_metrics_from_storage(self, planner_name: str):
-        from src.planning.abstract_dag_planner import AbstractDAGPlanner
-
         timer = Timer()
-        generic_metrics_keys = await self.metadata_storage.keys(f"{MetadataStorage.TASK_MD_KEY_PREFIX}*")
+        generic_metrics_keys = await self.metadata_storage.storage.keys(f"{MetadataStorage.TASK_MD_KEY_PREFIX}*")
         if not generic_metrics_keys: return # No metrics found
-        worker_startup_metrics_keys = await self.metadata_storage.keys(f"{MetadataStorage.WORKER_STARTUP_PREFIX}*")
+        worker_startup_metrics_keys = await self.metadata_storage.storage.keys(f"{MetadataStorage.WORKER_STARTUP_PREFIX}*")
         same_workflow_same_planner_type_metrics: dict[str, TaskMetrics] = {}
 
         # Goes to redis
-        generic_metrics_values = await self.metadata_storage.mget(generic_metrics_keys)
+        generic_metrics_values = await self.metadata_storage.storage.mget(generic_metrics_keys)
         for key, metrics in zip(generic_metrics_keys, generic_metrics_values): # type: ignore
+            metrics = cloudpickle.loads(metrics)
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
             if self.dag_structure_hash in task_id:
@@ -78,8 +78,10 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-        worker_startup_metrics: list[WorkerStartupMetrics] = await self.metadata_storage.mget(worker_startup_metrics_keys) # type: ignore
+        worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys) # type: ignore
         for wsm in worker_startup_metrics:
+            wsm = cloudpickle.loads(wsm)
+            if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
             if wsm.end_time_ms is None: continue
             if wsm.state == "cold": self.cached_worker_cold_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))

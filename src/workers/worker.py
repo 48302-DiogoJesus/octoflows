@@ -254,7 +254,7 @@ class Worker(ABC):
         await metadata_storage.set(f"{DAG_PREFIX}{dag.master_dag_id}", cloudpickle.dumps(dag))
 
     async def get_full_dag(self, dag_id: str) -> tuple[int, dag.FullDAG]:
-        serialized_dag = await self.metadata_storage.get(f"{DAG_PREFIX}{dag_id}")
+        serialized_dag = await self.metadata_storage.storage.get(f"{DAG_PREFIX}{dag_id}")
         if serialized_dag is None: raise Exception(f"Could not find DAG with id {dag_id}")
         deserialized_dag = cloudpickle.loads(serialized_dag)
         if not isinstance(deserialized_dag, dag.FullDAG): raise Exception("Error: fulldag is not a DAG instance")

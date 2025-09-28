@@ -96,7 +96,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
             #   Else return all tasks with deps - 1 to execute locally
             downstream_tasks_ready: list[DAGTaskNode] = []
             for downstream_task in current_task.downstream_nodes:
-                dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                dependencies_met = await _this_worker.metadata_storage.storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                 dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
                 
                 logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Task {downstream_task.id.get_full_id()} Dependencies met: {dependencies_met}/{len(downstream_task.upstream_nodes)}")
@@ -115,7 +115,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 updating_dependency_counters_timer = Timer()
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
-                    deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    deps = await _this_worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     logger.info(f"[WUKONG_DBG] TCI UDC W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                     # need to recheck, otherwise, another worker would see 8/10 and NOT execute. No one would execute the task
                     if deps == len(downstream_task.upstream_nodes):
@@ -154,7 +154,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 updating_dependency_counters_timer = Timer()
                 # update DCs of ALL my downstream
                 for downstream_task in current_task.downstream_nodes:
-                    deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                    deps = await _this_worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     logger.info(f"[WUKONG_DBG] TCI W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                 current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 
@@ -164,7 +164,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         # ignore if task was already READY
                         continue
                     if len(dtask.upstream_nodes) > 1:
-                        dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
+                        dependencies_met = await _this_worker.metadata_storage.storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
                         dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
                         logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) TCI | Task {dtask.id.get_full_id()} dependencies met: {dependencies_met}/{len(dtask.upstream_nodes)}")
                         if dependencies_met == len(dtask.upstream_nodes):
@@ -200,7 +200,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                         task_in_ready_list = any([_dtask.id.get_full_id() == dtready.id.get_full_id() for dtready in downstream_tasks_ready])
                         # Check if a task that wasn't ready nor completed became ready while executing this task
                         if not task_in_completed_list and not task_in_ready_list:
-                            dependencies_met = await _this_worker.metadata_storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}")
+                            dependencies_met = await _this_worker.metadata_storage.storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{_dtask.id.get_full_id_in_dag(subdag)}")
                             dependencies_met = 0 if dependencies_met is None else int(dependencies_met)
                             if dependencies_met == len(_dtask.upstream_nodes):
                                 logger.info(f"[WUKONG_DBG] W({this_worker.my_worker_id}) Delayed IO | Task {_dtask.id.get_full_id()} became ready while executing other task ({current_task.id.get_full_id()})")
@@ -218,7 +218,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     updating_dependency_counters_timer = Timer()
                     # update DCs of ALL my downstream
                     for downstream_task in current_task.downstream_nodes:
-                        deps = await _this_worker.metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+                        deps = await _this_worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                         logger.info(f"[WUKONG_DBG] DIO W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
                     current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
 

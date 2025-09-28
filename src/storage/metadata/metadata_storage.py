@@ -34,17 +34,6 @@ class MetadataStorage():
         self.storage = storage_config.create_instance()
         self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime | AbstractDAGPlanner.PlanOutput | WorkerStartupMetrics | UserDAGSubmissionMetrics] = {}
 
-    async def keys(self, pattern: str) -> list:
-        return await self.storage.keys(pattern)
-
-    async def get(self, key: str) -> TaskMetrics | FullDAGPrepareTime | None:
-        data = await self.storage.get(key)
-        if not data: return None
-        return cloudpickle.loads(data)
-    
-    async def mget(self, keys: list[str]) -> list[TaskMetrics | FullDAGPrepareTime]:
-        return [cloudpickle.loads(m) for m in await self.storage.mget(keys)]
-
     def store_dag_submission_time(self, master_dag_id: str, user_dag_submission_metrics: UserDAGSubmissionMetrics):
         self.cached_metrics[f"{self.USER_DAG_SUBMISSION_PREFIX}{master_dag_id}"] = user_dag_submission_metrics
 

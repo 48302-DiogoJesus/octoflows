@@ -49,6 +49,9 @@ class WorkerExecutionLogic(ABC):
     async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
         from src.dag_task_node import DAGTaskNode
         from src.storage.events import TASK_READY_EVENT_PREFIX
+        from src.storage.metadata.metadata_storage import MetadataStorage
+
+        _metadata_storage: MetadataStorage = metadata_storage
 
         downstream_tasks_ready: list[DAGTaskNode] = []
         downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == this_worker.my_resource_configuration.worker_id)]
@@ -59,15 +62,15 @@ class WorkerExecutionLogic(ABC):
                 downstream_tasks_ready.append(downstream_task)
                 continue
 
-            dependencies_met = await metadata_storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+            dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
             this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
                 if this_worker.my_resource_configuration.worker_id is not None and this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
-                    await this_worker.metadata_storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+                    await _metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
-                receivers = await this_worker.metadata_storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
+                receivers = await _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
                 this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
                 
                 downstream_tasks_ready.append(downstream_task)
