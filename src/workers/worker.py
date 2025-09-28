@@ -28,21 +28,25 @@ class TaskOutputNotAvailableException(Exception):
         super().__init__(message)
 
 class Worker(ABC):
+
     @dataclass
     class Config(ABC):
         planner_config: AbstractDAGPlanner.BaseConfig
         intermediate_storage_config: storage_module.Storage.Config
         metadata_storage_config: MetadataStorage.Config
+        optimized_dag: str | None = None
 
         @abstractmethod
         def create_instance(self) -> "Worker": pass
 
     intermediate_storage: storage_module.Storage
+    config: Config
 
     def __init__(self, config: Config):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
         self.metadata_storage = config.metadata_storage_config.create_instance()
         self.planner = config.planner_config.create_instance()
+        self.config = config
 
     async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG, my_worker_id: str, is_dupping: bool = False) -> None:
         """
@@ -84,7 +88,6 @@ class Worker(ABC):
 
                 # Always fetch hardcoded inputs that are not present locally
                 for node in subdag._all_nodes.values():
-                    # 1️⃣ Collect all unique storage IDs to fetch
                     storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) }
                     storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) }
                     if not storage_ids: continue
@@ -106,7 +109,6 @@ class Worker(ABC):
 
                     node.func_args = tuple(new_func_args)
                     node.func_kwargs = new_func_kwargs
-
 
                 _download_dependencies_timer = Timer()
 

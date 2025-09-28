@@ -69,7 +69,7 @@ class HardcodedDependencyId:
 
 
 class FullDAG(GenericDAG):
-    UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES = 5 * 1024 * 1024 # 5 MB (most providers support up to 10MB invocation payload size)
+    UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES = 2 * 1024 * 1024 # 2 MB
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode):
         self.sink_node = sink_node.clone() # clone all nodes behind the sink node
@@ -80,7 +80,7 @@ class FullDAG(GenericDAG):
         self.master_dag_id = f"{(time.time() * 1000):.0f}.{sink_node.func_name}.{str(uuid.uuid4())}.{self.master_dag_structure_hash}" # type: ignore
 
         self._hardcoded_data_ids: dict[int, tuple[HardcodedDependencyId, Any]] = {} # obj_id -> (HardcodedDependencyId, obj_data)
-        self._optimize_task_metadata()
+        self._optimize_dag()
 
     async def _upload_hardcoded_data(self, intermediate_storage):
         from src.storage.storage import Storage
@@ -93,6 +93,7 @@ class FullDAG(GenericDAG):
                 if isinstance(arg, HardcodedDependencyId):
                     if arg.storage_id not in scheduled_to_be_uploaded:
                         scheduled_to_be_uploaded.add(arg.storage_id)
+                        logger.info(f"Uploading arg hardcoded data: {arg.storage_id}")
                         tasks.append(
                             _intermediate_storage.set(
                             arg.storage_id,
@@ -103,6 +104,7 @@ class FullDAG(GenericDAG):
                 if isinstance(arg, HardcodedDependencyId):
                     if arg.storage_id not in scheduled_to_be_uploaded:
                         scheduled_to_be_uploaded.add(arg.storage_id)
+                        logger.info(f"Uploading kwarg hardcoded data: {arg.storage_id}")
                         tasks.append(
                             _intermediate_storage.set(
                                 arg.storage_id,
@@ -122,9 +124,12 @@ class FullDAG(GenericDAG):
         from src.planning.predictions.predictions_provider import PredictionsProvider
         from src.storage.metadata.metrics_types import UserDAGSubmissionMetrics
         from sys import platform
+        import base64
+        import zlib
         
         _wk_config: Worker.Config = config
         wk: Worker = _wk_config.create_instance()
+        
         self.dag_name = dag_name
 
         await self._upload_hardcoded_data(wk.intermediate_storage)
@@ -141,7 +146,10 @@ class FullDAG(GenericDAG):
             if plan_result:
                 wk.metadata_storage.store_plan(self.master_dag_id, plan_result)
 
-        # ! Need to STORE after PLANNING because after the full dag is stored on redis, workers might use that!
+        # Workers might need to download it from storage, IF size if above a threshold
+        # We could avoid uploading if size is below, but it's used for later analysis
+        # needs to happen after planning so that tasks have workers assigned to them
+        wk.config.optimized_dag = base64.b64encode(zlib.compress(cloudpickle.dumps(self), level=6)).decode('utf-8')
         _ = await Worker.store_full_dag(wk.metadata_storage.storage, self)
 
         if open_dashboard and platform != "linux":
@@ -181,7 +189,7 @@ class FullDAG(GenericDAG):
                 
         return hasher.hexdigest()
 
-    def _optimize_task_metadata(self):
+    def _optimize_dag(self):
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
         for _, node in self._all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
@@ -193,6 +201,8 @@ class FullDAG(GenericDAG):
                     optimized_args.append(arg.id)
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
                     optimized_args.append([item.id for item in arg])
+                elif isinstance(arg, HardcodedDependencyId):
+                    optimized_args.append(arg) # leave it
                 else:
                     if calculate_data_structure_size_bytes(arg) > self.UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES:
                         # Replace hardcoded data by a unique reference to it
@@ -210,6 +220,8 @@ class FullDAG(GenericDAG):
                     optimized_kwargs[key] = value.id
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
                     optimized_kwargs[key] = [item.id for item in value]
+                elif isinstance(value, HardcodedDependencyId):
+                    optimized_kwargs[key] = value # leave it
                 else:
                     if calculate_data_structure_size_bytes(value) > self.UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES:
                         # Replace hardcoded data by a unique reference to it
@@ -222,7 +234,6 @@ class FullDAG(GenericDAG):
 
             node.func_args = tuple(optimized_args)
             node.func_kwargs = optimized_kwargs
-
 
     @staticmethod
     def _find_all_nodes_and_root_nodes_from_sink(sink_node: dag_task_node.DAGTaskNode) -> tuple[dict[str, dag_task_node.DAGTaskNode], list[dag_task_node.DAGTaskNode]]:

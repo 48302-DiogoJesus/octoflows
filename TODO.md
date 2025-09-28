@@ -1,4 +1,7 @@
-- Uncomment to allow sending DAG structure in the invocation!
+- find a way to send the relevant inputs for the next worker in the invocation request
+    keep adding all the cached results we have for all upstream tasks of all tasks we are delegating
+    stop when goes over 5MB total
+    the worker checks this and fills up its fulldag cached results (after freezing them)
 
 - Look for places with for loops where i await potentially heavy data from storage and parallelize it
 

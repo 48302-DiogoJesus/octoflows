@@ -7,11 +7,13 @@ import time
 import aiohttp
 import cloudpickle
 import os
+import zlib
 
 from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.utils.logger import create_logger
 from src.workers.worker import Worker
+from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__)
 
@@ -20,7 +22,10 @@ class DockerWorker(Worker):
     class Config(Worker.Config):
         external_docker_gateway_address: str = "http://localhost:5000"
         internal_docker_gateway_address: str = "http://host.docker.internal:5000"
-        def create_instance(self) -> "DockerWorker": return DockerWorker(self)
+      
+        def create_instance(self) -> "DockerWorker": 
+            super().create_instance()
+            return DockerWorker(self)
 
     docker_config: Config
 
@@ -32,7 +37,7 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms
-        self.MAX_DAG_SIZE_BYTES = 200 * 1024 # 200KB
+        self.MAX_DAG_SIZE_BYTES = 5 * 1024 * 1024 # 5 MB
         # On linux, docker containers don't have access to host.docker.internal. They can just call localhost, on Windows they have to use host.docker.internal
         self.is_docker_host_linux = os.getenv("HOST_OS") == "linux"
 
@@ -87,9 +92,12 @@ class DockerWorker(Worker):
                 ),
                 task_ids=[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]
             )
-            # encoded_fulldag = base64.b64encode(zlib.compress(cloudpickle.dumps(fulldag), level=6)).decode('utf-8')
-            # fulldag_size = calculate_data_structure_size_bytes(encoded_fulldag)
-            # fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
+
+            fulldag_size_below_threshold = False
+            if self.docker_config.optimized_dag:
+                fulldag_size = calculate_data_structure_size_bytes(self.docker_config.optimized_dag)
+                fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
+            
             async with aiohttp.ClientSession() as session:
                 async with await session.post(
                     gateway_address + "/job",
@@ -97,8 +105,8 @@ class DockerWorker(Worker):
                         "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
                         "dag_id": _worker_subdags[0].master_dag_id,
                         # if dag size is below 200KB, send the dag in the invocation, else, send the ID and the worker has to fetch it from storage
-                        # "fulldag": encoded_fulldag if fulldag_size_below_threshold else None,
-                        "fulldag": None,
+                        "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
+                        # "fulldag": None,
                         "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
                         "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                     }),
