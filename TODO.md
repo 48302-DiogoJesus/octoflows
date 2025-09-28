@@ -1,8 +1,3 @@
-- Remove `metadata_storage`
-    rename metrics storage to metadata_storage
-    ensure that the "dag-" keys are being stored on metrics storage
-    update dashboards to ONLY use metadata storage to get "dag-" keys
-
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network
             how?: total data uploaded + total data downloaded

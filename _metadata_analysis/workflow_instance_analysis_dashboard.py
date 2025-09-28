@@ -59,7 +59,7 @@ class WorkflowInstanceInfo:
     planner_type: str | None
 
 
-def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis) -> Dict[str, Dict[str, List[WorkflowInstanceInfo]]]:
+def get_workflows_information(metrics_redis: redis.Redis) -> Dict[str, Dict[str, List[WorkflowInstanceInfo]]]:
     """
     Get all workflows grouped by workflow type and planner type.
     Returns: Dict[workflow_type, Dict[planner_type, List[WorkflowInstanceInfo]]]
@@ -80,11 +80,11 @@ def get_workflows_information(dag_redis: redis.Redis, metrics_redis: redis.Redis
             return keys
 
         # Scan DAG keys instead of using keys()
-        all_dag_keys = scan_keys(dag_redis, f"{DAG_PREFIX}*")
+        all_dag_keys = scan_keys(metrics_redis, f"{DAG_PREFIX}*")
         for dag_key in all_dag_keys:
             try:
                 # Get DAG data
-                dag_data = dag_redis.get(dag_key)
+                dag_data = metrics_redis.get(dag_key)
                 dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
                 
                 # Get DAG submission metrics
@@ -139,13 +139,12 @@ def main():
     st.title("Workflow Instance Analysis Dashboard")
     
     # Connect to Redis
-    dag_redis = get_redis_connection(6379)
     metrics_redis = get_redis_connection(6380)
     
     # Get all workflows information
     if 'workflows' not in st.session_state:
         with st.spinner('Loading workflow information...'):
-            st.session_state.workflows = get_workflows_information(dag_redis, metrics_redis)
+            st.session_state.workflows = get_workflows_information(metrics_redis)
     
     workflows = st.session_state.workflows
     

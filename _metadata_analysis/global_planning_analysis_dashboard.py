@@ -53,7 +53,7 @@ class WorkflowInfo:
     instances: List[WorkflowInstanceInfo]
 
 
-def get_workflows_information(intermediate_storage_conn: redis.Redis, metadata_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
+def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {}
     worker_startup_metrics: List[WorkerStartupMetrics] = []
 
@@ -70,12 +70,12 @@ def get_workflows_information(intermediate_storage_conn: redis.Redis, metadata_s
 
     try:
         # Scan DAG keys instead of using keys()
-        all_dag_keys = scan_keys(intermediate_storage_conn, f"{DAG_PREFIX}*")
+        all_dag_keys = scan_keys(metadata_storage_conn, f"{DAG_PREFIX}*")
         from typing import Any
 
         for dag_key in all_dag_keys:
             try:
-                dag_data = intermediate_storage_conn.get(dag_key)
+                dag_data = metadata_storage_conn.get(dag_key)
                 if not dag_data: continue
                 dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
 
@@ -186,13 +186,12 @@ def main():
     st.title("Planning Analysis Dashboard")
     
     # Connect to both Redis instances
-    intermediate_storage_conn = get_redis_connection(6379)
     metadata_storage_conn = get_redis_connection(6380)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
         timer = Timer()
-        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(intermediate_storage_conn, metadata_storage_conn)
+        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(metadata_storage_conn)
         print(f"Time to load workflow information: {(timer.stop() / 1_000):.2f} s")
     
     workflow_types = st.session_state.workflow_types
