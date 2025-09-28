@@ -8,6 +8,7 @@ import aiohttp
 import cloudpickle
 import os
 import zlib
+from typing import Any
 
 from src.dag import dag
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -37,7 +38,8 @@ class DockerWorker(Worker):
         super().__init__(config)
         self.docker_config = config
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms
-        self.MAX_DAG_SIZE_BYTES = 5 * 1024 * 1024 # 5 MB
+        self.MAX_DAG_SIZE_BYTES = 300 * 1024 # 300KB
+        self.MAX_DAG_CACHED_RESULTS_BYTES = 250 * 1024 # 250KB
         # On linux, docker containers don't have access to host.docker.internal. They can just call localhost, on Windows they have to use host.docker.internal
         self.is_docker_host_linux = os.getenv("HOST_OS") == "linux"
 
@@ -55,6 +57,19 @@ class DockerWorker(Worker):
         
         subdags.sort(key=lambda sd: sd.root_node.worker_config.worker_id or "", reverse=True)
         
+        relevant_cached_results: dict[str, Any] = {}
+        aggregated_results_size_bytes = 0
+        for subdag in subdags:
+            rn = subdag.root_node
+            # Go through all tasks and add as much results as possible witohut exceeding {MAX_DAG_CACHED_RESULTS_BYTES}
+            for utask in rn.upstream_nodes:
+                if utask.cached_result is None: continue
+                serialized_result = cloudpickle.dumps(utask.cached_result.result)
+                utask_result_size = calculate_data_structure_size_bytes(serialized_result)
+                if aggregated_results_size_bytes + utask_result_size < self.MAX_DAG_CACHED_RESULTS_BYTES:
+                    aggregated_results_size_bytes += utask_result_size
+                    relevant_cached_results[utask.id.get_full_id()] = serialized_result
+                
         # Separate tasks with None worker_id from those with specific worker_ids
         tasks_with_worker_id = []
         tasks_without_worker_id = []
@@ -108,6 +123,7 @@ class DockerWorker(Worker):
                         "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
                         # "fulldag": None,
                         "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
+                        "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'),
                         "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
                     }),
                     headers={'Content-Type': 'application/json'}

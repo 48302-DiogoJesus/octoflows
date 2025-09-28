@@ -30,7 +30,7 @@ app = Flask(__name__)
 thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
 container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
 
-def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str], base64_fulldag: str | None = None):
+def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str], base64_fulldag: str | None = None, base64_relevant_cached_results: str | None = None):
     """
     Process a job asynchronously.
     This function will be run in a separate thread.
@@ -42,9 +42,9 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
     if base64_fulldag is not None:
-        command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids} {base64_fulldag}"
+        command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids} {base64_relevant_cached_results} {base64_fulldag}"
     else:
-        command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids}"
+        command = f"python {DOCKER_WORKER_PYTHON_PATH} {base64_config} {dag_id} {base64_task_ids} {base64_relevant_cached_results}"
         
     logger.info(f"[{get_time_formatted()}] {job_id}) [INFO] Waiting for container for W({worker_id})")
 
@@ -131,8 +131,12 @@ def handle_job():
             logger.error("'config' field is required")
             return jsonify({"error": "'config' field is required"}), 400
         b64_fulldag = data.get('fulldag', None)
+        b64_relevant_cached_results = data.get('relevant_cached_results', None)
+        if b64_relevant_cached_results is None:
+            logger.error("'relevant_cached_results' field is required")
+            return jsonify({"error": "'relevant_cached_results' field is required"}), 400
 
-        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag)
+        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag, b64_relevant_cached_results)
         
         return "", 202 # Immediately return 202 Accepted
 

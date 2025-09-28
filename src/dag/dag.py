@@ -69,7 +69,7 @@ class HardcodedDependencyId:
 
 
 class FullDAG(GenericDAG):
-    UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES = 2 * 1024 * 1024 # 2 MB
+    MAX_HARDCODED_DATA_SIZE_BYTES = 300 * 1024 # 300KB
 
     def __init__(self, sink_node: dag_task_node.DAGTaskNode):
         self.sink_node = sink_node.clone() # clone all nodes behind the sink node
@@ -150,6 +150,7 @@ class FullDAG(GenericDAG):
         # We could avoid uploading if size is below, but it's used for later analysis
         # needs to happen after planning so that tasks have workers assigned to them
         wk.config.optimized_dag = base64.b64encode(zlib.compress(cloudpickle.dumps(self), level=6)).decode('utf-8')
+        logger.info(f"DAG size: {calculate_data_structure_size_bytes(wk.config.optimized_dag) / 1024:.2f} KB")
         _ = await Worker.store_full_dag(wk.metadata_storage.storage, self)
 
         if open_dashboard and platform != "linux":
@@ -190,6 +191,7 @@ class FullDAG(GenericDAG):
         return hasher.hexdigest()
 
     def _optimize_dag(self):
+        budget = self.MAX_HARDCODED_DATA_SIZE_BYTES
         ''' Reduce the {DAGTaskNode} by just their IDs to serve as placeholders for the future data '''
         for _, node in self._all_nodes.items(): # Use list() to create a copy to allow mutations while iterating
             # Optimize memory by replacing {DAGTaskNode} instances with their IDs (Note: Needs to be done after ALL IDs are replaced)
@@ -204,7 +206,8 @@ class FullDAG(GenericDAG):
                 elif isinstance(arg, HardcodedDependencyId):
                     optimized_args.append(arg) # leave it
                 else:
-                    if calculate_data_structure_size_bytes(arg) > self.UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES:
+                    arg_size = calculate_data_structure_size_bytes(cloudpickle.dumps(arg))
+                    if budget - arg_size <= 0: # can't leave any more objects inside the DAG, mark them to be uploaded to storage
                         # Replace hardcoded data by a unique reference to it
                         obj_id = id(arg)
                         if obj_id not in self._hardcoded_data_ids:
@@ -212,6 +215,7 @@ class FullDAG(GenericDAG):
                         optimized_args.append(self._hardcoded_data_ids[obj_id][0])
                     else:
                         optimized_args.append(arg)
+                        budget -= arg_size
             
             # Convert func_kwargs
             optimized_kwargs = {}
@@ -223,13 +227,15 @@ class FullDAG(GenericDAG):
                 elif isinstance(value, HardcodedDependencyId):
                     optimized_kwargs[key] = value # leave it
                 else:
-                    if calculate_data_structure_size_bytes(value) > self.UPLOAD_HARDCODED_DATA_IF_ABOVE_SIZE_BYTES:
+                    arg_size = calculate_data_structure_size_bytes(cloudpickle.dumps(value))
+                    if budget - arg_size <= 0: # can't leave any more objects inside the DAG, mark them to be uploaded to storage
                         # Replace hardcoded data by a unique reference to it
                         obj_id = id(value)
                         if obj_id not in self._hardcoded_data_ids:
                             self._hardcoded_data_ids[obj_id] = (HardcodedDependencyId(self.master_dag_id, obj_id), value)
                         optimized_kwargs[key] = self._hardcoded_data_ids[obj_id][0]
                     else:
+                        budget -= arg_size
                         optimized_kwargs[key] = value
 
             node.func_args = tuple(optimized_args)

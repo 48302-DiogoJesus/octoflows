@@ -8,6 +8,7 @@ import platform
 import tempfile
 import time
 import zlib
+from typing import Any
 # Be at the same level as the ./src directory
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
@@ -19,7 +20,7 @@ from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
 from src.storage.metadata.metrics_types import FullDAGPrepareTime
 from src.utils.timer import Timer
-from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
+from src.dag_task_node import DAGTaskNode, DAGTaskNodeId, _CachedResultWrapper
 from src.utils.logger import create_logger
 from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.utils.utils import calculate_data_structure_size_bytes
@@ -57,16 +58,18 @@ async def main():
         raise e
 
     try:
-        if len(sys.argv) < 4:
-            raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids> <b64_fulldag_optional>")
+        if len(sys.argv) < 5:
+            raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids> <b64_relevant_cached_results> <b64_fulldag_optional>")
 
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
         dag_id = str(sys.argv[2])
         b64_task_ids = str(sys.argv[3])
+        b64_relevant_cached_results = str(sys.argv[4])
+        relevant_cached_results: dict[str, Any] = cloudpickle.loads(base64.b64decode(b64_relevant_cached_results))
         b64_fulldag = None
-        if len(sys.argv) == 5:
-            b64_fulldag = str(sys.argv[4])
+        if len(sys.argv) == 6:
+            b64_fulldag = str(sys.argv[5])
         
         if not isinstance(config, DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
@@ -86,6 +89,11 @@ async def main():
             dag_download_time_ms = dag_download_time_ms.stop()
         
         wk.docker_config.optimized_dag = base64.b64encode(zlib.compress(cloudpickle.dumps(fulldag), level=6)).decode('utf-8')
+        logger.info(f"DAG size: {calculate_data_structure_size_bytes(wk.docker_config.optimized_dag) / 1024:.2f} KB")
+
+        for cached_task_id, cached_result in relevant_cached_results.items():
+            logger.info(f"Setting cached result for {cached_task_id}")
+            fulldag._all_nodes[cached_task_id].cached_result = _CachedResultWrapper(cloudpickle.loads(cached_result))
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
 
