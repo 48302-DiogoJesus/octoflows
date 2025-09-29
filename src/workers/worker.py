@@ -129,12 +129,7 @@ class Worker(ABC):
                             time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
                         )
                     else:
-                        new_func_args.append(arg)
-                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(arg)),
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(arg),
-                            time_ms=None # hardcoded but not large enough to be in storage
-                        )
+                        new_func_args.append(arg) # don't store input_metrics for non hardcoded inputs. that will be done later
 
                 new_func_kwargs = {}
                 for key, arg in current_task.func_kwargs.items():
@@ -147,12 +142,7 @@ class Worker(ABC):
                             time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
                         )
                     else:
-                        new_func_kwargs[key] = arg
-                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(arg)),
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(arg),
-                            time_ms=None # hardcoded but not large enough to be in storage
-                        )
+                        new_func_kwargs[key] = arg # don't store input_metrics for non hardcoded inputs. that will be done later
 
                 current_task.func_args = tuple(new_func_args)
                 current_task.func_kwargs = new_func_kwargs
