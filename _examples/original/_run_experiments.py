@@ -5,16 +5,16 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
+    'montage.py',
     'text_analysis.py',
     'tree_reduction.py',
     'image_transformer.py',
-    # 'gemm.py',
-    # 'montage.py',
+    'gemm.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 2
-ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform']
-# ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform']
+ITERATIONS_PER_ALGORITHM = 5
+# ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform']
+ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 
@@ -90,8 +90,8 @@ def main():
         print(f"{'='*60}")
         
         # First run to get some history (not counted in progress)
-        print(" > [Initial run] Algorithm: uniform | SLA: average | Iteration: -1")
-        run_experiment(script_name, 'uniform', 'average', iteration="-1", current=0, total=0)
+        # print(" > [Initial run] Algorithm: uniform | SLA: average | Iteration: -1")
+        # run_experiment(script_name, 'uniform', 'average', iteration="-1", current=0, total=0)
         
         # Run experiments for each algorithm and SLA combination
         for algorithm in ALGORITHMS:
