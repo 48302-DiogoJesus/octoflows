@@ -261,7 +261,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         logger.info(f"Planner: {self.__class__.__name__} | SLA: {self.config.sla}")
         logger.info(f"Planner Algorithm Description:\n{self.get_description()}")
         plan_result = self.internal_plan(_dag, predictions_provider)
-        if not plan_result: 
+        if not plan_result:
             self.validate_plan(_dag.root_nodes)
             return None # no plan was made
         else:
@@ -375,7 +375,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # 2. Calculate download finish time (considering parallel downloads)
         download_finish_time = 0.0
         for unode in node.upstream_nodes:
-            if unode.worker_config.worker_id == worker_id: 
+            if worker_id is not None and unode.worker_config.worker_id is not None and unode.worker_config.worker_id == worker_id:
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
@@ -401,11 +401,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         serialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=False)
 
         # 5. Calculate upload_time (existing logic is correct)
-        if len(node.downstream_nodes) > 0 and worker_id is not None and \
-            all(dt.worker_config.worker_id == worker_id for dt in node.downstream_nodes):
+        if len(node.downstream_nodes) > 0 and worker_id is not None and not (any(dt.worker_config.worker_id is None for dt in node.downstream_nodes)) and all(dt.worker_config.worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
-            upload_time = predictions_provider.predict_data_transfer_time('upload', deserialized_output_size, resource_config, sla)
+            upload_time = predictions_provider.predict_data_transfer_time('upload', serialized_output_size, resource_config, sla)
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time

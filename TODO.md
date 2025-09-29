@@ -1,7 +1,4 @@
-- Find cause of worker startup times predictions being wrong
-    BUG: 4 workers is predicing almost the same as 16 workers. why??
-    ?? is it because worker_active_periods algorithm is wrong? try fixing it
-    - why is wukong predictions showing 0?? im still running the simulation on it!
+
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network

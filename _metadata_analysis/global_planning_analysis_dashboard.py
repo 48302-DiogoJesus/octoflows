@@ -299,7 +299,7 @@ def main():
                     workers_accounted_for = set()
                     predicted_total_worker_startup_time_s = 0
                     for info in instance.plan.nodes_info.values():
-                        if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                        if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                             predicted_total_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                             workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                 
@@ -755,7 +755,7 @@ def main():
                         workers_accounted_for = set()
                         predicted_worker_startup_time_s = 0
                         for info in instance.plan.nodes_info.values():
-                            if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                            if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                 workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                     
@@ -818,7 +818,7 @@ def main():
                             workers_accounted_for = set()
                             predicted_worker_startup_time_s = 0
                             for info in instance.plan.nodes_info.values():
-                                if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                                     predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                     workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                             
@@ -983,7 +983,7 @@ def main():
                         workers_accounted_for = set()
                         predicted_worker_startup_time_s = 0
                         for info in instance.plan.nodes_info.values():
-                            if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                            if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                 workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                         predicted_metrics = {

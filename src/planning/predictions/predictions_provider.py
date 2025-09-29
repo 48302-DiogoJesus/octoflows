@@ -52,9 +52,10 @@ class PredictionsProvider:
             metrics = cloudpickle.loads(metrics)
             if not isinstance(metrics, TaskMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(metrics)}")
             task_id = key.decode('utf-8')
-            if self.dag_structure_hash in task_id:
-                if metrics.planner_used_name != planner_name: continue # only metrics grabbed from the same planner are used
-                same_workflow_same_planner_type_metrics[task_id] = metrics 
+            if self.dag_structure_hash not in task_id: continue # only metrics grabbed from the same DAG are used
+            if metrics.planner_used_name != planner_name: continue # only metrics grabbed from the same planner are used
+ 
+            same_workflow_same_planner_type_metrics[task_id] = metrics 
             
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
@@ -82,6 +83,7 @@ class PredictionsProvider:
         for wsm in worker_startup_metrics:
             wsm = cloudpickle.loads(wsm)
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
+            if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
             if wsm.end_time_ms is None: continue
             if wsm.state == "cold": self.cached_worker_cold_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
@@ -154,7 +156,7 @@ class PredictionsProvider:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = True,
-        scaling_exponent: float = 0.8  # sublinear, because 2x data size doesn't mean 2x time
+        scaling_exponent: float = 0.85  # sublinear, because 2x data size doesn't mean 2x time
     ) -> float:
         """Predict data transfer time for upload/download given data size and resources.
         
