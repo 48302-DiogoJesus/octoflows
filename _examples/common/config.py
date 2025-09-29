@@ -14,7 +14,7 @@ import sys
 import os
 
 def get_planner_from_sys_argv():
-    supported_planners = ["wukong", "wukong-opt", "simple", "uniform", "non-uniform"]
+    supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform"]
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
@@ -59,13 +59,13 @@ def get_planner_from_sys_argv():
                 ) 
             ],
         )
-    elif planner_type == "simple":
+    elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[min_resources],
             optimizations=[],
         )
-    elif planner_type == "uniform":
+    elif planner_type == "uniform-opt":
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[min_resources],

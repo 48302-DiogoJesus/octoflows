@@ -35,7 +35,8 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
     @property
     def planner_name(self) -> str:
-        return self.__class__.__name__
+        has_opts = len(self.config.optimizations) > 0
+        return f"{self.__class__.__name__}{'-opt' if has_opts else ''}"
 
     @dataclass
     class BaseConfig(ABC):

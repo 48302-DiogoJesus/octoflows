@@ -1,18 +1,11 @@
-- ensure that we have metrics for all tasks
-    metadatastorage always flushes - check
-    run experiments without killing containers, just wait 5 seconds - check
-    change redis configuration to enable AOF again - check
+- Check if ALL 15 workflows have metrics and all planners appear (WUKONG, Uniform, Non-Uniform + Unknown)
 
-- local metrics only show "wukong" and "uniform"
-
-- flush use the lock but just to get snapshot of cached metrics
+- [DONE?CONFIRM] On dashboard, separate planner names (change the planner name getter based on the configuration optimizations + change names to:
+WUKONG, WUKONG-OPT, UNIFORM, UNIFORM-OPT, NON-UNIFORM
 
 - predicted download time is very low sometimes
     - predictions for execution time, download/upload time are 0
     - predictions are VERY OFF!
-
-- Predictions: reduce the influence of better resources A LOT more attenuated
-    on download times and execution times
 
 - Find cause of worker startup times predictions being wrong
     ?? is it because worker_active_periods algorithm is wrong? try fixing it

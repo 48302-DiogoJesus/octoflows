@@ -48,7 +48,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                 unique_resources.worker_id = None # note: ALL workers will be "flexible"
             # self._store_plan_image(dag)
             # self._store_plan_as_json(dag)
-            return
+            return None
         
         best_resource_config = self.config.worker_resource_configurations[0]
         

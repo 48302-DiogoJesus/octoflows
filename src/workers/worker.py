@@ -101,40 +101,61 @@ class Worker(ABC):
                         upstream_tasks_without_cached_results.append(t)
 
                 # Always fetch hardcoded inputs that are not present locally
-                for node in subdag._all_nodes.values():
-                    # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)
-                    non_repeated_storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
-                    non_repeated_storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
+                # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)
+                non_repeated_storage_ids = { arg.storage_id for arg in current_task.func_args if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
+                non_repeated_storage_ids |= { arg.storage_id for arg in current_task.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
 
-                    # Fetch new hardcoded results IF NEEDED
-                    for storage_id in non_repeated_storage_ids:
-                        self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
+                time_spent_downloading: dict[str, float] = {}
+                # Fetch hardcoded data IF NOT PRESENT LOCALLY
+                for storage_id in non_repeated_storage_ids:
+                    self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
 
-                        data_download_time = Timer()
-                        data_serialized = await self.intermediate_storage.get(storage_id)
-                        data_download_time = data_download_time.stop()
-                        if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
-                        data = cloudpickle.loads(data_serialized)
-                        subdag.cached_hardcoded_data_map[storage_id] = data
-                        
-                        current_task.metrics.input_metrics.input_download_metrics[storage_id] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(data_serialized),
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(data),
-                            time_ms=data_download_time
+                    data_download_time = Timer()
+                    data_serialized = await self.intermediate_storage.get(storage_id)
+                    data_download_time = data_download_time.stop()
+                    if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
+                    data = cloudpickle.loads(data_serialized)
+                    subdag.cached_hardcoded_data_map[storage_id] = data
+                    time_spent_downloading[storage_id] = data_download_time
+
+                new_func_args = []
+                for arg in current_task.func_args:
+                    if isinstance(arg, dag.HardcodedDependencyId):
+                        d = subdag.cached_hardcoded_data_map[arg.storage_id]
+                        new_func_args.append(d)
+                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(d)),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(d),
+                            time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
+                        )
+                    else:
+                        new_func_args.append(arg)
+                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(arg)),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(arg),
+                            time_ms=None # hardcoded but not large enough to be in storage
                         )
 
-                    new_func_args = [
-                        subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
-                        for arg in node.func_args
-                    ]
+                new_func_kwargs = {}
+                for key, arg in current_task.func_kwargs.items():
+                    if isinstance(arg, dag.HardcodedDependencyId):
+                        d = subdag.cached_hardcoded_data_map[arg.storage_id]
+                        new_func_kwargs[key] = d
+                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(d)),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(d),
+                            time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
+                        )
+                    else:
+                        new_func_kwargs[key] = arg
+                        current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(arg)),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(arg),
+                            time_ms=None # hardcoded but not large enough to be in storage
+                        )
 
-                    new_func_kwargs = {
-                        key: subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
-                        for key, arg in node.func_kwargs.items()
-                    }
-
-                    node.func_args = tuple(new_func_args)
-                    node.func_kwargs = new_func_kwargs
+                current_task.func_args = tuple(new_func_args)
+                current_task.func_kwargs = new_func_kwargs
 
                 res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 assert res is not None
