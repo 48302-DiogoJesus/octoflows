@@ -1,14 +1,16 @@
-check streamlit ALL workflows
-restart DB and ensure that everything is still there
+- VM: rebuild containers
+
+- some workflows don't even load
+    cause: ??
+        concurrency issues on accessing cached data on metadatastorage
+            re-check
+        concurrency issues when accessing `dagtasknode.metrics`?
+            add intermediate function that forces usage of lock in the setters
 
 - rerun
     check if predictions are better now
 
 - errors on metrics collected
-    - some workflows don't even load
-        cause: ??
-            maybe some ops are on AOF and not RDB? solution: try running again
-            add logic on dashboards to not even store information about workflows that can't grab data for all their tasks
     - predictions for execution time, download/upload time are 0
         cause: ??
     - predictions are VERY OFF!

@@ -77,6 +77,8 @@ class Worker(ABC):
                     # avoid duplicate execution on same worker
                     raise CancelCurrentWorkerLoopException("Task is already being handled by this worker on another coroutine. Aborting")
 
+                tasks_executed_by_this_coroutine.append(current_task)
+
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 _download_dependencies_timer = Timer()
@@ -185,8 +187,6 @@ class Worker(ABC):
                 deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
                 task_execution_time_ms = exec_timer.stop()
 
-                tasks_executed_by_this_coroutine.append(current_task)
-
                 current_task.metrics.tp_execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
                 total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
@@ -268,7 +268,7 @@ class Worker(ABC):
             await asyncio.gather(*other_coroutines_i_launched)
 
         for task_executed in tasks_executed_by_this_coroutine: 
-            self.metadata_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
+            await self.metadata_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print

@@ -5,14 +5,14 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'gemm.py',
+    # 'gemm.py',
     'text_analysis.py',
     'tree_reduction.py',
     'image_transformer.py',
     # 'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 2
+ITERATIONS_PER_ALGORITHM = 1
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform']
 ALGORITHMS = ['wukong-opt', 'wukong', 'non-uniform', 'uniform', 'simple']
 # ALGORITHMS = ['non-uniform']

@@ -142,7 +142,7 @@ class FullDAG(GenericDAG):
             logger.info(f"[PLANNING] Planner Selected: {planner_name}")
             plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result:
-                wk.metadata_storage.store_plan(self.master_dag_id, plan_result)
+                await wk.metadata_storage.store_plan(self.master_dag_id, plan_result)
 
         # after, so that the planner can know the sizes of the hardcoded data to make predictions
         await self._upload_hardcoded_data(wk.intermediate_storage)
@@ -162,7 +162,7 @@ class FullDAG(GenericDAG):
         _start_time = Timer()
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
-        wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
+        await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
         res = await Worker.wait_for_result_of_task(
@@ -174,7 +174,7 @@ class FullDAG(GenericDAG):
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
 
         metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
-        wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
+        await wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
 
         await wk.metadata_storage.flush()
 

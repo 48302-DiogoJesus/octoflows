@@ -101,7 +101,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
                 if len(dag._all_nodes.values()) != len(tasks):
-                    print(f"Expected len: {len(dag._all_nodes.values())}, actual len: {len(tasks)}. For dag: {dag.dag_name}")
+                    print(f"Expected len: {len(dag._all_nodes.values())}, actual len: {len(tasks)}. For dag: {dag.dag_name} | Planner: {plan_output.planner_name if plan_output else 'Unknown'}")
 
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"

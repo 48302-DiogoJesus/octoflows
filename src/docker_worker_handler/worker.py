@@ -282,7 +282,7 @@ async def main():
                 await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)
             
         #* 7) Upload metrics collected during task execution
-        wk.metadata_storage.store_dag_download_time(
+        await wk.metadata_storage.store_dag_download_time(
             fulldag.master_dag_id,
             FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
         )
