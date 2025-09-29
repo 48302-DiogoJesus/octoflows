@@ -83,6 +83,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data: Any = metadata_storage_conn.get(plan_key)
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
+                print("Planner: ", plan_output.planner_name if plan_output else 'Unknown')
 
                 # DAG download stats
                 download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
@@ -101,7 +102,8 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
                 if len(dag._all_nodes.values()) != len(tasks):
-                    print(f"Expected len: {len(dag._all_nodes.values())}, actual len: {len(tasks)}. For dag: {dag.dag_name} | Planner: {plan_output.planner_name if plan_output else 'Unknown'}")
+                    print(f"Expected len: {len(dag._all_nodes.values())}, actual len: {len(tasks)}. For dag: {dag.dag_name} | Planner: {plan_output.planner_name if plan_output else 'Unknown'}. Ignoring workfow")
+                    continue # ignore this workflow
 
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"

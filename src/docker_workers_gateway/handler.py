@@ -91,12 +91,13 @@ def handle_warmup():
     thread_pool.submit(process_warmup_async, dag_id, resource_configurations)
     return "", 202
 
-@app.route('/kill-warm', methods=['POST'])
-def handle_killwarm():
+@app.route('/wait-containers-shutdown', methods=['POST'])
+def handle_containers_shutdown():
     # Parse request data
-    logger.info("Killing warm containers")
-    container_pool._cleanup_all_containers()
-    return "", 202
+    logger.info("Waiting for all containers to shutdown")
+    container_pool._wait_until_there_are_no_more_containers_active()
+    logger.info("All containers have shutdown!")
+    return "", 200
 
 @app.route('/job', methods=['POST', 'GET'])
 def handle_job():

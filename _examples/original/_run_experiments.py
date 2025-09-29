@@ -5,14 +5,14 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'gemm.py',
     'text_analysis.py',
     'tree_reduction.py',
     'image_transformer.py',
-    'montage.py',
+    # 'gemm.py',
+    # 'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 4
+ITERATIONS_PER_ALGORITHM = 1
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform']
 ALGORITHMS = ['wukong-opt', 'wukong', 'non-uniform', 'uniform', 'simple']
 # ALGORITHMS = ['non-uniform']
@@ -28,12 +28,13 @@ if len(sys.argv) > 1:
     montage_workload = sys.argv[1]
 print(f"Montage workload: {montage_workload}")
 
-def kill_warm():
-    url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/kill-warm"
+def wait_containers_shutdown():
+    url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/wait-containers-shutdown"
+    print("Waiting for all containers to shutdown...")
     try:
         response = requests.post(url)
-        if response.status_code == 202:
-            print("Request accepted: warm containers will be killed.")
+        if response.status_code == 200:
+            print("All containers have shutdown!")
         else:
             print(f"Unexpected response: {response.status_code}, {response.text}")
     except requests.RequestException as e:
@@ -41,9 +42,8 @@ def kill_warm():
 
 def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
     """Run the specified Python script with the given algorithm and SLA parameters."""
-    print("Giving some time for containers to cleanup and flush metrics to storage...")
-    time.sleep(5) # give enough time for containers to cleanup and flush metrics to storage
-    kill_warm() # it's sync
+    # time.sleep(4) # give enough time for containers to cleanup and flush metrics to storage
+    wait_containers_shutdown() # sync
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)

@@ -31,7 +31,7 @@ class ContainerPoolExecutor:
         self.lock = threading.RLock()
         self.max_containers = max_containers
         self.container_by_resources: Dict[Tuple[float, int], Set[str]] = defaultdict(set)  # (cpus, memory) -> {container_ids}
-        self.condition = threading.Condition(self.lock)
+        self.containers_available_condition = threading.Condition(self.lock)
         self.containers: Dict[str, Container] = {}
         self.container_idle_timeout_s = TIME_UNTIL_WORKER_GOES_COLD_S
         self.container_cleanup_interval_s = TIME_UNTIL_WORKER_GOES_COLD_S / 3
@@ -120,7 +120,7 @@ class ContainerPoolExecutor:
         if process.stderr and process.stderr.read():
             sys.exit(0) # ! for easier debugging
         
-        with self.lock: 
+        with self.lock:
             if not ALLOW_CONTAINER_REUSAGE:
                 self._remove_container(container_id)
             else:
@@ -153,15 +153,20 @@ class ContainerPoolExecutor:
         except subprocess.CalledProcessError as e:
             logger.error(f"Error listing containers: {e}")
 
-    def _cleanup_all_containers(self):
-        containers_to_remove = []
+    def _wait_until_there_are_no_more_containers_active(self):
         with self.lock:
-            for container_id, container in list(self.containers.items()):
-                container.is_busy = True
-                containers_to_remove.append(container_id)
+            while self.containers:
+                self.containers_available_condition.wait(timeout=2)
+
+    # def _cleanup_all_containers(self):
+    #     containers_to_remove = []
+    #     with self.lock:
+    #         for container_id, container in list(self.containers.items()):
+    #             container.is_busy = True
+    #             containers_to_remove.append(container_id)
                 
-        for container_id in containers_to_remove:
-            self._remove_container(container_id)
+    #     for container_id in containers_to_remove:
+    #         self._remove_container(container_id)
 
     def _cleanup_idle_containers(self):
         """Periodically check for and remove idle containers."""
@@ -212,7 +217,7 @@ class ContainerPoolExecutor:
     def release_container(self, container_id: str):
         with self.lock:
             self.containers[container_id].is_busy = False # ready to be used again
-            self.condition.notify_all()
+            self.containers_available_condition.notify_all()
 
     def wait_for_container(self, cpus: float, memory: int, dag_id: str) -> str:
         """
@@ -236,7 +241,7 @@ class ContainerPoolExecutor:
                 if len(self.containers) >= self.max_containers:
                     # print("(wait_for_container) No container available. Waiting")
                     # Wait for a container to become available. Can't launch new ones
-                    self.condition.wait(timeout=2)
+                    self.containers_available_condition.wait(timeout=2)
                 else:
                     # Launch a new container
                     logger.info(f"(wait_for_container) Launching new container for DAG: {dag_id}")
@@ -270,7 +275,7 @@ class ContainerPoolExecutor:
             )
             self.containers[container_id] = container
             self.container_by_resources[(cpus, memory)].add(container_id)
-            self.condition.notify_all()
+            self.containers_available_condition.notify_all()
 
         return container_id
     

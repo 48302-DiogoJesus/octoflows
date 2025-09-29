@@ -1,8 +1,15 @@
-- some workflows don't even load: recheck with streamlit locally
-    - check if predictions are better now
-        - errors on metrics collected
-            - predictions for execution time, download/upload time are 0
-            - predictions are VERY OFF!
+- ensure that we have metrics for all tasks
+    metadatastorage always flushes - check
+    run experiments without killing containers, just wait 5 seconds - check
+    change redis configuration to enable AOF again - check
+
+- local metrics only show "wukong" and "uniform"
+
+- flush use the lock but just to get snapshot of cached metrics
+
+- predicted download time is very low sometimes
+    - predictions for execution time, download/upload time are 0
+    - predictions are VERY OFF!
 
 - Predictions: reduce the influence of better resources A LOT more attenuated
     on download times and execution times

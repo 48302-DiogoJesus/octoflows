@@ -63,11 +63,11 @@ class MetadataStorage():
         await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{metrics.master_dag_id}_{task_ids_hash}", cloudpickle.dumps(metrics))
 
     async def update_invoked_worker_startup_metrics(self, end_time_ms: float, worker_state: Literal["warm", "cold"], task_ids: list[str], master_dag_id: str):
+        task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
+        wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"))
+        wsm.end_time_ms = end_time_ms
+        wsm.state = worker_state
         async with self.lock:
-            task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
-            wsm: WorkerStartupMetrics = cloudpickle.loads(await self.storage.get(f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"))
-            wsm.end_time_ms = end_time_ms
-            wsm.state = worker_state
             self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"] = wsm
 
     async def flush(self):
