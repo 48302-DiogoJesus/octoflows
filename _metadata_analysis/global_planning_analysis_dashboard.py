@@ -116,9 +116,12 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 worker_data: Any = metadata_storage_conn.mget(worker_keys)
                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
                 worker_startup_metrics.extend(this_workflow_wsm)
-                total_worker_startup_time_ms = sum(
-                    (metric.end_time_ms - metric.start_time_ms) for metric in this_workflow_wsm if metric.end_time_ms
-                ) if this_workflow_wsm else 0
+
+                total_worker_startup_time_ms = 0
+                for metric in this_workflow_wsm:
+                    if not metric.end_time_ms: continue
+                    total_worker_startup_time_ms += metric.end_time_ms - metric.start_time_ms
+
                 total_workers = len(this_workflow_wsm)
 
                 # Resource usage metrics
@@ -293,7 +296,12 @@ def main():
                     predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                    predicted_total_worker_startup_time_s = sum(info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()) / 1000
+                    workers_accounted_for = set()
+                    predicted_total_worker_startup_time_s = 0
+                    for info in instance.plan.nodes_info.values():
+                        if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                            predicted_total_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                            workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                 
                 # Store actual values for SLA comparison
                 instance_metrics = {
@@ -744,7 +752,12 @@ def main():
                         predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                         predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
-                        predicted_worker_startup_time_s = sum([info.tp_worker_startup_time_ms for info in instance.plan.nodes_info.values()])
+                        workers_accounted_for = set()
+                        predicted_worker_startup_time_s = 0
+                        for info in instance.plan.nodes_info.values():
+                            if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                                workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                     
                     metrics_data.append({
                         'makespan_actual': actual_makespan_s,
@@ -802,7 +815,12 @@ def main():
                             predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                             predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                             predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
-                            predicted_worker_startup_time_s = sum([info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values()])
+                            workers_accounted_for = set()
+                            predicted_worker_startup_time_s = 0
+                            for info in instance.plan.nodes_info.values():
+                                if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                    predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                                    workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                             
                             planner_metrics[planner_name].append({
                                 'makespan_actual': actual_makespan_s,
@@ -962,6 +980,12 @@ def main():
                     predicted_metrics = {}
                     if instance.plan and instance.plan.nodes_info:
                         sink_node = instance.dag.sink_node.id.get_full_id()
+                        workers_accounted_for = set()
+                        predicted_worker_startup_time_s = 0
+                        for info in instance.plan.nodes_info.values():
+                            if info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                                workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                         predicted_metrics = {
                             'makespan_predicted': instance.plan.nodes_info[sink_node].task_completion_time_ms / 1000,
                             'execution_predicted': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
@@ -969,7 +993,7 @@ def main():
                             'upload_predicted': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                             'input_size_predicted': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
                             'output_size_predicted': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
-                            'worker_startup_time_predicted': sum(info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            'worker_startup_time_predicted': predicted_worker_startup_time_s
                         }
                     
                     # Add to accuracy data
