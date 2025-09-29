@@ -78,7 +78,7 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-        worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys) # type: ignore
+        worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys)
         for wsm in worker_startup_metrics:
             wsm = cloudpickle.loads(wsm)
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")

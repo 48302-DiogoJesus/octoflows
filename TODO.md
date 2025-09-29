@@ -1,3 +1,15 @@
+- errors on metrics collected
+    - predictions for execution time, download/upload time are 0
+        cause: ??
+    - some workflows don't even load
+        cause: ??
+    - predictions are VERY OFF!
+        cause: new approach to hardcoded data
+            how can i include that in the simulation and also measure that?
+                1) consider it downloadable input as well
+                2) the timer should start before it
+                3) check all tasks that use hardcoded data and add that to their predicted download times
+
 - Look for places with for loops where i await potentially heavy data from storage and parallelize it
 
 - Dashboard
