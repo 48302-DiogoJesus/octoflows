@@ -5,14 +5,14 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    # 'gemm.py',
+    'gemm.py',
     'text_analysis.py',
     'tree_reduction.py',
     'image_transformer.py',
-    # 'montage.py',
+    'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 1
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['simple', 'uniform', 'non-uniform']
 ALGORITHMS = ['wukong-opt', 'wukong', 'non-uniform', 'uniform', 'simple']
 # ALGORITHMS = ['non-uniform']
@@ -42,7 +42,7 @@ def kill_warm():
 def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
     """Run the specified Python script with the given algorithm and SLA parameters."""
     print("Giving some time for containers to cleanup and flush metrics to storage...")
-    time.sleep(3) # give enough time for containers to cleanup and flush metrics to storage
+    time.sleep(5) # give enough time for containers to cleanup and flush metrics to storage
     kill_warm() # it's sync
     
     script_dir = os.path.dirname(os.path.abspath(__file__))

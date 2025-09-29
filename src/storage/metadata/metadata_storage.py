@@ -71,21 +71,20 @@ class MetadataStorage():
             self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"] = wsm
 
     async def flush(self):
-        async with self.lock:
-            start = time.time()
-            len_before_flush = len(self.cached_metrics)
-            if len_before_flush == 0: return
+        start = time.time()
+        len_before_flush = len(self.cached_metrics)
+        if len_before_flush == 0: return
 
-            keys_to_remove = []
-            for key, metrics in self.cached_metrics.items():
-                await self.storage.set(key, cloudpickle.dumps(metrics))
-                # remove from self.cached_metrics
-                keys_to_remove.append(key)
+        keys_to_remove = []
+        for key, metrics in self.cached_metrics.items():
+            await self.storage.set(key, cloudpickle.dumps(metrics))
+            # remove from self.cached_metrics
+            keys_to_remove.append(key)
 
-            for key in keys_to_remove: self.cached_metrics.pop(key, None)
-            
-            end = time.time()
-            logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
+        for key in keys_to_remove: self.cached_metrics.pop(key, None)
+        
+        end = time.time()
+        logger.info(f"Flushed {len_before_flush} metrics to storage in {end - start:.4f} seconds")
 
     async def close_connection(self):
         await self.storage.close_connection()
