@@ -205,6 +205,7 @@ class ContainerPoolExecutor:
                         del self.container_by_resources[resource_key]
                     del self.containers[container_id]
         except subprocess.CalledProcessError as e:
+            # container may have been removed already for being idle
             logger.error(f"Error removing container {container_id}: {e}")
         
 

@@ -1,11 +1,7 @@
-- VM: rebuild containers
-
 - some workflows don't even load
     cause: ??
-        concurrency issues on accessing cached data on metadatastorage
-            re-check
-        concurrency issues when accessing `dagtasknode.metrics`?
-            add intermediate function that forces usage of lock in the setters
+        run_experiments is killing containers too early, not letting them flush metrics ??
+            solution: sleep before kill()
 
 - rerun
     check if predictions are better now
@@ -15,10 +11,11 @@
         cause: ??
     - predictions are VERY OFF!
 
+- Predictions: reduce the influence of better resources A LOT more attenuated
+    on download times and execution times
+
 - Find cause of worker startup times predictions being wrong
     ?? is it because worker_active_periods algorithm is wrong? try fixing it
-
-- Look for places with for loops where i await potentially heavy data from storage and parallelize it
 
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network

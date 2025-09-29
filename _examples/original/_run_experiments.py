@@ -41,10 +41,9 @@ def kill_warm():
 
 def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
     """Run the specified Python script with the given algorithm and SLA parameters."""
-    time.sleep(.6) # give enough time for containers to cleanup 
-    kill_warm()
-    print(f"Waiting while warm containers are being killed...")
-    time.sleep(1.3)
+    print("Giving some time for containers to cleanup and flush metrics to storage...")
+    time.sleep(3) # give enough time for containers to cleanup and flush metrics to storage
+    kill_warm() # it's sync
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
