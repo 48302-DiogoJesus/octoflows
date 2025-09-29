@@ -79,7 +79,19 @@ class Worker(ABC):
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
+                _download_dependencies_timer = Timer()
                 task_dependencies: dict[str, Any] = {}
+
+                # METADATA: Register the size of hardcoded arguments that won't be downloaded!
+                for func_arg in current_task.func_args:
+                    if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
+                    if isinstance(func_arg, dag.HardcodedDependencyId): continue # these are accounted for in the normal download metrics
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_arg)
+
+                for func_kwarg in current_task.func_kwargs.values():
+                    if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
+                    if isinstance(func_kwarg, dag.HardcodedDependencyId): continue # these are accounted for in the normal download metrics
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_kwarg)
 
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
                 for t in current_task.upstream_nodes:
@@ -88,14 +100,25 @@ class Worker(ABC):
 
                 # Always fetch hardcoded inputs that are not present locally
                 for node in subdag._all_nodes.values():
-                    storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) }
-                    storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) }
-                    if not storage_ids: continue
+                    non_repeated_storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) }
+                    non_repeated_storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) }
+                    if not non_repeated_storage_ids: continue
 
-                    logger.info(f"Fetching {len(storage_ids)} hardcoded dependencies for {node.id.get_full_id()}")
-
-                    fetched_raw = await asyncio.gather(*(self.intermediate_storage.get(sid) for sid in storage_ids))
-                    cached_data = { sid: cloudpickle.loads(raw) for sid, raw in zip(storage_ids, fetched_raw) }
+                    cached_data: dict[str, Any] = {}
+                    logger.info(f"Fetching {len(non_repeated_storage_ids)} hardcoded dependencies for {node.id.get_full_id()}")
+                    for storage_id in non_repeated_storage_ids:
+                        data_download_time = Timer()
+                        data_serialized = await self.intermediate_storage.get(storage_id)
+                        data_download_time = data_download_time.stop()
+                        if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
+                        data = cloudpickle.loads(data_serialized)
+                        cached_data[storage_id] = data
+                        
+                        current_task.metrics.input_metrics.input_download_metrics[storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(data_serialized),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(data),
+                            time_ms=data_download_time
+                        )
 
                     new_func_args = [
                         cached_data[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
@@ -110,7 +133,6 @@ class Worker(ABC):
                     node.func_args = tuple(new_func_args)
                     node.func_kwargs = new_func_kwargs
 
-                _download_dependencies_timer = Timer()
 
                 res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 assert res is not None
@@ -155,16 +177,6 @@ class Worker(ABC):
                 current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
 
                 # Store raw values, normalization will be done during prediction
-
-                # METADATA: Register the size of hardcoded arguments as well
-                for func_arg in current_task.func_args:
-                    if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_arg)
-
-                for func_kwarg in current_task.func_kwargs.values():
-                    if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_kwarg)
-
                 await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 #* 2) EXECUTE TASK
@@ -260,7 +272,8 @@ class Worker(ABC):
 
         self.log(current_task.id.get_full_id(), f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print
-        logger.info(f"W({self.my_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks()]}")
+        this_coro = asyncio.current_task()
+        logger.info(f"W({self.my_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks() if not this_coro or t.get_name() != this_coro.get_name()]}")
         return None
 
     @abstractmethod

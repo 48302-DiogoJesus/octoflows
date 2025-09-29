@@ -286,13 +286,10 @@ async def main():
             fulldag.master_dag_id,
             FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
         )
-        await wk.metadata_storage.flush()
-
-
-        await wk.metadata_storage.close_connection()
         
-        if wk.intermediate_storage:
-            await wk.intermediate_storage.close_connection()
+        await wk.metadata_storage.flush()
+        await wk.metadata_storage.close_connection()
+        await wk.intermediate_storage.close_connection()
 
         logger.info(f"Worker({_debug_flexible_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:

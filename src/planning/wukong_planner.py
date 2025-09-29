@@ -41,7 +41,7 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         for optimization in self.config.optimizations:
             optimization.planning_assignment_logic(self, dag, predictions_provider, {}, topo_sorted_nodes)
 
-        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, _ = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
 

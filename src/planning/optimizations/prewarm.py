@@ -79,7 +79,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 annotation.target_resource_configs.append(my_worker_config)
                 # recomputing node timings is required because after adding `PreWarm` annotation, other tasks "cold" starts may become "warm"
                 #  and the next iteration of this "pre-warm annotation assignment" algorithm needs to know the updated state ("cold" | "warm")
-                nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, _predictions_provider, _planner.config.sla)
+                nodes_info = _planner._calculate_workflow_timings(dag, topo_sorted_nodes, _predictions_provider, _planner.config.sla)
         
         return
 

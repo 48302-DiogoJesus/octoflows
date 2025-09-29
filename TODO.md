@@ -1,14 +1,20 @@
+check streamlit ALL workflows
+restart DB and ensure that everything is still there
+
+- rerun
+    check if predictions are better now
+
 - errors on metrics collected
     - some workflows don't even load
         cause: ??
+            maybe some ops are on AOF and not RDB? solution: try running again
+            add logic on dashboards to not even store information about workflows that can't grab data for all their tasks
     - predictions for execution time, download/upload time are 0
         cause: ??
     - predictions are VERY OFF!
-        cause: new approach to hardcoded data
-            how can i include that in the simulation and also measure that?
-                1) consider it downloadable input as well
-                2) the timer should start before it
-                3) check all tasks that use hardcoded data and add that to their predicted download times
+
+- Find cause of worker startup times predictions being wrong
+    ?? is it because worker_active_periods algorithm is wrong? try fixing it
 
 - Look for places with for loops where i await potentially heavy data from storage and parallelize it
 

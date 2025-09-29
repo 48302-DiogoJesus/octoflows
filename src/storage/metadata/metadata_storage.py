@@ -4,7 +4,7 @@ from typing import Literal
 import uuid
 from dataclasses import dataclass
 import time
-
+import asyncio
 import cloudpickle
 from src.storage.metadata.metrics_types import UserDAGSubmissionMetrics, FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
 from src.storage.storage import Storage

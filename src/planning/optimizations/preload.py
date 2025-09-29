@@ -50,7 +50,7 @@ class PreLoadOptimization(TaskOptimization):
             iteration += 1
             
             # Calculate current node timings and find critical path
-            updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, _predictions_provider, _planner.config.sla)
+            updated_nodes_info = _planner._calculate_workflow_timings(dag, topo_sorted_nodes, _predictions_provider, _planner.config.sla)
             critical_path_nodes, critical_path_time = _planner._find_critical_path(dag, updated_nodes_info)
             initial_critical_path_node_ids = { node.id.get_full_id() for node in critical_path_nodes }
             
@@ -77,7 +77,7 @@ class PreLoadOptimization(TaskOptimization):
                 node.add_optimization(PreLoadOptimization())
 
                 # Recalculate timings with this optimization
-                updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, _planner.config.sla)
+                updated_nodes_info = _planner._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, _planner.config.sla)
                 new_critical_path_nodes, new_critical_path_time = _planner._find_critical_path(dag, updated_nodes_info)
                 new_critical_path_node_ids = { node.id.get_full_id() for node in new_critical_path_nodes }
 
@@ -109,7 +109,7 @@ class PreLoadOptimization(TaskOptimization):
             
             # If we optimized nodes but didn't introduce a new critical path, we're also done
             # (this happens when we've optimized all optimizable nodes in the current critical path)
-            updated_nodes_info = _planner._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, _planner.config.sla)
+            updated_nodes_info = _planner._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, _planner.config.sla)
             current_critical_path_nodes, _ = _planner._find_critical_path(dag, updated_nodes_info)
             current_critical_path_node_ids = { node.id.get_full_id() for node in current_critical_path_nodes }
             

@@ -46,9 +46,9 @@ class UniformPlanner(AbstractDAGPlanner):
         
         # Step 1: Assign uniform resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        self._basic_worker_id_assignment(predictions_provider, worker_resources, topo_sorted_nodes)
+        self._basic_worker_id_assignment(dag, predictions_provider, worker_resources, topo_sorted_nodes)
 
-        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
 
         # OPTIMIZATIONS
         for optimization in self.config.optimizations:
@@ -60,7 +60,7 @@ class UniformPlanner(AbstractDAGPlanner):
                 optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics
-        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
             

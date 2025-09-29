@@ -132,8 +132,6 @@ class FullDAG(GenericDAG):
         
         self.dag_name = dag_name
 
-        await self._upload_hardcoded_data(wk.intermediate_storage)
-
         #! Currently, the docker handlers needs to be running locally
         DockerContainerUsageMonitor.start_monitoring(self.master_dag_id)
 
@@ -145,6 +143,9 @@ class FullDAG(GenericDAG):
             plan_result = wk.planner.plan(self, predictions_provider)
             if plan_result:
                 wk.metadata_storage.store_plan(self.master_dag_id, plan_result)
+
+        # after, so that the planner can know the sizes of the hardcoded data to make predictions
+        await self._upload_hardcoded_data(wk.intermediate_storage)
 
         # Workers might need to download it from storage, IF size if above a threshold
         # We could avoid uploading if size is below, but it's used for later analysis

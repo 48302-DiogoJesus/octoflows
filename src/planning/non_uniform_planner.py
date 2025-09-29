@@ -54,10 +54,10 @@ class NonUniformPlanner(AbstractDAGPlanner):
         
         # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        self._basic_worker_id_assignment(predictions_provider, best_resource_config, topo_sorted_nodes)
+        self._basic_worker_id_assignment(dag, predictions_provider, best_resource_config, topo_sorted_nodes)
 
         # Calculate initial critical path with best resources
-        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
         
@@ -93,7 +93,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     node.worker_config = new_res_config
                 
                 # Recalculate timings with this configuration
-                nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+                nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
                 _, new_critical_path_time = self._find_critical_path(dag, nodes_info)
                 
                 # If downgrading doesn't change the critical path, allow it, else: reverse it
@@ -122,7 +122,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                 optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics and logging
-        nodes_info = self._calculate_workflow_timings(topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
         
