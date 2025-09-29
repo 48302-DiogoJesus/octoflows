@@ -38,7 +38,6 @@ class SubDAG(GenericDAG):
         self._all_nodes, self.sink_node = self._find_all_nodes_from_root(self.root_node)
         self.master_dag_structure_hash = master_dag_structure_hash
         self.master_dag_id = master_dag_id
-        self.cached_hardcoded_data_lock: asyncio.Lock = asyncio.Lock()
         self.cached_hardcoded_data_map: dict[str, Any] = {} # storage_id -> obj_data
 
     @staticmethod

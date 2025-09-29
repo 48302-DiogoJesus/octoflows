@@ -1,15 +1,8 @@
-- some workflows don't even load
-    cause: ??
-        run_experiments is killing containers too early, not letting them flush metrics ??
-            solution: sleep before kill()
-
-- rerun
-    check if predictions are better now
-
-- errors on metrics collected
-    - predictions for execution time, download/upload time are 0
-        cause: ??
-    - predictions are VERY OFF!
+- some workflows don't even load: recheck with streamlit locally
+    - check if predictions are better now
+        - errors on metrics collected
+            - predictions for execution time, download/upload time are 0
+            - predictions are VERY OFF!
 
 - Predictions: reduce the influence of better resources A LOT more attenuated
     on download times and execution times

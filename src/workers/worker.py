@@ -101,41 +101,40 @@ class Worker(ABC):
                         upstream_tasks_without_cached_results.append(t)
 
                 # Always fetch hardcoded inputs that are not present locally
-                async with subdag.cached_hardcoded_data_lock: # to avoid 2 concurrent tasks fetching the same data twice (one should wait for the other, then use that if possible)
-                    for node in subdag._all_nodes.values():
-                        # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)
-                        non_repeated_storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
-                        non_repeated_storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
+                for node in subdag._all_nodes.values():
+                    # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)
+                    non_repeated_storage_ids = { arg.storage_id for arg in node.func_args if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
+                    non_repeated_storage_ids |= { arg.storage_id for arg in node.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
 
-                        # Fetch new hardcoded results IF NEEDED
-                        for storage_id in non_repeated_storage_ids:
-                            self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
+                    # Fetch new hardcoded results IF NEEDED
+                    for storage_id in non_repeated_storage_ids:
+                        self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
 
-                            data_download_time = Timer()
-                            data_serialized = await self.intermediate_storage.get(storage_id)
-                            data_download_time = data_download_time.stop()
-                            if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
-                            data = cloudpickle.loads(data_serialized)
-                            subdag.cached_hardcoded_data_map[storage_id] = data
-                            
-                            current_task.metrics.input_metrics.input_download_metrics[storage_id] = TaskInputDownloadMetrics(
-                                serialized_size_bytes=calculate_data_structure_size_bytes(data_serialized),
-                                deserialized_size_bytes=calculate_data_structure_size_bytes(data),
-                                time_ms=data_download_time
-                            )
+                        data_download_time = Timer()
+                        data_serialized = await self.intermediate_storage.get(storage_id)
+                        data_download_time = data_download_time.stop()
+                        if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
+                        data = cloudpickle.loads(data_serialized)
+                        subdag.cached_hardcoded_data_map[storage_id] = data
+                        
+                        current_task.metrics.input_metrics.input_download_metrics[storage_id] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=calculate_data_structure_size_bytes(data_serialized),
+                            deserialized_size_bytes=calculate_data_structure_size_bytes(data),
+                            time_ms=data_download_time
+                        )
 
-                        new_func_args = [
-                            subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
-                            for arg in node.func_args
-                        ]
+                    new_func_args = [
+                        subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
+                        for arg in node.func_args
+                    ]
 
-                        new_func_kwargs = {
-                            key: subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
-                            for key, arg in node.func_kwargs.items()
-                        }
+                    new_func_kwargs = {
+                        key: subdag.cached_hardcoded_data_map[arg.storage_id] if isinstance(arg, dag.HardcodedDependencyId) else arg
+                        for key, arg in node.func_kwargs.items()
+                    }
 
-                        node.func_args = tuple(new_func_args)
-                        node.func_kwargs = new_func_kwargs
+                    node.func_args = tuple(new_func_args)
+                    node.func_kwargs = new_func_kwargs
 
                 res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 assert res is not None

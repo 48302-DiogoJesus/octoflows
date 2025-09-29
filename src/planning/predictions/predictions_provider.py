@@ -204,7 +204,7 @@ class PredictionsProvider:
             res = abs(base_time) ** scaling_exponent
         else:
             baseline_normalized_samples = [
-                (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.5, total_bytes)
+                (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.4, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
             baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples, sla)
@@ -218,7 +218,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
             # Scale from baseline to target and apply non-linear scaling with protection
-            actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
+            actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.4
             base_time = data_size_bytes / actual_speed
             res = abs(base_time) ** scaling_exponent
 
@@ -254,14 +254,14 @@ class PredictionsProvider:
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.5 for startup_time, cpus, memory_mb in samples]
+            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.4 for startup_time, cpus, memory_mb in samples]
             if sla == "average":  startup_time = np.average(baseline_normalized_samples)
             else: startup_time = np.percentile(baseline_normalized_samples, sla.value)
             
             if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
             
             # Scale from baseline to target resource configuration
-            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.5
+            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.4
             res = actual_startup_time
         
         self._cached_prediction_startup_times[prediction_key] = res # type: ignore
@@ -334,7 +334,7 @@ class PredictionsProvider:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # Normalize samples to baseline memory configuration and select by input size
             samples_w_normalized_time_per_byte = [
-                (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.5, total_input_size_bytes)
+                (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.4, total_input_size_bytes)
                 for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
@@ -349,7 +349,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for function {function_name}")
             # Apply sublinear scaling to input size and memory scaling
             res = (baseline_ms_per_byte * (input_size ** size_scaling_factor) * 
-                   (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.5)
+                   (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.4)
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
