@@ -1,5 +1,3 @@
-
-
 - Dashboard
     - [!] Show not only input and output sizes but also ALL the data that travelled the network
             how?: total data uploaded + total data downloaded

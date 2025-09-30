@@ -145,7 +145,7 @@ class PredictionsProvider:
         else: ratio = np.percentile(selected_ratios, sla.value)
 
         adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _, input_size in function_io_ratios], sla)
-        logger.info(f"Output size prediction | Adaptive Exponent: {adaptive_exponent}")
+        # logger.info(f"Output size prediction | Adaptive Exponent: {adaptive_exponent}")
         res = math.ceil(input_size ** adaptive_exponent * ratio)
         
         self._cached_prediction_output_sizes[prediction_key] = res
@@ -200,7 +200,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid speed data")
             
             adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _matching_samples], sla)
-            logger.info(f"Data trans | Matching samples | Adaptive Exponent: {adaptive_exponent}")
+            # logger.info(f"Data trans | Matching samples | Adaptive Exponent: {adaptive_exponent}")
             base_time = (data_size_bytes ** adaptive_exponent) / speed_bytes_per_ms
             res = base_time
         else:
@@ -219,7 +219,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
             adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _baseline_normalized_samples], sla)
-            logger.info(f"Data trans | Normalized samples | Adaptive Exponent: {adaptive_exponent}")
+            # logger.info(f"Data trans | Normalized samples | Adaptive Exponent: {adaptive_exponent}")
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
             res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
 
@@ -319,7 +319,7 @@ class PredictionsProvider:
                 raise ValueError(f"No valid data available for function {function_name}")
                 
             adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in _matching_samples], sla)
-            logger.info(f"Exec time | Matching samples | Adaptive Exponent: {adaptive_exponent}")
+            # logger.info(f"Exec time | Matching samples | Adaptive Exponent: {adaptive_exponent}")
             res = ms_per_byte * (input_size ** adaptive_exponent)
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
@@ -340,8 +340,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for function {function_name}")
             
             adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in samples_w_normalized_time_per_byte], sla)
-            logger.info(f"Exec time | Normalized Samples | Adaptive Exponent: {adaptive_exponent}")
-            logger.info
+            # logger.info(f"Exec time | Normalized Samples | Adaptive Exponent: {adaptive_exponent}")
             res = baseline_ms_per_byte * (input_size ** adaptive_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.2
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore

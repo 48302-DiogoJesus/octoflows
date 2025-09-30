@@ -360,6 +360,8 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return total_input_size
     
     def __calculate_node_timings(self, dag, nodes_info: dict[str, PlanningTaskInfo], node: DAGTaskNode, resource_config: TaskWorkerResourceConfiguration, predictions_provider: PredictionsProvider, sla: SLA):
+        from src.dag.dag import FullDAG
+        _dag: FullDAG = dag
         node_id = node.id.get_full_id()
         worker_id = node.worker_config.worker_id
         deserialized_input_size = self._calculate_total_input_size(dag, node, nodes_info, deserialized=True)
@@ -374,14 +376,46 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         
         # 2. Calculate download finish time (considering parallel downloads)
         download_finish_time = 0.0
+        downloaded_hardcoded_inputs_per_worker: dict[str, set[str]] = {}
+        if worker_id is not None: downloaded_hardcoded_inputs_per_worker.setdefault(worker_id, set())
+        for arg in node.func_args:
+            predicted_download_time = 0
+            if isinstance(arg, dag.HardcodedDependencyId) and _dag._hardcoded_data_ids.get(arg.object_id, None):
+                deserialized_obj_data = _dag._hardcoded_data_ids[arg.object_id][1]
+                if worker_id is None:
+                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
+                elif arg.object_id not in downloaded_hardcoded_inputs_per_worker[worker_id]:
+                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloaded_hardcoded_inputs_per_worker[worker_id].add(arg.object_id)
+                    predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
+
+            download_finish_time = max(download_finish_time, earliest_start + predicted_download_time)
+
+        # Consider downloading hardcoded inputs as well
+        for kwarg in node.func_kwargs:
+            predicted_download_time = 0
+            if isinstance(kwarg, dag.HardcodedDependencyId) and _dag._hardcoded_data_ids.get(kwarg.object_id, None):
+                deserialized_obj_data = _dag._hardcoded_data_ids[kwarg.object_id][1]
+                if worker_id is None:
+                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
+                elif kwarg.object_id not in downloaded_hardcoded_inputs_per_worker[worker_id]:
+                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloaded_hardcoded_inputs_per_worker[worker_id].add(kwarg.object_id)
+                    predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
+
+            download_finish_time = max(download_finish_time, earliest_start + predicted_download_time)
+
         for unode in node.upstream_nodes:
-            if worker_id is not None and unode.worker_config.worker_id is not None and unode.worker_config.worker_id == worker_id:
+            unode_worker_id = unode.worker_config.worker_id
+            if worker_id is not None and unode_worker_id is not None and unode_worker_id == worker_id:
                 continue # same worker => no need to download from storage
             
             unode_info = nodes_info[unode.id.get_full_id()]
             predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.serialized_output_size, resource_config, sla)
             downloadable_input_size += unode_info.serialized_output_size
-            
+                                
             if node.try_get_optimization(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
                 download_start = unode_info.task_completion_time_ms # Data available time
