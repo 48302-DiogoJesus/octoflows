@@ -228,8 +228,8 @@ class PredictionsProvider:
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
             res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
 
-        self._cached_prediction_data_transfer_times[prediction_key] = float(res)
-        return float(res)
+        self._cached_prediction_data_transfer_times[prediction_key] = res
+        return res
 
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
@@ -354,7 +354,7 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res
         return res
 
-    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.8, alpha=0.5):
+    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.85, alpha=0.4):
         """
         Compute adaptive scaling exponent for input size prediction.
 

@@ -61,7 +61,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         original_download_time_ms: float # time for ME to download the duppable task OUTPUT from storage
 
         inputs_download_time_ms: float # time to download inputs of the duppable task
-        exec_time_ms: float # time to execute the duppable task
+        my_exec_time_ms: float # time to execute the duppable task
 
     @dataclass
     class PlanningTaskInfo:
@@ -72,6 +72,9 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         
         serialized_input_size: int
         serialized_output_size: int
+
+        downloadable_input_size_bytes: int # what we expect to have to download for this task
+        uploadable_output_size_bytes: int # what we expect to have to upload for this task
 
         worker_startup_state: Literal["cold", "warm"] | None # None if no need to invoke new worker
         tp_worker_startup_time_ms: float # 0 if no need to invoke new worker
@@ -101,9 +104,13 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         prediction_sample_counts: "AbstractDAGPlanner.PlanPredictionSampleCounts"
         
         total_time_waiting_for_worker_startup_ms: float = -1
+        total_downloadable_input_size_bytes: int = -1
+        total_uploadable_output_size_bytes: int = -1
 
         def __post_init__(self):
             self.total_time_waiting_for_worker_startup_ms = sum(map(lambda node_info: node_info.tp_worker_startup_time_ms, self.nodes_info.values()))
+            self.total_downloadable_input_size_bytes = sum(map(lambda node_info: node_info.downloadable_input_size_bytes, self.nodes_info.values()))
+            self.total_uploadable_output_size_bytes = sum(map(lambda node_info: node_info.uploadable_output_size_bytes, self.nodes_info.values()))
 
     def _basic_worker_id_assignment(
         self,
@@ -368,7 +375,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         deserialized_input_size = self._calculate_total_input_size(dag, node, nodes_info, deserialized=True)
         serialized_input_size = self._calculate_total_input_size(dag, node, nodes_info, deserialized=False)
 
-        downloadable_input_size = 0
+        downloadable_input_size_bytes = 0
         
         # 1. Calculate earliest start time (max of upstream completions)
         earliest_start = 0.0
@@ -384,10 +391,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if isinstance(arg, HardcodedDependencyId) and _dag._hardcoded_data_ids.get(arg.object_id, None):
                 deserialized_obj_data = _dag._hardcoded_data_ids[arg.object_id][1]
                 if worker_id is None:
-                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloadable_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
                     predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
                 elif arg.object_id not in downloaded_hardcoded_inputs_per_worker[worker_id]:
-                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloadable_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
                     downloaded_hardcoded_inputs_per_worker[worker_id].add(arg.object_id)
                     predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
 
@@ -399,10 +406,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if isinstance(kwarg, HardcodedDependencyId) and _dag._hardcoded_data_ids.get(kwarg.object_id, None):
                 deserialized_obj_data = _dag._hardcoded_data_ids[kwarg.object_id][1]
                 if worker_id is None:
-                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloadable_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
                     predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
                 elif kwarg.object_id not in downloaded_hardcoded_inputs_per_worker[worker_id]:
-                    downloadable_input_size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+                    downloadable_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
                     downloaded_hardcoded_inputs_per_worker[worker_id].add(kwarg.object_id)
                     predicted_download_time = predictions_provider.predict_data_transfer_time('download', calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data)), resource_config, sla)
 
@@ -415,7 +422,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             
             unode_info = nodes_info[unode.id.get_full_id()]
             predicted_download_time = predictions_provider.predict_data_transfer_time('download', unode_info.serialized_output_size, resource_config, sla)
-            downloadable_input_size += unode_info.serialized_output_size
+            downloadable_input_size_bytes += unode_info.serialized_output_size
                                 
             if node.try_get_optimization(PreLoadOptimization):
                 # preload: start downloading as soon as data is available
@@ -428,7 +435,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
-        total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size, resource_config, sla)
+        total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size_bytes, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...
         exec_time = predictions_provider.predict_execution_time(node.func_name, deserialized_input_size, resource_config, sla)
@@ -436,10 +443,12 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         serialized_output_size = predictions_provider.predict_output_size(node.func_name, deserialized_input_size, sla, deserialized=False)
 
         # 5. Calculate upload_time (existing logic is correct)
+        uploadable_output_size_bytes = 0
         if len(node.downstream_nodes) > 0 and worker_id is not None and not (any(dt.worker_config.worker_id is None for dt in node.downstream_nodes)) and all(dt.worker_config.worker_id == worker_id for dt in node.downstream_nodes):
             upload_time = 0.0
         else:
             upload_time = predictions_provider.predict_data_transfer_time('upload', serialized_output_size, resource_config, sla)
+            uploadable_output_size_bytes = serialized_output_size
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
@@ -451,7 +460,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.worker_config, sla),
                 original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
 
-                exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, resource_config, sla),
+                my_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].deserialized_input_size, resource_config, sla),
                 inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
             )
             
@@ -461,6 +470,8 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             deserialized_output_size,
             serialized_input_size,
             serialized_output_size,
+            downloadable_input_size_bytes,
+            uploadable_output_size_bytes,
             None,
             0,
             tp_download_time,
@@ -558,10 +569,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         """
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
 
+        print("------")
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
             self.__calculate_node_timings(dag, nodes_info, node, node.worker_config, predictions_provider, sla)
-
+        print("------")
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
         self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
 

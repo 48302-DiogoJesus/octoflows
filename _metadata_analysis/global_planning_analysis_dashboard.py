@@ -33,6 +33,8 @@ class WorkflowInstanceTaskInfo:
     global_task_id: str
     internal_task_id: str
     metrics: TaskMetrics
+    input_size_downloaded_bytes: int
+    output_size_uploaded_bytes: int
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -46,6 +48,8 @@ class WorkflowInstanceInfo:
     tasks: List[WorkflowInstanceTaskInfo]
     resource_usage: DAGResourceUsageMetrics
     total_transferred_data_bytes: int
+    total_inputs_downloaded_bytes: float
+    total_outputs_uploaded_bytes: float
 
 @dataclass
 class WorkflowInfo:
@@ -98,12 +102,17 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 ]
                 tasks_data: Any = metadata_storage_conn.mget(task_keys) if task_keys else []
                 tasks: List[WorkflowInstanceTaskInfo] = [
-                    WorkflowInstanceTaskInfo(t.id.get_full_id_in_dag(dag), t.id.get_full_id(), cloudpickle.loads(td))
+                    WorkflowInstanceTaskInfo(
+                        t.id.get_full_id_in_dag(dag), 
+                        t.id.get_full_id(), 
+                        cloudpickle.loads(td),
+                        sum([m.serialized_size_bytes for m in t.metrics.input_metrics.input_download_metrics.values() if m.time_ms is not None]),
+                        t.metrics.output_metrics.serialized_size_bytes if t.metrics.output_metrics.tp_time_ms is not None else 0
+                    )
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
-                if len(dag._all_nodes.values()) != len(tasks):
-                    print(f"Expected len: {len(dag._all_nodes.values())}, actual len: {len(tasks)}. For dag: {dag.dag_name} | Planner: {plan_output.planner_name if plan_output else 'Unknown'}. Ignoring workfow")
-                    continue # ignore this workflow
+                total_inputs_downloaded = sum([t.input_size_downloaded_bytes for t in tasks])
+                total_outputs_uploaded = sum([t.output_size_uploaded_bytes for t in tasks])
 
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -151,7 +160,9 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         total_workers,
                         tasks,
                         resource_usage,
-                        total_transferred_data_bytes
+                        total_transferred_data_bytes,
+                        total_inputs_downloaded,
+                        total_outputs_uploaded
                     )
                 )
             except Exception as e:
@@ -296,6 +307,8 @@ def main():
                 sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 actual_data_transferred = instance.total_transferred_data_bytes
+                actual_total_downloadable_input_size_bytes = instance.total_inputs_downloaded_bytes
+                actual_total_uploadable_output_size_bytes = instance.total_outputs_uploaded_bytes
 
                 # Get predicted metrics if available
                 predicted_total_download = predicted_execution = predicted_total_upload = predicted_makespan_s = 0
@@ -313,6 +326,8 @@ def main():
                         if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                             predicted_total_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                             workers_accounted_for.add(info.node_ref.worker_config.worker_id)
+                    predicted_total_downloadable_input_size_bytes = instance.plan.total_downloadable_input_size_bytes
+                    predicted_total_uploadable_output_size_bytes = instance.plan.total_uploadable_output_size_bytes
                 
                 # Store actual values for SLA comparison
                 instance_metrics = {
@@ -406,8 +421,10 @@ def main():
                                         sample_counts.for_execution_time if sample_counts else None),
                     'Total Execution Time': format_metric(actual_execution, predicted_execution, 'execution',
                                                 sample_counts.for_execution_time if sample_counts else None),
+                    'Total Downloaded Data': format_bytes(actual_total_download)[2],
                     'Total Download Time': format_metric(actual_total_download, predicted_total_download, 'download',
                                             sample_counts.for_download_speed if sample_counts else None),
+                    'Total Uploaded Data': format_bytes(actual_total_upload)[2],
                     'Total Upload Time': format_metric(actual_total_upload, predicted_total_upload, 'upload',
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Input Size': format_size_metric(actual_input_size, predicted_input_size, 'input_size',
@@ -616,7 +633,9 @@ def main():
                         'SLA': "SLA",
                         'Makespan': "Makespan (Predicted → Actual)",
                         'Total Execution Time': "Total Execution Time (Predicted → Actual)",
+                        'Total Downloaded Data': "Total Downloaded Data (Predicted → Actual)",
                         'Total Download Time': "Total Download Time (Predicted → Actual)",
+                        'Total Uploaded Data': "Total Uploaded Data (Predicted → Actual)",
                         'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                         'Total Input Size': "Total Input Size (Predicted → Actual)",
                         'Total Output Size': "Total Output Size (Predicted → Actual)",

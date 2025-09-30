@@ -182,7 +182,7 @@ async def main():
 
                         task_predictions = main_task.duppable_tasks_predictions[u_task.id.get_full_id()]
                         expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
-                        potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.exec_time_ms
+                        potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.my_exec_time_ms
                         
                         logger.info(f"[TASK-DUP] Task {task_id} - "
                                    f"Will save time ?: {potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms}, "
