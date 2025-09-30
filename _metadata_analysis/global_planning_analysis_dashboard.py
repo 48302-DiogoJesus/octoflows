@@ -45,7 +45,7 @@ class WorkflowInstanceInfo:
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
     resource_usage: DAGResourceUsageMetrics
-    total_data_on_the_network_bytes: int
+    total_transferred_data_bytes: int
 
 @dataclass
 class WorkflowInfo:
@@ -130,11 +130,13 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 resource_usage_data: Any = metadata_storage_conn.get(resource_usage_key)
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
 
-                total_data_on_the_network_bytes = 0
+                total_transferred_data_bytes = 0
                 for task in tasks:
-                    for im in task.metrics.input_metrics.input_download_metrics.values():
-                        total_data_on_the_network_bytes += im.serialized_size_bytes
-                    total_data_on_the_network_bytes += task.metrics.output_metrics.serialized_size_bytes
+                    for im in task.metrics.input_metrics.input_download_metrics.values(): 
+                        if im.time_ms is None: continue # did not download from storage
+                        total_transferred_data_bytes += im.serialized_size_bytes
+                    if task.metrics.output_metrics.tp_time_ms is None: continue # did not upload to storage
+                    total_transferred_data_bytes += task.metrics.output_metrics.serialized_size_bytes
 
                 # Update workflow_types dict
                 if dag.dag_name not in workflow_types:
@@ -149,8 +151,8 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         total_worker_startup_time_ms,
                         total_workers,
                         tasks,
-                        resource_usage, 
-                        total_data_on_the_network_bytes
+                        resource_usage,
+                        total_transferred_data_bytes
                     )
                 )
             except Exception as e:
@@ -162,13 +164,14 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
 
     return worker_startup_metrics, workflow_types
 
-def format_bytes(size: float) -> str:
+def format_bytes(size: float) -> tuple[float, str, str]:
     """Convert bytes to human-readable format"""
+    # returns [value, unit, formatted_string]
     for unit in ['B', 'KB', 'MB', 'GB']:
         if size < 1024.0:
-            return f"{size:.2f} {unit}"
+            return size, unit, f"{size:.2f} {unit}"
         size /= 1024.0
-    return f"{size:.2f} TB"
+    return size, 'TB', f"{size:.2f} TB"
 
 def get_color_for_workflow(workflow_name: str) -> str:
     """Generate a consistent color for each workflow type"""
@@ -276,7 +279,7 @@ def main():
                 # Calculate actual metrics
                 actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)  # in seconds
-                actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
+                actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)  # in seconds
                 actual_invocation = sum(task.metrics.total_invocation_time_ms / 1000 for task in instance.tasks if task.metrics.total_invocation_time_ms is not None)  # in seconds
                 actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)  # in seconds
                 actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])  # in bytes
@@ -293,14 +296,15 @@ def main():
                 sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
                 sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                
+                actual_data_transferred = instance.total_transferred_data_bytes
+
                 # Get predicted metrics if available
-                predicted_total_download = predicted_execution = predicted_upload = predicted_makespan_s = 0
+                predicted_total_download = predicted_execution = predicted_total_upload = predicted_makespan_s = 0
                 predicted_input_size = predicted_output_size = predicted_total_worker_startup_time_s = 0
                 if instance.plan and instance.plan.nodes_info:
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
-                    predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
+                    predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
                     predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
                     predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
@@ -316,7 +320,7 @@ def main():
                     'makespan': actual_makespan_s,
                     'execution': actual_execution,
                     'download': actual_total_download,
-                    'upload': actual_upload,
+                    'upload': actual_total_upload,
                     'input_size': actual_input_size,
                     'output_size': actual_output_size,
                     'worker_startup': actual_total_worker_startup_time_s
@@ -354,8 +358,8 @@ def main():
                     if metric_name is not None:
                         instance_metrics[metric_name] = actual
                         
-                    formatted_actual = format_bytes(actual)
-                    formatted_predicted = format_bytes(predicted)
+                    formatted_actual = format_bytes(actual)[2]
+                    formatted_predicted = format_bytes(predicted)[2]
                     
                     # Format the predicted vs actual comparison
                     if predicted == 0 and actual == 0:
@@ -405,20 +409,21 @@ def main():
                                                 sample_counts.for_execution_time if sample_counts else None),
                     'Total Download Time': format_metric(actual_total_download, predicted_total_download, 'download',
                                             sample_counts.for_download_speed if sample_counts else None),
-                    'Total Upload Time': format_metric(actual_upload, predicted_upload, 'upload',
+                    'Total Upload Time': format_metric(actual_total_upload, predicted_total_upload, 'upload',
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Input Size': format_size_metric(actual_input_size, predicted_input_size, 'input_size',
                                             sample_counts.for_output_size if sample_counts else None),
                     'Total Output Size': format_size_metric(actual_output_size, predicted_output_size, 'output_size',
                                             sample_counts.for_output_size if sample_counts else None),
-                    'Total Task Invocation Time': f"{actual_invocation:.3f}s",
-                    'Total Dependency Counter Update Time': f"{actual_dependency_update:.3f}s",
+                    'Total Data Transferred': format_bytes(actual_data_transferred)[2],
+                    'Total Task Invocation Time': f"{actual_invocation:.2f}s",
+                    'Total Dependency Counter Update Time': f"{actual_dependency_update:.2f}s",
                     'Total DAG Download Time': dag_download_time,
                     'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
-                    'Run Time': f"{instance.resource_usage.run_time_seconds:.3f}",
-                    'CPU Time': f"{instance.resource_usage.cpu_seconds:.3f}",
-                    'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.3f} GB",
-                    'Resources Cost': f"{instance.resource_usage.cost:.3f}",
+                    'Run Time': f"{instance.resource_usage.run_time_seconds:.2f}",
+                    'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
+                    'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.2f} GB",
+                    'Resources Cost': f"{instance.resource_usage.cost:.2f}",
                     '_actual_worker_startup': actual_total_worker_startup_time_s,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
@@ -497,7 +502,7 @@ def main():
                                     if unit == 's':
                                         sla_info = f"{emoji} SLA: {sla:.3f}s (offset: {sign}{abs(offset):.3f}s)"
                                     else:  # for sizes
-                                        sla_info = f"{emoji} SLA: {format_bytes(sla)} (offset: {sign}{format_bytes(abs(offset))})"
+                                        sla_info = f"{emoji} SLA: {format_bytes(sla)[2]} (offset: {sign}{format_bytes(abs(offset))[2]})"
                                     
                                     return f"{current_value}\n{sla_info}"
                                 except Exception as e:
@@ -616,6 +621,7 @@ def main():
                         'Total Upload Time': "Total Upload Time (Predicted → Actual)",
                         'Total Input Size': "Total Input Size (Predicted → Actual)",
                         'Total Output Size': "Total Output Size (Predicted → Actual)",
+                        'Total Data Transferred': "Total Data Transferred",
                         'Total Task Invocation Time': "Total Task Invocation Time",
                         'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
                         'Total DAG Download Time': "Total DAG Download Time",
@@ -640,6 +646,7 @@ def main():
                         'Total Upload Time',
                         'Total Input Size',
                         'Total Output Size',
+                        'Total Data Transferred',
                         'Total Task Invocation Time',
                         'Total Dependency Counter Update Time',
                         'Total DAG Download Time',
@@ -745,19 +752,19 @@ def main():
                             ]) - instance.start_time_ms
                         ) / 1000
                     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                    actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                    actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                    actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                     actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
                     actual_worker_startup_time_s = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
                     # Get predicted metrics if available
-                    predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
+                    predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
                     if instance.plan and instance.plan.nodes_info:
                         predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                        predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                        predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                        predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                         predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
                         workers_accounted_for = set()
@@ -772,10 +779,10 @@ def main():
                         'makespan_predicted': predicted_makespan_s,
                         'execution_actual': actual_execution,
                         'execution_predicted': predicted_execution,
-                        'download_actual': actual_download,
-                        'download_predicted': predicted_download,
-                        'upload_actual': actual_upload,
-                        'upload_predicted': predicted_upload,
+                        'download_actual': actual_total_download,
+                        'download_predicted': predicted_total_download,
+                        'upload_actual': actual_total_upload,
+                        'upload_predicted': predicted_total_upload,
                         'input_size_actual': actual_input_size,
                         'input_size_predicted': predicted_input_size,
                         'output_size_actual': actual_output_size,
@@ -808,19 +815,19 @@ def main():
                         ) / 1000
                         
                         actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                        actual_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                        actual_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                        actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                        actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                         actual_input_size = sum([sum([input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                         actual_output_size = sum([task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks])
                         actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
                         # Get predicted metrics
-                        predicted_makespan_s = predicted_execution = predicted_download = predicted_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0
+                        predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0
                         if instance.plan and instance.plan.nodes_info:
                             predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                            predicted_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                             predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                            predicted_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
                             predicted_input_size = sum(info.deserialized_input_size for info in instance.plan.nodes_info.values())
                             predicted_output_size = sum(info.deserialized_output_size for info in instance.plan.nodes_info.values())
                             workers_accounted_for = set()
@@ -835,10 +842,10 @@ def main():
                                 'makespan_predicted': predicted_makespan_s,
                                 'execution_actual': actual_execution,
                                 'execution_predicted': predicted_execution,
-                                'download_actual': actual_download,
-                                'download_predicted': predicted_download,
-                                'upload_actual': actual_upload,
-                                'upload_predicted': predicted_upload,
+                                'download_actual': actual_total_download,
+                                'download_predicted': predicted_total_download,
+                                'upload_actual': actual_total_upload,
+                                'upload_predicted': predicted_total_upload,
                                 'input_size_actual': actual_input_size,
                                 'input_size_predicted': predicted_input_size,
                                 'output_size_actual': actual_output_size,
@@ -1379,6 +1386,13 @@ def main():
                     )
                     avg_memory_mb = total_memory_mb / len(instance.tasks) if instance.tasks else 0
                     
+                    input_size_value = sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks)
+                    input_size_value, input_size_unit, _ = format_bytes(input_size_value)
+                    output_size_value = sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks)
+                    output_size_value, output_size_unit, _ = format_bytes(output_size_value)
+                    total_data_value = instance.total_transferred_data_bytes
+                    total_data_value, total_data_unit, _ = format_bytes(total_data_value)
+                    
                     instance_metrics = {
                         'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
                         'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
@@ -1397,16 +1411,9 @@ def main():
                             for task in instance.tasks 
                             if task.metrics.output_metrics.tp_time_ms is not None
                         ),
-                        'Input Size [MB]': sum(
-                            sum(input_metric.deserialized_size_bytes 
-                                for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
-                            task.metrics.input_metrics.hardcoded_input_size_bytes
-                            for task in instance.tasks
-                        ) / (1024 * 1024),  # Convert to MB
-                        'Output Size [MB]': sum(
-                            task.metrics.output_metrics.deserialized_size_bytes 
-                            for task in instance.tasks
-                        ) / (1024 * 1024),  # Convert to MB
+                        f'Input Size [{input_size_unit}]': input_size_value,  # Convert to MB
+                        f'Output Size [{output_size_unit}]': output_size_value,  # Convert to MB
+                        f'Total Data Transferred [{total_data_unit}]': total_data_value,  # Convert to MB
                         'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
                         'Avg Memory Allocation [MB]': avg_memory_mb,
                         'Resource Usage': instance.resource_usage.cost
@@ -1601,11 +1608,12 @@ def main():
                             'upload': 0,
                             'input_size': 0,
                             'output_size': 0,
+                            'data_transferred': 0,
                             'invocation': 0,
                             'dependency_update': 0,
                             'dag_download': 0,
                             'worker_startup': 0,
-                            'resource_usage': instance.resource_usage.cost
+                            'resource_usage': 0
                         }
                     
                     # Calculate metrics for this instance
@@ -1636,6 +1644,7 @@ def main():
                         task.metrics.output_metrics.deserialized_size_bytes 
                         for task in instance.tasks
                     )
+                    metrics['data_transferred'] += instance.total_transferred_data_bytes
                     metrics['invocation'] += sum(
                         task.metrics.total_invocation_time_ms / 1000 
                         for task in instance.tasks 
@@ -1652,29 +1661,31 @@ def main():
                         for stat in instance.dag_download_stats
                     )
                     metrics['worker_startup'] += instance.total_worker_startup_time_ms / 1000
+                    metrics['resource_usage'] += instance.resource_usage.cost
                 
                 if planner_metrics:
                     # Calculate averages
-                    for planner in planner_metrics.values():
-                        count = planner['count']
+                    for planner_name, metrics in planner_metrics.items():
+                        count = metrics['count']
                         if count > 0:
-                            for key in ['makespan', 'execution', 'download', 'upload', 'input_size', 
-                                      'output_size', 'invocation', 'dependency_update', 'dag_download', 'worker_startup']:
-                                planner[key] /= count
+                            for key in metrics.keys():
+                                if key != 'count':
+                                    metrics[key] /= count
                     
                     # Prepare data for plotting
                     plot_data = []
                     for planner_name, metrics in planner_metrics.items():
                         plot_data.extend([
-                            {'Planner': planner_name, 'Metric': 'Total Makespan (s)', 'Value': metrics['makespan']},
-                            {'Planner': planner_name, 'Metric': 'Total Execution Time (s)', 'Value': metrics['execution']},
-                            {'Planner': planner_name, 'Metric': 'Total Download Time (s)', 'Value': metrics['download']},
-                            {'Planner': planner_name, 'Metric': 'Total Upload Time (s)', 'Value': metrics['upload']},
-                            {'Planner': planner_name, 'Metric': 'Total Task Invocation Time (s)', 'Value': metrics['invocation']},
-                            {'Planner': planner_name, 'Metric': 'Total Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
-                            {'Planner': planner_name, 'Metric': 'Total DAG Download Time (s)', 'Value': metrics['dag_download']},
-                            {'Planner': planner_name, 'Metric': 'Total Worker Startup Time (s)', 'Value': metrics['worker_startup']},
-                            {'Planner': planner_name, 'Metric': 'Total Resource Usage', 'Value': metrics['resource_usage']},
+                            {'Planner': planner_name, 'Metric': 'Makespan (s)', 'Value': metrics['makespan']},
+                            {'Planner': planner_name, 'Metric': 'Execution Time (s)', 'Value': metrics['execution']},
+                            {'Planner': planner_name, 'Metric': 'Download Time (s)', 'Value': metrics['download']},
+                            {'Planner': planner_name, 'Metric': 'Upload Time (s)', 'Value': metrics['upload']},
+                            {'Planner': planner_name, 'Metric': 'Data Transferred (MB)', 'Value': metrics['data_transferred'] / 1024 / 1024},
+                            {'Planner': planner_name, 'Metric': 'Task Invocation Time (s)', 'Value': metrics['invocation']},
+                            {'Planner': planner_name, 'Metric': 'Dependency Counter Update Time (s)', 'Value': metrics['dependency_update']},
+                            {'Planner': planner_name, 'Metric': 'DAG Download Time (s)', 'Value': metrics['dag_download']},
+                            {'Planner': planner_name, 'Metric': 'Worker Startup Time (s)', 'Value': metrics['worker_startup']},
+                            {'Planner': planner_name, 'Metric': 'Resource Usage', 'Value': metrics['resource_usage']},
                         ])
                     
                     df_planner_metrics = pd.DataFrame(plot_data)
