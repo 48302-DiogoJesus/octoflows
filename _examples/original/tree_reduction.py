@@ -12,7 +12,7 @@ from common.config import WORKER_CONFIG
 
 @DAGTask
 def add(x: float, y: float) -> float:
-    time.sleep(.5) # simulate some heavier work
+    time.sleep(.2) # simulate some heavier work
     return x + y
 
 # Define the workflow
