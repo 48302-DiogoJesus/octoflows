@@ -27,8 +27,9 @@ def get_planner_from_sys_argv():
         print(f"Unknown planner type: {planner_type}")
         sys.exit(-1)
 
+    is_montage_workflow = script_name == "montage.py"
     montage_min_worker_resource_config = TaskWorkerResourceConfiguration(cpus=3, memory_mb=8192)
-    min_resources = montage_min_worker_resource_config if script_name == "montage.py" else TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
+    min_resources = montage_min_worker_resource_config if is_montage_workflow else TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
 
     sla: SLA
     sla_str: str = sys.argv[2]
@@ -75,6 +76,9 @@ def get_planner_from_sys_argv():
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[
+                min_resources,
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+            ] if is_montage_workflow else [
                 min_resources,
                 min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
                 min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),

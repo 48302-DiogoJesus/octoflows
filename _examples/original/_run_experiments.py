@@ -18,8 +18,6 @@ ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'wukong', 'wukong-opt']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
 
-TIME_UNTIL_WORKER_GOES_COLD_S = 5
-
 DOCKER_FAAS_GATEWAY_IP = "localhost"
 
 montage_workload = "heavy"
