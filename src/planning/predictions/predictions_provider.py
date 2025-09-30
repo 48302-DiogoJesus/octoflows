@@ -60,7 +60,7 @@ class PredictionsProvider:
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics.input_download_metrics.values():
-                if input_metric.time_ms is None: continue # it can be None if the input was present at the worker
+                if input_metric.time_ms is None or input_metric.serialized_size_bytes == -1 or input_metric.deserialized_size_bytes == -1: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
                 self.cached_download_speeds.append((
                     input_metric.serialized_size_bytes / input_metric.time_ms,
@@ -70,7 +70,7 @@ class PredictionsProvider:
                 ))
 
             # UPLOAD SPEEDS
-            if metrics.output_metrics.tp_time_ms: # it can be None if the output was present at the worker, for example
+            if metrics.output_metrics.tp_time_ms and metrics.output_metrics.deserialized_size_bytes != -1 and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
                 # Normalize the upload speed based on memory
                 self.cached_upload_speeds.append((
                     metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
@@ -140,7 +140,7 @@ class PredictionsProvider:
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
 
-        selected_ratios, _ = self._select_related_samples(input_size, function_io_ratios, sla)
+        selected_ratios = self._select_related_samples(input_size, function_io_ratios, sla)
         if sla == "average": ratio = np.average(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
@@ -188,11 +188,8 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        # for sample in matching_samples:
-        #     print(f"Sample | Total bytes: {sample[1]} | To predict: {data_size_bytes}")
-
         if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            matching_samples, _debug_samples = self._select_related_samples(data_size_bytes, matching_samples, sla)
+            matching_samples = self._select_related_samples(data_size_bytes, matching_samples, sla)
             if sla == "average":
                 speed_bytes_per_ms = np.average(matching_samples)
             else:
@@ -202,14 +199,14 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid speed data")
             
             # Apply non-linear scaling with protection against complex numbers
-            base_time = data_size_bytes / speed_bytes_per_ms
-            res = abs(base_time) ** scaling_exponent
+            base_time = (data_size_bytes ** scaling_exponent) / speed_bytes_per_ms
+            res = base_time
         else:
             baseline_normalized_samples = [
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.2, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in cached_data
             ]
-            baseline_normalized_samples, _debug_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples, sla)
+            baseline_normalized_samples = self._select_related_samples(data_size_bytes, baseline_normalized_samples, sla)
             
             if sla == "average":
                 baseline_speed_bytes_per_ms = np.average(baseline_normalized_samples)
@@ -220,9 +217,8 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
             # Scale from baseline to target and apply non-linear scaling with protection
-            actual_speed = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
-            base_time = data_size_bytes / actual_speed
-            res = abs(base_time) ** scaling_exponent
+            scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
+            res = (data_size_bytes ** scaling_exponent) / scaled_speed_bytes_per_ms
 
         _res = float(res)
         self._cached_prediction_data_transfer_times[prediction_key] = _res
@@ -276,14 +272,9 @@ class PredictionsProvider:
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
         allow_cached: bool = True,
-        size_scaling_factor: float = 1
+        input_scaling_exponent: float = 0.9
     ) -> float:
         """Predict execution time for a function given input size and resources.
-        
-        size_scaling_factor: Exponent for input size scaling (default 0.8 for sublinear growth)
-            - 1.0 = linear scaling (original behavior)
-            - 0.5 = square root scaling (very slow growth)
-            - 0.8 = moderate sublinear scaling (recommended)
         
         Returns:
             Predicted execution time in milliseconds
@@ -294,7 +285,7 @@ class PredictionsProvider:
         if function_name not in self.cached_execution_time_per_byte: 
             return 0
         
-        prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{size_scaling_factor}"
+        prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_execution_times: 
             return self._cached_prediction_execution_times[prediction_key]
         
@@ -319,7 +310,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            selected_times, _ = self._select_related_samples(input_size, full_matching_samples, sla)
+            selected_times = self._select_related_samples(input_size, full_matching_samples, sla)
             
             # Calculate prediction using the selected samples
             if sla == "average": 
@@ -330,8 +321,7 @@ class PredictionsProvider:
             if ms_per_byte <= 0: 
                 raise ValueError(f"No valid data available for function {function_name}")
                 
-            # Apply sublinear scaling to input size
-            res = ms_per_byte * (input_size ** size_scaling_factor)
+            res = ms_per_byte * (input_size ** input_scaling_exponent)
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # Normalize samples to baseline memory configuration and select by input size
@@ -341,7 +331,7 @@ class PredictionsProvider:
             ]
             
             # Select samples based on input size similarity
-            baseline_normalized_samples, _ = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
+            baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
             
             if sla == "average":
                 baseline_ms_per_byte = np.average(baseline_normalized_samples) 
@@ -349,20 +339,17 @@ class PredictionsProvider:
                 baseline_ms_per_byte = np.percentile(baseline_normalized_samples, sla.value)
             if baseline_ms_per_byte <= 0:  
                 raise ValueError(f"No data available for function {function_name}")
-            # Apply sublinear scaling to input size and memory scaling
-            res = (baseline_ms_per_byte * (input_size ** size_scaling_factor) * 
-                   (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.2)
+            res = baseline_ms_per_byte * (input_size ** input_scaling_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.2
         
         self._cached_prediction_execution_times[prediction_key] = res # type: ignore
         return res # type: ignore
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 6) -> tuple[list[float], list[tuple[float, int, float]]]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 6) -> list[float]:
         """
         reference_value: int
         all_samples: [(value, comparable_to_reference)]
         """
-        if not all_samples:
-            return [], []
+        if not all_samples: return []
         
         if sla == "average": baseline_of_observed_values = np.average([size for _, size in all_samples])
         else: baseline_of_observed_values = np.percentile([size for _, size in all_samples], sla.value)
@@ -399,7 +386,7 @@ class PredictionsProvider:
                 
                 remaining_budget = max_samples - len(exact_samples)
                 if remaining_budget <= 0:
-                    return [value for _, value, _, _ in exact_samples[:max_samples]], [(value, total, threshold) for _, value, total, _ in exact_samples[:max_samples]]
+                    return [value for _, value, _, _ in exact_samples[:max_samples]]
                 
                 max_per_side = remaining_budget // 2
                 
@@ -424,7 +411,7 @@ class PredictionsProvider:
                 
                 # Combine and return values
                 all_selected = exact_samples + selected_below + selected_above
-                return [value for _, value, _, _ in all_selected], [(value, total, threshold) for _, value, total, _ in all_selected]
+                return [value for _, value, _, _ in all_selected]
         
         # If we reach here, even at 100% threshold we don't have enough samples
         # Sort all samples by distance to reference_value and take the closest ones
@@ -437,7 +424,7 @@ class PredictionsProvider:
         samples_with_distance.sort()
         closest_samples = samples_with_distance[:min_samples]
         
-        return [value for _, value, _ in closest_samples], [(value, size, 1.0) for _, value, size in closest_samples]
+        return [value for _, value, _ in closest_samples]
 
     def _split_task_id(self, task_id: str) -> tuple[str, str, str]:
         """ returns [function_name, task_id, master_dag_id] """
