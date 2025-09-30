@@ -42,7 +42,7 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             optimization.planning_assignment_logic(self, dag, predictions_provider, {}, topo_sorted_nodes)
 
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
-        final_critical_path_nodes, _ = self._find_critical_path(dag, nodes_info)
+        final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
 
         optimizations: dict[str, int] = {}
@@ -52,6 +52,7 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
 
         logger.info(f"=== FINAL RESULTS ===")
         logger.info(f"Optimizations: {optimizations}")
+        logger.info(f"Critical Path Nodes Count: {len(final_critical_path_nodes)} | Predicted Completion Time: {final_critical_path_time / 1000:.2f}s")
 
         return AbstractDAGPlanner.PlanOutput(
             self.planner_name, 
