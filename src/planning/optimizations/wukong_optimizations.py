@@ -120,7 +120,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     # need to recheck, otherwise, another worker would see 8/10 and NOT execute. No one would execute the task
                     if deps == len(downstream_task.upstream_nodes):
                         downstream_tasks_ready.append(downstream_task)
-                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
+                current_task.metrics.update_dependency_counters_time_ms = (current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop()
                 return downstream_tasks_ready
             else:
                 return downstream_tasks_ready
@@ -156,7 +156,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 for downstream_task in current_task.downstream_nodes:
                     deps = await _this_worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                     logger.info(f"[WUKONG_DBG] TCI W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
-                current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
+                current_task.metrics.update_dependency_counters_time_ms = (current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop()
 
                 # then re-check if in the meantime other tasks became READY, if so execute them
                 for dtask in current_task.downstream_nodes:
@@ -220,7 +220,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     for downstream_task in current_task.downstream_nodes:
                         deps = await _this_worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
                         logger.info(f"[WUKONG_DBG] DIO W({this_worker.my_worker_id}) Updated DC for {downstream_task.id.get_full_id()} ({deps}/{len(downstream_task.upstream_nodes)})")
-                    current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop()
+                    current_task.metrics.update_dependency_counters_time_ms = (current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop()
 
         # Normal fan-out handling logic     
         task_for_me_to_execute: DAGTaskNode | None = None

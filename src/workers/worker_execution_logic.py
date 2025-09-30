@@ -70,12 +70,16 @@ class WorkerExecutionLogic(ABC):
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
                     await _metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
-                receivers = await _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1")
-                this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()} to {receivers} receivers")
+                # publishes the READY event asynchronously
+                asyncio.create_task(
+                    _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
+                    name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
+                )
+                this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
                 
                 downstream_tasks_ready.append(downstream_task)
 
-        current_task.metrics.update_dependency_counters_time_ms = updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else None
+        current_task.metrics.update_dependency_counters_time_ms = (current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
         return downstream_tasks_ready
 
     @staticmethod
