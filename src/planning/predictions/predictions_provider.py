@@ -220,9 +220,8 @@ class PredictionsProvider:
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
             res = (data_size_bytes ** scaling_exponent) / scaled_speed_bytes_per_ms
 
-        _res = float(res)
-        self._cached_prediction_data_transfer_times[prediction_key] = _res
-        return _res
+        self._cached_prediction_data_transfer_times[prediction_key] = res
+        return res
 
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
