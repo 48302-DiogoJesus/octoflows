@@ -354,7 +354,7 @@ class PredictionsProvider:
         self._cached_prediction_execution_times[prediction_key] = res
         return res
 
-    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.85, alpha=0.4):
+    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.7, alpha=0.5):
         """
         Compute adaptive scaling exponent for input size prediction.
 

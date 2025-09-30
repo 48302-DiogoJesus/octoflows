@@ -444,11 +444,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # 5. Calculate upload_time (existing logic is correct)
         uploadable_output_size_bytes = 0
-        if len(node.downstream_nodes) > 0 and worker_id is not None and not (any(dt.worker_config.worker_id is None for dt in node.downstream_nodes)) and all(dt.worker_config.worker_id == worker_id for dt in node.downstream_nodes):
-            upload_time = 0.0
-        else:
+        if _dag.sink_node.id.get_full_id() == node.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != resource_config.worker_id for dt in node.downstream_nodes):
             upload_time = predictions_provider.predict_data_transfer_time('upload', serialized_output_size, resource_config, sla)
             uploadable_output_size_bytes = serialized_output_size
+        else:
+            upload_time = 0.0
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
@@ -569,11 +569,9 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         """
         nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = {}
 
-        print("------")
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
             self.__calculate_node_timings(dag, nodes_info, node, node.worker_config, predictions_provider, sla)
-        print("------")
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
         self.__update_node_timings_with_worker_startup(topo_sorted_nodes, nodes_info, predictions_provider, sla)
 

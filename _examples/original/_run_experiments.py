@@ -8,15 +8,15 @@ WORKFLOWS_PATHS = [
     'gemm.py',
     'tree_reduction.py',
     'text_analysis.py',
-    # 'image_transformer.py',
+    'image_transformer.py',
     # 'montage.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 3
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform']
-ALGORITHMS = ['uniform', 'uniform-opt']
-# ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'wukong', 'wukong-opt']
-SLAS = ['50']
+# ALGORITHMS = ['uniform']
+ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'wukong', 'wukong-opt']
+SLAS = ['75']
 # SLAS = ['50', '75', '90', '95', '99']
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
