@@ -330,18 +330,13 @@ class PredictionsProvider:
         sla: SLA,
         bandwidth: float = 0.25
     ) -> float:
-        """
-        Perform distance-weighted neighbor prediction with optional percentile.
-        Uses a Gaussian kernel for smooth interpolation.
-        """
         if not samples:
             return 0.0
 
         xs = np.array([s[x_index] for s in samples], dtype=float)
         ys = np.array([s[value_index] for s in samples], dtype=float)
 
-        # Kernel bandwidth relative to data spread
-        scale = np.std(xs) if np.std(xs) > 0 else max(1.0, float(np.mean(xs)))
+        scale = np.std(xs) if np.std(xs) > 0 else max(1.0, np.mean(xs))
         h = bandwidth * scale
 
         weights = np.exp(-0.5 * ((xs - x_query) / h) ** 2)
@@ -350,13 +345,16 @@ class PredictionsProvider:
         if sla == "average":
             return float(np.sum(weights * ys))
         else:
-            # Weighted percentile
             order = np.argsort(ys)
             sorted_y = ys[order]
             sorted_w = weights[order]
             cum_w = np.cumsum(sorted_w)
             cutoff = sla.value / 100.0
-            return float(sorted_y[np.searchsorted(cum_w, cutoff, side="right")])
+
+            idx = np.searchsorted(cum_w, cutoff, side="right")
+            idx = min(idx, len(sorted_y) - 1)  # <- clamp to last index
+            return float(sorted_y[idx])
+
 
     def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 6) -> tuple[list[float], list[tuple[float, int, float]]]:
         """
