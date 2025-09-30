@@ -160,19 +160,20 @@ class FullDAG(GenericDAG):
                 raise Exception("Can't use dashboard when using in-memory storage!")
             vis.DAGVisualizationDashboard.start(self, _wk_config)
         
-        _start_time = Timer()
         logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
+        _start_time = Timer()
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
         await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
-        res = await Worker.wait_for_result_of_task(
+        (res, total_time_ms) = await Worker.wait_for_result_of_task(
             wk.metadata_storage.storage,
             wk.intermediate_storage,
             self.sink_node,
-            self
+            self,
+            _start_time
         )
-        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {_start_time.stop()} ms")
+        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {total_time_ms / 1000:.2f} s")
 
         metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
         await wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
