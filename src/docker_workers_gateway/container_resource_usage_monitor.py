@@ -1,10 +1,10 @@
 import asyncio
 from collections import defaultdict
 from typing import Any, Optional, Tuple
+import time
 
 import aiohttp
 from src.storage.metadata.metrics_types import DAGResourceUsageMetrics
-from src.utils.timer import Timer
 
 DOCKER_API = "http://localhost:2375"
 SAMPLE_INTERVAL_S = 0.5
@@ -63,8 +63,7 @@ class DockerContainerUsageMonitor:
         and accumulates allocated memory*time.
         """
         data = DockerContainerUsageMonitor._dag_data[dag_id]
-        timer = Timer()
-        data["start_time"] = timer.start_time
+        data["start_time"] = time.perf_counter()
         data["memory_seconds"] = defaultdict(float)
         data["container_ids"] = set()
 
@@ -83,7 +82,7 @@ class DockerContainerUsageMonitor:
                             data["memory_seconds"][cid] += mem_limit * SAMPLE_INTERVAL_S
                 await asyncio.sleep(SAMPLE_INTERVAL_S)
 
-        data["end_time"] = timer.stop()
+        data["end_time"] = time.perf_counter()
 
     @staticmethod
     def start_monitoring(dag_id: str):

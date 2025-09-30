@@ -45,6 +45,7 @@ class WorkflowInstanceInfo:
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
     resource_usage: DAGResourceUsageMetrics
+    total_data_on_the_network_bytes: int
 
 @dataclass
 class WorkflowInfo:
@@ -129,6 +130,12 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 resource_usage_data: Any = metadata_storage_conn.get(resource_usage_key)
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
 
+                total_data_on_the_network_bytes = 0
+                for task in tasks:
+                    for im in task.metrics.input_metrics.input_download_metrics.values():
+                        total_data_on_the_network_bytes += im.serialized_size_bytes
+                    total_data_on_the_network_bytes += task.metrics.output_metrics.serialized_size_bytes
+
                 # Update workflow_types dict
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
@@ -142,7 +149,8 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         total_worker_startup_time_ms,
                         total_workers,
                         tasks,
-                        resource_usage
+                        resource_usage, 
+                        total_data_on_the_network_bytes
                     )
                 )
             except Exception as e:
