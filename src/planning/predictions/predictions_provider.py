@@ -137,8 +137,7 @@ class PredictionsProvider:
         function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
 
-        adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _, input_size in function_io_ratios], sla)
-        prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}-{adaptive_exponent}"
+        prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
 
@@ -146,9 +145,7 @@ class PredictionsProvider:
         if sla == "average": ratio = np.average(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
-        # logger.info(f"Output size prediction | Adaptive Exponent: {adaptive_exponent}")
-        res = math.ceil(input_size ** adaptive_exponent * ratio)
-        
+        res = math.ceil(input_size ** ratio)
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
@@ -186,7 +183,8 @@ class PredictionsProvider:
         ]
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _matching_samples], sla)
+            adaptive_exponent = 1
+            # adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _matching_samples], sla)
             prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{adaptive_exponent}"
             if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
                 return self._cached_prediction_data_transfer_times[prediction_key]
@@ -209,7 +207,8 @@ class PredictionsProvider:
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.2, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in all_samples
             ]
-            adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _baseline_normalized_samples], sla)
+            adaptive_exponent = 1
+            # adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _baseline_normalized_samples], sla)
             prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{adaptive_exponent}"
             if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
                 return self._cached_prediction_data_transfer_times[prediction_key]
@@ -228,8 +227,8 @@ class PredictionsProvider:
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
             res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
 
-        self._cached_prediction_data_transfer_times[prediction_key] = res
-        return res
+        self._cached_prediction_data_transfer_times[prediction_key] = float(res)
+        return float(res)
 
     def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
@@ -306,7 +305,8 @@ class PredictionsProvider:
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             # Get the full samples (with input sizes) for the matching resource config
-            adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in _matching_samples], sla)
+            adaptive_exponent = 1
+            # adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in _matching_samples], sla)
             prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{adaptive_exponent}"
             if allow_cached and prediction_key in self._cached_prediction_execution_times: 
                 return self._cached_prediction_execution_times[prediction_key]
@@ -333,7 +333,8 @@ class PredictionsProvider:
                 for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
-            adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in samples_w_normalized_time_per_byte], sla)
+            adaptive_exponent = 1
+            # adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in samples_w_normalized_time_per_byte], sla)
             prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{adaptive_exponent}"
             if allow_cached and prediction_key in self._cached_prediction_execution_times: 
                 return self._cached_prediction_execution_times[prediction_key]
@@ -351,8 +352,8 @@ class PredictionsProvider:
             # logger.info(f"Exec time | Normalized Samples | Adaptive Exponent: {adaptive_exponent}")
             res = baseline_ms_per_byte * (input_size ** adaptive_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.2
         
-        self._cached_prediction_execution_times[prediction_key] = res
-        return res
+        self._cached_prediction_execution_times[prediction_key] = float(res)
+        return float(res)
 
     def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.7, alpha=0.5):
         """
