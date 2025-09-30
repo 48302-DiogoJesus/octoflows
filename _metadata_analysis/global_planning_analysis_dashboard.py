@@ -84,7 +84,6 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data: Any = metadata_storage_conn.get(plan_key)
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
-                print("Planner: ", plan_output.planner_name if plan_output else 'Unknown')
 
                 # DAG download stats
                 download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
