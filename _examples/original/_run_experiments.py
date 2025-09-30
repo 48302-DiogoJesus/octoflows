@@ -5,11 +5,11 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'montage.py',
-    'text_analysis.py',
     'tree_reduction.py',
+    'text_analysis.py',
     'image_transformer.py',
     'gemm.py',
+    'montage.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 3
