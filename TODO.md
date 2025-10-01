@@ -1,13 +1,30 @@
 - Dashboard
-    - Ignore wukong planner (Only use it to know what is wukong and what's not but don't show it in graphs nor the predictions)
+    - Ignore wukong planners (Only use it to know what is wukong and what's not but don't show it in graphs nor the predictions)
     - Enforce a planner sorting order and colors (optionally)
+    - See WUKONG evaluation chapter
+        metrics they analyze:
+            - 
+        graphs they have:
+            - 
     - Compare by SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
         - overall prediction success rate (compared to the real values)
         PreWarm ("individual"):
         - how many happened, which tasks had them
         Dup ("individual"):
-    - how many happened, which tasks were dupped?
+    - Understand individual optimizations impact:
+        - PreLoad
+            measure 
+            HOW:
+            - 
+        - TaskDup
+            measure 
+            HOW:
+            - track when dupping happened (is the flag in metrics_storage? dont think so)
+        - PreWarm
+            measure (only makes sense for non uniform)
+            HOW:
+            - track when prewarming happened (look at annotation/optimization and check cold starts versus the same workflow on other planners??)
 
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
