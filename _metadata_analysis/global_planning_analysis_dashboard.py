@@ -1,3 +1,5 @@
+import plotly.subplots as sp
+import plotly.graph_objects as go
 import streamlit as st
 import redis
 import cloudpickle
@@ -774,8 +776,6 @@ def main():
                     # Add comparison bar chart for predicted vs actual metrics
                     st.markdown("### Reality vs Predictions")
                     
-                    
-
                     # Calculate averages for the comparison
                     metrics_data = []
                     for instance in matching_workflow_instances:
@@ -936,14 +936,6 @@ def main():
                         
                         # Create a dropdown to select planner
                         if planner_avg_metrics:
-                            selected_planner = st.selectbox(
-                                'Select Planner:',
-                                options=list(planner_avg_metrics.keys()),
-                                index=0,
-                                key='planner_selector'
-                            )
-                            
-                            # Prepare data for the selected planner
                             plot_data = []
                             for planner_name, metrics in planner_avg_metrics.items():
                                 for metric_name, values in metrics.items():
@@ -1028,7 +1020,7 @@ def main():
                                 ]) - instance.start_time_ms
                             ) / 1000,  # Convert to seconds
                             'execution_actual': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
-                            'download_actual': sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0 for task in instance.tasks) / 1000,
+                            'download_actual': sum(sum(input_metric.time_ms for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None) for task in instance.tasks) / 1000,
                             'upload_actual': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
                             'input_size_actual': sum(sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
                                                 (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
@@ -1143,93 +1135,93 @@ def main():
                         )
                         
                         # Create a second chart for actual values evolution
-                        st.markdown("### Actual Metric Values Evolution")
+                        # st.markdown("### Actual Metric Values Evolution")
                         
-                        # Create line chart for actual values
-                        fig_actual = px.line(
-                            df_accuracy,
-                            x='X_Label',
-                            y=actual_col,
-                            color='Planner',
-                            title=f'Actual {selected_metric} vs Number of Samples',
-                            labels={
-                                actual_col: selected_metric,
-                                'X_Label': 'Number of Previous Instances'
-                            },
-                            hover_data={
-                                'X_Label': False,  # Hide from hover
-                                'Previous Instances': ':.0f',
-                                actual_col: ':.2f'
-                            },
-                            markers=True
-                        )
+                        # # Create line chart for actual values
+                        # fig_actual = px.line(
+                        #     df_accuracy,
+                        #     x='X_Label',
+                        #     y=actual_col,
+                        #     color='Planner',
+                        #     title=f'Actual {selected_metric} vs Number of Samples',
+                        #     labels={
+                        #         actual_col: selected_metric,
+                        #         'X_Label': 'Number of Previous Instances'
+                        #     },
+                        #     hover_data={
+                        #         'X_Label': False,  # Hide from hover
+                        #         'Previous Instances': ':.0f',
+                        #         actual_col: ':.2f'
+                        #     },
+                        #     markers=True
+                        # )
                         
-                        # Update marker and line styles for better visibility
-                        fig_actual.update_traces(
-                            mode='lines+markers',
-                            marker=dict(
-                                size=8,
-                                line=dict(width=1, color='DarkSlateGrey')
-                            ),
-                            line=dict(width=2)
-                        )
+                        # # Update marker and line styles for better visibility
+                        # fig_actual.update_traces(
+                        #     mode='lines+markers',
+                        #     marker=dict(
+                        #         size=8,
+                        #         line=dict(width=1, color='DarkSlateGrey')
+                        #     ),
+                        #     line=dict(width=2)
+                        # )
                         
-                        # Update layout for the actual values chart
-                        fig_actual.update_layout(
-                            xaxis={
-                                'title': 'Number of Instances',
-                                'tickangle': 45,
-                                'tickmode': 'array',
-                                'tickvals': df_accuracy['X_Label'].unique(),
-                                'type': 'category'
-                            },
-                            yaxis_title=selected_metric,
-                            legend_title='Planner',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            height=500,
-                            hovermode='x unified',
-                            margin=dict(b=100)
-                        )
+                        # # Update layout for the actual values chart
+                        # fig_actual.update_layout(
+                        #     xaxis={
+                        #         'title': 'Number of Instances',
+                        #         'tickangle': 45,
+                        #         'tickmode': 'array',
+                        #         'tickvals': df_accuracy['X_Label'].unique(),
+                        #         'type': 'category'
+                        #     },
+                        #     yaxis_title=selected_metric,
+                        #     legend_title='Planner',
+                        #     plot_bgcolor='rgba(0,0,0,0)',
+                        #     height=500,
+                        #     hovermode='x unified',
+                        #     margin=dict(b=100)
+                        # )
                         
-                        # Update marker and line styles for better visibility
-                        fig_error.update_traces(
-                            mode='lines+markers',  # Show both lines and markers
-                            marker=dict(
-                                size=8,            # Larger markers
-                                line=dict(
-                                    width=1,        # Border width
-                                    color='DarkSlateGrey'  # Border color
-                                )
-                            ),
-                            line=dict(width=2)     # Thinner lines to emphasize markers
-                        )
+                        # # Update marker and line styles for better visibility
+                        # fig_error.update_traces(
+                        #     mode='lines+markers',  # Show both lines and markers
+                        #     marker=dict(
+                        #         size=8,            # Larger markers
+                        #         line=dict(
+                        #             width=1,        # Border width
+                        #             color='DarkSlateGrey'  # Border color
+                        #         )
+                        #     ),
+                        #     line=dict(width=2)     # Thinner lines to emphasize markers
+                        # )
                         
-                        # Update x-axis to show all tick labels and improve readability
-                        fig_error.update_layout(
-                            xaxis={
-                                'title': 'Number of Instances',
-                                'tickangle': 45,
-                                'tickmode': 'array',
-                                'tickvals': df_accuracy['X_Label'].unique(),
+                        # # Update x-axis to show all tick labels and improve readability
+                        # fig_error.update_layout(
+                        #     xaxis={
+                        #         'title': 'Number of Instances',
+                        #         'tickangle': 45,
+                        #         'tickmode': 'array',
+                        #         'tickvals': df_accuracy['X_Label'].unique(),
 
-                                'type': 'category'  # Treat x-axis as categories to show all labels
-                            },
-                            yaxis_title='Relative Error (Actual vs Predicted)',
-                            legend_title='Planner',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            height=500,
-                            hovermode='x unified',
-                            margin=dict(b=100)  # Add bottom margin for x-axis labels
-                        )
+                        #         'type': 'category'  # Treat x-axis as categories to show all labels
+                        #     },
+                        #     yaxis_title='Relative Error (Actual vs Predicted)',
+                        #     legend_title='Planner',
+                        #     plot_bgcolor='rgba(0,0,0,0)',
+                        #     height=500,
+                        #     hovermode='x unified',
+                        #     margin=dict(b=100)  # Add bottom margin for x-axis labels
+                        # )
                         
-                        # Display both charts in tabs
-                        tab1, tab2 = st.tabs(["Prediction Error", "Actual Values"])
+                        # # Display both charts in tabs
+                        # tab1, tab2 = st.tabs(["Prediction Error", "Actual Values"])
                         
-                        with tab1:
-                            st.plotly_chart(fig_error, use_container_width=True)
+                        # with tab1:
+                        #     st.plotly_chart(fig_error, use_container_width=True)
                         
-                        with tab2:
-                            st.plotly_chart(fig_actual, use_container_width=True)
+                        # with tab2:
+                        #     st.plotly_chart(fig_actual, use_container_width=True)
                         
                         st.markdown("### Prediction Error Distribution by Planner")
                             
@@ -1699,6 +1691,121 @@ def main():
                         )
                         
                         st.plotly_chart(fig, use_container_width=True)
+                
+                #########
+                # Define the metrics we want to track
+                # Define the metrics we want to track
+                metrics_list = [
+                    "makespan",
+                    "execution",
+                    "download",
+                    "upload",
+                    "input_size",
+                    "output_size",
+                    "worker_startup_time"
+                ]
+
+                results = []
+
+                for workflow_name, workflow_info in st.session_state.workflow_types.items():
+                    # Sort instances by start time
+                    sorted_instances = sorted(workflow_info.instances, key=lambda inst: inst.start_time_ms)
+
+                    # Keep track of history for each metric
+                    history = {metric: [] for metric in metrics_list}
+
+                    for inst in sorted_instances:
+                        if not inst.plan or not inst.tasks:
+                            continue
+                        sla = inst.plan.sla
+                        if sla == "average": continue  # skip "average"
+
+                        sla_value = sla.value  # percentile 1-100
+
+                        # --- Compute actual metrics like before ---
+                        actual_makespan = (
+                            max([
+                                (task.metrics.started_at_timestamp_s * 1000) +
+                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
+                                (task.metrics.tp_execution_time_ms or 0) +
+                                (task.metrics.output_metrics.tp_time_ms or 0) +
+                                (task.metrics.total_invocation_time_ms or 0)
+                                for task in inst.tasks
+                            ]) - inst.start_time_ms
+                        ) / 1000
+
+                        actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in inst.tasks)
+                        actual_download = sum(
+                            sum(im.time_ms for im in task.metrics.input_metrics.input_download_metrics.values() if im.time_ms) 
+                            for task in inst.tasks
+                        ) / 1000
+                        actual_upload = sum(task.metrics.output_metrics.tp_time_ms or 0 for task in inst.tasks) / 1000
+                        actual_input_size = sum(
+                            sum(im.serialized_size_bytes for im in task.metrics.input_metrics.input_download_metrics.values()) +
+                            task.metrics.input_metrics.hardcoded_input_size_bytes
+                            for task in inst.tasks
+                        )
+                        actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in inst.tasks)
+                        actual_worker_startup = inst.total_worker_startup_time_ms / 1000
+
+                        actuals = {
+                            "makespan": actual_makespan,
+                            "execution": actual_execution,
+                            "download": actual_download,
+                            "upload": actual_upload,
+                            "input_size": actual_input_size,
+                            "output_size": actual_output_size,
+                            "worker_startup_time": actual_worker_startup
+                        }
+
+                        # Compare to historical percentile for each metric
+                        for metric in metrics_list:
+                            prev_values = history[metric]
+                            if prev_values:
+                                threshold = np.percentile(prev_values, sla_value)
+                                success = actuals[metric] <= threshold
+                                results.append({
+                                    "SLA": sla_value,
+                                    "Metric": metric,
+                                    "Success": success
+                                })
+
+                            # Update history
+                            history[metric].append(actuals[metric])
+
+                # Convert to DataFrame and compute success rate
+                df = pd.DataFrame(results)
+                if not df.empty:
+                    summary = df.groupby(["SLA", "Metric"])["Success"].mean().reset_index()
+                    summary["SuccessRate"] = summary["Success"] * 100
+
+                    # Convert SLA numeric to categorical label for bar chart
+                    summary["SLA_label"] = "P" + summary["SLA"].astype(str)
+
+                    # Bar chart: SLA vs SuccessRate, grouped by metric
+                    fig = px.bar(
+                        summary,
+                        x="SLA_label",
+                        y="SuccessRate",
+                        color="Metric",
+                        barmode="group",
+                        title="SLA Fulfillment Rate Across Metrics",
+                        text="SuccessRate"
+                    )
+
+                    # Layout
+                    fig.update_layout(
+                        xaxis_title="SLA Percentile",
+                        yaxis_title="Fulfillment Rate (%)",
+                        yaxis=dict(range=[0, 100]),
+                        legend_title="Metric"
+                    )
+                    fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.write("No percentile SLA data available to plot.")
+
             else:
                 st.warning("No instance data available for the selected filters.")
 
