@@ -19,7 +19,6 @@ class FullDAGPrepareTime:
 @dataclass
 class TaskInputDownloadMetrics:
     serialized_size_bytes: int # for download time prediction
-    deserialized_size_bytes: int # for i/o prediction
     time_ms: float | None
 
 @dataclass
@@ -33,7 +32,6 @@ class TaskInputMetrics:
 @dataclass
 class TaskOutputMetrics:
     serialized_size_bytes: int # for upload time prediction
-    deserialized_size_bytes: int # for i/o prediction
     tp_time_ms: float | None
 
 @dataclass

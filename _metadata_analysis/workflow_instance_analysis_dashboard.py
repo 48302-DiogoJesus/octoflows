@@ -257,7 +257,7 @@ def main():
         total_data_transferred += task_data
         total_time_executing_tasks_ms += metrics.tp_execution_time_ms if metrics.tp_execution_time_ms else 0
 
-        downloadable_input_size_bytes = sum([input_metrics.deserialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
+        downloadable_input_size_bytes = sum([input_metrics.serialized_size_bytes for input_metrics in metrics.input_metrics.input_download_metrics.values()])
         # Prepare data for visualization
         task_metrics_data.append({
             'task_id': task_id,
@@ -268,7 +268,7 @@ def main():
             'worker_resource_configuration_cpus': metrics.worker_resource_configuration.cpus,
             'worker_resource_configuration_ram': metrics.worker_resource_configuration.memory_mb,
             'input_size': downloadable_input_size_bytes,
-            'output_size': metrics.output_metrics.deserialized_size_bytes,
+            'output_size': metrics.output_metrics.serialized_size_bytes,
             'downstream_calls': metrics.total_invocations_count
         })
     
@@ -282,7 +282,7 @@ def main():
     dag_prepare_metrics = []
     for key in keys:
         serialized_value = metrics_redis.get(key)
-        deserialized: FullDAGPrepareTime = cloudpickle.loads(serialized_value) # type: ignore
+        deserialized = cloudpickle.loads(serialized_value) # type: ignore
         if not isinstance(deserialized, FullDAGPrepareTime): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
         total_time_downloading_dag_ms += deserialized.download_time_ms
         dag_prepare_metrics.append({
@@ -523,7 +523,7 @@ def main():
                 small_metric("Function", task_node.func_name, help=task_node.id.get_full_id())
                 small_metric("Worker", metrics.worker_resource_configuration.worker_id)
                 col1, col2, col3 = st.columns(3)
-                output_data = metrics.output_metrics.deserialized_size_bytes
+                output_data = metrics.output_metrics.serialized_size_bytes
                 worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
                 worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                 worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
@@ -532,7 +532,7 @@ def main():
                     small_metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="vCPUs, Memory (MB)")
                     small_metric("Time Waiting for Dependencies", f"{(metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0):.2f} ms")
                     small_metric("Task Execution Time", f"{(metrics.tp_execution_time_ms or 0):.2f} ms")
-                    small_metric("Input Size", format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                    small_metric("Input Size", format_bytes(sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                 with col2:
                     small_metric("Total Task Time", f"{total_task_handling_time:.2f} ms")
                     small_metric("Time Downloading Dependencies", f"{sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]):.2f} ms")
@@ -563,7 +563,7 @@ def main():
                     
                     if current_task_metrics:
                         # Calculate all the metrics we want to compare
-                        output_size = metrics.output_metrics.deserialized_size_bytes if metrics.output_metrics else 0
+                        output_size = metrics.output_metrics.serialized_size_bytes if metrics.output_metrics else 0
                         actual_start_time = current_task_metrics['relative_start_time_ms']
                         end_time_ms = current_task_metrics['end_time_ms']
                         
@@ -592,8 +592,8 @@ def main():
                             st.text('Worker Startup Time (ms)')
                         with col_planned:
                             if tp:
-                                st.text(format_bytes(tp.deserialized_input_size))
-                                st.text(format_bytes(tp.deserialized_output_size))
+                                st.text(format_bytes(tp.serialized_input_size))
+                                st.text(format_bytes(tp.serialized_output_size))
                                 st.text(f"{float(tp.total_download_time_ms):.3f} ms")
                                 st.text(f"{float(tp.tp_exec_time_ms):.3f} ms")
                                 st.text(f"{float(tp.tp_upload_time_ms):.3f} ms")
@@ -602,7 +602,7 @@ def main():
                                 st.text(f"({tp.worker_startup_state or 'N/A'}) {float(tp.tp_worker_startup_time_ms):.3f} ms")
                         
                         with col_observed:
-                            st.text(format_bytes(sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
+                            st.text(format_bytes(sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes))
                             st.text(format_bytes(output_size))
                             time_downloading_inputs = sum([input_metric.time_ms for input_metric in metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms])
                             st.text(f"{float(time_downloading_inputs):.3f} ms")
@@ -634,13 +634,13 @@ def main():
                         with col_diff:
                             if tp:
                                 # Input Size difference
-                                planned_input = tp.deserialized_input_size
-                                observed_input = sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
+                                planned_input = tp.serialized_input_size
+                                observed_input = sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()]) + metrics.input_metrics.hardcoded_input_size_bytes
                                 pct, pct_str = format_percentage(observed_input - planned_input, planned_input)
                                 st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
                                 
                                 # Output Size difference
-                                planned_output = tp.deserialized_output_size
+                                planned_output = tp.serialized_output_size
                                 pct, pct_str = format_percentage(output_size - planned_output, planned_output)
                                 st.markdown(f"<span style='{get_diff_style(pct)}'>{pct_str}</span>", unsafe_allow_html=True)
 
@@ -728,9 +728,9 @@ def main():
 
         predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms if plan_output else -1
         predicted_upload_time = sum([tp.tp_upload_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
-        predicted_upload_size = sum([tp.deserialized_output_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
+        predicted_upload_size = sum([tp.serialized_output_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_download_time = sum([tp.total_download_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
-        predicted_download_size = sum([tp.deserialized_input_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
+        predicted_download_size = sum([tp.serialized_input_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
@@ -927,7 +927,7 @@ def main():
                 for input_metrics in task_metrics.input_metrics.input_download_metrics.values():
                     # Calculate download throughputs for each input
                     if input_metrics.time_ms is not None:
-                        downloadable_input_size_bytes = sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()])
+                        downloadable_input_size_bytes = sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()])
                         throughput_mb = (downloadable_input_size_bytes / (input_metrics.time_ms / 1000)) / (1024 * 1024)  # MB/s
                         speed_bytes_ms = downloadable_input_size_bytes / input_metrics.time_ms  # bytes/ms
                         download_throughputs_mb_s.append(throughput_mb)
@@ -936,11 +936,11 @@ def main():
 
                 # Calculate upload throughput for output if available
                 if task_metrics.output_metrics.tp_time_ms is not None:
-                    throughput_mb = (task_metrics.output_metrics.deserialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
-                    speed_bytes_ms = task_metrics.output_metrics.deserialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
+                    throughput_mb = (task_metrics.output_metrics.serialized_size_bytes / (task_metrics.output_metrics.tp_time_ms / 1000)) / (1024 * 1024)  # MB/s
+                    speed_bytes_ms = task_metrics.output_metrics.serialized_size_bytes / task_metrics.output_metrics.tp_time_ms  # bytes/ms
                     upload_throughputs_mb_s.append(throughput_mb)
                     all_transfer_speeds_b_ms.append(speed_bytes_ms)
-                    total_data_uploaded += task_metrics.output_metrics.deserialized_size_bytes
+                    total_data_uploaded += task_metrics.output_metrics.serialized_size_bytes
 
             # Calculate average throughputs
             avg_download_throughput_mb_s = sum(download_throughputs_mb_s) / len(download_throughputs_mb_s) if download_throughputs_mb_s else 0

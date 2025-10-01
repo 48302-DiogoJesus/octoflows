@@ -20,7 +20,6 @@ class PredictionsProvider:
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
     cached_upload_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
     cached_download_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
-    cached_deserialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     cached_serialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
@@ -60,7 +59,7 @@ class PredictionsProvider:
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics.input_download_metrics.values():
-                if input_metric.time_ms is None or input_metric.serialized_size_bytes == -1 or input_metric.deserialized_size_bytes == -1: continue # it can be None if the input was present at the worker
+                if input_metric.time_ms is None or input_metric.serialized_size_bytes == -1: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
                 self.cached_download_speeds.append((
                     input_metric.serialized_size_bytes / input_metric.time_ms,
@@ -70,7 +69,7 @@ class PredictionsProvider:
                 ))
 
             # UPLOAD SPEEDS
-            if metrics.output_metrics.tp_time_ms and metrics.output_metrics.deserialized_size_bytes != -1 and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
+            if metrics.output_metrics.tp_time_ms and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
                 # Normalize the upload speed based on memory
                 self.cached_upload_speeds.append((
                     metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
@@ -94,42 +93,22 @@ class PredictionsProvider:
             function_name, _, dag_id = self._split_task_id(task_id)
             if metrics.execution_time_per_input_byte_ms is None: continue
             
-            group_by_workflow.setdefault(dag_id, {})
-            group_by_workflow[dag_id].setdefault(function_name, {})
-            group_by_workflow[dag_id][function_name].setdefault("input", 0)
-            group_by_workflow[dag_id][function_name].setdefault("output", 0)
-            group_by_workflow[dag_id][function_name].setdefault("inputs_count", 0)
-            for func_id, im in metrics.input_metrics.input_download_metrics.items():
-                group_by_workflow[dag_id][function_name]["input"] += im.deserialized_size_bytes
-                group_by_workflow[dag_id][function_name]["inputs_count"] += 1
-            group_by_workflow[dag_id][function_name]["input"] += metrics.input_metrics.hardcoded_input_size_bytes
-            group_by_workflow[dag_id][function_name]["output"] += metrics.output_metrics.deserialized_size_bytes
-            
             # EXECUTION TIME P/ BYTE
             if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
             self.cached_execution_time_per_byte[function_name].append((
                 metrics.execution_time_per_input_byte_ms,
                 metrics.worker_resource_configuration.cpus,
                 metrics.worker_resource_configuration.memory_mb,
-                metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
+                metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             ))
 
             # I/O RATIO
-            if function_name not in self.cached_deserialized_io_ratios:
-                self.cached_deserialized_io_ratios[function_name] = []
-            input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
-            output_size = metrics.output_metrics.deserialized_size_bytes
-            self.cached_deserialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
-
             if function_name not in self.cached_serialized_io_ratios:
                 self.cached_serialized_io_ratios[function_name] = []
             input_size = metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in metrics.input_metrics.input_download_metrics.values()])
             output_size = metrics.output_metrics.serialized_size_bytes
             self.cached_serialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
 
-        for dag_id, functions in group_by_workflow.items():
-            for function_name, metrics in functions.items():
-                print(f"{dag_id} => {function_name} => Input: {metrics['input'] / 1024 / 1024}mb ({metrics['inputs_count']} inputs) Output: {metrics['output'] / 1024 / 1024}mb")
         self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
         logger.info(f"Loaded {len(same_workflow_same_planner_type_metrics.keys())}/{len(generic_metrics_keys)} useful metrics in {timer.stop()}ms")
 
@@ -142,17 +121,16 @@ class PredictionsProvider:
         # print("cached worker cold start times len: ", len(self.cached_worker_cold_start_times))
         # print("cached worker warm start times len: ", len(self.cached_worker_warm_start_times))
         #* Needs to have at least SOME history for the SAME TYPE of workflow
-        return len(self.cached_deserialized_io_ratios) > 0 or len(self.cached_serialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
+        return len(self.cached_serialized_io_ratios) > 0 or len(self.cached_execution_time_per_byte) > 0
 
-    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, deserialized: bool = True, allow_cached: bool = True) -> int:
+    def predict_output_size(self, function_name: str, input_size: int , sla: SLA, allow_cached: bool = True) -> int:
         if input_size < 0: raise ValueError("Input size cannot be negative")
-        if deserialized and function_name not in self.cached_deserialized_io_ratios: return input_size
-        if not deserialized and function_name not in self.cached_serialized_io_ratios: return input_size
+        if function_name not in self.cached_serialized_io_ratios: return input_size
 
-        function_io_ratios = self.cached_deserialized_io_ratios[function_name] if deserialized else self.cached_serialized_io_ratios[function_name]
+        function_io_ratios = self.cached_serialized_io_ratios[function_name]
         if len(function_io_ratios) == 0: return 0
 
-        prediction_key = f"{function_name}-{input_size}-{sla}-{deserialized}"
+        prediction_key = f"{function_name}-{input_size}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_output_sizes: 
             return self._cached_prediction_output_sizes[prediction_key]
 
@@ -196,6 +174,7 @@ class PredictionsProvider:
             (speed, total_bytes) for speed, total_bytes, cpus, memory_mb in all_samples
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
+
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             adaptive_exponent = 1
@@ -219,7 +198,7 @@ class PredictionsProvider:
             res = base_time
         else:
             _baseline_normalized_samples = [
-                (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.2, total_bytes)
+                (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.3, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in all_samples
             ]
             adaptive_exponent = 1
@@ -239,7 +218,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
             # logger.info(f"Data trans | Normalized samples | Adaptive Exponent: {adaptive_exponent}")
-            scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
+            scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.3
             res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
 
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
@@ -273,14 +252,14 @@ class PredictionsProvider:
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.2 for startup_time, cpus, memory_mb in samples]
+            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.3 for startup_time, cpus, memory_mb in samples]
             if sla == "average":  startup_time = np.average(baseline_normalized_samples)
             else: startup_time = np.percentile(baseline_normalized_samples, sla.value)
             
             if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
             
             # Scale from baseline to target resource configuration
-            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.2
+            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.3
             res = actual_startup_time
         
         self._cached_prediction_startup_times[prediction_key] = res # type: ignore
@@ -344,7 +323,7 @@ class PredictionsProvider:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # Normalize samples to baseline memory configuration and select by input size
             samples_w_normalized_time_per_byte = [
-                (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.2, total_input_size_bytes)
+                (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.3, total_input_size_bytes)
                 for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
             
@@ -365,7 +344,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for function {function_name}")
             
             # logger.info(f"Exec time | Normalized Samples | Adaptive Exponent: {adaptive_exponent}")
-            res = baseline_ms_per_byte * (input_size ** adaptive_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.2
+            res = baseline_ms_per_byte * (input_size ** adaptive_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.3
         
         self._cached_prediction_execution_times[prediction_key] = float(res)
         return float(res)

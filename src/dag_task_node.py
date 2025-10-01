@@ -60,7 +60,7 @@ class DAGTaskNode:
             tp_execution_time_ms=0,
             execution_time_per_input_byte_ms=None,
             update_dependency_counters_time_ms=None,
-            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, deserialized_size_bytes=-1, tp_time_ms=None),
+            output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, tp_time_ms=None),
             total_invocations_count=0,
             total_invocation_time_ms=None,
             planner_used_name=None

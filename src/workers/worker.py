@@ -87,12 +87,12 @@ class Worker(ABC):
                 for func_arg in current_task.func_args:
                     if isinstance(func_arg, dag_task_node.DAGTaskNodeId): continue
                     if isinstance(func_arg, dag.HardcodedDependencyId): continue # these are accounted for in the normal download metrics
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_arg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(func_arg))
 
                 for func_kwarg in current_task.func_kwargs.values():
                     if isinstance(func_kwarg, dag_task_node.DAGTaskNodeId): continue
                     if isinstance(func_kwarg, dag.HardcodedDependencyId): continue # these are accounted for in the normal download metrics
-                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(func_kwarg)
+                    current_task.metrics.input_metrics.hardcoded_input_size_bytes += calculate_data_structure_size_bytes(cloudpickle.dumps(func_kwarg))
 
                 upstream_tasks_without_cached_results: list[dag_task_node.DAGTaskNode] = []
                 for t in current_task.upstream_nodes:
@@ -124,7 +124,6 @@ class Worker(ABC):
                         new_func_args.append(d)
                         current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
                             serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(d)),
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(d),
                             time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
                         )
                     else:
@@ -137,7 +136,6 @@ class Worker(ABC):
                         new_func_kwargs[key] = d
                         current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
                             serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(d)),
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(d),
                             time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
                         )
                     else:
@@ -165,7 +163,6 @@ class Worker(ABC):
 
                     current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
                         serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(t.cached_result.result)),
-                        deserialized_size_bytes=calculate_data_structure_size_bytes(t.cached_result.result),
                         time_ms=None
                     )
                 
@@ -179,7 +176,6 @@ class Worker(ABC):
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
                         current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
                             serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result), 
-                            deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_result),
                             time_ms=time_to_fetch_ms
                         )
 
@@ -199,7 +195,7 @@ class Worker(ABC):
 
                 current_task.metrics.tp_execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
-                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.deserialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
+                total_input_size = current_task.metrics.input_metrics.hardcoded_input_size_bytes + sum([input_metric.serialized_size_bytes for input_metric in current_task.metrics.input_metrics.input_download_metrics.values()])
                 current_task.metrics.execution_time_per_input_byte_ms = current_task.metrics.tp_execution_time_ms / total_input_size \
                     if total_input_size > 0 else None
 
@@ -207,7 +203,6 @@ class Worker(ABC):
                 serialized_task_result = cloudpickle.dumps(deserialized_task_result)
                 current_task.metrics.output_metrics = TaskOutputMetrics(
                     serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result),
-                    deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_task_result),
                     tp_time_ms=None
                 )
 

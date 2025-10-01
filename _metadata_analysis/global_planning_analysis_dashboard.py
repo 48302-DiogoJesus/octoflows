@@ -734,10 +734,10 @@ def main():
                                 'Task ID': task.global_task_id,
                                 'Worker Config': str(task_metrics.worker_resource_configuration),
                                 'Start Time (s)': task_metrics.started_at_timestamp_s,
-                                'Input Size (bytes)': sum([input_metric.deserialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
+                                'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
                                 'Download Time (ms)': sum([input_metric.time_ms for input_metric in task_metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]),
                                 'Execution Time (ms)': task_metrics.tp_execution_time_ms,
-                                'Output Size (bytes)': task_metrics.output_metrics.deserialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
+                                'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
                                 'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
                                 'Worker Startup Time (ms)': (worker_startup_metrics_for_task.end_time_ms - worker_startup_metrics_for_task.start_time_ms) if worker_startup_metrics_for_task and worker_startup_metrics_for_task.end_time_ms else 0,
                             })
@@ -1008,9 +1008,9 @@ def main():
                         'execution_actual': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
                         'download_actual': sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0 for task in instance.tasks) / 1000,
                         'upload_actual': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
-                        'input_size_actual': sum(sum(input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
+                        'input_size_actual': sum(sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
                                               (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
-                        'output_size_actual': sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                        'output_size_actual': sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
                         'worker_startup_time_actual': sum(
                             (metric.end_time_ms - metric.start_time_ms) / 1000 
                             for metric in st.session_state.worker_startup_metrics 
@@ -1033,8 +1033,8 @@ def main():
                             'execution_predicted': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                             'download_predicted': sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                             'upload_predicted': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
-                            'input_size_predicted': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
-                            'output_size_predicted': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
+                            'input_size_predicted': sum(info.serialized_input_size for info in instance.plan.nodes_info.values()),
+                            'output_size_predicted': sum(info.serialized_output_size for info in instance.plan.nodes_info.values()),
                             'worker_startup_time_predicted': predicted_worker_startup_time_s
                         }
                     
@@ -1232,9 +1232,9 @@ def main():
                             'execution': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
                             'download': sum(task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0 for task in instance.tasks) / 1000,
                             'upload': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
-                            'input_size': sum(sum(input_metric.deserialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
+                            'input_size': sum(sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
                                         (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
-                            'output_size': sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                            'output_size': sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
                             'worker_startup_time': instance.total_worker_startup_time_ms / 1000,
                         }
                         
@@ -1247,8 +1247,8 @@ def main():
                                 'execution': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                                 'download': sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                                 'upload': sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values()),
-                                'input_size': sum(info.deserialized_input_size for info in instance.plan.nodes_info.values()),
-                                'output_size': sum(info.deserialized_output_size for info in instance.plan.nodes_info.values()),
+                                'input_size': sum(info.serialized_input_size for info in instance.plan.nodes_info.values()),
+                                'output_size': sum(info.serialized_output_size for info in instance.plan.nodes_info.values()),
                                 'worker_startup_time': sum(info.tp_worker_startup_time_ms / 1000 for info in instance.plan.nodes_info.values()),
                             }
                         
@@ -1413,9 +1413,9 @@ def main():
                     )
                     avg_memory_mb = total_memory_mb / len(instance.tasks) if instance.tasks else 0
                     
-                    input_size_value = sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks)
+                    input_size_value = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks)
                     input_size_value, input_size_unit, _ = format_bytes(input_size_value)
-                    output_size_value = sum(task.metrics.output_metrics.deserialized_size_bytes for task in instance.tasks)
+                    output_size_value = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks)
                     output_size_value, output_size_unit, _ = format_bytes(output_size_value)
                     total_data_value = instance.total_transferred_data_bytes
                     total_data_value, total_data_unit, _ = format_bytes(total_data_value)
@@ -1663,12 +1663,12 @@ def main():
                         if task.metrics.output_metrics.tp_time_ms is not None
                     )
                     metrics['input_size'] += sum(
-                        sum(input_metric.deserialized_size_bytes 
+                        sum(input_metric.serialized_size_bytes 
                             for input_metric in task.metrics.input_metrics.input_download_metrics.values())
                         for task in instance.tasks
                     )
                     metrics['output_size'] += sum(
-                        task.metrics.output_metrics.deserialized_size_bytes 
+                        task.metrics.output_metrics.serialized_size_bytes 
                         for task in instance.tasks
                     )
                     metrics['data_transferred'] += instance.total_transferred_data_bytes

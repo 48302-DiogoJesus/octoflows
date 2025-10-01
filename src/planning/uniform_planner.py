@@ -47,7 +47,6 @@ class UniformPlanner(AbstractDAGPlanner):
         # Step 1: Assign uniform resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         self._basic_worker_id_assignment(dag, predictions_provider, worker_resources, topo_sorted_nodes)
-
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
 
         # OPTIMIZATIONS
@@ -78,7 +77,7 @@ class UniformPlanner(AbstractDAGPlanner):
             for_upload_speed=len(predictions_provider.cached_upload_speeds),
             # note: only related to instances from same workflow type
             for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
-            for_output_size=sum(map(len, predictions_provider.cached_deserialized_io_ratios.values()))
+            for_output_size=sum(map(len, predictions_provider.cached_serialized_io_ratios.values()))
         )
 
         logger.info(f"=== FINAL RESULTS ===")

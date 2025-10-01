@@ -33,13 +33,15 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
 
     @staticmethod
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
-        for node_info in nodes_info.values():
+        from src.planning.abstract_dag_planner import AbstractDAGPlanner
+        _nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = nodes_info
+        for node_info in _nodes_info.values():
             if node_info.node_ref.try_get_optimization(TaskDupOptimization): 
                 # Skip if node already has TaskDup annotation. Cloud have been added by the user
                 continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
-            if node_info.deserialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
+            if node_info.serialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
             node_info.node_ref.add_optimization(TaskDupOptimization())
         return
 

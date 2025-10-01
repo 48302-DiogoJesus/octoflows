@@ -144,7 +144,6 @@ class PreLoadOptimization(TaskOptimization):
                 deserialized_task_output = cloudpickle.loads(serialized_data)
                 dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
                     serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
-                    deserialized_size_bytes=calculate_data_structure_size_bytes(deserialized_task_output),
                     time_ms=time_to_fetch_ms
                 )
 

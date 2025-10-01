@@ -1,8 +1,3 @@
-Does it make sense to JUST use serialized sizes for predictions?
-    Data transfer
-    I/O
-    Exec time => 
-
 - Dashboard
     - Compare by SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
