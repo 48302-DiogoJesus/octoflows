@@ -123,6 +123,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 submission_data: Any = metadata_storage_conn.get(submission_key)
+                if not submission_data: continue
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
 
                 # Worker startup metrics
@@ -427,10 +428,10 @@ def main():
                                         sample_counts.for_execution_time if sample_counts else None),
                     'Total Execution Time': format_metric(actual_execution, predicted_execution, 'execution',
                                                 sample_counts.for_execution_time if sample_counts else None),
-                    'Total Downloaded Data': f"{format_bytes(actual_total_downloadable_input_size_bytes)[2]} -> {format_bytes(predicted_total_downloadable_input_size_bytes)[2]}",
+                    'Total Downloaded Data': f"{format_bytes(predicted_total_downloadable_input_size_bytes)[2]} -> {format_bytes(actual_total_downloadable_input_size_bytes)[2]}",
                     'Total Download Time': format_metric(actual_total_download, predicted_total_download, 'download',
                                             sample_counts.for_download_speed if sample_counts else None),
-                    'Total Uploaded Data': f"{format_bytes(actual_total_uploadable_output_size_bytes)[2]} -> {format_bytes(predicted_total_uploadable_output_size_bytes)[2]}",
+                    'Total Uploaded Data': f"{format_bytes(predicted_total_uploadable_output_size_bytes)[2]} -> {format_bytes(actual_total_uploadable_output_size_bytes)[2]}",
                     'Total Upload Time': format_metric(actual_total_upload, predicted_total_upload, 'upload',
                                             sample_counts.for_upload_speed if sample_counts else None),
                     'Total Input Size': format_size_metric(actual_input_size, predicted_input_size, 'input_size',

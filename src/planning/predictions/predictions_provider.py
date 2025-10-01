@@ -56,7 +56,7 @@ class PredictionsProvider:
             if metrics.planner_used_name != planner_name: continue # only metrics grabbed from the same planner are used
  
             same_workflow_same_planner_type_metrics[task_id] = metrics 
-            
+
             # Store upload/download speeds with resource configuration
             # DOWNLOAD SPEEDS
             for input_metric in metrics.input_metrics.input_download_metrics.values():
@@ -89,9 +89,21 @@ class PredictionsProvider:
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
 
         # Doesn't go to Redis
+        group_by_workflow = {}
         for task_id, metrics in same_workflow_same_planner_type_metrics.items():
-            function_name, _, _ = self._split_task_id(task_id)
+            function_name, _, dag_id = self._split_task_id(task_id)
             if metrics.execution_time_per_input_byte_ms is None: continue
+            
+            group_by_workflow.setdefault(dag_id, {})
+            group_by_workflow[dag_id].setdefault(function_name, {})
+            group_by_workflow[dag_id][function_name].setdefault("input", 0)
+            group_by_workflow[dag_id][function_name].setdefault("output", 0)
+            group_by_workflow[dag_id][function_name].setdefault("inputs_count", 0)
+            for func_id, im in metrics.input_metrics.input_download_metrics.items():
+                group_by_workflow[dag_id][function_name]["input"] += im.deserialized_size_bytes
+                group_by_workflow[dag_id][function_name]["inputs_count"] += 1
+            group_by_workflow[dag_id][function_name]["input"] += metrics.input_metrics.hardcoded_input_size_bytes
+            group_by_workflow[dag_id][function_name]["output"] += metrics.output_metrics.deserialized_size_bytes
             
             # EXECUTION TIME P/ BYTE
             if function_name not in self.cached_execution_time_per_byte: self.cached_execution_time_per_byte[function_name] = []
@@ -115,6 +127,9 @@ class PredictionsProvider:
             output_size = metrics.output_metrics.serialized_size_bytes
             self.cached_serialized_io_ratios[function_name].append((output_size / input_size if input_size > 0 else 0, input_size))
 
+        for dag_id, functions in group_by_workflow.items():
+            for function_name, metrics in functions.items():
+                print(f"{dag_id} => {function_name} => Input: {metrics['input'] / 1024 / 1024}mb ({metrics['inputs_count']} inputs) Output: {metrics['output'] / 1024 / 1024}mb")
         self.nr_of_previous_instances = int(len(same_workflow_same_planner_type_metrics) / self.nr_of_dag_nodes)
         logger.info(f"Loaded {len(same_workflow_same_planner_type_metrics.keys())}/{len(generic_metrics_keys)} useful metrics in {timer.stop()}ms")
 
@@ -145,7 +160,7 @@ class PredictionsProvider:
         if sla == "average": ratio = np.average(selected_ratios)
         else: ratio = np.percentile(selected_ratios, sla.value)
 
-        res = math.ceil(input_size ** ratio)
+        res = math.ceil(input_size * ratio)
         self._cached_prediction_output_sizes[prediction_key] = res
         return res
 
