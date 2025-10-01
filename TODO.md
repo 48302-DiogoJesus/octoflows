@@ -7,8 +7,6 @@
         Dup ("individual"):
     - how many happened, which tasks were dupped?
 
-- try find fix for worker active periods predictions
-    
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
