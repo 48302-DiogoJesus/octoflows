@@ -1,8 +1,6 @@
-- try with mb instead of b
-- try without scaling stuff for data transfer
-- why does uniform planner report non-uniform on the global dashboard??
-
 - Dashboard
+    - Ignore wukong planner (Only use it to know what is wukong and what's not but don't show it in graphs nor the predictions)
+    - Enforce a planner sorting order and colors (optionally)
     - Compare by SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)
         - overall prediction success rate (compared to the real values)
