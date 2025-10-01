@@ -630,7 +630,6 @@ def main():
                             all_planners,
                             index=0
                         )
-                        print("Sorted planners: ", all_planners)
                         
                         # Filter by selected planner if not 'All'
                         if selected_planner != 'All':
@@ -777,220 +776,224 @@ def main():
                     
                     
 
-                    # # Calculate averages for the comparison
-                    # metrics_data = []
-                    # for instance in matching_workflow_instances:
-                    #     if not instance.plan or not instance.tasks:
-                    #         continue
-                    #     if 'wukong' in instance.plan.planner_name.lower():
-                    #         continue
+                    # Calculate averages for the comparison
+                    metrics_data = []
+                    for instance in matching_workflow_instances:
+                        if not instance.plan or not instance.tasks:
+                            continue
+                        if 'wukong' in instance.plan.planner_name.lower():
+                            continue
                             
-                    #     # Calculate actual metrics
-                    #     actual_makespan_s = (
-                    #             max([
-                    #                 (task.metrics.started_at_timestamp_s * 1000) + (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (task.metrics.tp_execution_time_ms or 0) + (task.metrics.output_metrics.tp_time_ms or 0) + (task.metrics.total_invocation_time_ms or 0) for task in instance.tasks
-                    #             ]) - instance.start_time_ms
-                    #         ) / 1000
-                    #     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                    #     actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    #     actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                    #     actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
-                    #     actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
-                    #     actual_worker_startup_time_s = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                        # Calculate actual metrics
+                        actual_makespan_s = (
+                                max([
+                                    (task.metrics.started_at_timestamp_s * 1000) + (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (task.metrics.tp_execution_time_ms or 0) + (task.metrics.output_metrics.tp_time_ms or 0) + (task.metrics.total_invocation_time_ms or 0) for task in instance.tasks
+                                ]) - instance.start_time_ms
+                            ) / 1000
+                        actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                        actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                        actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                        actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
+                        actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
+                        actual_worker_startup_time_s = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
-                    #     # Get predicted metrics if available
-                    #     predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
-                    #     if instance.plan and instance.plan.nodes_info:
-                    #         predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                    #         predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #         predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #         predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #         predicted_input_size = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())
-                    #         predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())
-                    #         workers_accounted_for = set()
-                    #         predicted_worker_startup_time_s = 0
-                    #         for info in instance.plan.nodes_info.values():
-                    #             if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
-                    #                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
-                    #                 workers_accounted_for.add(info.node_ref.worker_config.worker_id)
+                        # Get predicted metrics if available
+                        predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
+                        if instance.plan and instance.plan.nodes_info:
+                            predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                            predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                            predicted_input_size = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())
+                            predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())
+                            workers_accounted_for = set()
+                            predicted_worker_startup_time_s = 0
+                            for info in instance.plan.nodes_info.values():
+                                if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                    predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                                    workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                         
-                    #     metrics_data.append({
-                    #         'makespan_actual': actual_makespan_s,
-                    #         'makespan_predicted': predicted_makespan_s,
-                    #         'execution_actual': actual_execution,
-                    #         'execution_predicted': predicted_execution,
-                    #         'download_actual': actual_total_download,
-                    #         'download_predicted': predicted_total_download,
-                    #         'upload_actual': actual_total_upload,
-                    #         'upload_predicted': predicted_total_upload,
-                    #         'input_size_actual': actual_input_size,
-                    #         'input_size_predicted': predicted_input_size,
-                    #         'output_size_actual': actual_output_size,
-                    #         'output_size_predicted': predicted_output_size,
-                    #         'worker_startup_time_actual': actual_worker_startup_time_s,
-                    #         'worker_startup_time_predicted': predicted_worker_startup_time_s,
-                    #     })
+                        metrics_data.append({
+                            'makespan_actual': actual_makespan_s,
+                            'makespan_predicted': predicted_makespan_s,
+                            'execution_actual': actual_execution,
+                            'execution_predicted': predicted_execution,
+                            'download_actual': actual_total_download,
+                            'download_predicted': predicted_total_download,
+                            'upload_actual': actual_total_upload,
+                            'upload_predicted': predicted_total_upload,
+                            'input_size_actual': actual_input_size,
+                            'input_size_predicted': predicted_input_size,
+                            'output_size_actual': actual_output_size,
+                            'output_size_predicted': predicted_output_size,
+                            'worker_startup_time_actual': actual_worker_startup_time_s,
+                            'worker_startup_time_predicted': predicted_worker_startup_time_s,
+                        })
                     
-                    # if metrics_data:
-                    #     # Group metrics by planner
-                    #     planner_metrics = {}
-                    #     for instance in workflow_types[selected_workflow].instances:
-                    #         if not instance.plan or not instance.tasks:
-                    #             continue
-                    #         if 'wukong' in instance.plan.planner_name.lower():
-                    #             continue
+                    if metrics_data:
+                        # Group metrics by planner
+                        planner_metrics = {}
+                        for instance in workflow_types[selected_workflow].instances:
+                            if not instance.plan or not instance.tasks:
+                                continue
+                            if 'wukong' in instance.plan.planner_name.lower():
+                                continue
                                 
-                    #         planner_name = instance.plan.planner_name
-                    #         if planner_name not in planner_metrics:
-                    #             planner_metrics[planner_name] = []
+                            planner_name = instance.plan.planner_name
+                            if planner_name not in planner_metrics:
+                                planner_metrics[planner_name] = []
                                 
-                    #         # Get metrics for this instance
-                    #         actual_makespan_s = (
-                    #             max([
-                    #                 (task.metrics.started_at_timestamp_s * 1000) + 
-                    #                 (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
-                    #                 (task.metrics.tp_execution_time_ms or 0) + 
-                    #                 (task.metrics.output_metrics.tp_time_ms or 0) + 
-                    #                 (task.metrics.total_invocation_time_ms or 0) 
-                    #                 for task in instance.tasks
-                    #             ]) - instance.start_time_ms
-                    #         ) / 1000
+                            # Get metrics for this instance
+                            actual_makespan_s = (
+                                max([
+                                    (task.metrics.started_at_timestamp_s * 1000) + 
+                                    (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
+                                    (task.metrics.tp_execution_time_ms or 0) + 
+                                    (task.metrics.output_metrics.tp_time_ms or 0) + 
+                                    (task.metrics.total_invocation_time_ms or 0) 
+                                    for task in instance.tasks
+                                ]) - instance.start_time_ms
+                            ) / 1000
                             
-                    #         actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                    #         actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    #         actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                    #         actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
-                    #         actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
-                    #         actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                            actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                            actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
+                            actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
+                            actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
+                            actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
+                            actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
 
-                    #         # Get predicted metrics
-                    #         predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0
-                    #         if instance.plan and instance.plan.nodes_info:
-                    #             predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                    #             predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #             predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #             predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
-                    #             predicted_input_size = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())
-                    #             predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())
-                    #             workers_accounted_for = set()
-                    #             predicted_worker_startup_time_s = 0
-                    #             for info in instance.plan.nodes_info.values():
-                    #                 if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
-                    #                     predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
-                    #                     workers_accounted_for.add(info.node_ref.worker_config.worker_id)
+                            # Get predicted metrics
+                            predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size = predicted_output_size = predicted_worker_startup_time_s = 0
+                            if instance.plan and instance.plan.nodes_info:
+                                predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                                predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                                predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                                predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
+                                predicted_input_size = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())
+                                predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())
+                                workers_accounted_for = set()
+                                predicted_worker_startup_time_s = 0
+                                for info in instance.plan.nodes_info.values():
+                                    if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
+                                        predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
+                                        workers_accounted_for.add(info.node_ref.worker_config.worker_id)
                                 
-                    #             planner_metrics[planner_name].append({
-                    #                 'makespan_actual': actual_makespan_s,
-                    #                 'makespan_predicted': predicted_makespan_s,
-                    #                 'execution_actual': actual_execution,
-                    #                 'execution_predicted': predicted_execution,
-                    #                 'download_actual': actual_total_download,
-                    #                 'download_predicted': predicted_total_download,
-                    #                 'upload_actual': actual_total_upload,
-                    #                 'upload_predicted': predicted_total_upload,
-                    #                 'input_size_actual': actual_input_size,
-                    #                 'input_size_predicted': predicted_input_size,
-                    #                 'output_size_actual': actual_output_size,
-                    #                 'output_size_predicted': predicted_output_size,
-                    #                 'worker_startup_time_actual': actual_worker_startup_time_s,
-                    #                 'worker_startup_time_predicted': predicted_worker_startup_time_s,
-                    #             })
+                                planner_metrics[planner_name].append({
+                                    'makespan_actual': actual_makespan_s,
+                                    'makespan_predicted': predicted_makespan_s,
+                                    'execution_actual': actual_execution,
+                                    'execution_predicted': predicted_execution,
+                                    'download_actual': actual_total_download,
+                                    'download_predicted': predicted_total_download,
+                                    'upload_actual': actual_total_upload,
+                                    'upload_predicted': predicted_total_upload,
+                                    'input_size_actual': actual_input_size,
+                                    'input_size_predicted': predicted_input_size,
+                                    'output_size_actual': actual_output_size,
+                                    'output_size_predicted': predicted_output_size,
+                                    'worker_startup_time_actual': actual_worker_startup_time_s,
+                                    'worker_startup_time_predicted': predicted_worker_startup_time_s,
+                                })
 
-                    #     # Calculate averages for each planner
-                    #     planner_avg_metrics = {}
-                    #     for planner_name, planner_data in planner_metrics.items():
-                    #         if not planner_data:
-                    #             continue
-                    #         if 'wukong' in planner_name.lower():
-                    #             continue
+                        # Calculate averages for each planner
+                        planner_avg_metrics = {}
+                        for planner_name, planner_data in planner_metrics.items():
+                            if not planner_data:
+                                continue
+                            if 'wukong' in planner_name.lower():
+                                continue
                                 
-                    #         planner_avg_metrics[planner_name] = {
-                    #             'Makespan (s)': {
-                    #                 'actual': sum(m['makespan_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['makespan_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Execution Time (s)': {
-                    #                 'actual': sum(m['execution_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['execution_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Download Time (s)': {
-                    #                 'actual': sum(m['download_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['download_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Upload Time (s)': {
-                    #                 'actual': sum(m['upload_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['upload_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Input Size (bytes)': {
-                    #                 'actual': sum(m['input_size_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['input_size_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Output Size (bytes)': {
-                    #                 'actual': sum(m['output_size_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['output_size_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #             'Worker Startup Time (s)': {
-                    #                 'actual': sum(m['worker_startup_time_actual'] for m in planner_data) / len(planner_data),
-                    #                 'predicted': sum(m['worker_startup_time_predicted'] for m in planner_data) / len(planner_data)
-                    #             },
-                    #         }
+                            planner_avg_metrics[planner_name] = {
+                                'Makespan (s)': {
+                                    'actual': sum(m['makespan_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['makespan_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Execution Time (s)': {
+                                    'actual': sum(m['execution_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['execution_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Download Time (s)': {
+                                    'actual': sum(m['download_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['download_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Upload Time (s)': {
+                                    'actual': sum(m['upload_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['upload_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Input Size (bytes)': {
+                                    'actual': sum(m['input_size_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['input_size_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Output Size (bytes)': {
+                                    'actual': sum(m['output_size_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['output_size_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                                'Worker Startup Time (s)': {
+                                    'actual': sum(m['worker_startup_time_actual'] for m in planner_data) / len(planner_data),
+                                    'predicted': sum(m['worker_startup_time_predicted'] for m in planner_data) / len(planner_data)
+                                },
+                            }
                         
-                    #     # Create a dropdown to select planner
-                    #     if planner_avg_metrics:
-                    #         selected_planner = st.selectbox(
-                    #             'Select Planner:',
-                    #             options=list(planner_avg_metrics.keys()),
-                    #             index=0,
-                    #             key='planner_selector'
-                    #         )
+                        # Create a dropdown to select planner
+                        if planner_avg_metrics:
+                            selected_planner = st.selectbox(
+                                'Select Planner:',
+                                options=list(planner_avg_metrics.keys()),
+                                index=0,
+                                key='planner_selector'
+                            )
                             
-                    #         # Prepare data for the selected planner
-                    #         plot_data = []
-                    #         for metric_name, values in planner_avg_metrics[selected_planner].items():
-                    #             plot_data.append({
-                    #                 'Metric': metric_name,
-                    #                 'Value': values['actual'],
-                    #                 'Type': 'Actual'
-                    #             })
-                    #             plot_data.append({
-                    #                 'Metric': metric_name,
-                    #                 'Value': values['predicted'],
-                    #                 'Type': 'Predicted'
-                    #             })
-                            
-                    #         df_plot = pd.DataFrame(plot_data)
-                            
-                    #         # Create bar chart for the selected planner
-                    #         fig = px.bar(
-                    #             df_plot, 
-                    #             x='Metric', 
-                    #             y='Value', 
-                    #             color='Type',
-                    #             barmode='group',
-                    #             title=f'{selected_planner} (averages per planner per instance)',
-                    #             labels={'Value': 'Value'},
-                    #             color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
-                    #         )
-                            
-                    #         # Update layout for better visualization
-                    #         fig.update_layout(
-                    #             xaxis_title='Metric',
-                    #             yaxis_title='Value',
-                    #             legend_title='',
-                    #             plot_bgcolor='rgba(0,0,0,0)',
-                    #             yaxis_type='log',  # Use log scale for better visualization of different magnitudes
-                    #             height=500,
-                    #             xaxis_tickangle=-45
-                    #         )
-                            
-                    #         # Add value labels on top of bars
-                    #         fig.update_traces(
-                    #             texttemplate='%{y:.2f}',
-                    #             textposition='outside',
-                    #             textfont_size=10
-                    #         )
-                            
-                    #         st.plotly_chart(fig, use_container_width=True)
+                            # Prepare data for the selected planner
+                            plot_data = []
+                            for planner_name, metrics in planner_avg_metrics.items():
+                                for metric_name, values in metrics.items():
+                                    plot_data.append({
+                                        'Planner': planner_name,
+                                        'Metric': metric_name,
+                                        'Type': 'Actual',
+                                        'Value': values['actual']
+                                    })
+                                    plot_data.append({
+                                        'Planner': planner_name,
+                                        'Metric': metric_name,
+                                        'Type': 'Predicted',
+                                        'Value': values['predicted']
+                                    })
+
+                            df_plot = pd.DataFrame(plot_data)
+
+                            # Create overlapped bars: use facet for metric, color for Actual/Predicted, x=Planner
+                            fig = px.bar(
+                                df_plot,
+                                x='Planner',
+                                y='Value',
+                                color='Type',
+                                facet_col='Metric',   # One small multiple per metric, horizontally
+                                barmode='overlay',    # Overlap Actual & Predicted on top of each other
+                                opacity=0.6,          # Slight transparency to see overlap
+                                title='Comparison of Actual vs Predicted Metrics Across Planners',
+                                color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
+                            )
+
+                            # Layout improvements
+                            fig.update_layout(
+                                height=600,
+                                legend_title='',
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                yaxis_type='log'  # keep log scale if still useful
+                            )
+
+                            # Rotate x labels for clarity
+                            fig.update_xaxes(tickangle=-45)
+
+                            # Add labels on top of bars
+                            fig.update_traces(
+                                texttemplate='%{y:.2f}',
+                                textposition='outside',
+                                textfont_size=9
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
                     
                     # Add prediction accuracy evolution chart
                     st.markdown("### Prediction Accuracy Evolution")
