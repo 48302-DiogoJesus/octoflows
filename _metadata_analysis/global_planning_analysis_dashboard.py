@@ -308,7 +308,9 @@ def main():
                 common_resources: TaskWorkerResourceConfiguration | None = None
                 for task in instance.tasks:
                     if common_resources is None: common_resources = task.metrics.worker_resource_configuration
-                    elif common_resources != task.metrics.worker_resource_configuration: common_resources = None
+                    elif common_resources.cpus != task.metrics.worker_resource_configuration.cpus or common_resources.memory_mb != task.metrics.worker_resource_configuration.memory_mb: 
+                        print(f"Found a diff resource config. Prev: {common_resources} New: {task.metrics.worker_resource_configuration}")
+                        common_resources = None
                 
                 sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
                 sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)

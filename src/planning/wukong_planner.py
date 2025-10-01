@@ -55,20 +55,19 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
         logger.info(f"Critical Path Nodes Count: {len(final_critical_path_nodes)} | Predicted Completion Time: {final_critical_path_time / 1000:.2f}s")
 
 
-        # if not predictions_provider.has_required_predictions():
-        #     return None
-        # else:
-        #     return AbstractDAGPlanner.PlanOutput(
-        #         self.planner_name, 
-        #         self.config.sla,
-        #         nodes_info,
-        #         final_critical_path_node_ids,
-        #         AbstractDAGPlanner.PlanPredictionSampleCounts(
-        #             previous_instances=0,
-        #             for_download_speed=0,
-        #             for_upload_speed=0,
-        #             for_execution_time=0,
-        #             for_output_size=0
-        #         )
-        #     )
-        return None
+        if not predictions_provider.has_required_predictions():
+            return None
+        else:
+            return AbstractDAGPlanner.PlanOutput(
+                self.planner_name, 
+                self.config.sla,
+                nodes_info,
+                final_critical_path_node_ids,
+                AbstractDAGPlanner.PlanPredictionSampleCounts(
+                    previous_instances=0,
+                    for_download_speed=0,
+                    for_upload_speed=0,
+                    for_execution_time=0,
+                    for_output_size=0
+                )
+            )

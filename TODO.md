@@ -1,3 +1,7 @@
+- try with mb instead of b
+- try without scaling stuff for data transfer
+- why does uniform planner report non-uniform on the global dashboard??
+
 - Dashboard
     - Compare by SLAs ("global"):
         - success rate (percentage of workflows that finished below the SLA)

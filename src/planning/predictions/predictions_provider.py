@@ -13,7 +13,7 @@ from src.task_worker_resource_configuration import TaskWorkerResourceConfigurati
 logger = create_logger(__name__)
 
 class PredictionsProvider:
-    MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 20
+    MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 5
 
     nr_of_previous_instances: int = 0
 
@@ -88,7 +88,6 @@ class PredictionsProvider:
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
 
         # Doesn't go to Redis
-        group_by_workflow = {}
         for task_id, metrics in same_workflow_same_planner_type_metrics.items():
             function_name, _, dag_id = self._split_task_id(task_id)
             if metrics.execution_time_per_input_byte_ms is None: continue
@@ -158,7 +157,6 @@ class PredictionsProvider:
             resource_config: Worker resource configuration (CPUs + RAM)
             sla: Either "average" for mean prediction or percentile (0-100)
             allow_cached: Whether to use cached predictions
-            scaling_exponent: Power-law exponent for size-time relationship (1.0=linear, <1.0=sublinear, >1.0=superlinear)
     
         Note: Not using the `related_samples` tecnique here because when the value to predict is too low, the values will include bootstraping/cold-start times massively overestimating the prediction
         """
@@ -169,21 +167,27 @@ class PredictionsProvider:
         all_samples = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
         if len(all_samples) == 0: return 0
         
+        prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
+        if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
+            return self._cached_prediction_data_transfer_times[prediction_key]
+
         # Filter samples by exact resource match
         _matching_samples = [
             (speed, total_bytes) for speed, total_bytes, cpus, memory_mb in all_samples
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
+        download_k_base = 1.18
+        upload_k_base = 1.05
+
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _matching_samples], sla)
-            prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{adaptive_exponent}"
-            if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
-                return self._cached_prediction_data_transfer_times[prediction_key]
-
             matching_samples = self._select_related_samples(data_size_bytes, _matching_samples, sla)
+
+            adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [total_bytes for _, total_bytes in _matching_samples], sla, 
+                k_base=download_k_base if type == 'download' else upload_k_base,
+                alpha=0.5
+            )
 
             if sla == "average":
                 speed_bytes_per_ms = np.average(matching_samples)
@@ -193,21 +197,19 @@ class PredictionsProvider:
             if speed_bytes_per_ms <= 0:
                 raise ValueError(f"No data available for {type} or invalid speed data")
             
-            # logger.info(f"Data trans | Matching samples | Adaptive Exponent: {adaptive_exponent}")
-            base_time = (data_size_bytes ** adaptive_exponent) / speed_bytes_per_ms
-            res = base_time
+            res = (data_size_bytes ** adaptive_exponent) / speed_bytes_per_ms
         else:
             _baseline_normalized_samples = [
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.3, total_bytes)
                 for speed, total_bytes, cpus, memory_mb in all_samples
             ]
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [data_size for _, data_size in _baseline_normalized_samples], sla)
-            prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}-{adaptive_exponent}"
-            if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
-                return self._cached_prediction_data_transfer_times[prediction_key]
 
             baseline_normalized_samples = self._select_related_samples(data_size_bytes, _baseline_normalized_samples, sla)
+
+            adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [total_bytes for _, total_bytes in _baseline_normalized_samples], sla, 
+                k_base=download_k_base if type == 'download' else upload_k_base,
+                alpha=0.5
+            )
             
             if sla == "average":
                 baseline_speed_bytes_per_ms = np.average(baseline_normalized_samples)
@@ -217,7 +219,6 @@ class PredictionsProvider:
             if baseline_speed_bytes_per_ms <= 0:
                 raise ValueError(f"No data available for {type} or invalid baseline speed data")
             
-            # logger.info(f"Data trans | Normalized samples | Adaptive Exponent: {adaptive_exponent}")
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.3
             res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
 
@@ -289,6 +290,10 @@ class PredictionsProvider:
         if len(all_samples) == 0: 
             return 0
         
+        prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}"
+        if allow_cached and prediction_key in self._cached_prediction_execution_times: 
+            return self._cached_prediction_execution_times[prediction_key]
+        
         # Filter samples by exact resource match
         _matching_samples = [
             (time_per_byte, total_input_size_bytes) for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
@@ -298,13 +303,6 @@ class PredictionsProvider:
         # logger.info(f"Found {len(matching_samples)} exact resource matches for function {function_name} | nr samples: {len(all_samples)}")
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            # Get the full samples (with input sizes) for the matching resource config
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in _matching_samples], sla)
-            prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{adaptive_exponent}"
-            if allow_cached and prediction_key in self._cached_prediction_execution_times: 
-                return self._cached_prediction_execution_times[prediction_key]
-            
             # Select samples based on input size similarity
             matching_samples = self._select_related_samples(input_size, _matching_samples, sla)
             
@@ -317,8 +315,7 @@ class PredictionsProvider:
             if ms_per_byte <= 0: 
                 raise ValueError(f"No valid data available for function {function_name}")
                 
-            # logger.info(f"Exec time | Matching samples | Adaptive Exponent: {adaptive_exponent}")
-            res = ms_per_byte * (input_size ** adaptive_exponent)
+            res = ms_per_byte * input_size
         else:
             # Insufficient exact matches - use memory scaling model with baseline normalization
             # Normalize samples to baseline memory configuration and select by input size
@@ -326,12 +323,6 @@ class PredictionsProvider:
                 (time_per_byte * (memory_mb / BASELINE_MEMORY_MB) ** 0.3, total_input_size_bytes)
                 for time_per_byte, cpus, memory_mb, total_input_size_bytes in all_samples
             ]
-            
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(input_size, [input_size for _,  input_size in samples_w_normalized_time_per_byte], sla)
-            prediction_key = f"{function_name}-{input_size}-{resource_config}-{sla}-{adaptive_exponent}"
-            if allow_cached and prediction_key in self._cached_prediction_execution_times: 
-                return self._cached_prediction_execution_times[prediction_key]
             
             # Select samples based on input size similarity
             baseline_normalized_samples = self._select_related_samples(input_size, samples_w_normalized_time_per_byte, sla)
@@ -343,13 +334,12 @@ class PredictionsProvider:
             if baseline_ms_per_byte <= 0:  
                 raise ValueError(f"No data available for function {function_name}")
             
-            # logger.info(f"Exec time | Normalized Samples | Adaptive Exponent: {adaptive_exponent}")
-            res = baseline_ms_per_byte * (input_size ** adaptive_exponent) * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.3
+            res = baseline_ms_per_byte * input_size * (BASELINE_MEMORY_MB / resource_config.memory_mb) ** 0.3
         
         self._cached_prediction_execution_times[prediction_key] = float(res)
         return float(res)
 
-    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.7, alpha=0.5):
+    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.8, alpha=0.5):
         """
         Compute adaptive scaling exponent for input size prediction.
 
