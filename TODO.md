@@ -4,9 +4,9 @@
         DONE Percentagem de SLA fulfillment para cada nível de SLA
     - See WUKONG evaluation chapter (https://chatgpt.com/c/68dd8d50-2c90-832c-9083-3bd76a766232)
         - DONE Time breakdown: instead of having a pie chart, add a bar chart with multiple layers (one for each planner)
+        - DONE CPU time + ?Memory time? (I haven't yet added a graph comparing resource utilization (cpu time + memory time or costs?))
         - std dev. makes sense??
-        - Network I/O (data downloaded (I), data uploaded (O))
-        - CPU time + ?Memory time? (I haven't yet added a graph comparing resource utilization (cpu time + memory time or costs?))
+        - [TODO] Network I/O (data downloaded (I), data uploaded (O))
     
     - Understand individual optimizations impact:
         - Easiest way is to simply run the same workflow multiple times with different individual optimizations and then all of them
@@ -23,7 +23,11 @@
             measure (only makes sense for non uniform)
             HOW:
             - track when prewarming happened (look at annotation/optimization and check cold starts versus the same workflow on other planners??)
+    
     - !! remove the cost field from the container resource usage
+    - !! optimizations seem to be increasing times
+        NOT so much on text analysis, maybe it's the cost of PreLoad
+            [DELAY] fix: make preloading happen on separate Thread?
     
     - More variation in workflows
         - Force prewarm to be used! (test on non-uniform)

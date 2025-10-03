@@ -1119,7 +1119,6 @@ def main():
                             task.metrics.worker_resource_configuration.memory_mb 
                             for task in instance.tasks
                         )
-                        avg_memory_mb = total_memory_mb / len(instance.tasks) if instance.tasks else 0
                         
                         input_size_value = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks)
                         input_size_value, input_size_unit, _ = format_bytes(input_size_value)
@@ -1150,7 +1149,6 @@ def main():
                             # f'Output Size [{output_size_unit}]': output_size_value,  # Convert to MB
                             f'Total Data Transferred': total_data_value,  # Convert to MB
                             'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                            # 'Avg Memory Allocation [MB]': avg_memory_mb,
                             'Resource Usage': instance.resource_usage_cost
                         }
                         
@@ -1442,7 +1440,72 @@ def main():
 
                     st.plotly_chart(fig, use_container_width=True)
 
-                
+                    ######### Resource Usage plot
+                    # Collect resource usage metrics per planner
+                    resource_data = []
+
+                    for instance in workflow_types[selected_workflow].instances:
+                        if not instance.plan or not instance.tasks:
+                            continue
+                        
+                        planner = instance.plan.planner_name if instance.plan else 'Unknown'
+                        usage = instance.resource_usage  # assuming it has run_time_seconds, cpu_seconds, memory_bytes, cost
+
+                        resource_data.append({
+                            'Planner': planner,
+                            'Metric': 'Run Time (s)',
+                            'Value': usage.run_time_seconds
+                        })
+                        resource_data.append({
+                            'Planner': planner,
+                            'Metric': 'CPU Time (s)',
+                            'Value': usage.cpu_seconds
+                        })
+                        resource_data.append({
+                            'Planner': planner,
+                            'Metric': 'Memory (GB)',
+                            'Value': usage.memory_bytes / (1024 * 1024 * 1024)  # convert to MB
+                        })
+                        resource_data.append({
+                            'Planner': planner,
+                            'Metric': 'Cost (CPU_Time_S * Memory_GB)',
+                            'Value': instance.resource_usage_cost
+                        })
+
+                    df_resource = pd.DataFrame(resource_data)
+
+                    # Plot each metric separately
+                    metrics = ['Run Time (s)', 'CPU Time (s)', 'Memory (GB)', 'Cost (CPU_Time_S * Memory_GB)']
+
+                    cols = st.columns(2)
+
+                    for i, metric in enumerate(metrics):
+                        df_metric = df_resource[df_resource['Metric'] == metric]
+                        
+                        fig = px.box(
+                            df_metric,
+                            x='Planner',
+                            y='Value',
+                            color='Planner',
+                            points='all',
+                            title=f'{metric} Distribution per Planner',
+                            labels={'Value': metric, 'Planner': 'Planner'},
+                            category_orders={'Planner': sorted_planners}
+                        )
+                        
+                        fig.update_layout(
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            height=400,
+                            showlegend=False
+                        )
+                        
+                        # Place the plot in the correct column
+                        cols[i % 2].plotly_chart(fig, use_container_width=True)
+                        
+                        # Move to a new row after 2 plots
+                        if i % 2 == 1:
+                            cols = st.columns(2)
+
                     #########
                     # Define the metrics we want to track
                     metrics_list = [
