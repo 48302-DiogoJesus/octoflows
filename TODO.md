@@ -1,27 +1,32 @@
 - Dashboard
-    - Understand individual optimizations impact:
-        - Easiest way is to simply run the same workflow multiple times with different individual optimizations and then all of them
-            Choose one planner to do this with and add to `config.py`
-        - Add a field to TaskMetrics of type list[TaskOptimizationMetrics]
-        - Add a field to WorkflowInstanceTaskInfo of type list[TaskOptimizationMetrics]
-            - Each optimization should implement a class that inherits from `abstract TaskOptimizationMetrics`
-        - PreLoad
-            measure
-            HOW:
-            - 
-        - TaskDup
-            measure 
-            HOW:
-            - track when dupping happened
-                TaskOptimizationMetrics.dupped: list[DAGTaskNodeId] # indicating the tasks that the current_task dupped
-        - PreWarm
-            measure (only makes sense for non uniform)
+    [IMPLEMENTATION]
+    - make preloading downloads happen on separate Thread?
+        or limit to 1 preload at a time
+    - is there any issue with parallelizing input downloads?
+        metrics:
+        tp waiting for inputs: fine!
+        individual download time (can be affected by doing other parallel downloads, but should try it with parallelism limited to nr of cpu cores)
 
-            HOW:
-            - track when prewarming happened (look at annotation/optimization and check cold starts versus the same workflow on other planners??)
-    
+    [EVAL_+_IMPLEMENTATION] Measuring Optimizations:
+        - [DONE] Add a field to TaskMetrics of type list[TaskOptimizationMetrics]
+        - TaskDup
+            MEASURE 
+            HOW
+            - [DONE] track when dupping happened
+                `TaskOptimizationMetrics.dupped`: list[DAGTaskNodeId] # indicating the tasks that the current_task dupped
+        - PreWarm (note: (only makes sense for non uniform))
+            HOW
+            - count the prewarms by counting the optimizations (sum of all len(opt.target_resource_configs))
+            - look at annotation/optimization and check cold starts versus the same workflow on other planners??
+            MEASURE
+            - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
+        - PreLoad
+            HOW
+            - [DONE] count the preloads: `TaskOptimizationMetrics.preloaded`: list[DAGTaskNodeId] # indicating the tasks that the current_task preloaded
+            MEASURE
+            - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
+
     - Have to RERUN ALL!!
-    - !! remove the cost field from the container resource usage
     - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)
         - fix: make preloading happen on separate Thread?
         - Force prewarm to be used! (test on non-uniform)

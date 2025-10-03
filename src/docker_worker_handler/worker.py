@@ -200,6 +200,7 @@ async def main():
                         task_id = greatest_predicted_time_saved_task.id.get_full_id()
                         assert wk.my_resource_configuration.worker_id is not None
                         logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
+                        main_task.metrics.optimization_metrics.append(TaskDupOptimization.OptimizationMetrics(dupped=greatest_predicted_time_saved_task.id))
                         await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), fulldag, wk.my_resource_configuration.worker_id, is_dupping=True)
                     else:
                         logger.info("[TASK-DUP] No suitable task found for duplication")

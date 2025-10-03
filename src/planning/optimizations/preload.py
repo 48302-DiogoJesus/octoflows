@@ -5,7 +5,7 @@ from typing import Any
 import cloudpickle
 from src.dag.dag import FullDAG, SubDAG
 from src.task_optimization import TaskOptimization
-from src.dag_task_node import _CachedResultWrapper, DAGTaskNode
+from src.dag_task_node import _CachedResultWrapper, DAGTaskNode, DAGTaskNodeId
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.storage.events import TASK_COMPLETED_EVENT_PREFIX
 from src.storage.storage import Storage
@@ -14,12 +14,17 @@ from src.storage.metadata.metrics_types import TaskInputDownloadMetrics
 from src.utils.logger import create_logger
 from src.utils.utils import calculate_data_structure_size_bytes
 from src.utils.timer import Timer
+from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
 @dataclass
 class PreLoadOptimization(TaskOptimization):
     """ Indicates that the upstream dependencies of a task annotated with this annotation should be downloaded as soon as possible """
+
+    @dataclass
+    class OptimizationMetrics(TaskOptimizationMetrics):
+        preloaded: DAGTaskNodeId
 
     MIN_DEPENDENCIES_TO_APPLY_OPTIMIZATION = 10
 
@@ -137,7 +142,7 @@ class PreLoadOptimization(TaskOptimization):
                     if not annotation.allow_new_preloads: return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
-                
+                dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
                 _timer = Timer()
                 serialized_data = await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag))
                 time_to_fetch_ms = _timer.stop()

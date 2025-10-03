@@ -1,3 +1,4 @@
+from abc import ABC
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -35,6 +36,9 @@ class TaskOutputMetrics:
     tp_time_ms: float | None
 
 @dataclass
+class TaskOptimizationMetrics(ABC): pass
+
+@dataclass
 class TaskMetrics:
     worker_resource_configuration: TaskWorkerResourceConfiguration
     started_at_timestamp_s: float  # time at which the task started being processed by a worker
@@ -52,6 +56,7 @@ class TaskMetrics:
     total_invocation_time_ms: float | None
 
     planner_used_name: str | None
+    optimization_metrics: list[TaskOptimizationMetrics]
 
 
 @dataclass
@@ -71,4 +76,3 @@ class DAGResourceUsageMetrics:
     cpu_seconds: float
     memory_bytes: int
     cost: float
-    

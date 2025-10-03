@@ -3,11 +3,12 @@ from dataclasses import dataclass, field
 import time
 from src.dag.dag import SubDAG
 from src.task_optimization import TaskOptimization
-from src.dag_task_node import DAGTaskNode
+from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.storage.storage import Storage
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.utils.logger import create_logger
 from src.utils.errors import CancelCurrentWorkerLoopException
+from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
@@ -23,6 +24,10 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
     """ 
     Indicates that this task can be duplicated IF NEEDED (decided at runtime)
     """
+
+    @dataclass
+    class OptimizationMetrics(TaskOptimizationMetrics):
+        dupped: DAGTaskNodeId
 
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     

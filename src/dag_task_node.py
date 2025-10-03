@@ -63,11 +63,12 @@ class DAGTaskNode:
             output_metrics=TaskOutputMetrics(serialized_size_bytes=-1, tp_time_ms=None),
             total_invocations_count=0,
             total_invocation_time_ms=None,
-            planner_used_name=None
+            planner_used_name=None,
+            optimization_metrics=[]
         )
         self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
-        # Initialized with a dummy worker config annotation for local worker
         self.optimizations: list[TaskOptimization] = []
+        # Initialized with a dummy worker config annotation for local worker
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper | None = None
         self.completed_event: asyncio.Event = asyncio.Event()
