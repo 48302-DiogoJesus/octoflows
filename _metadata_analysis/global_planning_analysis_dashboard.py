@@ -410,8 +410,8 @@ def main():
                         sla_percentile = instance.plan.sla.value
                 
                 # Calculate total DAG download time across all downloads
-                total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
-                dag_download_time = f"{total_download_time / 1000:.3f}s"
+                # total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
+                # dag_download_time = f"{total_download_time / 1000:.3f}s"
 
                 unique_worker_ids = set()
                 for task_metrics in instance.tasks:
@@ -444,7 +444,7 @@ def main():
                     'Total Data Transferred': format_bytes(actual_data_transferred)[2],
                     'Total Task Invocation Time': f"{actual_invocation:.2f}s",
                     'Total Dependency Counter Update Time': f"{actual_dependency_update:.2f}s",
-                    'Total DAG Download Time': dag_download_time,
+                    # 'Total DAG Download Time': dag_download_time,
                     'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0 if is_wukong_instance else predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
                     'Run Time': f"{instance.resource_usage.run_time_seconds:.2f}",
                     'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
@@ -655,7 +655,7 @@ def main():
                             'Total Data Transferred': "Total Data Transferred",
                             'Total Task Invocation Time': "Total Task Invocation Time",
                             'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
-                            'Total DAG Download Time': "Total DAG Download Time",
+                            # 'Total DAG Download Time': "Total DAG Download Time",
                             'Total Worker Startup Time': "Total Worker Startup Time (Predicted → Actual)",
                             'Run Time': "Run Time",
                             'CPU Time': "CPU Time",
@@ -682,7 +682,7 @@ def main():
                             'Total Data Transferred',
                             'Total Task Invocation Time',
                             'Total Dependency Counter Update Time',
-                            'Total DAG Download Time',
+                            # 'Total DAG Download Time',
                             'Total Worker Startup Time',
                             'Run Time',
                             'CPU Time',
@@ -1141,8 +1141,8 @@ def main():
                                 for task in instance.tasks
                             ),
                             'Upload Time [s]': sum(
-                                task.metrics.output_metrics.tp_time_ms / 1000 
-                                for task in instance.tasks 
+                                task.metrics.output_metrics.tp_time_ms / 1000
+                                for task in instance.tasks
                                 if task.metrics.output_metrics.tp_time_ms is not None
                             ),
                             # f'Input Size [{input_size_unit}]': input_size_value,  # Convert to MB
@@ -1161,7 +1161,7 @@ def main():
                                 'Instance ID': instance.master_dag_id.split('-')[0]
                             })
                     
-                    st.markdown("### Metrics Comparison (by Planner)")
+                    st.markdown("### Metrics Comparison")
                     if metrics_data:
                         # Convert metrics_data to DataFrame
                         df_metrics = pd.DataFrame(metrics_data)
@@ -1211,7 +1211,7 @@ def main():
 
                         # ---------------------                        
                         # Add pie charts for time distribution by activity for each planner
-                        st.markdown("### Time Distribution by Activity (per Planner)")
+                        st.markdown("### Time Breakdown Analysis")
                         
                         # Define the time metrics we want to include in the pie charts
                         time_metrics = ['Worker Startup Time [s]', 'Total Time Waiting for Inputs [s]', 'Execution Time [s]', 'Upload Time [s]']
@@ -1304,7 +1304,7 @@ def main():
                             df_bar,
                             x='Planner',
                             y=time_metrics,
-                            title="Time Distribution per Planner",
+                            title="Time Distribution",
                             labels={'value': 'Time (s)', 'Planner': 'Planner'}
                         )
 
@@ -1339,6 +1339,8 @@ def main():
                                 'input_size': [],
                                 'output_size': [],
                                 'data_transferred': [],
+                                'data_size_uploaded': [],
+                                'data_size_downloaded': [],
                                 'invocation': [],
                                 'dependency_update': [],
                                 'dag_download': [],
@@ -1387,12 +1389,17 @@ def main():
                             for task in instance.tasks
                             if hasattr(task.metrics, 'update_dependency_counters_time_ms') and task.metrics.update_dependency_counters_time_ms is not None
                         ))
-                        metrics['dag_download'].append(sum(stat.download_time_ms / 1000 for stat in instance.dag_download_stats))
                         metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
                         metrics['resource_usage'].append(instance.resource_usage_cost)
+                        metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
+                        metrics['data_size_downloaded'].append(sum(
+                            sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
+                            for task in instance.tasks
+                        ))
 
                     # Compute median per planner
                     plot_data = []
+                    network_data = []
                     for planner_name, metrics in planner_metrics.items():
                         plot_data.extend([
                             {'Planner': planner_name, 'Metric': 'Makespan (s)', 'Value': np.median(metrics['makespan'])},
@@ -1402,10 +1409,22 @@ def main():
                             {'Planner': planner_name, 'Metric': 'Data Transferred (GB)', 'Value': np.median(metrics['data_transferred']) / 1024 / 1024 / 1024},
                             {'Planner': planner_name, 'Metric': 'Task Invocation Time (s)', 'Value': np.median(metrics['invocation'])},
                             {'Planner': planner_name, 'Metric': 'Dependency Counter Update Time (s)', 'Value': np.median(metrics['dependency_update'])},
-                            {'Planner': planner_name, 'Metric': 'DAG Download Time (s)', 'Value': np.median(metrics['dag_download'])},
                             {'Planner': planner_name, 'Metric': 'Worker Startup Time (s)', 'Value': np.median(metrics['worker_startup'])},
                             {'Planner': planner_name, 'Metric': 'Resource Usage', 'Value': np.median(metrics['resource_usage'])},
+                            {'Planner': planner_name, 'Metric': 'Data Size Uploaded (MB)', 'Value': np.median(metrics['data_size_uploaded']) / 1024 / 1024},
+                            {'Planner': planner_name, 'Metric': 'Data Size Downloaded (MB)', 'Value': np.median(metrics['data_size_downloaded']) / 1024 / 1024},
                         ])
+
+                        network_data.append({
+                            'Planner': planner_name,
+                            'Type': 'Download (MB)',
+                            'Value': np.median(metrics['data_size_downloaded']) / 1024 / 1024
+                        })
+                        network_data.append({
+                            'Planner': planner_name,
+                            'Type': 'Upload (MB)',
+                            'Value': np.median(metrics['data_size_uploaded']) / 1024 / 1024
+                        })
 
                     df_planner_metrics = pd.DataFrame(plot_data)
                     sorted_planners = sorted(df_planner_metrics['Planner'].unique())
@@ -1417,7 +1436,7 @@ def main():
                         y='Value',
                         color='Planner',
                         barmode='group',
-                        title='Median Actual Metrics by Planner Type',
+                        title='All Metrics Comparison (Median)',
                         labels={'Value': 'Value', 'Metric': 'Metric'},
                         category_orders={'Planner': sorted_planners}  # enforce order
                     )
@@ -1440,6 +1459,7 @@ def main():
 
                     st.plotly_chart(fig, use_container_width=True)
 
+                    st.markdown("### Resource Usage")
                     ######### Resource Usage plot
                     # Collect resource usage metrics per planner
                     resource_data = []
@@ -1472,6 +1492,41 @@ def main():
                             'Value': instance.resource_usage_cost
                         })
 
+
+                    ######## Network I/O
+                    df_network = pd.DataFrame(network_data)
+
+                    # Sort planners alphabetically (or use custom order)
+                    sorted_planners = sorted(df_network['Planner'].unique())
+
+                    # Create side-by-side bar chart
+                    fig = px.bar(
+                        df_network,
+                        x='Planner',
+                        y='Value',
+                        color='Type',
+                        barmode='group',  # side-by-side bars
+                        title='Network I/O (Median)',
+                        labels={'Value': 'MB', 'Planner': 'Planner', 'Type': 'I/O Type'},
+                        category_orders={'Planner': sorted_planners}  # consistent order
+                    )
+
+                    # Layout improvements
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        yaxis_title='Data (MB)',
+                        height=500
+                    )
+
+                    # Show values on top of bars
+                    fig.update_traces(
+                        texttemplate='%{y:.2f}',
+                        textposition='outside',
+                        textfont_size=9
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
                     df_resource = pd.DataFrame(resource_data)
 
                     # Plot each metric separately
@@ -1488,7 +1543,7 @@ def main():
                             y='Value',
                             color='Planner',
                             points='all',
-                            title=f'{metric} Distribution per Planner',
+                            title=f'{metric} Distribution',
                             labels={'Value': metric, 'Planner': 'Planner'},
                             category_orders={'Planner': sorted_planners}
                         )
@@ -1507,6 +1562,8 @@ def main():
                             cols = st.columns(2)
 
                     #########
+                    st.markdown("### SLA")
+
                     # Define the metrics we want to track
                     metrics_list = [
                         "makespan",

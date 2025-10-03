@@ -17,7 +17,7 @@ logger = create_logger(__name__)
 
 DOCKER_WORKER_PYTHON_PATH = "/app/src/docker_worker_handler/worker.py"
 
-MAX_CONCURRENT_TASKS = 20
+MAX_CONCURRENT_WORKERS = 32
 DOCKER_IMAGE = os.environ.get('DOCKER_IMAGE', None)
 if DOCKER_IMAGE is None:
     logger.warning("Set the DOCKER_IMAGE environment variable to the name of the Docker image to use.")
@@ -27,8 +27,8 @@ DOCKER_IMAGE = DOCKER_IMAGE.strip()
 logger.info(f"Using Docker image: '{DOCKER_IMAGE}'")
 
 app = Flask(__name__)
-thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_TASKS)
-container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_TASKS)
+thread_pool = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS)
+container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCKER_IMAGE, max_containers=MAX_CONCURRENT_WORKERS)
 
 def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str], base64_fulldag: str | None = None, base64_relevant_cached_results: str | None = None):
     """
