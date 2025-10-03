@@ -1521,65 +1521,77 @@ def main():
 
             planner_start_stats = []
             for instance in workflow_types[selected_workflow].instances:
-                if not instance.plan: 
+                if not instance.plan:
                     continue
                 planner = instance.plan.planner_name
 
+                warm = instance.warm_starts_count
+                cold = instance.cold_starts_count
+                total = warm + cold
+                if total == 0:
+                    continue
+
+                warm_pct = warm / total * 100
+                cold_pct = cold / total * 100
+
                 planner_start_stats.append({
                     "Planner": planner,
-                    "Warm": instance.warm_starts_count,
-                    "Cold": instance.cold_starts_count
+                    "Warm": warm,
+                    "Cold": cold,
+                    "Warm %": warm_pct,
+                    "Cold %": cold_pct
                 })
 
             # Convert to DataFrame
             df_starts = pd.DataFrame(planner_start_stats)
 
-            # Group by planner and take MEDIAN instead of sum
-            df_starts = df_starts.groupby("Planner")[["Warm", "Cold"]].median().reset_index()
+            # Group by planner: take mean counts + mean percentages
+            df_agg = df_starts.groupby("Planner").agg({
+                "Warm": "mean",
+                "Cold": "mean",
+                "Warm %": "mean",
+                "Cold %": "mean"
+            }).reset_index()
 
-            # Compute warm percentage for each planner
-            df_starts["Warm %"] = (
-                df_starts["Warm"] / (df_starts["Warm"] + df_starts["Cold"]) * 100
-            ).fillna(0).round(1)
-
-            # Melt for stacked bar format
-            df_melted = df_starts.melt(
+            # Melt for stacked bar (percentages)
+            df_melted = df_agg.melt(
                 id_vars="Planner",
-                value_vars=["Warm", "Cold"],
+                value_vars=["Warm %", "Cold %"],
                 var_name="Start Type",
-                value_name="Count"
+                value_name="Percentage"
             )
 
-            # Create stacked bar chart
+            # Create stacked percentage bar chart
             fig = px.bar(
                 df_melted,
                 x="Planner",
-                y="Count",
+                y="Percentage",
                 color="Start Type",
                 barmode="stack",
-                text="Count",
-                title="Warm vs Cold Starts (Median)"
+                text=df_melted["Percentage"].round(1).astype(str) + "%",
+                title="Warm vs Cold Starts per Planner (Mean % + Counts)"
             )
 
             fig.update_traces(textposition="inside")
 
-            # Add warm % labels above each bar
-            for i, row in df_starts.iterrows():
+            # Add annotations for mean counts above each bar
+            for i, row in df_agg.iterrows():
                 fig.add_annotation(
                     x=row["Planner"],
-                    y=row["Warm"] + row["Cold"],  # top of bar
-                    text=f"{row['Warm %']}% warm",
+                    y=105,  # slightly above the 100% bar
+                    text=f"Avg Warm={row['Warm']:.1f}, Cold={row['Cold']:.1f} p/ instance",
                     showarrow=False,
-                    yshift=10,
                     font=dict(size=12, color="black")
                 )
 
+            # Layout tweaks
             fig.update_layout(
                 xaxis_title="Planner",
-                yaxis_title="Number of Cold/Warm Starts",
+                yaxis_title="Mean Percentage of Starts",
                 legend_title="Start Type",
                 plot_bgcolor="rgba(0,0,0,0)",
-                height=600
+                height=650,
+                yaxis=dict(range=[0, 115])  # leave space for labels above bars
             )
 
             st.plotly_chart(fig, use_container_width=True)

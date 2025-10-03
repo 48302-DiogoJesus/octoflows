@@ -1,5 +1,4 @@
 - Dashboard
-    - Make it so that selecting All makes the same dashboard use all information
     - Understand individual optimizations impact:
         - Easiest way is to simply run the same workflow multiple times with different individual optimizations and then all of them
             Choose one planner to do this with and add to `config.py`
