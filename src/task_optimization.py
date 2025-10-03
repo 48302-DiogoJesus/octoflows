@@ -14,13 +14,13 @@ class TaskOptimization(WorkerExecutionLogic):
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list): pass
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None): pass
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None): pass
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task): pass
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], CoroutineType | None] | None: return None
+    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], CoroutineType | None] | None: return None
     
     @staticmethod
     async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass

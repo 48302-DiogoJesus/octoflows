@@ -70,6 +70,10 @@ class Worker(ABC):
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
+                if "multiply_chunks" in current_task.func_name:
+                    logger.info(f"[multiply_chunks] {current_task.id.get_full_id()} | {current_task.func_args}. sleeping")
+                    await asyncio.sleep(3)
+
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
 
                 if not await current_task.is_handling.set_if_not_set():
@@ -147,7 +151,7 @@ class Worker(ABC):
                 current_task.func_args = tuple(new_func_args)
                 current_task.func_kwargs = new_func_kwargs
 
-                res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, self.metadata_storage.storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
                 assert res is not None
                 tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = res
 
@@ -225,7 +229,9 @@ class Worker(ABC):
                 else:
                     self.log(current_task.id.get_full_id(), f"Won't upload output")
                 
-                await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+                receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+
+                self.log(current_task.id.get_full_id(), f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers} receivers")
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")

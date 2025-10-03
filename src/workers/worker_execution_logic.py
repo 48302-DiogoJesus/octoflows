@@ -12,7 +12,7 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic(ABC):
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None):
         pass
 
     @staticmethod
@@ -20,7 +20,7 @@ class WorkerExecutionLogic(ABC):
         pass
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None] | None:
+    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None] | None:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),

@@ -177,8 +177,8 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        download_k_base = 1.18
-        upload_k_base = 1.05
+        download_k_base = 1.15
+        upload_k_base = 1
 
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:

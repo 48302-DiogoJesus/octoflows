@@ -1,11 +1,11 @@
 - Dashboard
     [IMPLEMENTATION]
-    - make preloading downloads happen on separate Thread?
-        or limit to 1 preload at a time
-    - is there any issue with parallelizing input downloads?
-        metrics:
-        tp waiting for inputs: fine!
-        individual download time (can be affected by doing other parallel downloads, but should try it with parallelism limited to nr of cpu cores)
+    - Dashboard
+        - Check preload metrics
+        - Check taskdup metrics
+        - Check prewarm metrics
+    - debug: check if preload is happening and results are being used (gemm is a good test)
+    - Run experiments on VM
 
     [EVAL_+_IMPLEMENTATION] Measuring Optimizations:
         - [DONE] Add a field to TaskMetrics of type list[TaskOptimizationMetrics]

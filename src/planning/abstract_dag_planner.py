@@ -861,10 +861,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return output_data
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None):
         _planner: AbstractDAGPlanner = planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_on_worker_ready(planner, intermediate_storage, dag, this_worker_id)
+            await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id)
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
@@ -879,7 +879,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             await optimization.wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict):
+    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict):
         """
         returns (
             tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),
@@ -891,12 +891,12 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+            opt_res = await optimization.wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_override_handle_inputs(planner, intermediate_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+            res = await WorkerExecutionLogic.wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
         return res
 
     @staticmethod
