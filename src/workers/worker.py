@@ -105,17 +105,20 @@ class Worker(ABC):
                 non_repeated_storage_ids |= { arg.storage_id for arg in current_task.func_kwargs.values() if isinstance(arg, dag.HardcodedDependencyId) and arg.storage_id not in subdag.cached_hardcoded_data_map }
 
                 time_spent_downloading: dict[str, float] = {}
-                # Fetch hardcoded data IF NOT PRESENT LOCALLY
-                for storage_id in non_repeated_storage_ids:
+
+                async def _fetch_and_cache(storage_id: str):
                     self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
 
-                    data_download_time = Timer()
+                    timer = Timer()
                     data_serialized = await self.intermediate_storage.get(storage_id)
-                    data_download_time = data_download_time.stop()
+                    download_time = timer.stop()
                     if data_serialized is None: raise TaskOutputNotAvailableException(storage_id)
                     data = cloudpickle.loads(data_serialized)
                     subdag.cached_hardcoded_data_map[storage_id] = data
-                    time_spent_downloading[storage_id] = data_download_time
+                    time_spent_downloading[storage_id] = download_time
+
+                # Launch all downloads concurrently
+                await asyncio.gather(*(_fetch_and_cache(sid) for sid in non_repeated_storage_ids))
 
                 new_func_args = []
                 for arg in current_task.func_args:
@@ -167,17 +170,22 @@ class Worker(ABC):
                     )
                 
                 if tasks_to_fetch:
-                    for utask in tasks_to_fetch:
+                    async def _fetch_task_result(utask):
                         _timer = Timer()
                         serialized_task_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if serialized_task_result is None: raise TaskOutputNotAvailableException(utask.id.get_full_id())
+                        if serialized_task_result is None:raise TaskOutputNotAvailableException(utask.id.get_full_id())
+
                         time_to_fetch_ms = _timer.stop()
                         deserialized_result = cloudpickle.loads(serialized_task_result)
+
+                        # Store results
                         task_dependencies[utask.id.get_full_id()] = deserialized_result
                         current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result), 
+                            serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result),
                             time_ms=time_to_fetch_ms
                         )
+
+                    await asyncio.gather(*(_fetch_task_result(utask) for utask in tasks_to_fetch))
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine: await wait_until_coroutine

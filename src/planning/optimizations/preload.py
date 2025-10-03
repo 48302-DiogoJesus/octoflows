@@ -138,23 +138,37 @@ class PreLoadOptimization(TaskOptimization):
             async def _callback(_: dict, subscription_id: str | None = None):
                 async with annotation._lock:
                     if subscription_id is not None:
-                        await intermediate_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", subscription_id)
-                    if not annotation.allow_new_preloads: return
+                        await intermediate_storage.unsubscribe(
+                            f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_task.id.get_full_id_in_dag(dag)}", 
+                            subscription_id
+                        )
+                    if not annotation.allow_new_preloads:
+                        return
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()] = asyncio.Event()
+
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
-                dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
+                dependent_task.metrics.optimization_metrics.append(
+                    PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id)
+                )
+
                 _timer = Timer()
-                serialized_data = await intermediate_storage.get(upstream_task.id.get_full_id_in_dag(dag))
+                serialized_data: Any = await asyncio.to_thread(
+                    intermediate_storage.get,
+                    upstream_task.id.get_full_id_in_dag(dag)
+                )
                 time_to_fetch_ms = _timer.stop()
+
                 deserialized_task_output = cloudpickle.loads(serialized_data)
-                dependent_task.metrics.input_metrics.input_download_metrics[upstream_task.id.get_full_id()] = TaskInputDownloadMetrics(
+
+                dependent_task.metrics.input_metrics.input_download_metrics[
+                    upstream_task.id.get_full_id()
+                ] = TaskInputDownloadMetrics(
                     serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
                     time_ms=time_to_fetch_ms
                 )
 
-                # Store the result so that its visible to other coroutines
                 dag.get_node_by_id(upstream_task.id).cached_result = _CachedResultWrapper(deserialized_task_output)
-                
+
                 async with annotation._lock:
                     annotation.preloading_complete_events[upstream_task.id.get_full_id()].set()
                     logger.info(f"[PRELOADING - DONE] Task: {upstream_task.id.get_full_id()}")
