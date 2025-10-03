@@ -23,6 +23,7 @@
             measure (only makes sense for non uniform)
             HOW:
             - track when prewarming happened (look at annotation/optimization and check cold starts versus the same workflow on other planners??)
+    - !! remove the cost field from the container resource usage
     
     - More variation in workflows
         - Force prewarm to be used! (test on non-uniform)

@@ -111,14 +111,16 @@ class DockerContainerUsageMonitor:
         total_cpu_seconds = 0
 
         # Calculate total allocated CPU seconds and clean cache
+        total_cpus = 0
         for cid in data.get("container_ids", []):
             limits = DockerContainerUsageMonitor._container_limits_cache.pop(cid, None)
             if limits:
                 _, num_cpus = limits
+                total_cpus += num_cpus
                 total_cpu_seconds += num_cpus * runtime
 
         # Weighted cost: CPU seconds * memory GB-seconds
-        total_cost = total_cpu_seconds * (total_memory_bytes / (1024**3))
+        total_cost = total_cpus * total_cpu_seconds * (total_memory_bytes / (1024**3))
 
         return DAGResourceUsageMetrics(
             master_dag_id=dag_id,
