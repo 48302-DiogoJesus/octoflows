@@ -1776,24 +1776,32 @@ def main():
                 # Convert to DataFrame and compute success rate
                 df = pd.DataFrame(results)
                 if not df.empty:
+                    # Per-metric success rate
                     summary = df.groupby(["SLA", "Metric"])["Success"].mean().reset_index()
                     summary["SuccessRate"] = summary["Success"] * 100
 
-                    # Convert SLA numeric to categorical label for bar chart
+                    # Overall success rate across all metrics
+                    overall = df.groupby("SLA")["Success"].mean().reset_index()
+                    overall["SuccessRate"] = overall["Success"] * 100
+                    overall["Metric"] = "Overall"
+
+                    # Merge
+                    summary = pd.concat([summary, overall], ignore_index=True)
+
+                    # Convert SLA numeric to categorical label
                     summary["SLA_label"] = "P" + summary["SLA"].astype(str)
 
-                    # Bar chart: SLA vs SuccessRate, grouped by metric
+                    # Bar chart
                     fig = px.bar(
                         summary,
                         x="SLA_label",
                         y="SuccessRate",
                         color="Metric",
                         barmode="group",
-                        title="SLA Fulfillment Rate Across Metrics",
+                        title="SLA Fulfillment Rate Across Metrics (with Overall)",
                         text="SuccessRate"
                     )
 
-                    # Layout
                     fig.update_layout(
                         xaxis_title="SLA Percentile",
                         yaxis_title="Fulfillment Rate (%)",
