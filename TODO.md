@@ -1,6 +1,4 @@
 - Dashboard
-    - [TODO] std dev. makes sense??
-    - Streamlit light mode?
     - Able to put legends inside the plots to occupy less space??
     
     - Understand individual optimizations impact:

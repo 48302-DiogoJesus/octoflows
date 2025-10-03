@@ -1398,47 +1398,86 @@ def main():
                         ))
 
                     # Compute median per planner
+
+                    # Prepare plot data with median and std
                     plot_data = []
-                    network_data = []
+                    network_data = []  # keep this array intact
+
                     for planner_name, metrics in planner_metrics.items():
-                        plot_data.extend([
-                            {'Planner': planner_name, 'Metric': 'Makespan (s)', 'Value': np.median(metrics['makespan'])},
-                            {'Planner': planner_name, 'Metric': 'Execution Time (s)', 'Value': np.median(metrics['execution'])},
-                            {'Planner': planner_name, 'Metric': 'Download Time (s)', 'Value': np.median(metrics['download'])},
-                            {'Planner': planner_name, 'Metric': 'Upload Time (s)', 'Value': np.median(metrics['upload'])},
-                            {'Planner': planner_name, 'Metric': 'Data Transferred (GB)', 'Value': np.median(metrics['data_transferred']) / 1024 / 1024 / 1024},
-                            {'Planner': planner_name, 'Metric': 'Task Invocation Time (s)', 'Value': np.median(metrics['invocation'])},
-                            {'Planner': planner_name, 'Metric': 'Dependency Counter Update Time (s)', 'Value': np.median(metrics['dependency_update'])},
-                            {'Planner': planner_name, 'Metric': 'Worker Startup Time (s)', 'Value': np.median(metrics['worker_startup'])},
-                            {'Planner': planner_name, 'Metric': 'Resource Usage', 'Value': np.median(metrics['resource_usage'])},
-                            {'Planner': planner_name, 'Metric': 'Data Size Uploaded (MB)', 'Value': np.median(metrics['data_size_uploaded']) / 1024 / 1024},
-                            {'Planner': planner_name, 'Metric': 'Data Size Downloaded (MB)', 'Value': np.median(metrics['data_size_downloaded']) / 1024 / 1024},
-                        ])
+                        metric_names = [
+                            ('Makespan (s)', 'makespan'),
+                            ('Execution Time (s)', 'execution'),
+                            ('Download Time (s)', 'download'),
+                            ('Upload Time (s)', 'upload'),
+                            ('Data Transferred (GB)', 'data_transferred'),
+                            ('Task Invocation Time (s)', 'invocation'),
+                            ('Dependency Counter Update Time (s)', 'dependency_update'),
+                            ('Worker Startup Time (s)', 'worker_startup'),
+                            ('Resource Usage', 'resource_usage'),
+                            ('Data Size Uploaded (MB)', 'data_size_uploaded'),
+                            ('Data Size Downloaded (MB)', 'data_size_downloaded')
+                        ]
+                        
+                        for display_name, key in metric_names:
+                            median_val = np.median(metrics[key])
+                            std_val = np.std(metrics[key])
+                            
+                            # Convert units where needed
+                            if display_name == 'Data Transferred (GB)':
+                                median_val /= 1024**3
+                                std_val /= 1024**3
+                            if display_name in ['Data Size Uploaded (MB)', 'Data Size Downloaded (MB)']:
+                                median_val /= 1024**2
+                                std_val /= 1024**2
+                            
+                            plot_data.append({
+                                'Planner': planner_name,
+                                'Metric': display_name,
+                                'Value': median_val,
+                                'STD': std_val  # store std for hover only
+                            })
 
-                        network_data.append({
-                            'Planner': planner_name,
-                            'Type': 'Download (MB)',
-                            'Value': np.median(metrics['data_size_downloaded']) / 1024 / 1024
-                        })
-                        network_data.append({
-                            'Planner': planner_name,
-                            'Type': 'Upload (MB)',
-                            'Value': np.median(metrics['data_size_uploaded']) / 1024 / 1024
-                        })
+                            # Keep network_data intact
+                            if display_name == 'Data Size Uploaded (MB)':
+                                network_data.append({
+                                    'Planner': planner_name,
+                                    'Type': 'Upload (MB)',
+                                    'Value': median_val
+                                })
+                            if display_name == 'Data Size Downloaded (MB)':
+                                network_data.append({
+                                    'Planner': planner_name,
+                                    'Type': 'Download (MB)',
+                                    'Value': median_val
+                                })
 
-                    df_planner_metrics = pd.DataFrame(plot_data)
-                    sorted_planners = sorted(df_planner_metrics['Planner'].unique())
+                    df_plot = pd.DataFrame(plot_data)
+                    sorted_planners = sorted(df_plot['Planner'].unique())
 
-                    # Create bar chart with consistent planner order
+                    # Create bar chart
                     fig = px.bar(
-                        df_planner_metrics,
+                        df_plot,
                         x='Metric',
                         y='Value',
                         color='Planner',
                         barmode='group',
-                        title='All Metrics Comparison (Median)',
+                        title='All Metrics Comparison (Median ± STD on hover)',
                         labels={'Value': 'Value', 'Metric': 'Metric'},
-                        category_orders={'Planner': sorted_planners}  # enforce order
+                        category_orders={'Planner': sorted_planners},
+                        hover_data={'STD': True, 'Value': False}  # hide raw Value, show STD on hover
+                    )
+
+                    # Add median value above bars
+                    fig.update_traces(
+                        text=df_plot['Value'].round(2),
+                        textposition='outside',
+                        textfont=dict(
+                            size=14,
+                            color='black',
+                            family='Arial Black'
+                        ),
+                        hovertemplate='%{y:.2f} ± %{customdata[0]:.2f}<extra></extra>',  # show median ± std on hover
+                        customdata=df_plot[['STD']].values
                     )
 
                     fig.update_layout(
@@ -1451,13 +1490,8 @@ def main():
                         xaxis={'categoryorder':'total descending'}
                     )
 
-                    fig.update_traces(
-                        texttemplate='%{y:.2f}',
-                        textposition='outside',
-                        textfont_size=8
-                    )
-
                     st.plotly_chart(fig, use_container_width=True)
+
 
                     st.markdown("### Resource Usage")
                     ######### Resource Usage plot
