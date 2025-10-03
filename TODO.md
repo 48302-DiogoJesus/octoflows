@@ -1,9 +1,10 @@
 - Dashboard
-    - Able to put legends inside the plots to occupy less space??
-    
     - Understand individual optimizations impact:
         - Easiest way is to simply run the same workflow multiple times with different individual optimizations and then all of them
             Choose one planner to do this with and add to `config.py`
+        - Add a field to TaskMetrics of type list[TaskOptimizationMetrics]
+        - Add a field to WorkflowInstanceTaskInfo of type list[TaskOptimizationMetrics]
+            - Each optimization should implement a class that inherits from `abstract TaskOptimizationMetrics`
         - PreLoad
             measure
             HOW:
@@ -11,9 +12,11 @@
         - TaskDup
             measure 
             HOW:
-            - track when dupping happened (is the flag in metrics_storage? dont think so)
+            - track when dupping happened
+                TaskOptimizationMetrics.dupped: list[DAGTaskNodeId] # indicating the tasks that the current_task dupped
         - PreWarm
             measure (only makes sense for non uniform)
+
             HOW:
             - track when prewarming happened (look at annotation/optimization and check cold starts versus the same workflow on other planners??)
     

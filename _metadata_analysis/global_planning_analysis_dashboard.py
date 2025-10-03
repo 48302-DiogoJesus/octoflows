@@ -54,6 +54,8 @@ class WorkflowInstanceInfo:
     total_transferred_data_bytes: int
     total_inputs_downloaded_bytes: float
     total_outputs_uploaded_bytes: float
+    warm_starts_count: int
+    cold_starts_count: int
 
 @dataclass
 class WorkflowInfo:
@@ -137,6 +139,9 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
                 worker_startup_metrics.extend(this_workflow_wsm)
 
+                warm_starts_count = len([m for m in this_workflow_wsm if m.state == "warm"])
+                cold_starts_count = len([m for m in this_workflow_wsm if m.state == "cold"])
+
                 total_worker_startup_time_ms = 0
                 for metric in this_workflow_wsm:
                     if not metric.end_time_ms: continue
@@ -165,10 +170,12 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         total_workers,
                         tasks,
                         resource_usage,
-                        resource_usage.cpu_seconds * resource_usage.memory_bytes / (1024**3),
+                        resource_usage.cost,
                         total_transferred_data_bytes,
                         total_inputs_downloaded,
-                        total_outputs_uploaded
+                        total_outputs_uploaded,
+                        warm_starts_count,
+                        cold_starts_count
                     )
                 )
             except Exception as e:
@@ -450,6 +457,7 @@ def main():
                     'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
                     'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.2f} GB",
                     'Resources Cost': f"{instance.resource_usage_cost:.2f}",
+                    'Warm/Cold Starts': f"{instance.cold_starts_count}/{instance.warm_starts_count}",
                     '_actual_worker_startup': actual_total_worker_startup_time_s,
                     '_actual_invocation': actual_invocation,
                     '_actual_dependency_update': actual_dependency_update,
@@ -661,6 +669,7 @@ def main():
                             'CPU Time': "CPU Time",
                             'Memory Usage': "Memory Usage",
                             'Resources Cost': "Resources Cost",
+                            'Warm/Cold Starts': "Warm/Cold Starts",
                         },
                         use_container_width=True,
                         height=min(400, 35 * (len(df_instances) + 1)),
@@ -688,85 +697,9 @@ def main():
                             'CPU Time',
                             'Memory Usage',
                             'Resources Cost',
+                            'Warm/Cold Starts',
                         ]
                     )
-
-                    st.markdown("### View Task Metrics by DAG ID")
-                    
-                    # Create a text input for DAG ID
-                    dag_id = st.text_input("Enter DAG ID to view task metrics:", "")
-                    
-                    # Initialize variables
-                    selected_instance_info = None
-                    workflow_name = ""
-                    planner_name = ""
-                    
-                    # Process the entered DAG ID
-                    if dag_id and 'Master DAG ID' in df_instances.columns:
-                        # Find rows with matching DAG ID
-                        matching_rows = df_instances[df_instances['Master DAG ID'].astype(str) == dag_id]
-                        
-                        if len(matching_rows) > 0:
-                            # Get the first matching row
-                            row = matching_rows.iloc[0]  # type: ignore
-                            workflow_name = str(row['Workflow Type']) if pd.notna(row['Workflow Type']) else ""
-                            planner_name = str(row['Planner']) if pd.notna(row['Planner']) else ""
-                            
-                            # Show success message
-                            st.success(f"Found matching workflow: {workflow_name} - {planner_name}")
-                            
-                            # Find the selected instance
-                            if workflow_name and planner_name and workflow_name in workflow_types:
-                                for instance in workflow_types[workflow_name].instances:
-                                    if (instance.plan and 
-                                        instance.plan.planner_name == planner_name and
-                                        instance.master_dag_id == dag_id):
-                                        selected_instance_info = instance
-                                        break
-                        else:
-                            st.warning(f"No workflow found with DAG ID: {dag_id}")
-                        
-                        if selected_instance_info and selected_instance_info.tasks:
-                            st.markdown("---")
-                            st.markdown(f"### Task Metrics for {workflow_name} - {planner_name}")
-                            
-                            # Prepare task metrics data
-                            task_metrics_data = []
-                            for task in selected_instance_info.tasks:
-                                worker_startup_metrics_for_task = [n for n in st.session_state.worker_startup_metrics if task.internal_task_id in n.initial_task_ids]
-                                worker_startup_metrics_for_task = worker_startup_metrics_for_task[0] if worker_startup_metrics_for_task else None
-                                task_metrics = task.metrics
-                                task_metrics_data.append({
-                                    'Task ID': task.global_task_id,
-                                    'Worker Config': str(task_metrics.worker_resource_configuration),
-                                    'Start Time (s)': task_metrics.started_at_timestamp_s,
-                                    'Input Size (bytes)': sum([input_metric.serialized_size_bytes for input_metric in task_metrics.input_metrics.input_download_metrics.values()]),
-                                    'Download Time (ms)': sum([input_metric.time_ms for input_metric in task_metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms]),
-                                    'Execution Time (ms)': task_metrics.tp_execution_time_ms,
-                                    'Output Size (bytes)': task_metrics.output_metrics.serialized_size_bytes if hasattr(task_metrics, 'output_metrics') else 0,
-                                    'Output Time (ms)': task_metrics.output_metrics.tp_time_ms if hasattr(task_metrics, 'output_metrics') else 0,
-                                    'Worker Startup Time (ms)': (worker_startup_metrics_for_task.end_time_ms - worker_startup_metrics_for_task.start_time_ms) if worker_startup_metrics_for_task and worker_startup_metrics_for_task.end_time_ms else 0,
-                                })
-                            
-                            # Display task metrics table
-                            if task_metrics_data:
-                                df_task_metrics = pd.DataFrame(task_metrics_data)
-                                st.dataframe(
-                                    df_task_metrics,
-                                    column_config={
-                                        'Task ID': "Task ID",
-                                        'Worker Config': "Worker Configuration",
-                                        'Start Time (s)': st.column_config.NumberColumn("Start Time (s)", format="%.2f"),
-                                        'Input Size (bytes)': st.column_config.NumberColumn("Input Size (bytes)", format="%d"),
-                                        'Download Time (ms)': st.column_config.NumberColumn("Download Time (ms)", format="%.2f"),
-                                        'Execution Time (ms)': st.column_config.NumberColumn("Execution Time (ms)", format="%.2f"),
-                                        'Output Size (bytes)': st.column_config.NumberColumn("Output Size (bytes)", format="%d"),
-                                        'Output Time (ms)': st.column_config.NumberColumn("Output Time (ms)", format="%.2f"),
-                                        'Worker Startup Time (ms)': st.column_config.NumberColumn("Worker Startup Time (ms)", format="%.2f"),
-                                    },
-                                    use_container_width=True,
-                                    hide_index=True,
-                                )
 
                 # st.markdown("---")
                 with TAB_PREDICTIONS:
@@ -1345,7 +1278,9 @@ def main():
                                 'dependency_update': [],
                                 'dag_download': [],
                                 'worker_startup': [],
-                                'resource_usage': []
+                                'resource_usage': [],
+                                'warm_starts': [],
+                                'cold_starts': []
                             }
                         
                         metrics = planner_metrics[planner]
@@ -1396,6 +1331,8 @@ def main():
                             sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
                             for task in instance.tasks
                         ))
+                        metrics['warm_starts'].append(instance.warm_starts_count)
+                        metrics['cold_starts'].append(instance.cold_starts_count)
 
                     # Compute median per planner
 
@@ -1415,7 +1352,9 @@ def main():
                             ('Worker Startup Time (s)', 'worker_startup'),
                             ('Resource Usage', 'resource_usage'),
                             ('Data Size Uploaded (MB)', 'data_size_uploaded'),
-                            ('Data Size Downloaded (MB)', 'data_size_downloaded')
+                            ('Data Size Downloaded (MB)', 'data_size_downloaded'),
+                            ('Warm Starts', 'warm_starts'),
+                            ('Cold Starts', 'cold_starts'),
                         ]
                         
                         for display_name, key in metric_names:
@@ -1469,14 +1408,9 @@ def main():
 
                     # Add median value above bars
                     fig.update_traces(
-                        text=df_plot['Value'].round(2),
+                        texttemplate='%{y:.2f}',  # this will always match the actual bar height
                         textposition='outside',
-                        textfont=dict(
-                            size=14,
-                            color='black',
-                            family='Arial Black'
-                        ),
-                        hovertemplate='%{y:.2f} ± %{customdata[0]:.2f}<extra></extra>',  # show median ± std on hover
+                        hovertemplate='%{y:.4f} ± %{customdata[0]:.4f}<extra></extra>',
                         customdata=df_plot[['STD']].values
                     )
 
@@ -1491,7 +1425,6 @@ def main():
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
-
 
                     st.markdown("### Resource Usage")
                     ######### Resource Usage plot
@@ -1522,7 +1455,7 @@ def main():
                         })
                         resource_data.append({
                             'Planner': planner,
-                            'Metric': 'Cost (CPU_Time_S * Memory_GB)',
+                            'Metric': 'Cost',
                             'Value': instance.resource_usage_cost
                         })
 
@@ -1564,7 +1497,7 @@ def main():
                     df_resource = pd.DataFrame(resource_data)
 
                     # Plot each metric separately
-                    metrics = ['Run Time (s)', 'CPU Time (s)', 'Memory (GB)', 'Cost (CPU_Time_S * Memory_GB)']
+                    metrics = ['Run Time (s)', 'CPU Time (s)', 'Memory (GB)', 'Cost']
 
                     cols = st.columns(2)
 
@@ -1594,6 +1527,71 @@ def main():
                         # Move to a new row after 2 plots
                         if i % 2 == 1:
                             cols = st.columns(2)
+
+                    planner_start_stats = []
+                    for instance in workflow_types[selected_workflow].instances:
+                        if not instance.plan: 
+                            continue
+                        planner = instance.plan.planner_name
+
+                        planner_start_stats.append({
+                            "Planner": planner,
+                            "Warm": instance.warm_starts_count,
+                            "Cold": instance.cold_starts_count
+                        })
+
+                    # Convert to DataFrame
+                    df_starts = pd.DataFrame(planner_start_stats)
+
+                    # Group by planner and take MEDIAN instead of sum
+                    df_starts = df_starts.groupby("Planner")[["Warm", "Cold"]].median().reset_index()
+
+                    # Compute warm percentage for each planner
+                    df_starts["Warm %"] = (
+                        df_starts["Warm"] / (df_starts["Warm"] + df_starts["Cold"]) * 100
+                    ).fillna(0).round(1)
+
+                    # Melt for stacked bar format
+                    df_melted = df_starts.melt(
+                        id_vars="Planner",
+                        value_vars=["Warm", "Cold"],
+                        var_name="Start Type",
+                        value_name="Count"
+                    )
+
+                    # Create stacked bar chart
+                    fig = px.bar(
+                        df_melted,
+                        x="Planner",
+                        y="Count",
+                        color="Start Type",
+                        barmode="stack",
+                        text="Count",
+                        title="Warm vs Cold Starts (Median)"
+                    )
+
+                    fig.update_traces(textposition="inside")
+
+                    # Add warm % labels above each bar
+                    for i, row in df_starts.iterrows():
+                        fig.add_annotation(
+                            x=row["Planner"],
+                            y=row["Warm"] + row["Cold"],  # top of bar
+                            text=f"{row['Warm %']}% warm",
+                            showarrow=False,
+                            yshift=10,
+                            font=dict(size=12, color="black")
+                        )
+
+                    fig.update_layout(
+                        xaxis_title="Planner",
+                        yaxis_title="Number of Cold/Warm Starts",
+                        legend_title="Start Type",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        height=600
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
 
                     #########
                     st.markdown("### SLA")
