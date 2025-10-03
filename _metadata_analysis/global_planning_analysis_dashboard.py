@@ -1,3 +1,4 @@
+import math
 import plotly.subplots as sp
 import plotly.graph_objects as go
 import streamlit as st
@@ -147,13 +148,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 resource_usage_data: Any = metadata_storage_conn.get(resource_usage_key)
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
 
-                total_transferred_data_bytes = 0
-                for task in tasks:
-                    for im in task.metrics.input_metrics.input_download_metrics.values(): 
-                        if im.time_ms is None: continue # did not download from storage
-                        total_transferred_data_bytes += im.serialized_size_bytes
-                    if task.metrics.output_metrics.tp_time_ms is None: continue # did not upload to storage
-                    total_transferred_data_bytes += task.metrics.output_metrics.serialized_size_bytes
+                total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
 
                 # Update workflow_types dict
                 if dag.dag_name not in workflow_types:
@@ -1382,12 +1377,12 @@ def main():
                                 for task in instance.tasks 
                                 if task.metrics.output_metrics.tp_time_ms is not None
                             ),
-                            f'Input Size [{input_size_unit}]': input_size_value,  # Convert to MB
-                            f'Output Size [{output_size_unit}]': output_size_value,  # Convert to MB
-                            f'Total Data Transferred [{total_data_unit}]': total_data_value,  # Convert to MB
+                            # f'Input Size [{input_size_unit}]': input_size_value,  # Convert to MB
+                            # f'Output Size [{output_size_unit}]': output_size_value,  # Convert to MB
+                            f'Total Data Transferred': total_data_value,  # Convert to MB
                             'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                            'Avg Memory Allocation [MB]': avg_memory_mb,
-                            'Resource Usage': instance.resource_usage.cost
+                            # 'Avg Memory Allocation [MB]': avg_memory_mb,
+                            'Resource Usage': instance.resource_usage.cpu_seconds * instance.resource_usage.memory_bytes / (1024**3)
                         }
                         
                         # Add all metrics to the data list
@@ -1399,91 +1394,56 @@ def main():
                                 'Instance ID': instance.master_dag_id.split('-')[0]
                             })
                     
+                    st.markdown("### Metrics Comparison (by Planner)")
                     if metrics_data:
+                        # Convert metrics_data to DataFrame
                         df_metrics = pd.DataFrame(metrics_data)
-                        
-                        # Get unique metrics for the dropdown
-                        available_metrics = df_metrics['Metric'].unique().tolist()
-                        
-                        # Add metric selection dropdown
-                        st.markdown("### Metrics Comparison (by Planner)")
-                        selected_metric = st.selectbox(
-                            'Select a metric to compare:',
-                            available_metrics,
-                            index=0,
-                            key='metric_selector'
-                        )
-                        
-                        # Filter data for the selected metric
-                        df_metric = df_metrics[df_metrics['Metric'] == selected_metric]
-                        
-                        # Create box plot for the selected metric
-                        fig = px.box(
-                            df_metric,
-                            x='Planner',
-                            y='Value',
-                            color='Planner',
-                            title=f'{selected_metric} Distribution by Planner',
-                            points="all",
-                            hover_data=['Instance ID'],
-                            color_discrete_sequence=px.colors.qualitative.Set2
-                        )
-                        
-                        # Get the base metric name and unit for y-axis label
-                        base_metric = selected_metric.split('[')[0].strip()
-                        unit = ']' + selected_metric.split('[')[1] if '[' in selected_metric else ''
-                        
-                        # Add median and average markers for each planner
-                        for planner in df_metric['Planner'].unique():
-                            planner_data = df_metric[df_metric['Planner'] == planner]
-                            median_val = planner_data['Value'].median()
-                            avg_val = planner_data['Value'].mean()
-                            
-                            # Add average as a point
-                            fig.add_scatter(
-                                x=[planner],
-                                y=[avg_val],
-                                mode='markers',
-                                marker=dict(
-                                    color='white',
-                                    size=10,
-                                    symbol='diamond'
-                                ),
-                                name='',
-                                showlegend=False
-                            )
-                            
-                            # Add average value label
-                            fig.add_annotation(
-                                x=planner,
-                                y=avg_val,
-                                text=f"Avg: {avg_val:.1f}",
-                                showarrow=False,
-                                yshift=-15,
-                                font=dict(color='white', size=10)
-                            )
-                        
-                        # Update layout with proper units
-                        fig.update_layout(
-                            xaxis_title='Planner',
-                            yaxis_title=f"{base_metric} {unit}",
-                            legend_title='Planner',
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            boxmode='group',
-                            height=500,
-                            showlegend=False,  # Remove legend as it's redundant with x-axis
-                            yaxis={
-                                'title': f"{base_metric} {unit}",
-                                'tickformat': '.2f' if 'Time' in base_metric or 'Makespan' in base_metric else None
-                            }
-                        )
-                        
-                        # Rotate x-axis labels if there are many planners
-                        if len(df_metric['Planner'].unique()) > 3:
-                            fig.update_xaxes(tickangle=45)
-                        
-                        st.plotly_chart(fig, use_container_width=True)
-                        
+
+                        # Create a list of (df_for_metric, metric_name) for each metric
+                        all_metrics_to_plot = []
+                        for metric in df_metrics['Metric'].unique():
+                            df_metric = df_metrics[df_metrics['Metric'] == metric]
+                            all_metrics_to_plot.append((df_metric, metric))
+
+                        # Plot in 3 columns per row
+                        import math
+                        num_cols = 3
+                        num_rows = math.ceil(len(all_metrics_to_plot) / num_cols)
+
+                        for i in range(num_rows):
+                            cols = st.columns(num_cols)
+                            for j in range(num_cols):
+                                idx = i * num_cols + j
+                                if idx >= len(all_metrics_to_plot):
+                                    break
+                                df_plot, metric_name = all_metrics_to_plot[idx]
+                                if df_plot.empty:
+                                    cols[j].write(f"No data for {metric_name}")
+                                    continue
+
+                                fig = px.box(
+                                    df_plot,
+                                    x='Planner',
+                                    y='Value',
+                                    color='Planner',
+                                    points="all",
+                                    hover_data=['Instance ID'],
+                                    color_discrete_sequence=px.colors.qualitative.Set2,
+                                    title=f"{metric_name} by Planner",
+                                    category_orders={"Planner": sorted(df_plot['Planner'].unique())}
+                                )
+                                fig.update_layout(
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    boxmode='group',
+                                    height=500,
+                                    legend_title="Planner",
+                                    xaxis_title="Planner",
+                                    yaxis_title="Value"
+                                )
+                                cols[j].plotly_chart(fig, use_container_width=True)
+
+
+                        # ---------------------                        
                         # Add pie charts for time distribution by activity for each planner
                         st.markdown("### Time Distribution by Activity (per Planner)")
                         
