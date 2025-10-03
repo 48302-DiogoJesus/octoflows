@@ -217,34 +217,21 @@ class PreLoadOptimization(TaskOptimization):
         upstream_tasks_to_fetch = []
         
         preload_optimization = task.try_get_optimization(PreLoadOptimization)
-        __tasks_preloading_coroutines: dict[str, CoroutineType] = {}
         if preload_optimization:
             async with preload_optimization._lock: # wait for lock, meaning no task is preloading anymore
                 preload_optimization.allow_new_preloads = False
-                for utask_id, preloading_event in preload_optimization.preloading_complete_events.items():
-                    logger.info(f"[HANDLE_INPUTS - IS PRELOADING] Task: {utask_id} | Dependent task: {task.id.get_full_id()}")
-                    __tasks_preloading_coroutines[utask_id] = preloading_event.wait()
+                logger.info(f"[PRELOAD - HANDLE_INPUTS] No more preloading allowed")
 
         for t in task.upstream_nodes:
             subscription_id = preload_optimization.preloading_subscription_ids.get(f"{task.id.get_full_id()}{t.id.get_full_id()}") if preload_optimization else None
             if t.cached_result:
                 if subscription_id is not None:
                     await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=subscription_id)
-            elif t.cached_result is None and t.id.get_full_id() not in __tasks_preloading_coroutines:
+            else:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")
                 # unsubscribe because we are going to fetch it, in the future it won't matter
                 if subscription_id is not None:
                     await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=subscription_id)
                 upstream_tasks_to_fetch.append(t)
 
-        async def _wait_all_preloads_coroutine():
-            await asyncio.gather(*__tasks_preloading_coroutines.values()) # Wait for all preloading to finish for this task
-            # Grab preloaded data results
-            for t in task.upstream_nodes:
-                if t.id.get_full_id() not in __tasks_preloading_coroutines: continue
-                if not t.cached_result: raise Exception(f"ERROR: Task {t.id.get_full_id()} was preloading. After preload, it doesn't have a cached result!!")
-                task_dependencies[t.id.get_full_id()] = t.cached_result.result
-
-        upstream_tasks_i_fetch = list(__tasks_preloading_coroutines.keys())
-
-        return (upstream_tasks_to_fetch, upstream_tasks_i_fetch, _wait_all_preloads_coroutine())
+        return (upstream_tasks_to_fetch, [], None)

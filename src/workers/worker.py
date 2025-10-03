@@ -70,10 +70,6 @@ class Worker(ABC):
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
-                if "multiply_chunks" in current_task.func_name:
-                    logger.info(f"[multiply_chunks] {current_task.id.get_full_id()} | {current_task.func_args}. sleeping")
-                    await asyncio.sleep(3)
-
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
 
                 if not await current_task.is_handling.set_if_not_set():
