@@ -1692,128 +1692,126 @@ def main():
                         
                         st.plotly_chart(fig, use_container_width=True)
                 
-                #########
-                # Define the metrics we want to track
-                # Define the metrics we want to track
-                metrics_list = [
-                    "makespan",
-                    "execution",
-                    "download",
-                    "upload",
-                    "input_size",
-                    "output_size",
-                    "worker_startup_time"
-                ]
+                    #########
+                    # Define the metrics we want to track
+                    metrics_list = [
+                        "makespan",
+                        "execution",
+                        "download",
+                        "upload",
+                        "input_size",
+                        "output_size",
+                        "worker_startup_time"
+                    ]
 
-                results = []
+                    results = []
 
-                for workflow_name, workflow_info in st.session_state.workflow_types.items():
-                    # Sort instances by start time
-                    sorted_instances = sorted(workflow_info.instances, key=lambda inst: inst.start_time_ms)
+                    for workflow_name, workflow_info in st.session_state.workflow_types.items():
+                        # Sort instances by start time
+                        sorted_instances = sorted(workflow_info.instances, key=lambda inst: inst.start_time_ms)
 
-                    # Keep track of history for each metric
-                    history = {metric: [] for metric in metrics_list}
+                        # Keep track of history for each metric
+                        history = {metric: [] for metric in metrics_list}
 
-                    for inst in sorted_instances:
-                        if not inst.plan or not inst.tasks:
-                            continue
-                        sla = inst.plan.sla
-                        if sla == "average": continue  # skip "average"
+                        for inst in sorted_instances:
+                            if not inst.plan or not inst.tasks:
+                                continue
+                            sla = inst.plan.sla
+                            if sla == "average": continue  # skip "average"
 
-                        sla_value = sla.value  # percentile 1-100
+                            sla_value = sla.value  # percentile 1-100
 
-                        # --- Compute actual metrics like before ---
-                        actual_makespan = (
-                            max([
-                                (task.metrics.started_at_timestamp_s * 1000) +
-                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
-                                (task.metrics.tp_execution_time_ms or 0) +
-                                (task.metrics.output_metrics.tp_time_ms or 0) +
-                                (task.metrics.total_invocation_time_ms or 0)
+                            # --- Compute actual metrics like before ---
+                            actual_makespan = (
+                                max([
+                                    (task.metrics.started_at_timestamp_s * 1000) +
+                                    (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
+                                    (task.metrics.tp_execution_time_ms or 0) +
+                                    (task.metrics.output_metrics.tp_time_ms or 0) +
+                                    (task.metrics.total_invocation_time_ms or 0)
+                                    for task in inst.tasks
+                                ]) - inst.start_time_ms
+                            ) / 1000
+
+                            actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in inst.tasks)
+                            actual_download = sum(
+                                sum(im.time_ms for im in task.metrics.input_metrics.input_download_metrics.values() if im.time_ms) 
                                 for task in inst.tasks
-                            ]) - inst.start_time_ms
-                        ) / 1000
+                            ) / 1000
+                            actual_upload = sum(task.metrics.output_metrics.tp_time_ms or 0 for task in inst.tasks) / 1000
+                            actual_input_size = sum(
+                                sum(im.serialized_size_bytes for im in task.metrics.input_metrics.input_download_metrics.values()) +
+                                task.metrics.input_metrics.hardcoded_input_size_bytes
+                                for task in inst.tasks
+                            )
+                            actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in inst.tasks)
+                            actual_worker_startup = inst.total_worker_startup_time_ms / 1000
 
-                        actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in inst.tasks)
-                        actual_download = sum(
-                            sum(im.time_ms for im in task.metrics.input_metrics.input_download_metrics.values() if im.time_ms) 
-                            for task in inst.tasks
-                        ) / 1000
-                        actual_upload = sum(task.metrics.output_metrics.tp_time_ms or 0 for task in inst.tasks) / 1000
-                        actual_input_size = sum(
-                            sum(im.serialized_size_bytes for im in task.metrics.input_metrics.input_download_metrics.values()) +
-                            task.metrics.input_metrics.hardcoded_input_size_bytes
-                            for task in inst.tasks
+                            actuals = {
+                                "makespan": actual_makespan,
+                                "execution": actual_execution,
+                                "download": actual_download,
+                                "upload": actual_upload,
+                                "input_size": actual_input_size,
+                                "output_size": actual_output_size,
+                                "worker_startup_time": actual_worker_startup
+                            }
+
+                            # Compare to historical percentile for each metric
+                            for metric in metrics_list:
+                                prev_values = history[metric]
+                                if prev_values:
+                                    threshold = np.percentile(prev_values, sla_value)
+                                    success = actuals[metric] <= threshold
+                                    results.append({
+                                        "SLA": sla_value,
+                                        "Metric": metric,
+                                        "Success": success
+                                    })
+
+                                # Update history
+                                history[metric].append(actuals[metric])
+
+                    # Convert to DataFrame and compute success rate
+                    df = pd.DataFrame(results)
+                    if not df.empty:
+                        # Per-metric success rate
+                        summary = df.groupby(["SLA", "Metric"])["Success"].mean().reset_index()
+                        summary["SuccessRate"] = summary["Success"] * 100
+
+                        # Overall success rate across all metrics
+                        overall = df.groupby("SLA")["Success"].mean().reset_index()
+                        overall["SuccessRate"] = overall["Success"] * 100
+                        overall["Metric"] = "Overall"
+
+                        # Merge
+                        summary = pd.concat([summary, overall], ignore_index=True)
+
+                        # Convert SLA numeric to categorical label
+                        summary["SLA_label"] = "P" + summary["SLA"].astype(str)
+
+                        # Bar chart
+                        fig = px.bar(
+                            summary,
+                            x="SLA_label",
+                            y="SuccessRate",
+                            color="Metric",
+                            barmode="group",
+                            title="SLA Fulfillment Rate Across Metrics (with Overall)",
+                            text="SuccessRate"
                         )
-                        actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in inst.tasks)
-                        actual_worker_startup = inst.total_worker_startup_time_ms / 1000
 
-                        actuals = {
-                            "makespan": actual_makespan,
-                            "execution": actual_execution,
-                            "download": actual_download,
-                            "upload": actual_upload,
-                            "input_size": actual_input_size,
-                            "output_size": actual_output_size,
-                            "worker_startup_time": actual_worker_startup
-                        }
+                        fig.update_layout(
+                            xaxis_title="SLA Percentile",
+                            yaxis_title="Fulfillment Rate (%)",
+                            yaxis=dict(range=[0, 100]),
+                            legend_title="Metric"
+                        )
+                        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
-                        # Compare to historical percentile for each metric
-                        for metric in metrics_list:
-                            prev_values = history[metric]
-                            if prev_values:
-                                threshold = np.percentile(prev_values, sla_value)
-                                success = actuals[metric] <= threshold
-                                results.append({
-                                    "SLA": sla_value,
-                                    "Metric": metric,
-                                    "Success": success
-                                })
-
-                            # Update history
-                            history[metric].append(actuals[metric])
-
-                # Convert to DataFrame and compute success rate
-                df = pd.DataFrame(results)
-                if not df.empty:
-                    # Per-metric success rate
-                    summary = df.groupby(["SLA", "Metric"])["Success"].mean().reset_index()
-                    summary["SuccessRate"] = summary["Success"] * 100
-
-                    # Overall success rate across all metrics
-                    overall = df.groupby("SLA")["Success"].mean().reset_index()
-                    overall["SuccessRate"] = overall["Success"] * 100
-                    overall["Metric"] = "Overall"
-
-                    # Merge
-                    summary = pd.concat([summary, overall], ignore_index=True)
-
-                    # Convert SLA numeric to categorical label
-                    summary["SLA_label"] = "P" + summary["SLA"].astype(str)
-
-                    # Bar chart
-                    fig = px.bar(
-                        summary,
-                        x="SLA_label",
-                        y="SuccessRate",
-                        color="Metric",
-                        barmode="group",
-                        title="SLA Fulfillment Rate Across Metrics (with Overall)",
-                        text="SuccessRate"
-                    )
-
-                    fig.update_layout(
-                        xaxis_title="SLA Percentile",
-                        yaxis_title="Fulfillment Rate (%)",
-                        yaxis=dict(range=[0, 100]),
-                        legend_title="Metric"
-                    )
-                    fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.write("No percentile SLA data available to plot.")
-
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.write("No percentile SLA data available to plot.")
             else:
                 st.warning("No instance data available for the selected filters.")
 

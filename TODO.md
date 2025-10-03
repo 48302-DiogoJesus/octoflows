@@ -2,9 +2,9 @@
     - Slack metrics
         DONE Percentagem de SLA fulfillment para cada nível de SLA
     - See WUKONG evaluation chapter (https://chatgpt.com/c/68dd8d50-2c90-832c-9083-3bd76a766232)
-        - CPU time + ?Memory time? (I haven't yet added a graph comparing resource utilization (cpu time + memory time or costs?))
-        - Network I/O (data downloaded (I), data uploaded (O))
         - Time breakdown: instead of having a pie chart, add a bar chart with multiple layers (one for each planner)
+        - Network I/O (data downloaded (I), data uploaded (O))
+        - CPU time + ?Memory time? (I haven't yet added a graph comparing resource utilization (cpu time + memory time or costs?))
     
     - Understand individual optimizations impact:
         - Easiest way is to simply run the same workflow multiple times with different individual optimizations and then all of them
