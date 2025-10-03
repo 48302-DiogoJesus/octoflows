@@ -1,9 +1,10 @@
 - Dashboard
+    - Replace avg plots by median
     - Slack metrics
         DONE Percentagem de SLA fulfillment para cada nível de SLA
     - See WUKONG evaluation chapter (https://chatgpt.com/c/68dd8d50-2c90-832c-9083-3bd76a766232)
-        - Improve "Metrics Comparison (by Planner)" by showing all metrics in a single graph
-        - Time breakdown: instead of having a pie chart, add a bar chart with multiple layers (one for each planner)
+        - DONE Time breakdown: instead of having a pie chart, add a bar chart with multiple layers (one for each planner)
+        - std dev. makes sense??
         - Network I/O (data downloaded (I), data uploaded (O))
         - CPU time + ?Memory time? (I haven't yet added a graph comparing resource utilization (cpu time + memory time or costs?))
     
