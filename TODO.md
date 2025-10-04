@@ -1,12 +1,11 @@
 - Dashboard
     [IMPLEMENTATION]
     - Dashboard
-        - BUG on preload
-            wait for coroutine never finishes!
         - [DONE] Check preload metrics
+        - Check prewarm metrics
         - Check taskdup metrics
             taskdup isn't being applying in reality
-        - Check prewarm metrics
+            need a workflow with short task + small input + downstream task that has other upstream tasks that finish first
     - debug: check if preload is happening and results are being used (gemm is a good test)
     - Run experiments on VM
 

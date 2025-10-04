@@ -11,7 +11,7 @@ WORKFLOWS_PATHS = [
     'image_transformer.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 4
+ITERATIONS_PER_ALGORITHM = 3
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform']
 # ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform']
 ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'wukong', 'wukong-opt']

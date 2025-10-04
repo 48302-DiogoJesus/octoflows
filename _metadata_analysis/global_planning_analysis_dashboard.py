@@ -1362,21 +1362,17 @@ def main():
                 
                 for display_name, key in metric_names:
                     median_val = np.median(metrics[key])
-                    std_val = np.std(metrics[key])
                     
                     # Convert units where needed
                     if display_name == 'Data Transferred (GB)':
                         median_val /= 1024**3
-                        std_val /= 1024**3
                     if display_name in ['Data Size Uploaded (MB)', 'Data Size Downloaded (MB)']:
                         median_val /= 1024**2
-                        std_val /= 1024**2
                     
                     plot_data.append({
                         'Planner': planner_name,
                         'Metric': display_name,
                         'Value': median_val,
-                        'STD': std_val  # store std for hover only
                     })
 
                     # Keep network_data intact
@@ -1403,18 +1399,15 @@ def main():
                 y='Value',
                 color='Planner',
                 barmode='group',
-                title='All Metrics Comparison (Median ± STD on hover)',
+                title='All Metrics Comparison (Median)',
                 labels={'Value': 'Value', 'Metric': 'Metric'},
-                category_orders={'Planner': sorted_planners},
-                hover_data={'STD': True, 'Value': False}  # hide raw Value, show STD on hover
+                category_orders={'Planner': sorted_planners}
             )
 
             # Add median value above bars
             fig.update_traces(
                 texttemplate='%{y:.2f}',  # this will always match the actual bar height
                 textposition='outside',
-                hovertemplate='%{y:.4f} ± %{customdata[0]:.4f}<extra></extra>',
-                customdata=df_plot[['STD']].values
             )
 
             fig.update_layout(
