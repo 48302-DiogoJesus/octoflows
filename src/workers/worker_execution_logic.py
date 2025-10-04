@@ -12,7 +12,7 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic(ABC):
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
         pass
 
     @staticmethod

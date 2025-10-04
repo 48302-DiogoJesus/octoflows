@@ -124,7 +124,7 @@ async def main():
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
         #* 1) Execute wel_on_worker_ready
-        await wk.planner.wel_on_worker_ready(wk.planner, wk.intermediate_storage, wk.metadata_storage.storage, fulldag, this_worker_id)
+        await wk.planner.wel_on_worker_ready(wk.planner, wk.intermediate_storage, wk.metadata_storage.storage, fulldag, this_worker_id, wk)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker

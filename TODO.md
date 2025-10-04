@@ -1,6 +1,10 @@
 - Dashboard
     [IMPLEMENTATION]
     - prewarm: 
+        improve prewarm flexibility so that tasks can do prewarm anytime
+            perform/schedule prewarms on on_worker_ready instead of before_task_handling
+            the annotation should say the prewarm relative time ("I want you to prewarm this config 5 seconds after you on_worker_ready is called")
+
         trick to add more prewarm annotations
             in the assignment logic, add prewarm to N - 1 workers of fan-outs
         prewarm isn't being applied by planners (few unique workers, and using max and min resource configs, not in between (testing on other workflows to see if its a problem))

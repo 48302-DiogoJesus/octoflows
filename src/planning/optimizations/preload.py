@@ -131,7 +131,7 @@ class PreLoadOptimization(TaskOptimization):
         return
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG, this_worker_id: str | None, this_worker):
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 

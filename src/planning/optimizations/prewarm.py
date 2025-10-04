@@ -14,12 +14,12 @@ logger = create_logger(__name__)
 class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
     """ Indicates what resource configurations should be prewarmed by the worker annotated with this optimization upon task execution start """
 
-    target_resource_configs: list[TaskWorkerResourceConfiguration]
+    target_resource_configs: list[tuple[int, TaskWorkerResourceConfiguration]] # (delay in seconds, resource config)
 
     @property
     def name(self) -> str: return "PreWarm"
 
-    def clone(self): return PreWarmOptimization([config.clone() for config in self.target_resource_configs])
+    def clone(self): return PreWarmOptimization([(relative_time, config.clone()) for relative_time, config in self.target_resource_configs])
 
     @staticmethod
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
@@ -84,12 +84,27 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         return
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
-        
-        prewarm_optimization = current_task.try_get_optimization(PreWarmOptimization)
-        if prewarm_optimization is None: return
+        _dag: SubDAG = dag
 
-        # "fire-and-forget" / non-blocking
-        asyncio.create_task(_this_worker.warmup(subdag.master_dag_id, prewarm_optimization.target_resource_configs))
+        async def delayed_warmup(delay_s: float, worker: Worker, dag_id: str, resource_config):
+            try:
+                if delay_s > 0:
+                    await asyncio.sleep(delay_s)  # non-blocking wait
+                await worker.warmup(dag_id, [resource_config])
+            except Exception as e:
+                # optional: log error
+                print(f"Warmup failed after {delay_s}s delay: {e}")
+
+        for node in _dag._all_nodes.values():
+            if node.worker_config.worker_id != this_worker_id: continue
+
+            prewarm_optimization = node.try_get_optimization(PreWarmOptimization)
+            if prewarm_optimization is None: continue
+
+            for relative_time, resource_config in prewarm_optimization.target_resource_configs:
+                # schedule into the future without blocking caller
+                # "background" in the name so that the worker doesn't wait for this coroutine if it wants to exit (not a priority)
+                asyncio.create_task(delayed_warmup(relative_time, _this_worker, dag.master_dag_id, resource_config), name=f"background_PreWarm-{node.id.get_full_id()}")

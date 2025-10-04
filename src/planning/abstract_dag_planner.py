@@ -904,10 +904,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return output_data
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
         _planner: AbstractDAGPlanner = planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id)
+            await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id, this_worker)
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
