@@ -79,7 +79,7 @@ class Worker(ABC):
                 tasks_executed_by_this_coroutine.append(current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
-                self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
+                self.log(current_task.id.get_full_id(), f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...", is_dupping)
                 _download_dependencies_timer = Timer()
                 task_dependencies: dict[str, Any] = {}
 
@@ -107,7 +107,7 @@ class Worker(ABC):
                 time_spent_downloading: dict[str, float] = {}
 
                 async def _fetch_and_cache(storage_id: str):
-                    self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}")
+                    self.log(current_task.id.get_full_id(), f"Fetching hardcoded dependency: {storage_id}", is_dupping)
 
                     timer = Timer()
                     data_serialized = await self.intermediate_storage.get(storage_id)
@@ -204,7 +204,7 @@ class Worker(ABC):
                 await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 #* 2) EXECUTE TASK
-                self.log(current_task.id.get_full_id(), f"2) Executing Task...")
+                self.log(current_task.id.get_full_id(), f"2) Executing Task...", is_dupping)
                 exec_timer = Timer()
                 deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
                 task_execution_time_ms = exec_timer.stop()
@@ -222,47 +222,47 @@ class Worker(ABC):
                     tp_time_ms=None
                 )
 
-                self.log(current_task.id.get_full_id(), f"3) Handling Task Output...")
+                self.log(current_task.id.get_full_id(), f"3) Handling Task Output...", is_dupping)
                 upload_output = await self.planner.wel_override_should_upload_output(self.planner, current_task, subdag, self, self.metadata_storage, is_dupping)
                 
                 if upload_output:
                     output_upload_timer = Timer()
                     await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
-                    self.log(current_task.id.get_full_id(), f"Uploaded Output")
+                    self.log(current_task.id.get_full_id(), f"Uploaded Output", is_dupping)
                 else:
-                    self.log(current_task.id.get_full_id(), f"Won't upload output")
+                    self.log(current_task.id.get_full_id(), f"Won't upload output", is_dupping)
 
                 if not is_dupping:
                     receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
-                    self.log(current_task.id.get_full_id(), f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers} receivers")
+                    self.log(current_task.id.get_full_id(), f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers}, is_dupping receivers")
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
-                    self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...", is_dupping)
                     break
 
                 # Update Dependency Counters of Downstream Tasks
                 downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
                 assert downstream_tasks_ready is not None
                 
-                self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
+                self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...", is_dupping)
 
                 if len(downstream_tasks_ready) == 0:
-                    self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"No ready downstream tasks found. Shutting down worker...", is_dupping)
                     break # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
-                self.log(current_task.id.get_full_id(), f"5) Handling Downstream Tasks...")
+                self.log(current_task.id.get_full_id(), f"5) Handling Downstream Tasks...", is_dupping)
                 my_continuation_tasks = await self.planner.wel_override_handle_downstream(self.planner, fulldag, current_task, self, downstream_tasks_ready, subdag)
                 assert my_continuation_tasks is not None
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
-                    self.log(current_task.id.get_full_id(), f"No continuation task found with the same resource configuration... Shutting down worker...")
+                    self.log(current_task.id.get_full_id(), f"No continuation task found with the same resource configuration... Shutting down, is_dupping worker...")
                     break
 
-                self.log(current_task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
+                self.log(current_task.id.get_full_id(), f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}", is_dupping)
                 current_task = my_continuation_tasks[0]
                 if len(my_continuation_tasks) > 1:
                     my_other_tasks = my_continuation_tasks[1:]
@@ -270,30 +270,30 @@ class Worker(ABC):
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(asyncio.create_task(self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id), name=f"start_executing_immediate_followup(task={t.id.get_full_id()})"))
         except CancelCurrentWorkerLoopException as e:
-            self.log(current_task.id.get_full_id(), f"CancelCurrentWorkerLoopException: {str(e)}")
+            self.log(current_task.id.get_full_id(), f"CancelCurrentWorkerLoopException: {str(e)}", is_dupping)
             pass
         except TaskOutputNotAvailableException as e:
             if is_dupping:
                 # CANCEL dupping because at least 1 of the dependencies of duppable task may not be available
-                self.log(current_task.id.get_full_id(), f"TaskOutputNotAvailableException: {str(e)}") # type: ignore
+                self.log(current_task.id.get_full_id(), f"TaskOutputNotAvailableException: {str(e)}") # type: ignor, is_duppinge
                 pass
             else:
                 raise e
         except Exception as e:
-            self.log(current_task.id.get_full_id(), f"ExecuteBranch Error: {str(e)}") # type: ignore
+            self.log(current_task.id.get_full_id(), f"ExecuteBranch Error: {str(e)}") # type: ignor, is_duppinge
             raise e
         finally:
             await current_task.is_handling.clear()
 
         # Wait for my other coroutines executing other tasks
         if len(other_coroutines_i_launched) > 0: 
-            self.log(current_task.id.get_full_id(), f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
+            self.log(current_task.id.get_full_id(), f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}", is_dupping)
             await asyncio.gather(*other_coroutines_i_launched)
 
         for task_executed in tasks_executed_by_this_coroutine: 
             await self.metadata_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
 
-        self.log(current_task.id.get_full_id(), f"Worker shut down!")
+        self.log(current_task.id.get_full_id(), f"Worker shut down!", is_dupping)
         # print the names of the coroutines that are still running in the program in a single print
         this_coro = asyncio.current_task()
         logger.info(f"W({self.my_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks() if not this_coro or t.get_name() != this_coro.get_name()]}")
@@ -354,8 +354,8 @@ class Worker(ABC):
             await metadata_storage.unsubscribe(channel, None)
 
 
-    def log(self, task_id: str, message: str):
+    def log(self, task_id: str, message: str, is_dupping: bool = False):
         """Log a message with worker ID prefix."""
         curr_coro = asyncio.current_task()
         coro_name = curr_coro.get_name() if curr_coro else "Unknown"
-        logger.info(f"Coro({coro_name}) W({self.my_worker_id}) T({task_id}) | {message}")
+        logger.info(f"Coro({coro_name}) Dupping({is_dupping}) W({self.my_worker_id}) T({task_id}) | {message}")

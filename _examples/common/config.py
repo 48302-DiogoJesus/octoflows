@@ -30,6 +30,17 @@ def get_planner_from_sys_argv():
     is_montage_workflow = script_name == "montage.py"
     montage_min_worker_resource_config = TaskWorkerResourceConfiguration(cpus=3, memory_mb=8192)
     min_resources = montage_min_worker_resource_config if is_montage_workflow else TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
+    avg_resources = TaskWorkerResourceConfiguration(cpus=3, memory_mb=min_resources.memory_mb * 2)
+    non_uniform_resources = [
+        min_resources,
+        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+    ] if is_montage_workflow else [
+        min_resources,
+        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
+        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 8),
+        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 16),
+    ]
 
     sla: SLA
     sla_str: str = sys.argv[2]
@@ -44,13 +55,13 @@ def get_planner_from_sys_argv():
     if planner_type == "wukong":
         return WUKONGPlanner.Config(
             sla=sla, # won't be used
-            worker_resource_configurations=[min_resources],
+            worker_resource_configurations=[avg_resources],
             optimizations=[],
         )
     elif planner_type == "wukong-opt":
         return WUKONGPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[min_resources],
+            worker_resource_configurations=[avg_resources],
             optimizations=[
                 WukongOptimizations.configured(
                     task_clustering_fan_outs=True, 
@@ -63,39 +74,25 @@ def get_planner_from_sys_argv():
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[min_resources],
+            worker_resource_configurations=[avg_resources],
             optimizations=[],
         )
     elif planner_type == "uniform-opt":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[min_resources],
+            worker_resource_configurations=[avg_resources],
             optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[
-                min_resources,
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-            ] if is_montage_workflow else [
-                min_resources,
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
-            ],
+            worker_resource_configurations=non_uniform_resources,
             optimizations=[],
         )
     elif planner_type == "non-uniform-opt":
         return NonUniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[
-                min_resources,
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-            ] if is_montage_workflow else [
-                min_resources,
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
-            ],
+            worker_resource_configurations=non_uniform_resources,
             optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )
     else:

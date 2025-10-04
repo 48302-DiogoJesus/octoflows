@@ -182,8 +182,8 @@ class PredictionsProvider:
 
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            matching_samples = self._select_related_samples(data_size_bytes, _matching_samples, sla, min_samples=60)
-            # matching_samples = [speed for speed, _ in _matching_samples]
+            # matching_samples = self._select_related_samples(data_size_bytes, _matching_samples, sla, min_samples=60)
+            matching_samples = [speed for speed, _ in _matching_samples]
 
             adaptive_exponent = self._adaptive_scaling_exponent(
                 data_size_bytes, 
@@ -208,7 +208,8 @@ class PredictionsProvider:
                 for speed, total_bytes, cpus, memory_mb in all_samples
             ]
 
-            baseline_normalized_samples = self._select_related_samples(data_size_bytes, _baseline_normalized_samples, sla, min_samples=60)
+            # baseline_normalized_samples = self._select_related_samples(data_size_bytes, _baseline_normalized_samples, sla, min_samples=60)
+            baseline_normalized_samples = [speed for speed, _ in _baseline_normalized_samples]
 
             adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [total_bytes for _, total_bytes in _baseline_normalized_samples], sla, 
                 k_base=download_k_base if type == 'download' else upload_k_base,

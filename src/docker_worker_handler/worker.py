@@ -160,7 +160,7 @@ async def main():
                     if one_of_the_upsteam_tasks.try_get_optimization(TaskDupOptimization) is not None:
                         finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(one_of_the_upsteam_tasks.id.get_full_id())
                     
-                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_optimization(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set()) and n.worker_config.worker_id != this_worker_id]
+                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_optimization(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set())]
 
                     if len(unfinished_duppable_tasks) == 0:
                         # logger.info(f"[TASK-DUP] No unfinished duppable tasks for main task {main_task.id.get_full_id()}")
@@ -171,7 +171,7 @@ async def main():
                     greatest_predicted_time_saved: float = -1
                     for u_task in unfinished_duppable_tasks:
                         # if the task is assigned to me, doesn't make sense for me to try dup it
-                        if u_task.worker_config.worker_id == this_worker_id: continue
+                        if u_task.worker_config.worker_id == wk.my_resource_configuration.worker_id: continue
                         task_id = u_task.id.get_full_id()
 
                         # get REAL (not predicted ES) start time
@@ -203,7 +203,7 @@ async def main():
                     if greatest_predicted_time_saved_task:
                         task_id = greatest_predicted_time_saved_task.id.get_full_id()
                         assert wk.my_resource_configuration.worker_id is not None
-                        logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
+                        logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms | Assigned to worker id: {greatest_predicted_time_saved_task.worker_config.worker_id} My worker id: {wk.my_resource_configuration.worker_id}")
                         main_task.metrics.optimization_metrics.append(TaskDupOptimization.OptimizationMetrics(dupped=greatest_predicted_time_saved_task.id))
                         finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(task_id)
                         await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), fulldag, wk.my_resource_configuration.worker_id, is_dupping=True)

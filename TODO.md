@@ -1,11 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
     - Don't use related samples for data transfer size!
-    - BUG: When I dup a task after time: it will check which DCs are met (deps - 1)
-        but if task is dupped before other utasks are ready, how to let host know?
+        - check new predictions after itt runs
+        - check if we have enough preload and taskdup counts
 
-    - Confirm that predictions didn't go too bad with new predictions update!
-    - Check that taskdup was applied + check in dashboard
     - Increase range of resources that can be used
         use avg_resources for uniform workflows
         increase the range of resources that can be used by a lot (up to 512*16(8gb ram))

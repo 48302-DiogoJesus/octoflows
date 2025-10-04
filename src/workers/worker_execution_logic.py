@@ -67,7 +67,7 @@ class WorkerExecutionLogic(ABC):
 
             dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            _this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
+            _this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}", is_dupping)
             if dependencies_met == downstream_task_total_dependencies:
                 if _this_worker.my_resource_configuration.worker_id is not None and _this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
@@ -78,7 +78,7 @@ class WorkerExecutionLogic(ABC):
                     _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
                     name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
                 )
-                _this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
+                _this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}", is_dupping)
                 
                 downstream_tasks_ready.append(downstream_task)
 
