@@ -17,7 +17,7 @@ DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
 # if task input size exceeds 10MB, don't allow dupping
 DUPPABLE_TASK_MAX_INPUT_SIZE: int = 10 * 1024 * 1024
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
-DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_500 # the least amount of time we need to save to justify duplication
+DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_000 # the least amount of time we need to save to justify duplication
 
 @dataclass
 class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):

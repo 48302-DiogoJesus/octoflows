@@ -178,7 +178,7 @@ class PredictionsProvider:
         ]
 
         download_k_base = 1.15
-        upload_k_base = 1
+        upload_k_base = 1.04
 
         prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:

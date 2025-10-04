@@ -188,7 +188,15 @@ class Worker(ABC):
                     await asyncio.gather(*(_fetch_task_result(utask) for utask in tasks_to_fetch))
 
                 # Handle wait_until_coroutine if present
-                if wait_until_coroutine: await wait_until_coroutine
+                if wait_until_coroutine is not None: 
+                    logger.info(f"[WAIT UNTIL] Waiting for wait_until_coroutine to complete for task: {current_task.id.get_full_id()}")
+                    await wait_until_coroutine
+                    logger.info(f"[WAIT UNTIL] Complete for task: {current_task.id.get_full_id()}")
+                    # wait_until_coroutine may have fetched some results, we need to use them
+                    for utask in current_task.upstream_nodes:
+                        utask_id = utask.id.get_full_id()
+                        if utask_id not in task_dependencies and utask.cached_result is not None:
+                            task_dependencies[utask_id] = utask.cached_result.result
 
                 current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
 

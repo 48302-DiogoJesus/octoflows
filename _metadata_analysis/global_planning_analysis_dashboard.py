@@ -22,6 +22,9 @@ from src.storage.prefixes import DAG_PREFIX
 from src.dag.dag import FullDAG
 from src.storage.metadata.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics, DAGResourceUsageMetrics
 from src.utils.timer import Timer
+from src.planning.optimizations.preload import PreLoadOptimization
+from src.planning.optimizations.taskdup import TaskDupOptimization
+from src.planning.optimizations.prewarm import PreWarmOptimization
 
 def get_redis_connection(port: int = 6379):
     return redis.Redis(
@@ -38,6 +41,9 @@ class WorkflowInstanceTaskInfo:
     metrics: TaskMetrics
     input_size_downloaded_bytes: int
     output_size_uploaded_bytes: int
+    
+    optimization_preloads_done: int
+    optimization_task_dups_done: int
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -115,7 +121,9 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         t.id.get_full_id(), 
                         cloudpickle.loads(td),
                         -1,
-                        -1
+                        -1,
+                        0,
+                        0
                     )
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
@@ -128,6 +136,10 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     total_inputs_downloaded += task.input_size_downloaded_bytes
                     total_outputs_uploaded += task.output_size_uploaded_bytes
 
+                    if tm.optimization_metrics:
+                        task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
+                        task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
+                    
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 submission_data: Any = metadata_storage_conn.get(submission_key)

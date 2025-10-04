@@ -1,7 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - Dashboard
-        - Check preload metrics
+        - [DONE] Check preload metrics
         - Check taskdup metrics
         - Check prewarm metrics
     - debug: check if preload is happening and results are being used (gemm is a good test)

@@ -151,16 +151,14 @@ class RedisStorage(storage.Storage):
             conn = await self._get_or_create_connection()
             self._pubsub = conn.pubsub()
         if self._pubsub_task is None or self._pubsub_task.done():
-            self._pubsub_task = asyncio.create_task(self._pubsub_listener(), name="redis_pubsub_listener")
+            self._pubsub_task = asyncio.create_task(self._pubsub_listener(), name="background_redis_pubsub_listener")
 
     async def _pubsub_listener(self):
         """Single coroutine listening for all messages and dispatching them."""
         try:
-            logger.info(f"PubSub setup listener")
             async for message in self._pubsub.listen():  # type: ignore
                 if message["type"] != "message":
                     continue
-                logger.info(f"Received message: {message}")
 
                 channel_name = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
 
@@ -227,53 +225,6 @@ class RedisStorage(storage.Storage):
                 await self._pubsub.unsubscribe(channel)  # type: ignore
                 logger.info(f"No more subscribers, unsubscribed Redis channel {channel}")
             
-    async def _channel_message_handler(self, pubsub: Any, channel: str) -> None:
-        """
-        Background task to handle incoming messages for all callbacks on a channel.
-        
-        Args:
-            pubsub: The PubSub instance for this channel
-            channel: The channel being handled
-        """
-        try:
-            async for message in pubsub.listen():
-                # Filter messages by type and channel
-                if message["type"] == "message":
-                    channel_name = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
-                    if str(channel_name) == str(channel):
-                        # Get all active subscriptions for this channel
-                        if channel in self._channel_subscriptions:
-                            # Create a snapshot of subscriptions to avoid "dictionary changed size during iteration" error
-                            subscriptions_snapshot = list(self._channel_subscriptions[channel].items())
-                            
-                            # Process message for each subscription
-                            for subscription_id, sub_info in subscriptions_snapshot:
-                                # Double-check that subscription still exists (it might have been removed)
-                                if (channel in self._channel_subscriptions and 
-                                    subscription_id in self._channel_subscriptions[channel]):
-                                    try:
-                                        # Decode message if requested for this subscription
-                                        message_data = message.copy()
-                                        if sub_info.decode_responses and isinstance(message_data["data"], bytes):
-                                            message_data["data"] = message_data["data"].decode("utf-8")
-                                        
-                                        # Call the callback with message and subscription_id
-                                        await self._simulate_network_latency()
-                                        if asyncio.iscoroutinefunction(sub_info.callback):
-                                            await sub_info.callback(message_data, subscription_id)
-                                        else:
-                                            sub_info.callback(message_data, subscription_id)
-                                            
-                                    except Exception as e:
-                                        logger.error(f"Error in callback {subscription_id} for channel {channel}: {e}")
-                                        # Don't raise here - we want to continue processing other callbacks
-                                        traceback.print_exc()
-        except asyncio.CancelledError:
-            logger.debug(f"Message handler for {channel} was cancelled")
-        except Exception as e:
-            logger.error(f"Error in message handler for {channel}: {e}")
-            raise e
-    
     async def _delete_matching_keys(self, conn: Redis, match_pattern: str) -> int:
         """Helper method to delete keys matching a pattern using scan_iter.
         
@@ -314,7 +265,7 @@ class RedisStorage(storage.Storage):
             If none are True, performs an exact key match delete.
         """
         await self._simulate_network_latency()
-        conn, _ = await self._get_or_create_connection()
+        conn = await self._get_or_create_connection()
         
         # Count how many of the flags are True
         match_flags = sum([bool(pattern), bool(prefix), bool(suffix)])

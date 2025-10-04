@@ -259,7 +259,7 @@ async def main():
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
         while True:
-            pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if COROTAG_DUP not in t.get_name()]
+            pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() if "background" not in t.get_name()]
             if not pending: 
                 break
 
