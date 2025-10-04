@@ -33,7 +33,6 @@ class PreLoadOptimization(TaskOptimization):
     # Flag that indicates if starting new preloading for upstream tasks of this task is allowed or not
     allow_new_preloads: bool = True
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    _current_preloading_event: tuple[str, asyncio.Event] = ("", asyncio.Event()) # task id + event
 
     @property
     def name(self): return "PreLoad"
@@ -137,7 +136,6 @@ class PreLoadOptimization(TaskOptimization):
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
         async def perform_preloading(subscription_id: str | None, upstream_task: DAGTaskNode, dependent_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG):
-            logger.info(f"[PRELOADING] Task: {upstream_task.id.get_full_id()} output is ready!!")
             async with annotation._lock: # keep the lock so that only 1 preloading can happen at a time
                 if subscription_id is not None:
                     await metadata_storage.unsubscribe(
@@ -149,8 +147,6 @@ class PreLoadOptimization(TaskOptimization):
                 if all([unode.cached_result is not None for unode in dependent_task.upstream_nodes if unode.worker_config.worker_id is not None and unode.worker_config.worker_id == this_worker_id]):
                     return
 
-                ev = asyncio.Event()
-                annotation._current_preloading_event = (upstream_task.id.get_full_id(), ev)
                 logger.info(f"[PRELOADING - STARTED] Task: {upstream_task.id.get_full_id()}")
                 dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
 
@@ -167,7 +163,6 @@ class PreLoadOptimization(TaskOptimization):
                     time_ms=time_to_fetch_ms
                 )
 
-                ev.set()
                 logger.info(f"[PRELOADING - DONE] Task: {upstream_task.id.get_full_id()}")
 
         # Only executes once, even if there are multiple tasks with this annotation
@@ -218,8 +213,9 @@ class PreLoadOptimization(TaskOptimization):
         
         preload_optimization = task.try_get_optimization(PreLoadOptimization)
         if preload_optimization:
-            logger.info(f"[PRELOAD - HANDLE_INPUTS] No more preloading allowed")
-            preload_optimization.allow_new_preloads = False
+            async with preload_optimization._lock: # blocks until the current preloading is done
+                logger.info(f"[PRELOAD - HANDLE_INPUTS] No more preloading allowed")
+                preload_optimization.allow_new_preloads = False
 
         for t in task.upstream_nodes:
             subscription_id = preload_optimization.preloading_subscription_ids.get(f"{task.id.get_full_id()}{t.id.get_full_id()}") if preload_optimization else None
@@ -233,13 +229,9 @@ class PreLoadOptimization(TaskOptimization):
                     await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=subscription_id)
                 upstream_tasks_to_fetch.append(t)
 
-        current_preloading_task_id, current_preloading_event = preload_optimization._current_preloading_event if preload_optimization and not preload_optimization._current_preloading_event[1].is_set() else (None, None)
-
-        if current_preloading_event and not current_preloading_event.is_set():
-            logger.info(f"[PRELOAD - HANDLE_INPUTS] Waiting for preloading to complete for task: {current_preloading_task_id}")
 
         return (
             upstream_tasks_to_fetch,
-            [current_preloading_task_id] if current_preloading_task_id is not None else [], 
-            current_preloading_event.wait() if current_preloading_event is not None and not current_preloading_event.is_set() else None
+            [], 
+            None
         )

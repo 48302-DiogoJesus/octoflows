@@ -153,6 +153,8 @@ async def main():
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 
+                logger.info(f"[TASK-DUP] {one_of_the_upsteam_tasks.id.get_full_id()} finished. Evaluating {len(main_task.upstream_nodes)} tasks for duplication for main task {main_task.id.get_full_id()}")
+
                 async with dupping_locks[main_task.id.get_full_id()]:
                     if one_of_the_upsteam_tasks.try_get_optimization(TaskDupOptimization) is not None:
                         finished_or_pending_duppable_tasks\

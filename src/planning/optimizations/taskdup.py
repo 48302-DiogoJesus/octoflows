@@ -48,7 +48,6 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
             if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
             if node_info.serialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
             node_info.node_ref.add_optimization(TaskDupOptimization())
-        return
 
     @staticmethod
     async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
