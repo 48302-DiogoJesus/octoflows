@@ -98,6 +98,8 @@ class Worker(ABC):
                 for t in current_task.upstream_nodes:
                     if t.cached_result is None:
                         upstream_tasks_without_cached_results.append(t)
+                    else:
+                        self.log(current_task.id.get_full_id(), f"Input {t.id.get_full_id()} was in cache!")
 
                 # Always fetch hardcoded inputs that are not present locally
                 # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)

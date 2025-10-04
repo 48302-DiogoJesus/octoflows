@@ -47,7 +47,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     sum_exec_times += other_node_info.tp_exec_time_ms
             
 
-            if not (node_info.tp_worker_startup_time_ms > 0.15 * sum_exec_times):
+            if not (node_info.tp_worker_startup_time_ms > 0.10 * sum_exec_times):
                 # don't apply pre-warm if the startup time is not significant when compared to the time that worker will be executing
                 continue
             

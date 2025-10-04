@@ -18,8 +18,7 @@ class PredictionsProvider:
     nr_of_previous_instances: int = 0
 
     # Changed to store tuples with resource configuration: (bytes/ms, cpus, memory_mb)
-    cached_upload_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
-    cached_download_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
+    cached_data_transfer_speeds: list[tuple[float, int, float, int]] = [] # (bytes/ms, total_bytes, cpus, memory_mb)
     cached_serialized_io_ratios: dict[str, list[tuple[float, int]]] = {} # (i/o ratio, input_size) for each function_name
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
@@ -61,7 +60,7 @@ class PredictionsProvider:
             for input_metric in metrics.input_metrics.input_download_metrics.values():
                 if input_metric.time_ms is None or input_metric.serialized_size_bytes == -1: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
-                self.cached_download_speeds.append((
+                self.cached_data_transfer_speeds.append((
                     input_metric.serialized_size_bytes / input_metric.time_ms,
                     input_metric.serialized_size_bytes,
                     metrics.worker_resource_configuration.cpus,
@@ -69,14 +68,14 @@ class PredictionsProvider:
                 ))
 
             # UPLOAD SPEEDS
-            if metrics.output_metrics.tp_time_ms and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
-                # Normalize the upload speed based on memory
-                self.cached_upload_speeds.append((
-                    metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
-                    metrics.output_metrics.serialized_size_bytes,
-                    metrics.worker_resource_configuration.cpus,
-                    metrics.worker_resource_configuration.memory_mb
-                ))
+            # if metrics.output_metrics.tp_time_ms and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
+            #     # Normalize the upload speed based on memory
+            #     self.cached_data_transfer_speeds.append((
+            #         metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
+            #         metrics.output_metrics.serialized_size_bytes,
+            #         metrics.worker_resource_configuration.cpus,
+            #         metrics.worker_resource_configuration.memory_mb
+            #     ))
 
         worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys)
         for wsm in worker_startup_metrics:
@@ -113,7 +112,6 @@ class PredictionsProvider:
 
     def has_required_predictions(self) -> bool:
         # print("cached upload speeds len: ", len(self.cached_upload_speeds))
-        # print("cached download speeds len: ", len(self.cached_download_speeds))
         # # change cached io ratios to count the number of ratios for all function_names
         # print("cached io ratios len: ", sum(len(ratios) for ratios in self.cached_io_ratios.values()))
         # print("cached execution time per byte len: ", sum(len(ratios) for ratios in self.cached_execution_time_per_byte.values()))
@@ -164,7 +162,7 @@ class PredictionsProvider:
             raise ValueError("SLA must be 'average' or between 0 and 100")
         if data_size_bytes == 0: return 0
         
-        all_samples = self.cached_upload_speeds if type == 'upload' else self.cached_download_speeds
+        all_samples = self.cached_data_transfer_speeds
         if len(all_samples) == 0: return 0
         
         prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"

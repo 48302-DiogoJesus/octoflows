@@ -12,7 +12,7 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 logger = create_logger(__name__)
 
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
-DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 500 # the least amount of time we need to save to justify duplication
+DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 150 # the least amount of time we need to save to justify duplication
 
 @dataclass
 class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
@@ -52,8 +52,7 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
     @staticmethod
     async def wel_override_should_upload_output(planner, current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
         if not is_dupping: return None # don't care
-        if is_dupping: 
-            return False
+        if is_dupping: return False
 
     @staticmethod
     async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode, is_dupping: bool) -> list | None:

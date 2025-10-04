@@ -5,15 +5,15 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'gemm.py',
-    'tree_reduction.py',
+    # 'gemm.py',
+    # 'tree_reduction.py',
     'text_analysis.py',
     # 'image_transformer.py',   
 ]
 
-ITERATIONS_PER_ALGORITHM = 4
+ITERATIONS_PER_ALGORITHM = 6
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform-opt']
-ALGORITHMS = ['uniform-opt', 'non-uniform-opt']
+ALGORITHMS = ['uniform-opt']
 # ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform-opt', 'wukong', 'wukong-opt']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
@@ -24,6 +24,8 @@ montage_workload = "heavy"
 if len(sys.argv) > 1:
     montage_workload = sys.argv[1]
 print(f"Montage workload: {montage_workload}")
+
+failed_instances = 0
 
 def wait_containers_shutdown():
     url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/wait-containers-shutdown"
@@ -38,9 +40,9 @@ def wait_containers_shutdown():
         print(f"Error making request: {e}")
 
 def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
-    """Run the specified Python script with the given algorithm and SLA parameters."""
-    # time.sleep(4) # give enough time for containers to cleanup and flush metrics to storage
-    wait_containers_shutdown() # sync
+    """Run the specified Python script with the given algorithm and SLA parameters, enforcing a timeout."""
+    global failed_instances
+    wait_containers_shutdown()  # sync
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
@@ -55,12 +57,16 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
     print(f" > [{percentage:5.1f}%] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}) [{current}/{total}]")
     
     try:
-        subprocess.run(cmd, check=True, cwd=script_dir)
+        subprocess.run(cmd, check=True, cwd=script_dir, timeout=120)  # if workflow doesn't finish after 2 minutes, assume it failed and move on
+    except subprocess.TimeoutExpired:
+        print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 2 minutes. Skipping...", file=sys.stderr)
+        failed_instances += 1
     except subprocess.CalledProcessError as e:
         print(f"Error running {script_path} with {algorithm} and SLA {sla}: {e}", file=sys.stderr)
-        sys.exit(-1)
+
 
 def main():
+    global failed_instances
     start_time = time.time()
     os.environ['TZ'] = 'UTC-1'  # Set timezone for log timestamps consistency
     
@@ -99,7 +105,7 @@ def main():
                     run_experiment(script_name, algorithm, sla, str(i), current_run, total_runs)
 
     total_time = time.time() - start_time    
-    print(f"All runs completed in {total_time/60:.2f}mins")
+    print(f"All runs completed in {total_time/60:.2f}mins | Failed instances: {failed_instances}")
 
 if __name__ == "__main__":
     main()

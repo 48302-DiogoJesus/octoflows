@@ -52,7 +52,6 @@ class ContainerPoolExecutor:
         
         logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
 
-        # Use Popen instead of run to get real-time output
         process = subprocess.Popen(
             [
                 "docker", "exec", "-i", 
@@ -63,70 +62,47 @@ class ContainerPoolExecutor:
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, # merge
+            stderr=subprocess.PIPE,   # keep stderr separate
             bufsize=1,
             universal_newlines=True
         )
         
-        # Send the command to stdin
+        # Write the command + exit into the shell
         if process.stdin:
             process.stdin.write(command)
+            process.stdin.flush()
             process.stdin.close()
-        
-        # Set up non-blocking reading for stdout and stderr
-        if process.stdout: process.stdout.fileno()
-        if process.stderr: process.stderr.fileno()
-        
-        # Make stdout and stderr non-blocking
-        if process.stdout: os.set_blocking(process.stdout.fileno(), False)
-        if process.stderr: os.set_blocking(process.stderr.fileno(), False)
-        
-        # Read and print output streams while process is running
-        # logger.info("STDOUT (streaming):")
-        
-        exit_code = None
-        while exit_code is None:
-            # Read from stdout
-            if process.stdout:
-                stdout_data = process.stdout.read(4096)
-                if stdout_data:
-                    logger.info(stdout_data)
-            
-            # Read from stderr
-            if process.stderr:
-                stderr_data = process.stderr.read(4096)
-                if stderr_data:
-                    logger.error(stderr_data)
-            
-            # Check if process has finished
-            exit_code = process.poll()
-            if exit_code is None:
-                time.sleep(0.4)
-        
-        # After process completion, read any remaining output
-        if process.stdout:
-            remaining_stdout = process.stdout.read()
-            if remaining_stdout:
-                logger.info(remaining_stdout)
-        
-        if process.stderr:
-            remaining_stderr = process.stderr.read()
-            if remaining_stderr:
-                logger.error(remaining_stderr)
-        
+
+        # Stream stdout and stderr concurrently
+        import threading
+
+        def stream_output(stream, log_fn):
+            for line in iter(stream.readline, ''):
+                if line:
+                    log_fn(line.rstrip())
+            stream.close()
+
+        stdout_thread = threading.Thread(target=stream_output, args=(process.stdout, logger.info))
+        stderr_thread = threading.Thread(target=stream_output, args=(process.stderr, logger.error))
+
+        stdout_thread.start()
+        stderr_thread.start()
+
+        # Wait for process to finish
+        exit_code = process.wait()
+
+        stdout_thread.join()
+        stderr_thread.join()
+
         logger.info(f"\nExit Code: {exit_code}")
 
-        # Keep the original behavior of exiting on stderr
-        if process.stderr and process.stderr.read():
-            sys.exit(0) # ! for easier debugging
-        
         with self.lock:
             if not ALLOW_CONTAINER_REUSAGE:
                 self._remove_container(container_id)
             else:
                 # to avoid killing container after it exits (if it takes longer than the container idle timeout)
                 self.containers[container_id].last_active_time = time.time()
-            
+        
         return exit_code
 
     def shutdown(self):

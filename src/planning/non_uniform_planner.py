@@ -145,8 +145,8 @@ class NonUniformPlanner(AbstractDAGPlanner):
         prediction_samples_used = AbstractDAGPlanner.PlanPredictionSampleCounts(
             previous_instances=predictions_provider.nr_of_previous_instances,
             # note: data from ALL workflow instances
-            for_download_speed=len(predictions_provider.cached_download_speeds),
-            for_upload_speed=len(predictions_provider.cached_upload_speeds),
+            for_download_speed=len(predictions_provider.cached_data_transfer_speeds),
+            for_upload_speed=len(predictions_provider.cached_data_transfer_speeds),
             # note: only related to instances from same workflow type
             for_execution_time=sum(map(len, predictions_provider.cached_execution_time_per_byte.values())),
             for_output_size=sum(map(len, predictions_provider.cached_serialized_io_ratios.values()))

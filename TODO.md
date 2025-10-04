@@ -1,13 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Don't use related samples for data transfer size!
-        - check new predictions after itt runs
-        - check if we have enough preload and taskdup counts
-
-    - Increase range of resources that can be used
-        use avg_resources for uniform workflows
-        increase the range of resources that can be used by a lot (up to 512*16(8gb ram))
-    
+    - prewarm: 
+        make "non-uniform-opt" only use prewarm optimization
+        then run "non-uniform-opt" 5 times on "text analysis" manually and see how many prewarms were assigned (LOOK AT PLAN IMAGE)
+        then run "non-uniform" and compare on dashboard (cold starts vs warm starts)
     - prewarm: take a look at the assignment logic
 
     - Dashboard
@@ -19,24 +15,16 @@
     - debug: check if preload is happening and results are being used (gemm is a good test)
     - Run experiments on VM
 
-    [EVAL_+_IMPLEMENTATION] Measuring Optimizations:
-        - [DONE] Add a field to TaskMetrics of type list[TaskOptimizationMetrics]
+    Showing Optimizations Impact:
         - TaskDup
-            MEASURE 
-            HOW
-            - [DONE] track when dupping happened
-                `TaskOptimizationMetrics.dupped`: list[DAGTaskNodeId] # indicating the tasks that the current_task dupped
-        - PreWarm (note: (only makes sense for non uniform))
-            HOW
-            - count the prewarms by counting the optimizations (sum of all len(opt.target_resource_configs))
-            - look at annotation/optimization and check cold starts versus the same workflow on other planners??
             MEASURE
-            - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
         - PreLoad
-            HOW
-            - [DONE] count the preloads: `TaskOptimizationMetrics.preloaded`: list[DAGTaskNodeId] # indicating the tasks that the current_task preloaded
             MEASURE
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
+        - PreWarm (note: (only makes sense for non uniform))
+            MEASURE
+            - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
+        - Plot showing the median of counts for each optimization per instance, only for the "opt" planners
 
     - Have to RERUN ALL!!
     - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)
