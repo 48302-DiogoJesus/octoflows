@@ -487,22 +487,16 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         Note: Needs to run after {earliest_start} and {path_completion_time} are calculated so that it can predict if the startup will be WARM or COLD
         """
         
-        # create a new sorted list from topo_sorted_nodes where nodes where earliest start appear first
-        # note: there can be overlapping time periods within the same resource_configuration
-        worker_active_periods: dict[tuple[float, int], list[tuple[str | None, float, float]]] = defaultdict(list)  # (cpus, memory_mb) -> List[Tuple[worker_id, start_ms, end_ms]]
+        # Track worker availability over time for each resource configuration
+        # Key: (cpus, memory_mb), Value: List of (worker_id, start_ms, end_ms)
+        worker_active_periods: dict[tuple[float, int], list[tuple[str | None, float, float]]] = defaultdict(list)
 
-        # Collect expected worker activity periods
+        # Collect expected worker activity periods from pre-warming
         for node in topo_sorted_nodes:
             my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_full_id()]
-            # register when MY worker config should be active
-            if my_resource_config.worker_id:
-                worker_active_periods[(my_resource_config.cpus, my_resource_config.memory_mb)].append((
-                    my_resource_config.worker_id,
-                    my_node_info.earliest_start_ms, 
-                    my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
-                ))
-            # register when the worker config I PRE-WARM should be active
+            
+            # Register when the worker config I PRE-WARM should be active
             prewarm_optimization = node.try_get_optimization(PreWarmOptimization)
             if prewarm_optimization:
                 time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
@@ -513,17 +507,35 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                         time_at_which_worker_will_be_ready_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
                     ))
 
-        def _is_worker_warm_at_time(my_worker_id: str | None, worker_config: tuple[float, int], target_time_ms: float) -> bool:
-            return any(
-                worker_id != my_worker_id and start_ms < target_time_ms < end_ms 
-                for worker_id, start_ms, end_ms in worker_active_periods[(worker_config[0], worker_config[1])]
+        def _count_available_warm_workers(worker_config: tuple[float, int], target_time_ms: float, 
+                                        exclude_worker_id: str | None) -> int:
+            """Count how many warm workers are available at the target time."""
+            return sum(
+                1 for worker_id, start_ms, end_ms in worker_active_periods[worker_config]
+                if worker_id != exclude_worker_id and start_ms < target_time_ms < end_ms
             )
 
-        # Second pass: apply the scheduling logic with simplified condition
+        def _count_concurrent_tasks(resource_config: tuple[float, int], target_time_ms: float, 
+                                    exclude_node_id: str) -> int:
+            """Count how many tasks with same resource config need workers at target_time_ms."""
+            count = 0
+            for node in topo_sorted_nodes:
+                if node.id.get_full_id() == exclude_node_id:
+                    continue
+                if (node.worker_config.cpus == resource_config[0] and 
+                    node.worker_config.memory_mb == resource_config[1]):
+                    node_info = nodes_info[node.id.get_full_id()]
+                    # Check if this node will be executing at target_time_ms
+                    if node_info.earliest_start_ms <= target_time_ms < node_info.task_completion_time_ms:
+                        count += 1
+            return count
+
+        # Apply the scheduling logic with capacity-aware warm/cold detection
         for node in topo_sorted_nodes:
             my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_full_id()]
 
+            # Check if any upstream node uses same or compatible worker config
             if any(
                 n.worker_config.cpus == my_resource_config.cpus and \
                 n.worker_config.memory_mb == my_resource_config.memory_mb and \
@@ -534,27 +546,55 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 )
                 for n in node.upstream_nodes
             ):
-                # won't cause a worker launch, it will execute on already running worker
+                # Won't cause a worker launch, will execute on already running worker
                 my_node_info.tp_worker_startup_time_ms = 0
                 my_node_info.worker_startup_state = None
                 my_node_info.earliest_start_ms += 0
                 my_node_info.task_completion_time_ms += 0
                 continue
 
-            if _is_worker_warm_at_time(my_resource_config.worker_id, (my_resource_config.cpus, my_resource_config.memory_mb), my_node_info.earliest_start_ms):
-                # WARM START
+            # Count available warm workers and concurrent demand
+            resource_key = (my_resource_config.cpus, my_resource_config.memory_mb)
+            available_warm_workers = _count_available_warm_workers(
+                resource_key, 
+                my_node_info.earliest_start_ms,
+                my_resource_config.worker_id
+            )
+            concurrent_demand = _count_concurrent_tasks(
+                resource_key,
+                my_node_info.earliest_start_ms,
+                node.id.get_full_id()
+            )
+
+            # Determine if we can get a warm start based on capacity
+            if available_warm_workers > concurrent_demand:
+                # WARM START - there's a warm worker available for us
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "warm", sla)
                 my_node_info.worker_startup_state = "warm" 
                 my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
                 my_node_info.earliest_start_ms += worker_startup_prediction
                 my_node_info.task_completion_time_ms += worker_startup_prediction
+                
+                # Register this worker's activity period for future capacity calculations
+                worker_active_periods[resource_key].append((
+                    my_resource_config.worker_id,
+                    my_node_info.earliest_start_ms, 
+                    my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
+                ))
             else:
-                # COLD START
+                # COLD START - no warm worker available due to capacity constraints
                 worker_startup_prediction = predictions_provider.predict_worker_startup_time(my_resource_config, "cold", sla)
                 my_node_info.worker_startup_state = "cold"
                 my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
                 my_node_info.earliest_start_ms += worker_startup_prediction
                 my_node_info.task_completion_time_ms += worker_startup_prediction
+                
+                # Register this NEW worker's activity period
+                worker_active_periods[resource_key].append((
+                    my_resource_config.worker_id,
+                    my_node_info.earliest_start_ms, 
+                    my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
+                ))
 
         # Recalculate {earliest_start_ms} and {path_completion_times} after changing some {earliest_start_ms} to include {tp_worker_startup_time_ms}
         for node in topo_sorted_nodes:

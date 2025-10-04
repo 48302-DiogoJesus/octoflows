@@ -1,13 +1,15 @@
 - Dashboard
     [IMPLEMENTATION]
     - prewarm: 
-        make "non-uniform-opt" only use prewarm optimization
+        trick to add more prewarm annotations
+            in the assignment logic, add prewarm to N - 1 workers of fan-outs
+        prewarm isn't being applied by planners (few unique workers, and using max and min resource configs, not in between (testing on other workflows to see if its a problem))
+        [REMEMBER_TO_REVERT_THIS] make "non-uniform-opt" only use prewarm optimization
         then run "non-uniform-opt" 5 times on "text analysis" manually and see how many prewarms were assigned (LOOK AT PLAN IMAGE)
         then run "non-uniform" and compare on dashboard (cold starts vs warm starts)
     - prewarm: take a look at the assignment logic
 
     - Dashboard
-        - [DONE] Check preload metrics
         - Check taskdup metrics
         - Check prewarm metrics
             taskdup isn't being applying in reality
