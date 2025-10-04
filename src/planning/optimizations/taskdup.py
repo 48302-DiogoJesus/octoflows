@@ -12,12 +12,8 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
-# if task execution time exceeds this, don't allow dupping. Short tasks are better for dupping
-DUPPABLE_TASK_MAX_EXEC_TIME_MS: float = 2_000
-# if task input size exceeds 10MB, don't allow dupping
-DUPPABLE_TASK_MAX_INPUT_SIZE: int = 10 * 1024 * 1024
 DUPPABLE_TASK_STARTED_PREFIX = "taskdup-task-started-"
-DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 1_000 # the least amount of time we need to save to justify duplication
+DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS = 500 # the least amount of time we need to save to justify duplication
 
 @dataclass
 class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
@@ -44,9 +40,9 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
             if node_info.node_ref.try_get_optimization(TaskDupOptimization): 
                 # Skip if node already has TaskDup annotation. Cloud have been added by the user
                 continue
+            node_has_at_least_one_downstream_with_diff_resources = any([dnode.worker_config.worker_id is None or dnode.worker_config.worker_id != node_info.node_ref.worker_config.worker_id for dnode in node_info.node_ref.downstream_nodes])
+            if not node_has_at_least_one_downstream_with_diff_resources: continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
-            if node_info.tp_exec_time_ms > DUPPABLE_TASK_MAX_EXEC_TIME_MS: continue
-            if node_info.serialized_input_size > DUPPABLE_TASK_MAX_INPUT_SIZE: continue
             node_info.node_ref.add_optimization(TaskDupOptimization())
 
     @staticmethod

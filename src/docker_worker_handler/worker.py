@@ -178,18 +178,22 @@ async def main():
                         # get REAL (not predicted ES) start time
                         if u_task.id.get_full_id() not in cached_tasks_start_time:
                             task_started_timestamp: float | None = await wk.metadata_storage.storage.get(f"{DUPPABLE_TASK_STARTED_PREFIX}{u_task.id.get_full_id_in_dag(fulldag)}")
-                            # if the task didn't start yet, assume it would start NOW (best case scenario)
-                            cached_tasks_start_time[u_task.id.get_full_id()] = float(task_started_timestamp) if task_started_timestamp else time.time()
-                        real_task_start_time_ts_s = cached_tasks_start_time[u_task.id.get_full_id()]
+                            # if the task didn't start yet, assume it would start later (+ 1 second)
+                            cached_tasks_start_time[u_task.id.get_full_id()] = (float(task_started_timestamp) if task_started_timestamp is not None else time.time() + 1) * 1000
+                        task_start_time_ts_ms = cached_tasks_start_time[u_task.id.get_full_id()]
 
                         task_predictions = main_task.duppable_tasks_predictions[u_task.id.get_full_id()]
-                        expected_ready_to_exec_ts_ms = (real_task_start_time_ts_s * 1000) + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms
-                        potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.inputs_download_time_ms + task_predictions.my_exec_time_ms
+                        # time at which i will be able to start executing the main_task: other_download_inputs + other_exec + other_upload + me_download_output
+                        expected_ready_to_exec_ts_ms = task_start_time_ts_ms + task_predictions.original_download_time_ms + task_predictions.original_exec_time_ms + task_predictions.original_upload_time_ms + task_predictions.my_download_output_time_ms
+                        # if i started executing it now i would have to: grab inputs + execute (note: dupped tasks don't upload output)
+                        potential_ready_to_exec_ts_ms = (time.time() * 1000) + task_predictions.my_inputs_download_time_ms + task_predictions.my_exec_time_ms
                         
                         logger.info(f"[TASK-DUP] Task {task_id} - "
-                                   f"Will save time ?: {potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms}, "
-                                   f"Expected time saved: {expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms:.2f}ms, "
-                                   f"Dup?: {potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms}ms")
+                            f"Will save time ?: {potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms}, "
+                            f"Expected time saved: {expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms:.2f}ms, "
+                            f"Dup?: {potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms}, "
+                            f"Predictions: {task_predictions}"
+                        )
                         
                         if potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms - DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS:
                             potential_time_saved = expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms
@@ -253,10 +257,10 @@ async def main():
         if this_worker_id is not None:
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
-                completion_events = [task.completed_event for task in remaining_tasks_for_this_worker]
-                logger.info(f"W({_debug_flexible_worker_id}) Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally...")
-                await asyncio.wait([asyncio.create_task(event.wait(), name=f"wait_my_execution") for event in completion_events])
-                logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for {[task.id.get_full_id() for task in remaining_tasks_for_this_worker]} to complete locally")
+                completion_events = [(task.id.get_full_id(), task.completed_event) for task in remaining_tasks_for_this_worker]
+                logger.info(f"W({_debug_flexible_worker_id}) Waiting for {[task_id for task_id, _ in completion_events]} to complete locally...")
+                await asyncio.wait([asyncio.create_task(event.wait(), name=f"wait_my_execution_{task_id}") for task_id, event in completion_events])
+                logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for {[task_id for task_id, _ in completion_events]} to complete locally")
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)

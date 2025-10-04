@@ -152,11 +152,12 @@ class DockerWorker(Worker):
         """
         await self._simulate_network_latency()
 
+        gateway_address = self.docker_config.internal_docker_gateway_address if not self.is_docker_host_linux else self.docker_config.external_docker_gateway_address
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     # because only docker workers will make warmup requests to each other (and never the client requesting a warmup)
-                    self.docker_config.internal_docker_gateway_address if not self.is_docker_host_linux else self.docker_config.external_docker_gateway_address + "/warmup",
+                    gateway_address + "/warmup",
                     data=json.dumps({
                         "dag_id": dag_id,
                         "resource_configurations": base64.b64encode(cloudpickle.dumps(resource_configurations)).decode('utf-8')
@@ -164,11 +165,11 @@ class DockerWorker(Worker):
                     headers={"Content-Type": "application/json"}
                 ) as response:
                     if response.status != 202:
-                        logger.error(f"Warmup request failed with status {response.status}")
+                        logger.error(f"Warmup request to {gateway_address}/warmup failed with status {response.status}")
                         response_text = await response.text()
                         logger.error(f"Response: {response_text}")
                     else:
-                        logger.info("Warmup request completed successfully")
+                        logger.info(f"Warmup request to {gateway_address}/warmup completed successfully")
         except Exception as e:
             logger.error(f"Error during warmup request: {str(e)}")
             raise

@@ -139,6 +139,9 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     if tm.optimization_metrics:
                         task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
                         task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
+
+                if plan_output and "opt" in plan_output.planner_name and sum([t.optimization_task_dups_done for t in tasks]) > 0:
+                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])}")
                     
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"

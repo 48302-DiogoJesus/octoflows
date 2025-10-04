@@ -14,7 +14,7 @@ import sys
 import os
 
 def get_planner_from_sys_argv():
-    supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform"]
+    supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform", "non-uniform-opt"]
     
     if len(sys.argv) < 2:
         print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
@@ -73,6 +73,19 @@ def get_planner_from_sys_argv():
             optimizations=[PreLoadOptimization, TaskDupOptimization],
         )
     elif planner_type == "non-uniform":
+        return NonUniformPlanner.Config(
+            sla=sla,
+            worker_resource_configurations=[
+                min_resources,
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+            ] if is_montage_workflow else [
+                min_resources,
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
+                min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
+            ],
+            optimizations=[],
+        )
+    elif planner_type == "non-uniform-opt":
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[

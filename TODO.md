@@ -1,9 +1,13 @@
 - Dashboard
     [IMPLEMENTATION]
+    - Increase range of resources that can be used
+        use avg_resources for uniform workflows
+        try using 256 uniform on all workflows twice at least to see if they can handle
+            if so reduce min to 256 and increase the range of resources that can be used by a lot (up to 256*32(8gb ram))
     - Dashboard
         - [DONE] Check preload metrics
-        - Check prewarm metrics
         - Check taskdup metrics
+        - Check prewarm metrics
             taskdup isn't being applying in reality
             need a workflow with short task + small input + downstream task that has other upstream tasks that finish first
     - debug: check if preload is happening and results are being used (gemm is a good test)

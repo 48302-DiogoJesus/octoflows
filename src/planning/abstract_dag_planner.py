@@ -56,12 +56,13 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
     @dataclass
     class DuppableTaskPrediction:
+        original_download_time_ms: float # time to download the duppable task input from storage on it's planned worker
         original_exec_time_ms: float # time to execute the duppable task on it's planned worker
-        original_upload_time_ms: float # time to upload the duppable task output to storage
-        original_download_time_ms: float # time for ME to download the duppable task OUTPUT from storage
+        original_upload_time_ms: float # time to upload the duppable task output to storage on it's planned worker
+        my_download_output_time_ms: float # time to download the duppable task output from storage on my worker
 
-        inputs_download_time_ms: float # time to download inputs of the duppable task
-        my_exec_time_ms: float # time to execute the duppable task
+        my_inputs_download_time_ms: float # time to download inputs of the duppable task on my worker
+        my_exec_time_ms: float # time to execute the duppable task on my worker
 
     @dataclass
     class PlanningTaskInfo:
@@ -275,7 +276,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
-        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -455,13 +456,15 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         for u_task in node.upstream_nodes:
             if not u_task.try_get_optimization(TaskDupOptimization): continue
             node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
+                original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, u_task.worker_config, sla),
                 original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, u_task.worker_config, sla),
                 original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.worker_config, sla),
-                original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
-
-                my_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla),
-                inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
+                my_download_output_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
+                
+                my_inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla),
+                my_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
             )
+
             
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
