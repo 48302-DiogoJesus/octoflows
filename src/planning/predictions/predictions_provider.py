@@ -363,7 +363,7 @@ class PredictionsProvider:
         k_eff = 1 - (1 - k_base) * (1 - np.exp(-alpha * ratio)) # Smoothly interpolate between 1 and k_base
         return k_eff
 
-    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 150, min_samples = 15) -> list[float]:
+    def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 6) -> list[float]:
         """
         to_predict: int
         all_samples: [(value_to_use_for_prediction, input_that_generated_the_value)]

@@ -7,7 +7,6 @@ from src.dag_task_node import DAGTaskNode, DAGTaskNodeId
 from src.storage.storage import Storage
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 from src.utils.logger import create_logger
-from src.utils.errors import CancelCurrentWorkerLoopException
 from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
@@ -54,4 +53,21 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
     async def wel_override_should_upload_output(planner, current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
         if not is_dupping: return None # don't care
         if is_dupping: 
-            raise CancelCurrentWorkerLoopException("This task was dupped, don't continue branch")
+            return False
+
+    @staticmethod
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode, is_dupping: bool) -> list | None:
+        # idea: for each dtask w/ my worker_id, if dtask has duppable utasks AND DC not ready => use exists() to know which tasks are ready and check if the non-ready are present locally
+        from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
+        if not is_dupping: return None
+
+        downstream_tasks_ready = []
+        for dtask in current_task.downstream_nodes:
+            if dtask.cached_result is not None: continue
+            dependencies_met = await metadata_storage.storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
+            dependencies_met = int(dependencies_met) if dependencies_met is not None else 0
+            # dupped tasks don't update DC, so if there's only one dependency missing, it's this task, so it's ready
+            if dependencies_met == len(dtask.upstream_nodes) - 1:
+                downstream_tasks_ready.append(dtask)
+        return downstream_tasks_ready
+

@@ -276,7 +276,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
-        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -919,18 +919,18 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return res
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list[DAGTaskNode] | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool) -> list[DAGTaskNode] | None:
         from src.workers.worker_execution_logic import WorkerExecutionLogic
         _planner: AbstractDAGPlanner = planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
+            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
+            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
 
         return res
 

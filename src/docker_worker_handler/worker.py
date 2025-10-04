@@ -156,12 +156,11 @@ async def main():
                 logger.info(f"[TASK-DUP] {one_of_the_upsteam_tasks.id.get_full_id()} finished. Evaluating {len(main_task.upstream_nodes)} tasks for duplication for main task {main_task.id.get_full_id()}")
 
                 async with dupping_locks[main_task.id.get_full_id()]:
+                    finished_or_pending_duppable_tasks.setdefault(main_task.id.get_full_id(), set())
                     if one_of_the_upsteam_tasks.try_get_optimization(TaskDupOptimization) is not None:
-                        finished_or_pending_duppable_tasks\
-                            .setdefault(main_task.id.get_full_id(), set())\
-                            .add(one_of_the_upsteam_tasks.id.get_full_id())
+                        finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(one_of_the_upsteam_tasks.id.get_full_id())
                     
-                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_optimization(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set())]
+                    unfinished_duppable_tasks = [n for n in main_task.upstream_nodes if n.try_get_optimization(TaskDupOptimization) is not None and n.id.get_full_id() not in finished_or_pending_duppable_tasks.get(main_task.id.get_full_id(), set()) and n.worker_config.worker_id != this_worker_id]
 
                     if len(unfinished_duppable_tasks) == 0:
                         # logger.info(f"[TASK-DUP] No unfinished duppable tasks for main task {main_task.id.get_full_id()}")
@@ -192,7 +191,6 @@ async def main():
                             f"Will save time ?: {potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms}, "
                             f"Expected time saved: {expected_ready_to_exec_ts_ms - potential_ready_to_exec_ts_ms:.2f}ms, "
                             f"Dup?: {potential_ready_to_exec_ts_ms + DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS < expected_ready_to_exec_ts_ms}, "
-                            f"Predictions: {task_predictions}"
                         )
                         
                         if potential_ready_to_exec_ts_ms < expected_ready_to_exec_ts_ms - DUPPABLE_TASK_TIME_SAVED_THRESHOLD_MS:
@@ -207,6 +205,7 @@ async def main():
                         assert wk.my_resource_configuration.worker_id is not None
                         logger.info(f"[TASK-DUP] Dupping task {task_id} to help {main_task}. Triggered because {one_of_the_upsteam_tasks.id.get_full_id()} finished. Expected time saved: {greatest_predicted_time_saved:.2f}ms")
                         main_task.metrics.optimization_metrics.append(TaskDupOptimization.OptimizationMetrics(dupped=greatest_predicted_time_saved_task.id))
+                        finished_or_pending_duppable_tasks[main_task.id.get_full_id()].add(task_id)
                         await wk.execute_branch(subdag.create_subdag(greatest_predicted_time_saved_task), fulldag, wk.my_resource_configuration.worker_id, is_dupping=True)
                     else:
                         logger.info("[TASK-DUP] No suitable task found for duplication")
@@ -231,6 +230,7 @@ async def main():
                 has_duppable_upstream_tasks = any(n.try_get_optimization(TaskDupOptimization) is not None for n in task.upstream_nodes)
                 if has_duppable_upstream_tasks:
                     for utask in task.upstream_nodes:
+                        logger.info(f"[TASK-DUP] Subscribing to readiness of {utask.id.get_full_id()}, needed by {task.id.get_full_id()}")
                         await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{utask.id.get_full_id_in_dag(fulldag)}", _on_task_dup_callback_builder(utask, task), coroutine_tag=f"{COROTAG_DUP}({utask.id.get_full_id()}, {task.id.get_full_id()})", worker_id=this_worker_id)
 
                         upstream_dependencies = [uutask.id.get_full_id_in_dag(fulldag) for uutask in utask.upstream_nodes]

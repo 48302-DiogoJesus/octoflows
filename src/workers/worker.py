@@ -232,17 +232,17 @@ class Worker(ABC):
                     self.log(current_task.id.get_full_id(), f"Uploaded Output")
                 else:
                     self.log(current_task.id.get_full_id(), f"Won't upload output")
-                
-                receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
 
-                self.log(current_task.id.get_full_id(), f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers} receivers")
+                if not is_dupping:
+                    receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
+                    self.log(current_task.id.get_full_id(), f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers} receivers")
 
                 if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
                     self.log(current_task.id.get_full_id(), f"Sink task finished. Shutting down worker...")
                     break
 
                 # Update Dependency Counters of Downstream Tasks
-                downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task)
+                downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
                 assert downstream_tasks_ready is not None
                 
                 self.log(current_task.id.get_full_id(), f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")

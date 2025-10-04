@@ -46,15 +46,18 @@ class WorkerExecutionLogic(ABC):
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool) -> list | None:
         from src.dag_task_node import DAGTaskNode
         from src.storage.events import TASK_READY_EVENT_PREFIX
         from src.storage.metadata.metadata_storage import MetadataStorage
+        from src.planning.optimizations.taskdup import TaskDupOptimization
+        from src.workers.worker import Worker
 
         _metadata_storage: MetadataStorage = metadata_storage
+        _this_worker: Worker = this_worker
 
         downstream_tasks_ready: list[DAGTaskNode] = []
-        downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == this_worker.my_resource_configuration.worker_id)]
+        downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
         
         updating_dependency_counters_timer = Timer()
         for downstream_task in current_task.downstream_nodes:
@@ -64,9 +67,9 @@ class WorkerExecutionLogic(ABC):
 
             dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
+            _this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
-                if this_worker.my_resource_configuration.worker_id is not None and this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
+                if _this_worker.my_resource_configuration.worker_id is not None and _this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
                     await _metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
@@ -75,7 +78,7 @@ class WorkerExecutionLogic(ABC):
                     _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
                     name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
                 )
-                this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
+                _this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
                 
                 downstream_tasks_ready.append(downstream_task)
 

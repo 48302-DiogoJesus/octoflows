@@ -79,7 +79,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         return not is_task_size_large # only upload if not large
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode) -> list | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode, is_dupping: bool) -> list | None:
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         optimization: WukongOptimizations | None = current_task.try_get_optimization(WukongOptimizations)
