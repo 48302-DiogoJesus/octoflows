@@ -276,7 +276,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
-        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod

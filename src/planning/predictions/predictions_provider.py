@@ -201,7 +201,7 @@ class PredictionsProvider:
                 raise ValueError(f"No data available for {type} or invalid speed data")
             
             res = (data_size_bytes ** 1) / speed_bytes_per_ms
-            print(f"Time to {type} {data_size_bytes} bytes: {res}ms | exponent: {1}")
+            # print(f"Time to {type} {data_size_bytes} bytes: {res}ms | exponent: {1}")
         else:
             _baseline_normalized_samples = [
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.3, total_bytes)
