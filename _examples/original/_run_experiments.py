@@ -11,7 +11,7 @@ WORKFLOWS_PATHS = [
     'text_analysis.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 2
+ITERATIONS_PER_ALGORITHM = 1
 ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt', 'wukong', 'wukong-opt']
 SLAS = ['50']
 # SLAS = ['50', '75', '90', '95', '99']
