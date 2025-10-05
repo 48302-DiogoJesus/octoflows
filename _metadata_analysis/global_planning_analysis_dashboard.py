@@ -143,10 +143,12 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     total_inputs_downloaded += task.input_size_downloaded_bytes
                     total_outputs_uploaded += task.output_size_uploaded_bytes
 
-                    if tm.optimization_metrics:
-                        task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
-                        task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
-                        task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
+
+                    # print(tm)
+                    # if tm.optimization_metrics:
+                    #     task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
+                    #     task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
+                    #     task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
 
                 # if plan_output:
                 #     print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
