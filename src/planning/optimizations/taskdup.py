@@ -66,7 +66,7 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
             dependencies_met = await metadata_storage.storage.get(f"{DEPENDENCY_COUNTER_PREFIX}{dtask.id.get_full_id_in_dag(subdag)}")
             dependencies_met = int(dependencies_met) if dependencies_met is not None else 0
             # dupped tasks don't update DC, so if there's only one dependency missing, it's this task, so it's ready
-            if dependencies_met == len(dtask.upstream_nodes):
+            if dependencies_met == len(dtask.upstream_nodes) - 1:
                 downstream_tasks_ready.append(dtask)
         return downstream_tasks_ready
 

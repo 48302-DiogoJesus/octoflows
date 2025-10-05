@@ -42,8 +42,10 @@ class WorkerExecutionLogic(ABC):
         from src.dag_task_node import DAGTaskNode
         _task: DAGTaskNode = current_task
 
+        has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_worker_id for dt in _task.downstream_nodes)
+
         # only upload if necessary
-        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
+        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or has_other_workers_dependant
 
     @staticmethod
     async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool) -> list | None:
@@ -58,12 +60,14 @@ class WorkerExecutionLogic(ABC):
         _this_worker: Worker = this_worker
         _current_task: DAGTaskNode = current_task
 
+        assert not is_dupping
+
         downstream_tasks_ready: list[DAGTaskNode] = []
         downstream_tasks_that_depend_on_other_tasks = [dt for dt in _current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
         
         updating_dependency_counters_timer = Timer()
         for downstream_task in _current_task.downstream_nodes:
-            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
+            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()} | is dupping: {is_dupping}")
             if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
                 downstream_tasks_ready.append(downstream_task)
                 continue
@@ -85,11 +89,12 @@ class WorkerExecutionLogic(ABC):
                 
                 downstream_tasks_ready.append(downstream_task)
             # Downstream task should have at least 1 REMOTE upstream duppable task, for this check to be needed
-            elif any([dunode.try_get_optimization(TaskDupOptimization) is not None and dunode.worker_config.worker_id != downstream_task.worker_config.worker_id for dunode in downstream_task.upstream_nodes]):
+            elif downstream_task.worker_config.worker_id is not None and downstream_task.worker_config.worker_id == _this_worker.my_worker_id and any([dunode.try_get_optimization(TaskDupOptimization) is not None and dunode.worker_config.worker_id != downstream_task.worker_config.worker_id for dunode in downstream_task.upstream_nodes]):
+                # downstream_tasks_ready should only be filled with tasks that are assigned to this worker!
                 _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Checking remote dependencies of {downstream_task.id.get_full_id()}")
                 ready_dependencies: set[str] = set()
                 for udtask in downstream_task.upstream_nodes:
-                    if udtask.cached_result is not None: # remote task, but may have been dupped or preloaded
+                    if udtask.cached_result is not None and udtask.upload_complete.is_set(): # ensure that even if data is present locally it also is remotely
                         _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Task {udtask.id.get_full_id()} dupped already cached!!")
                         ready_dependencies.add(udtask.id.get_full_id())
                         continue # task already cached, skip

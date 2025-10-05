@@ -150,7 +150,7 @@ async def main():
             dupping_locks.setdefault(main_task.id.get_full_id(), asyncio.Lock())
             async def callback(_: dict, subscription_id: str | None = None):
                 if subscription_id is not None:
-                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}", subscription_id)
+                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{one_of_the_upsteam_tasks.id.get_full_id_in_dag(fulldag)}", subscription_id)
 
                 assert main_task.duppable_tasks_predictions, "DUP ON_READY callback: main_task.duppable_tasks_predictions should not be empty"
 

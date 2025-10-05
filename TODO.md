@@ -1,7 +1,12 @@
 - Dashboard
     [IMPLEMENTATION]
-    - when taskdup happens it blocks execution
-        - try just task dup, no preload
+    - task_dup
+        predictions are bad now??
+        Run 5 instances on uniform and compare dashboard versus uniform-opt
+
+    - Remove taskdup from config.py and run all workflows at least 3 times locally to ensure nothing's broke
+    - Run all experiments on VM
+
     - try running montage again? and collecting metrics?
 
     - Dashboard

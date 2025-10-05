@@ -71,6 +71,7 @@ class DAGTaskNode:
         # Initialized with a dummy worker config annotation for local worker
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers
         self.cached_result: _CachedResultWrapper | None = None
+        self.upload_complete: asyncio.Event = asyncio.Event()
         self.completed_event: asyncio.Event = asyncio.Event()
         self.is_handling: AtomicFlag = AtomicFlag() # used to prevent multiple invocations of the same task in the same worker
         self._register_dependencies()
