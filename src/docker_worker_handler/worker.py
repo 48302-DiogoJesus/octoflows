@@ -156,7 +156,9 @@ async def main():
 
                 logger.info(f"[TASK-DUP] {one_of_the_upsteam_tasks.id.get_full_id()} finished. Evaluating {len(main_task.upstream_nodes)} tasks for duplication for main task {main_task.id.get_full_id()}")
 
-                if dupping_locks[main_task.id.get_full_id()].locked(): return
+                if dupping_locks[main_task.id.get_full_id()].locked(): 
+                    logger.info(f"[TASK-DUP] {one_of_the_upsteam_tasks.id.get_full_id()} in progress. Giving up on dupping")
+                    return
 
                 async with dupping_locks[main_task.id.get_full_id()]:
                     finished_or_pending_duppable_tasks.setdefault(main_task.id.get_full_id(), set())

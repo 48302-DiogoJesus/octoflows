@@ -1,5 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
+    - when taskdup happens it blocks execution
     - try running montage again? and collecting metrics?
 
     - Dashboard

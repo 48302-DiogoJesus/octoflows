@@ -54,7 +54,7 @@ class ContainerPoolExecutor:
         # helps debugging prewarm timings
         try:
             new_container_id = f"reused_{container_id}"
-            subprocess.run(["docker", "rename", container_id, new_container_id], check=True)
+            subprocess.run(["docker", "rename", container_id, new_container_id], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             pass # ignore, throws when renaming to the same name.....
 
