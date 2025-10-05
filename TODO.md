@@ -1,5 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
+    - Run locally and ensure that uniform-opt applies prewarming
     - Cold starts were not too effective locally, re-check if remote is the same and try adjusing parameters
     
     - Run all experiments on VM

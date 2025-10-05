@@ -85,7 +85,8 @@ class Worker(ABC):
 
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
                 
-                tasks_executed_by_this_coroutine.append(current_task)
+                # don't store metrics for dupped tasks
+                if not is_dupping: tasks_executed_by_this_coroutine.append(current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...", is_dupping)
