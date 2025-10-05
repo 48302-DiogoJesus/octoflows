@@ -1,27 +1,13 @@
 - Dashboard
     [IMPLEMENTATION]
-    - task_dup
-        Run 5 instances on uniform and compare dashboard versus uniform-opt
-
-    - prewarm
-        run image transform on unform and see the warm/cold start ratio to ensure prewarm is actually doing something
-
-    - Remove taskdup from config.py and run all workflows at least 3 times locally to ensure nothing's broke
+    - Cold starts were not too effective locally, re-check if remote is the same and try adjusing parameters
+    
     - Run all experiments on VM
+        Only run 4 instances each to begin with
 
-    - try running montage again? and collecting metrics?
-
-    - Dashboard
-        - Check taskdup metrics
-        - Check prewarm metrics
-            taskdup isn't being applying in reality
-            need a workflow with short task + small input + downstream task that has other upstream tasks that finish first
-    - debug: check if preload is happening and results are being used (gemm is a good test)
-    - Run experiments on VM
-
-    Showing Optimizations Impact:
+    - Showing Optimizations Impact:
         - TaskDup
-            MEASURE
+            MEASURE (time waiting for inputs should be lower => add this metric to the Actual Metrics bar chart)
         - PreLoad
             MEASURE
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
@@ -29,6 +15,7 @@
             MEASURE
             - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
         - Plot showing the median of counts for each optimization per instance, only for the "opt" planners
+
 
     - Have to RERUN ALL!!
     - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)

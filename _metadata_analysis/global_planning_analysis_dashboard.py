@@ -103,6 +103,11 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data: Any = metadata_storage_conn.get(plan_key)
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
+                if plan_output is not None and plan_output.nodes_info:
+                    predicted_makespan_s = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                    if predicted_makespan_s > 500:
+                        print(f"Discard workflow with predicted makespan of {predicted_makespan_s}")
+                        continue
 
                 # DAG download stats
                 download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
@@ -143,8 +148,8 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
                         task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
 
-                if plan_output:
-                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
+                # if plan_output:
+                #     print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
                     
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -344,10 +349,6 @@ def main():
             predicted_input_size_bytes = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
             predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
             predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-            # print(f"Predicted makespan: {predicted_makespan_s}")
-            # for node_info in instance.plan.nodes_info.values():
-            #     print(f"Waiting inputs: {node_info.tp_download_time_ms / 1000}s | Node: {node_info.node_ref.func_name} | Expected Input size: {node_info.serialized_input_size}")
-            # print("-------")
             workers_accounted_for = set()
             predicted_total_worker_startup_time_s = 0
             for info in instance.plan.nodes_info.values():
@@ -776,15 +777,12 @@ def main():
             if metrics_data:
                 # Group metrics by planner
                 planner_metrics = {}
-                for instance in workflow_types[selected_workflow].instances:
+                instances_clone = workflow_types[selected_workflow].instances.copy()
+                for instance in instances_clone:
                     if not instance.plan or not instance.tasks:
                         continue
                     if 'wukong' in instance.plan.planner_name.lower():
                         continue
-                        
-                    planner_name = instance.plan.planner_name
-                    if planner_name not in planner_metrics:
-                        planner_metrics[planner_name] = []
                         
                     # Get metrics for this instance
                     actual_makespan_s = (
@@ -820,7 +818,10 @@ def main():
                             if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                 workers_accounted_for.add(info.node_ref.worker_config.worker_id)
-                        
+                    
+                        planner_name = instance.plan.planner_name
+                        if planner_name not in planner_metrics:
+                            planner_metrics[planner_name] = []
                         planner_metrics[planner_name].append({
                             'makespan_actual': actual_makespan_s,
                             'makespan_predicted': predicted_makespan_s,
