@@ -1,5 +1,3 @@
-import os
-import sys
 import threading
 from dataclasses import dataclass
 from typing import Dict, Set, Tuple
@@ -9,10 +7,11 @@ import time
 import uuid
 
 from src.utils.logger import create_logger
+from src.docker_worker_handler.worker import ATOMIC_FILE_FOR_WARM_START_DETECTION
 
 logger = create_logger(__name__)
 ALLOW_CONTAINER_REUSAGE = True
-TIME_UNTIL_WORKER_GOES_COLD_S = 5
+TIME_UNTIL_WORKER_GOES_COLD_S = 8
 
 @dataclass
 class Container:
@@ -51,6 +50,14 @@ class ContainerPoolExecutor:
         from sys import platform
         
         logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
+
+        # new_container_id = f"reused_{container_id}"
+
+        # # rename the container
+        # subprocess.run(
+        #     ["docker", "rename", container_id, new_container_id],
+        #     check=True
+        # )
 
         process = subprocess.Popen(
             [
@@ -224,9 +231,9 @@ class ContainerPoolExecutor:
                     container_id = self._launch_container(cpus, memory, dag_id)
                     return container_id
     
-    def _launch_container(self, cpus, memory, dag_id):
+    def _launch_container(self, cpus, memory, dag_id, name_prefix: str = "", is_prewarm: bool = False):
         # Generate a random 16-digit ID
-        container_name = f"{cpus}x{memory}-DAG_{dag_id}-RAND_{uuid.uuid4()}"
+        container_name = f"{name_prefix}{cpus}x{memory}-DAG_{dag_id}-RAND_{uuid.uuid4()}"
 
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(
@@ -240,6 +247,12 @@ class ContainerPoolExecutor:
             ],
             text=True
         ).strip()
+        if is_prewarm:
+            # rename the container
+            subprocess.run([
+                "docker", "exec", container_id,
+                "sh", "-c", f"touch /tmp/{ATOMIC_FILE_FOR_WARM_START_DETECTION}"
+            ], check=True)
 
         with self.lock:
             container = Container(

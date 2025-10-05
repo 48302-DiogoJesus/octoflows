@@ -1,17 +1,12 @@
 - Dashboard
     [IMPLEMENTATION]
+    - prewarms are happening but not being effective (19 prewarms only 1 warm start :()
     - prewarm: 
-        improve prewarm flexibility so that tasks can do prewarm anytime
-            perform/schedule prewarms on on_worker_ready instead of before_task_handling
-            the annotation should say the prewarm relative time ("I want you to prewarm this config 5 seconds after you on_worker_ready is called")
-
-        trick to add more prewarm annotations
-            in the assignment logic, add prewarm to N - 1 workers of fan-outs
-        prewarm isn't being applied by planners (few unique workers, and using max and min resource configs, not in between (testing on other workflows to see if its a problem))
         [REMEMBER_TO_REVERT_THIS] make "non-uniform-opt" only use prewarm optimization
-        then run "non-uniform-opt" 5 times on "text analysis" manually and see how many prewarms were assigned (LOOK AT PLAN IMAGE)
+        then run "non-uniform-opt" 5 times on "image transform" manually and see how many prewarms were assigned (LOOK AT PLAN IMAGE)
         then run "non-uniform" and compare on dashboard (cold starts vs warm starts)
     - prewarm: take a look at the assignment logic
+    - try running montage again? and collecting metrics?
 
     - Dashboard
         - Check taskdup metrics

@@ -60,16 +60,6 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
     finally:
         container_pool.release_container(container_id)
 
-def process_warmup_async(dag_id: str, resource_configurations: list[TaskWorkerResourceConfiguration]):
-    """
-    Process a warmup request asynchronously.
-    Waits for a container with the requested resource configuration to be available and leaves it available for later re-use for {container_pool_executor.container_idle_timeout} seconds
-    """
-    for resource_configuration in resource_configurations:
-        print("Warming up resource configuration: ", resource_configuration)
-        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id)
-        container_pool.release_container(container_id)
-
 @app.route('/warmup', methods=['POST'])
 def handle_warmup():
     # Parse request data
@@ -88,7 +78,10 @@ def handle_warmup():
 
     resource_configurations: list[TaskWorkerResourceConfiguration] = cloudpickle.loads(base64.b64decode(resource_config_key))
 
-    thread_pool.submit(process_warmup_async, dag_id, resource_configurations)
+    for resource_configuration in resource_configurations:
+        print("Warming up resource configuration: ", resource_configuration)
+        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id, name_prefix="PRE-WARMED_")
+        container_pool.release_container(container_id)
     return "", 202
 
 @app.route('/wait-containers-shutdown', methods=['POST'])

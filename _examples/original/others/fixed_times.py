@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-
 # Add parent directory to path to allow importing from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from src.dag_task_node import DAGTask

@@ -25,6 +25,7 @@ def split_image(img: np.ndarray) -> tuple[np.ndarray, ...]:
         for j in range(4):
             chunk = img[i*h_step:(i+1)*h_step, j*w_step:(j+1)*w_step].copy()
             chunks.append(chunk)
+    time.sleep(8) # to "force" planner to assign prewarm
     return tuple(chunks)  # single DAG node output (tuple)
 
 

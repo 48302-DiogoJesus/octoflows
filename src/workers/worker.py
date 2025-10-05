@@ -208,7 +208,7 @@ class Worker(ABC):
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id(), f"2) Executing Task...", is_dupping)
                 exec_timer = Timer()
-                deserialized_task_result = current_task.invoke(dependencies=task_dependencies)
+                deserialized_task_result = await asyncio.to_thread(current_task.invoke, dependencies=task_dependencies)
                 task_execution_time_ms = exec_timer.stop()
 
                 current_task.metrics.tp_execution_time_ms = task_execution_time_ms

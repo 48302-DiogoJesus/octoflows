@@ -31,7 +31,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
     """
 
     MAX_FAN_OUT_SIZE_W_SAME_WORKER = 4
-    TIME_UNTIL_WORKER_GOES_COLD_S = 5
+    TIME_UNTIL_WORKER_GOES_COLD_S = 8
 
     @property
     def planner_name(self) -> str:
@@ -501,7 +501,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if prewarm_optimization:
                 time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
                 for target_resource_config in prewarm_optimization.target_resource_configs:
-                    worker_active_periods[(target_resource_config.cpus, target_resource_config.memory_mb)].append((
+                    worker_active_periods[(target_resource_config[1].cpus, target_resource_config[1].memory_mb)].append((
                         None,
                         time_at_which_worker_will_be_ready_ms,
                         time_at_which_worker_will_be_ready_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000

@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import asyncio
 import numpy as np
 
 # Add parent directory to path to allow importing from src

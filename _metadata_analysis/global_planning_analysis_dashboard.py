@@ -44,6 +44,7 @@ class WorkflowInstanceTaskInfo:
     
     optimization_preloads_done: int
     optimization_task_dups_done: int
+    optimization_prewarms_done: int
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -123,6 +124,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         -1,
                         -1,
                         0,
+                        0,
                         0
                     )
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
@@ -139,9 +141,10 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     if tm.optimization_metrics:
                         task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
                         task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
+                        task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
 
-                if plan_output and "opt" in plan_output.planner_name and sum([t.optimization_task_dups_done for t in tasks]) > 0:
-                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])}")
+                if plan_output:
+                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
                     
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -463,7 +466,7 @@ def main():
             'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
             'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.2f} GB",
             'Resources Cost': f"{instance.resource_usage_cost:.2f}",
-            'Warm/Cold Starts': f"{instance.cold_starts_count}/{instance.warm_starts_count}",
+            'Warm/Cold Starts': f"{instance.warm_starts_count}/{instance.cold_starts_count}",
             '_actual_worker_startup': actual_total_worker_startup_time_s,
             '_actual_invocation': actual_invocation,
             '_actual_dependency_update': actual_dependency_update,

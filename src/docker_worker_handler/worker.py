@@ -37,6 +37,8 @@ def create_if_not_exists(filename):
     except FileExistsError:
         return True  # File already existed
 
+ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
+
 async def main():
     # Ensure only one instance of the script is running
     try:
@@ -97,8 +99,7 @@ async def main():
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
 
-        tmp_dir = tempfile.gettempdir()
-        filepath = os.path.join(tmp_dir, "worker_startup.atomic")
+        filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
         is_warm_start = create_if_not_exists(filepath)
         await wk.metadata_storage.update_invoked_worker_startup_metrics(
             end_time_ms=time.time() * 1000,
