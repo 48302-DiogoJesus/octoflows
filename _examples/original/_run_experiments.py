@@ -11,7 +11,7 @@ WORKFLOWS_PATHS = [
     'text_analysis.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform-opt', 'non-uniform-opt']
 ALGORITHMS = ['uniform-opt']
 # ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform-opt', 'wukong', 'wukong-opt']

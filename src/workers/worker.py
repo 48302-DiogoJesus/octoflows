@@ -78,6 +78,7 @@ class Worker(ABC):
                     raise CancelCurrentWorkerLoopException("Task is/was already being handled by this worker on another coroutine. Aborting")
                 
                 if not is_dupping:
+                    # not when dupping, otherwise would override our real id by the worker_id assigned to the duppable task
                     current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
                     current_task.metrics.started_at_timestamp_s = time.time()
                     current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
@@ -276,13 +277,15 @@ class Worker(ABC):
 
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}", is_dupping)
                 current_task = my_continuation_tasks[0]
+                # note: at the end of a taskdup, it may execute other tasks, those are not dupped, hence "is_dupping=False"
+                is_dupping = False
                 if len(my_continuation_tasks) > 1:
                     my_other_tasks = my_continuation_tasks[1:]
                     # Execute other tasks on separate coroutines in this worker
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(
                             asyncio.create_task(
-                                self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id, is_dupping=is_dupping), 
+                                self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id, is_dupping=False), 
                                 name=f"start_executing_immediate_followup(task={t.id.get_full_id()})")
                             )
         except CancelCurrentWorkerLoopException as e:

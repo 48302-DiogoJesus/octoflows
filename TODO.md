@@ -2,7 +2,12 @@
     [IMPLEMENTATION]
     - task_dup
         predictions are bad now??
+            re-check now as timer is stopped at the right time again (shouldn't make a difference because upload speed isn't used)
+            huge download and upload times sometimes
+                stop abstract planner to debug the samples being used
+        
         Run 5 instances on uniform and compare dashboard versus uniform-opt
+
 
     - Remove taskdup from config.py and run all workflows at least 3 times locally to ensure nothing's broke
     - Run all experiments on VM

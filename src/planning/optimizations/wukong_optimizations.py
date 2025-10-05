@@ -109,8 +109,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 serialized_task_result = cloudpickle.dumps(current_task.cached_result.result)
                 output_upload_timer = Timer()
                 await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
-                current_task.upload_complete.set()
                 current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                current_task.upload_complete.set()
                 _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                 # Increment DCs
                 updating_dependency_counters_timer = Timer()
@@ -149,8 +149,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 serialized_task_result = cloudpickle.dumps(current_task.cached_result.result)
                 output_upload_timer = Timer()
                 await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
-                current_task.upload_complete.set()
                 current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                current_task.upload_complete.set()
                 _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                 # Update DCs because output is already available
                 updating_dependency_counters_timer = Timer()
@@ -214,8 +214,8 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                     serialized_task_result = cloudpickle.dumps(current_task.cached_result.result)
                     output_upload_timer = Timer()
                     await _this_worker.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
-                    current_task.upload_complete.set()
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
+                    current_task.upload_complete.set()
                     _this_worker.log(current_task.id.get_full_id(), f"Big fan-out task had to upload output")
                     # Update DCs because output is already available
                     updating_dependency_counters_timer = Timer()
