@@ -52,22 +52,25 @@ class WorkerExecutionLogic(ABC):
         from src.storage.metadata.metadata_storage import MetadataStorage
         from src.planning.optimizations.taskdup import TaskDupOptimization
         from src.workers.worker import Worker
+        from src.dag_task_node import DAGTaskNode
 
         _metadata_storage: MetadataStorage = metadata_storage
         _this_worker: Worker = this_worker
+        _current_task: DAGTaskNode = current_task
 
         downstream_tasks_ready: list[DAGTaskNode] = []
-        downstream_tasks_that_depend_on_other_tasks = [dt for dt in current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
+        downstream_tasks_that_depend_on_other_tasks = [dt for dt in _current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
         
         updating_dependency_counters_timer = Timer()
-        for downstream_task in current_task.downstream_nodes:
+        for downstream_task in _current_task.downstream_nodes:
+            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
             if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
                 downstream_tasks_ready.append(downstream_task)
                 continue
 
             dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            _this_worker.log(current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}", is_dupping)
+            _this_worker.log(_current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}", is_dupping)
             if dependencies_met == downstream_task_total_dependencies:
                 if _this_worker.my_resource_configuration.worker_id is not None and _this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
@@ -78,11 +81,31 @@ class WorkerExecutionLogic(ABC):
                     _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
                     name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
                 )
-                _this_worker.log(current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}", is_dupping)
+                _this_worker.log(_current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}", is_dupping)
                 
                 downstream_tasks_ready.append(downstream_task)
+            # Downstream task should have at least 1 REMOTE upstream duppable task, for this check to be needed
+            elif any([dunode.try_get_optimization(TaskDupOptimization) is not None and dunode.worker_config.worker_id != downstream_task.worker_config.worker_id for dunode in downstream_task.upstream_nodes]):
+                _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Checking remote dependencies of {downstream_task.id.get_full_id()}")
+                ready_dependencies: set[str] = set()
+                for udtask in downstream_task.upstream_nodes:
+                    if udtask.cached_result is not None: # remote task, but may have been dupped or preloaded
+                        _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Task {udtask.id.get_full_id()} dupped already cached!!")
+                        ready_dependencies.add(udtask.id.get_full_id())
+                        continue # task already cached, skip
 
-        current_task.metrics.update_dependency_counters_time_ms = (current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
+                    task_output_ready = await _this_worker.intermediate_storage.exists(udtask.id.get_full_id_in_dag(subdag))
+                    if task_output_ready: 
+                        _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Task {udtask.id.get_full_id()} ready in storage!!")
+                        ready_dependencies.add(udtask.id.get_full_id())
+
+                _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Ready dependencies of {downstream_task.id.get_full_id()}: {len(ready_dependencies)} vs {downstream_task_total_dependencies} Missing task ids: {set([udtask.id.get_full_id() for udtask in downstream_task.upstream_nodes]) - ready_dependencies}")
+                if len(ready_dependencies) == downstream_task_total_dependencies:
+                    # don't broadcast that it's ready because some of the data may not be in storage yet, if I dupped it
+                    downstream_tasks_ready.append(downstream_task)
+
+        _this_worker.log(_current_task.id.get_full_id(), f"Downstream tasks ready: {[t.id.get_full_id() for t in downstream_tasks_ready]}")
+        _current_task.metrics.update_dependency_counters_time_ms = (_current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
         return downstream_tasks_ready
 
     @staticmethod
@@ -96,6 +119,9 @@ class WorkerExecutionLogic(ABC):
         my_continuation_tasks: list[DAGTaskNode] = []
         other_continuation_tasks: list[DAGTaskNode] = []
         total_invocation_time_timer = Timer()
+        
+        _this_worker.log(_current_task.id.get_full_id(), f"Handling downstream tasks: {[(t.id.get_full_id(), t.worker_config.worker_id) for t in _downstream_tasks_ready]} my worker id: {_this_worker.my_resource_configuration.worker_id}")
+
         for task in _downstream_tasks_ready:
             task_resource_config = task.worker_config
             if task_resource_config.worker_id is None:
@@ -104,7 +130,7 @@ class WorkerExecutionLogic(ABC):
                 else:
                     # delegate all other DS tasks to other workers
                     other_continuation_tasks.append(task)
-            elif task_resource_config.worker_id == _this_worker.my_resource_configuration.worker_id:
+            elif task_resource_config.worker_id == _this_worker.my_worker_id:
                 my_continuation_tasks.append(task)
             else: # diff. worker id
                 requires_launching_worker = True
@@ -124,7 +150,7 @@ class WorkerExecutionLogic(ABC):
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) Delegating {len(other_continuation_tasks)} tasks to other workers...")
+            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
             await _this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True)
 
         for my_task in my_continuation_tasks:

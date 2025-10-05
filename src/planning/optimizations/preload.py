@@ -136,6 +136,9 @@ class PreLoadOptimization(TaskOptimization):
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
         async def perform_preloading(subscription_id: str | None, upstream_task: DAGTaskNode, dependent_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG):
+            
+            if upstream_task.cached_result is not None: return # may be already present locally
+
             async with annotation._lock: # keep the lock so that only 1 preloading can happen at a time
                 if subscription_id is not None:
                     await metadata_storage.unsubscribe(
