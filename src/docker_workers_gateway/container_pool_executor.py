@@ -11,7 +11,7 @@ from src.docker_worker_handler.worker import ATOMIC_FILE_FOR_WARM_START_DETECTIO
 
 logger = create_logger(__name__)
 ALLOW_CONTAINER_REUSAGE = True
-TIME_UNTIL_WORKER_GOES_COLD_S = 8
+TIME_UNTIL_WORKER_GOES_COLD_S = 7
 
 @dataclass
 class Container:
@@ -51,13 +51,12 @@ class ContainerPoolExecutor:
         
         logger.info(f"[{self._get_time_formatted()}] EXECUTING IN CONTAINER: {container_id} | command length: {len(command)}")
 
-        # new_container_id = f"reused_{container_id}"
-
-        # # rename the container
-        # subprocess.run(
-        #     ["docker", "rename", container_id, new_container_id],
-        #     check=True
-        # )
+        # helps debugging prewarm timings
+        try:
+            new_container_id = f"reused_{container_id}"
+            subprocess.run(["docker", "rename", container_id, new_container_id], check=True)
+        except subprocess.CalledProcessError as e:
+            pass # ignore, throws when renaming to the same name.....
 
         process = subprocess.Popen(
             [
@@ -229,11 +228,17 @@ class ContainerPoolExecutor:
                     # Launch a new container
                     logger.info(f"(wait_for_container) Launching new container for DAG: {dag_id}")
                     container_id = self._launch_container(cpus, memory, dag_id)
+                    assert container_id is not None, "ContainerPoolExecutor.wait_for_container: _launch_container returned None"
                     return container_id
     
-    def _launch_container(self, cpus, memory, dag_id, name_prefix: str = "", is_prewarm: bool = False):
+    def _launch_container(self, cpus, memory, dag_id, name_prefix: str = "", is_prewarm: bool = False) -> str | None:
         # Generate a random 16-digit ID
         container_name = f"{name_prefix}{cpus}x{memory}-DAG_{dag_id}-RAND_{uuid.uuid4()}"
+
+        with self.lock:
+            if len(self.containers) >= self.max_containers:
+                logger.warning("Max containers reached. Can't launch new container")
+                return None
 
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(
@@ -247,11 +252,11 @@ class ContainerPoolExecutor:
             ],
             text=True
         ).strip()
+
         if is_prewarm:
-            # rename the container
             subprocess.run([
                 "docker", "exec", container_id,
-                "sh", "-c", f"touch /tmp/{ATOMIC_FILE_FOR_WARM_START_DETECTION}"
+                "sh", "-c", f"touch {ATOMIC_FILE_FOR_WARM_START_DETECTION}"
             ], check=True)
 
         with self.lock:

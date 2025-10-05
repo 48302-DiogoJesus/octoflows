@@ -80,7 +80,12 @@ def handle_warmup():
 
     for resource_configuration in resource_configurations:
         print("Warming up resource configuration: ", resource_configuration)
-        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id, name_prefix="PRE-WARMED_")
+        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id, name_prefix="PRE-WARMED_", is_prewarm=True)
+        
+        if container_id is None:
+            logger.error("Max containers reached. Can't launch new container")
+            return jsonify({"error": "Max containers reached. Can't launch new container"}), 400
+
         container_pool.release_container(container_id)
     return "", 202
 

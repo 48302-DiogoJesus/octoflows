@@ -1,11 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - prewarms are happening but not being effective (19 prewarms only 1 warm start :()
-    - prewarm: 
-        [REMEMBER_TO_REVERT_THIS] make "non-uniform-opt" only use prewarm optimization
-        then run "non-uniform-opt" 5 times on "image transform" manually and see how many prewarms were assigned (LOOK AT PLAN IMAGE)
-        then run "non-uniform" and compare on dashboard (cold starts vs warm starts)
-    - prewarm: take a look at the assignment logic
     - try running montage again? and collecting metrics?
 
     - Dashboard
