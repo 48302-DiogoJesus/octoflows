@@ -8,6 +8,8 @@
         
         Run 5 instances on uniform and compare dashboard versus uniform-opt
 
+    - prewarm
+        run image transform on unform and see the warm/cold start ratio to ensure prewarm is actually doing something
 
     - Remove taskdup from config.py and run all workflows at least 3 times locally to ensure nothing's broke
     - Run all experiments on VM

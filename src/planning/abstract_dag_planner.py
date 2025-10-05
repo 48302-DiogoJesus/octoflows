@@ -276,7 +276,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self._store_plan_image(_dag, plan_result.nodes_info, plan_result.critical_path_node_ids)
             # self._store_plan_as_json(_dag, plan_result.nodes_info)
             self.validate_plan(_dag.root_nodes)
-        # exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
+        exit() # !!! FOR QUICK TESTING ONLY. REMOVE LATER !!
         return plan_result
 
     @abstractmethod
@@ -435,6 +435,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
+
         total_download_time = predictions_provider.predict_data_transfer_time('download', downloadable_input_size_bytes, resource_config, sla)
         
         # 4. Proceed with execution and upload calculations...

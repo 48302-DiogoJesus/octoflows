@@ -344,6 +344,10 @@ def main():
             predicted_input_size_bytes = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
             predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
             predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+            # print(f"Predicted makespan: {predicted_makespan_s}")
+            # for node_info in instance.plan.nodes_info.values():
+            #     print(f"Waiting inputs: {node_info.tp_download_time_ms / 1000}s | Node: {node_info.node_ref.func_name} | Expected Input size: {node_info.serialized_input_size}")
+            # print("-------")
             workers_accounted_for = set()
             predicted_total_worker_startup_time_s = 0
             for info in instance.plan.nodes_info.values():
