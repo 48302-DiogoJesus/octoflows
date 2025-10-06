@@ -225,7 +225,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     (best_delay_s, my_info["worker_config"])
                 )
 
-        exit() ##! for debug
         return
 
     @staticmethod
