@@ -186,8 +186,8 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                             print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
 
                 #DEBUG
-                # if plan_output and "opt" in plan_output.planner_name:
-                    # print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
+                if plan_output and "opt" in plan_output.planner_name:
+                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
 
                 warm_starts_count = len([m for m in this_workflow_wsm if m.state == "warm"])
                 cold_starts_count = len([m for m in this_workflow_wsm if m.state == "cold"])
@@ -1317,7 +1317,8 @@ def main():
                         'worker_startup': [],
                         'resource_usage': [],
                         'warm_starts': [],
-                        'cold_starts': []
+                        'cold_starts': [],
+                        'total_time_waiting_for_inputs': []
                     }
                 
                 metrics = planner_metrics[planner]
@@ -1331,6 +1332,7 @@ def main():
                     + (sink_task_metrics.total_invocation_time_ms or 0)
                 )
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                total_time_waiting_for_inputs_s = sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000
 
                 metrics['makespan'].append(actual_makespan_s)
                 metrics['execution'].append(sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks))
@@ -1361,6 +1363,7 @@ def main():
                     for task in instance.tasks
                     if hasattr(task.metrics, 'update_dependency_counters_time_ms') and task.metrics.update_dependency_counters_time_ms is not None
                 ))
+                metrics['total_time_waiting_for_inputs'].append(total_time_waiting_for_inputs_s)
                 metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
                 metrics['resource_usage'].append(instance.resource_usage_cost)
                 metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
@@ -1384,6 +1387,7 @@ def main():
                     ('Download Time (s)', 'download'),
                     ('Upload Time (s)', 'upload'),
                     ('Data Transferred (GB)', 'data_transferred'),
+                    ('Total Time Waiting for Inputs [s]', 'total_time_waiting_for_inputs'),
                     ('Task Invocation Time (s)', 'invocation'),
                     ('Dependency Counter Update Time (s)', 'dependency_update'),
                     ('Worker Startup Time (s)', 'worker_startup'),
@@ -1455,6 +1459,8 @@ def main():
             )
 
             st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("## Optimizations")
 
             st.markdown("### Impact of Optimizations in metrics")
             # Convert metrics_data to DataFrame
@@ -1544,7 +1550,73 @@ def main():
             )
             st.plotly_chart(fig_taskdup, use_container_width=True)
 
-            st.markdown("### Resource Usage")
+            records = []
+
+            for workflow_name, workflow_info in workflow_types.items():
+                if workflow_name == "All":  # skip aggregated "All"
+                    continue
+                for instance in workflow_info.instances:
+                    if not instance.plan or not instance.tasks:
+                        continue
+                    planner_name = instance.plan.planner_name
+                    workflow_start_s = instance.start_time_ms / 1000
+                    for task in instance.tasks:
+                        used_preload = task.optimization_preloads_done > 0
+                        start_time_s = task.metrics.started_at_timestamp_s - workflow_start_s
+                        records.append({
+                            "Task ID": task.internal_task_id,
+                            "Planner": planner_name,
+                            "Used Preload": used_preload,  # keep boolean for easier plotting
+                            "Start Time [s]": start_time_s
+                        })
+
+            df_tasks = pd.DataFrame(records)
+
+            # Plot per planner
+            planners = df_tasks['Planner'].unique()
+
+            for planner in planners:
+                df_planner = df_tasks[df_tasks['Planner'] == planner]
+
+                fig = go.Figure()
+
+                # Draw a line for each task
+                for task_id, task_group in df_planner.groupby('Task ID'):
+                    if len(task_group) < 2:
+                        continue  # skip tasks that only appear in preload or no-preload
+                    # Sort by preload (False first, True second)
+                    task_group = task_group.sort_values('Used Preload')
+                    fig.add_trace(go.Scatter(
+                        x=task_group['Used Preload'].map({False: 'No Preload', True: 'Preload'}),
+                        y=task_group['Start Time [s]'],
+                        mode='lines+markers',
+                        name=task_id,
+                        showlegend=False,  # too many tasks, hide legend
+                        line=dict(color='gray', width=1),
+                        marker=dict(size=6)
+                    ))
+
+                # Optionally, overlay mean start times
+                mean_times = df_planner.groupby('Used Preload')['Start Time [s]'].mean().reset_index()
+                fig.add_trace(go.Scatter(
+                    x=mean_times['Used Preload'].map({False: 'No Preload', True: 'Preload'}),
+                    y=mean_times['Start Time [s]'],
+                    mode='lines+markers',
+                    name='Mean',
+                    line=dict(color='red', width=3),
+                    marker=dict(size=10)
+                ))
+
+                fig.update_layout(
+                    title=f"Task Start Times with vs Without Preload | Planner: {planner}",
+                    xaxis_title="Used Preload",
+                    yaxis_title="Task Start Time [s] (relative to workflow start)",
+                    height=600
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("## Resource Usage")
             ######### Resource Usage plot
             # Collect resource usage metrics per planner
             resource_data = []

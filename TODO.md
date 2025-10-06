@@ -5,11 +5,6 @@
 
     - Showing Optimizations Impact:
         - Compare all metrics of workflows with different counts of each optimization
-        - PreWarm (note: (only makes sense for non uniform))
-            MEASURE
-            - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness (code portion already in dashboard)
-        - TaskDup
-            MEASURE (time waiting for inputs should be lower => add this metric to the Actual Metrics bar chart)
         - PreLoad
             MEASURE
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
