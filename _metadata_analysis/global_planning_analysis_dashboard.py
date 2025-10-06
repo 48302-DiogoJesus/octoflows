@@ -91,6 +91,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
     try:
         # Scan DAG keys instead of using keys()
         all_dag_keys = scan_keys(metadata_storage_conn, f"{DAG_PREFIX}*")
+        print(f"Found {len(all_dag_keys)} workflow instances")
         from typing import Any
 
         for dag_key in all_dag_keys:

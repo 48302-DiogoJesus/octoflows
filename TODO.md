@@ -1,6 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Run locally and ensure that uniform-opt applies prewarming
+        - BUG: not all workflows are storing their metrics
+
     - Cold starts were not too effective locally, re-check if remote is the same and try adjusing parameters
         compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
     
@@ -15,7 +16,8 @@
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
         - PreWarm (note: (only makes sense for non uniform))
             MEASURE
-            - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
+            - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
+            - + use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
         - Plot showing the median of counts for each optimization per instance, only for the "opt" planners
 
     - Have to RERUN ALL!!

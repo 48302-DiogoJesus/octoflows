@@ -133,6 +133,7 @@ class PredictionsProvider:
 
     def predict_data_transfer_time(
         self,
+        type: Literal['download', 'upload'], # used only for debug
         data_size_bytes: int,
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
