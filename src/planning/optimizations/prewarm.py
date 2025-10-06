@@ -34,18 +34,21 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
         _planner: AbstractDAGPlanner = planner
         _predictions_provider: PredictionsProvider = predictions_provider
+        _nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = nodes_info
 
         # --- Step 1: group tasks by worker config + id ---
-        workers = {}  # key: (worker_id) -> list of tasks
-        for node_info in nodes_info.values():
+        workers: dict[str, list[AbstractDAGPlanner.PlanningTaskInfo]] = {}  # key: (worker_id) -> list of tasks
+        for node_info in _nodes_info.values():
+            if node_info.node_ref.worker_config.worker_id is None: continue
             workers.setdefault(node_info.node_ref.worker_config.worker_id, []).append(node_info)
 
         # --- Step 2: build worker timelines ---
-        worker_timelines = {}
+        worker_timelines: dict[str, dict] = {}
         for worker_key, tasks in workers.items():
             start = min(n.earliest_start_ms for n in tasks)
             end = max(n.earliest_start_ms + n.tp_exec_time_ms for n in tasks)
-            startup = max(n.tp_worker_startup_time_ms for n in tasks)
+            # time to launch the cold worker
+            startup = _predictions_provider.predict_worker_startup_time(tasks[0].node_ref.worker_config, "cold", _planner.config.sla)
             first_node = min(tasks, key=lambda n: n.earliest_start_ms).node_ref
             worker_timelines[worker_key] = {
                 "tasks": tasks,
@@ -66,22 +69,25 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # - 0.5: balanced
         # - 1.0: latest possible prewarm (closest to target start, riskier but fresher warm state)
         PREWARM_TIMING_PREFERENCE = 0.7
+        # if worker won't be active for more than X seconds, don't prewarm. The value is low (3 seconds because there may be other workers which will reuse this container, making prewarm compensate)
 
-        for my_key, my_info in worker_timelines.items():
+        for wid, my_info in worker_timelines.items():
             # Skip if not cold start or if it's a root node (no upstream)
             if my_info["worker_startup_state"] != "cold":
                 continue
             if not my_info["tasks"][0].node_ref.upstream_nodes:
                 continue
 
-            # Check if startup time is significant enough to warrant prewarming
-            # total_other_exec = sum(
-            #     o.tp_exec_time_ms
-            #     for k, w in worker_timelines.items() if k != my_key
-            #     for o in w["tasks"]
-            # )
-            # if not (my_info["startup"] > 0.10 * total_other_exec):
-            #     continue
+            # Execution time of tasks that start at the same time or after me and use the same worker resource config, because they might benefit from a new prewarmed container as well
+            tasks_exec_time = sum(
+                o.tp_exec_time_ms
+                for wid, w in worker_timelines.items() if w["worker_config"].memory_mb == my_info["worker_config"].memory_mb
+                # tasks of this worker OR tasks that start after this worker
+                for o in w["tasks"] if o.earliest_start_ms > my_info["start"] or o.node_ref.worker_config.worker_id == my_info["worker_config"].worker_id
+            )
+            if tasks_exec_time > 0.5 * my_info["startup"]:
+                print(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
+                continue
 
             # logger.info(f"[PREWARM-ASSIGNMENT] Will try to prewarm worker {my_key}")
             # Calculate the ideal prewarm trigger time:
@@ -98,12 +104,10 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             candidates = []
             
             # Get the target worker's startup time for margin calculations
-            target_startup_time_ms = _predictions_provider.predict_worker_startup_time(
-                my_info["worker_config"], "cold", _planner.config.sla
-            )
+            target_startup_time_ms = my_info["startup"]
             
             for other_key, other_info in worker_timelines.items():
-                if other_key == my_key:
+                if other_key == wid:
                     continue
 
                 # The prewarm can be triggered any time while this worker is active
@@ -215,17 +219,13 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
                 if best_delay_s is not None:
                     logger.info(f"[PREWARM-ASSIGNMENT] Prewarm successful for worker id: {my_info['worker_config'].worker_id} starting at {my_info['start']}ms: "
-                        f"trigger from worker id {best_worker['worker_config'].worker_id} (trigger at {(best_worker['start'] + (best_delay_s * 1000)):.1f}ms)")
+                        f"trigger from worker id {best_worker['worker_config'].worker_id} (trigger at {(best_worker['start'] + (best_delay_s * 1000)):.1f}ms) startup time: {best_worker['startup']:.1f}ms")
 
                 annotation.target_resource_configs.append(
                     (best_delay_s, my_info["worker_config"])
                 )
 
-                # recompute timings after adding annotation
-                nodes_info = _planner._calculate_workflow_timings(
-                    dag, topo_sorted_nodes, _predictions_provider, _planner.config.sla
-                )
-
+        exit() ##! for debug
         return
 
     @staticmethod

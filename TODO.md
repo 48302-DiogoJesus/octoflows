@@ -1,11 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - PREWARM was not used/effective?:
-        ISSUE: prewarm was not being assigned too much
-        re-check prints on dashboard
-        and adjust parameters accordingly (launch closer to target or farther worker warm time? 8 seconds?)
-            use prewarmmetric.resource_config.worker_id to compare against reality
-        recheck now
+        - now that prewarm is being applied, check its effectiveness on dashboard to understand if its too late, too early or good
     
     - Run all experiments on VM
         Only run 4 instances each to begin with
