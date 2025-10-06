@@ -18,7 +18,8 @@
             MEASURE
             - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
             - + use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
-        - Plot showing the median of counts for each optimization per instance, only for the "opt" planners
+        - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)
+        - Measure the impact of the SLAs in the actual metrics (see if more conservative yeilds better results than optimistic SLAs)
 
     - Have to RERUN ALL!!
     - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)
