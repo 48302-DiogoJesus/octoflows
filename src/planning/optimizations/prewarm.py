@@ -65,7 +65,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # - 0.0: earliest possible prewarm (maximum time buffer, safest but worker might go cold)
         # - 0.5: balanced
         # - 1.0: latest possible prewarm (closest to target start, riskier but fresher warm state)
-        PREWARM_TIMING_PREFERENCE = 0.55
+        PREWARM_TIMING_PREFERENCE = 0.75
 
         for my_key, my_info in worker_timelines.items():
             # Skip if not cold start or if it's a root node (no upstream)

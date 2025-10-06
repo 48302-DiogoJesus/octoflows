@@ -135,6 +135,10 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     )
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
                 ]
+                if len(tasks) != len(dag._all_nodes):
+                    print(f"[WARNING] Skipping incomplete metrics for {dag.dag_name}")
+                    continue
+                
                 total_inputs_downloaded = 0
                 total_outputs_uploaded = 0
                 for task in tasks:

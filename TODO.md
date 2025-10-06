@@ -1,11 +1,11 @@
 - Dashboard
     [IMPLEMENTATION]
     - PREWARM was not used/effective?:
-        ISSUE: prewarm not assigned many times
-            how to force it?
-        compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
+        ISSUE: prewarm was not being assigned too much
+        re-check prints on dashboard
         and adjust parameters accordingly (launch closer to target or farther worker warm time? 8 seconds?)
             use prewarmmetric.resource_config.worker_id to compare against reality
+        recheck now
     
     - Run all experiments on VM
         Only run 4 instances each to begin with
@@ -18,7 +18,7 @@
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
         - PreWarm (note: (only makes sense for non uniform))
             MEASURE
-            - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
+            - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness (code portion already in dashboard)
             - + use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
         - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)
         - Measure the impact of the SLAs in the actual metrics (see if more conservative yeilds better results than optimistic SLAs)

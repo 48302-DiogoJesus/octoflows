@@ -11,7 +11,6 @@ from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.optimizations.taskdup import TaskDupOptimization
-from src.planning.optimizations.prewarm import PreWarmOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
@@ -496,17 +495,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         for node in topo_sorted_nodes:
             my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_full_id()]
-            
-            # Register when the worker config I PRE-WARM should be active
-            prewarm_optimization = node.try_get_optimization(PreWarmOptimization)
-            if prewarm_optimization:
-                time_at_which_worker_will_be_ready_ms = my_node_info.earliest_start_ms + predictions_provider.predict_worker_startup_time(my_resource_config, 'cold', sla)
-                for target_resource_config in prewarm_optimization.target_resource_configs:
-                    worker_active_periods[(target_resource_config[1].cpus, target_resource_config[1].memory_mb)].append((
-                        None,
-                        time_at_which_worker_will_be_ready_ms,
-                        time_at_which_worker_will_be_ready_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
-                    ))
 
         def _count_available_warm_workers(worker_config: tuple[float, int], target_time_ms: float, 
                                         exclude_worker_id: str | None) -> int:
