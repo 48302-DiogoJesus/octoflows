@@ -104,11 +104,11 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data: Any = metadata_storage_conn.get(plan_key)
                 plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
-                if plan_output is not None and plan_output.nodes_info:
-                    predicted_makespan_s = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
-                    if predicted_makespan_s > 500:
-                        print(f"Discard workflow with predicted makespan of {predicted_makespan_s}")
-                        continue
+                if plan_output is None: continue # don't count warmup runs to get metadata
+                predicted_makespan_s = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                if predicted_makespan_s > 500:
+                    print(f"Discard workflow with predicted makespan of {predicted_makespan_s}")
+                    continue
 
                 # DAG download stats
                 download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
@@ -1063,35 +1063,29 @@ def main():
         with TAB_ACTUAL_VALUES:
             # Prepare data for all metrics comparison
             metrics_data = []
-            
+
             for instance in workflow_types[selected_workflow].instances:
                 if not instance.plan or not instance.tasks: 
                     continue
-                
+
                 # Calculate all metrics for this instance
                 sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
-                
+
                 # Calculate makespan
-                sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + \
-                                            (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + \
-                                            (sink_task_metrics.tp_execution_time_ms or 0) + \
-                                            (sink_task_metrics.output_metrics.tp_time_ms or 0) + \
-                                            (sink_task_metrics.total_invocation_time_ms or 0)
-                
-                # Calculate all metrics
-                # Calculate average memory allocation per task (in MB)
-                total_memory_mb = sum(
-                    task.metrics.worker_resource_configuration.memory_mb 
-                    for task in instance.tasks
+                sink_task_ended_timestamp_ms = (
+                    sink_task_metrics.started_at_timestamp_s * 1000 +
+                    (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
+                    (sink_task_metrics.tp_execution_time_ms or 0) +
+                    (sink_task_metrics.output_metrics.tp_time_ms or 0) +
+                    (sink_task_metrics.total_invocation_time_ms or 0)
                 )
-                
-                input_size_value = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks)
-                input_size_value, input_size_unit, _ = format_bytes(input_size_value)
-                output_size_value = sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks)
-                output_size_value, output_size_unit, _ = format_bytes(output_size_value)
-                total_data_value = instance.total_transferred_data_bytes
-                total_data_value, total_data_unit, _ = format_bytes(total_data_value)
-                
+
+                # Calculate total prewarms for this instance
+                total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
+                total_preloads = sum(task.optimization_preloads_done for task in instance.tasks)
+                total_taskdups = sum(task.optimization_task_dups_done for task in instance.tasks)
+
+                # Create instance metrics dictionary
                 instance_metrics = {
                     'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
                     'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
@@ -1110,22 +1104,26 @@ def main():
                         for task in instance.tasks
                         if task.metrics.output_metrics.tp_time_ms is not None
                     ),
-                    # f'Input Size [{input_size_unit}]': input_size_value,  # Convert to MB
-                    # f'Output Size [{output_size_unit}]': output_size_value,  # Convert to MB
-                    f'Total Data Transferred': total_data_value,  # Convert to MB
+                    'Total Data Transferred': instance.total_transferred_data_bytes,
                     'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                    'Resource Usage': instance.resource_usage_cost
+                    'Resource Usage': instance.resource_usage_cost,
+                    'Total Prewarms': total_prewarms,
+                    'Total Preloads': total_preloads,
+                    'Total TaskDups': total_taskdups
                 }
-                
+
                 # Add all metrics to the data list
                 for metric_name, value in instance_metrics.items():
                     metrics_data.append({
                         'Metric': metric_name,
                         'Value': value,
                         'Planner': instance.plan.planner_name if instance.plan else 'No Planner',
-                        'Instance ID': instance.master_dag_id.split('-')[0]
+                        'Instance ID': instance.master_dag_id.split('-')[0],
+                        'Total Prewarms': total_prewarms,
+                        'Total Preloads': total_preloads,
+                        'Total TaskDups': total_taskdups
                     })
-            
+
             st.markdown("### Metrics Comparison")
             if metrics_data:
                 # Convert metrics_data to DataFrame
@@ -1450,6 +1448,94 @@ def main():
             )
 
             st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("### Impact of Optimizations in metrics")
+            # Convert metrics_data to DataFrame
+            df = pd.DataFrame(metrics_data)
+
+            # -------------------------
+            # 1) Line chart for Total Prewarms
+            # Metrics: Makespan, Worker Startup Time, Resource Usage
+            prewarms_metrics = ['Makespan [s]', 'Worker Startup Time [s]', 'Resource Usage']
+            df_prewarms = df[df['Metric'].isin(prewarms_metrics)]
+
+            # Group by Total Prewarms and Metric
+            df_prewarms_grouped = df_prewarms.groupby(['Total Prewarms', 'Metric']).agg({'Value':'mean'}).reset_index()
+
+            # Plot line chart
+            fig_prewarms = px.line(
+                df_prewarms_grouped,
+                x='Total Prewarms',
+                y='Value',
+                color='Metric',
+                markers=True,
+                title='Effect of Prewarms on Makespan, Worker Startup Time, and Resource Usage'
+            )
+            fig_prewarms.update_layout(
+                xaxis_title='Total Prewarms',
+                yaxis_title='Metric Value',
+                legend_title='Metric',
+                height=600
+            )
+            st.plotly_chart(fig_prewarms, use_container_width=True)
+
+            # -------------------------
+            # 2) Line chart for Total Preloads
+            # Metrics: Makespan, Total Time Waiting for Inputs, Download Time
+            preload_metrics = ['Makespan [s]', 'Total Time Waiting for Inputs [s]', 'Download Time [s]']
+            df_preload = df[df['Metric'].isin(preload_metrics)]
+
+            # Group by Total Preloads and Metric
+            df_preload_grouped = df_preload.groupby(['Total Preloads', 'Metric']).agg({'Value':'mean'}).reset_index()
+
+            # Plot line chart
+            fig_preload = px.line(
+                df_preload_grouped,
+                x='Total Preloads',
+                y='Value',
+                color='Metric',
+                markers=True,
+                title='Effect of Preloads on Makespan, Total Time Waiting, and Download Time'
+            )
+            fig_preload.update_layout(
+                xaxis_title='Total Preloads',
+                yaxis_title='Metric Value',
+                legend_title='Metric',
+                height=600
+            )
+            st.plotly_chart(fig_preload, use_container_width=True)
+
+            # -------------------------
+            # 3) Line chart for Total TaskDups
+            # Metrics: Makespan, Total Time Waiting for Inputs, Download Time, Resource Usage, Total Data Transferred
+            taskdup_metrics = [
+                'Makespan [s]',
+                'Total Time Waiting for Inputs [s]',
+                'Download Time [s]',
+                'Resource Usage',
+                'Total Data Transferred'
+            ]
+            df_taskdup = df[df['Metric'].isin(taskdup_metrics)]
+
+            # Group by Total TaskDups and Metric
+            df_taskdup_grouped = df_taskdup.groupby(['Total TaskDups', 'Metric']).agg({'Value':'mean'}).reset_index()
+
+            # Plot line chart
+            fig_taskdup = px.line(
+                df_taskdup_grouped,
+                x='Total TaskDups',
+                y='Value',
+                color='Metric',
+                markers=True,
+                title='Effect of TaskDups on Makespan, Waiting Time, Download Time, Resource Usage, and Data Transferred'
+            )
+            fig_taskdup.update_layout(
+                xaxis_title='Total TaskDups',
+                yaxis_title='Metric Value',
+                legend_title='Metric',
+                height=600
+            )
+            st.plotly_chart(fig_taskdup, use_container_width=True)
 
             st.markdown("### Resource Usage")
             ######### Resource Usage plot
