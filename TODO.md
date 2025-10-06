@@ -1,8 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - PREWARM was not used/effective?:
-        - now that prewarm is being applied, check its effectiveness on dashboard to understand if its too late, too early or good
-    
     - Run all experiments on VM
         Only run 4 instances each to begin with
 
