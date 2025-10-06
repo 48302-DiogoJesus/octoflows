@@ -1,7 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - Run all experiments on VM
-        Only run 4 instances each to begin with
+        Only run 4 instances of each to begin with on sla 50
 
     - Showing Optimizations Impact:
         - Compare all metrics of workflows with different counts of each optimization
