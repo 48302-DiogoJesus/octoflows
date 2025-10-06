@@ -53,10 +53,14 @@ class UniformPlanner(AbstractDAGPlanner):
         for optimization in self.config.optimizations:
             optimization.planning_assignment_logic(self, dag, predictions_provider, nodes_info, topo_sorted_nodes)
 
+        from src.planning.optimizations.prewarm import PreWarmOptimization
         optimizations_count: dict[str, int] = {}
         for node_info in nodes_info.values():
             for optimization in node_info.node_ref.optimizations: 
-                optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
+                if isinstance(optimization, PreWarmOptimization):
+                    optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + len(optimization.target_resource_configs)
+                else:
+                    optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
