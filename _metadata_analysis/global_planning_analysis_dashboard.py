@@ -167,6 +167,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 worker_startup_metrics.extend(this_workflow_wsm)
 
                 #DEBUG: Understand effectiveness of prewarm
+                # why did non-uniform have less warm starts
                 for task in tasks:
                     for om in task.metrics.optimization_metrics:
                         if not isinstance(om, PreWarmOptimization.OptimizationMetrics): continue
@@ -174,7 +175,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         worker_startup_metrics = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
                         if not len(worker_startup_metrics): continue
                         this_worker_startup_metrics = worker_startup_metrics[0]
-                        print(f"worker_start_time-prewarm happened at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
+                        print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
 
                 #DEBUG
                 if plan_output and "opt" in plan_output.planner_name:

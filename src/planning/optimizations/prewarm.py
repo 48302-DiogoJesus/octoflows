@@ -218,7 +218,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
 
                 if best_delay_s is not None:
-                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s")
+                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | timing pref: {PREWARM_TIMING_PREFERENCE}")
 
                 annotation.target_resource_configs.append(
                     (best_delay_s, my_info["worker_config"])
