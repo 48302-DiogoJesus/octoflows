@@ -62,8 +62,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # --- Step 3: assign prewarms ---
         time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
         # HTTP handler latency for prewarm requests (in milliseconds)
-        PREWARM_LATENCY_MS = 1500  # time to send request + be received + launch container
-        PREWARM_TIMING_PREFERENCE = 0.6
+        PREWARM_LATENCY_MS = 1000  # time to send request + be received + launch container
+        PREWARM_TIMING_PREFERENCE = 0.8
 
         for wid, my_info in worker_timelines.items():
             if my_info["worker_startup_state"] != "cold":
