@@ -2,6 +2,7 @@
     [IMPLEMENTATION]
     - Run locally and ensure that uniform-opt applies prewarming
     - Cold starts were not too effective locally, re-check if remote is the same and try adjusing parameters
+        compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
     
     - Run all experiments on VM
         Only run 4 instances each to begin with

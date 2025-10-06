@@ -37,4 +37,4 @@ c4 = c(b2)
 
 start_time = time.time()
 result = c4.compute(dag_name="fanoutsfanins", config=WORKER_CONFIG)
-print(f"Total Revenue: ${result} | Makespan: {time.time() - start_time}s")
+print(f"Result Total Value: ${result} | Makespan: {time.time() - start_time}s")

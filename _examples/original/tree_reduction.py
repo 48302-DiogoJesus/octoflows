@@ -17,7 +17,6 @@ def add(x: float, y: float) -> float:
     return x + y
 
 # Define the workflow
-#!Note: The dev faas docker engine has a limit on the number of containers available at the same time, which limits the amount of branches that can exist at a time. Could lead to a situation where workers are just hanging because they can't create new containers.
 L = range(64)
 while len(L) > 1:
   L = list(map(add, L[0::2], L[1::2]))

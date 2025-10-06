@@ -37,20 +37,6 @@ def aggregate_results(partial_results, final_shape):
         result[i:i+rows, j:j+cols] = value
     return result
 
-# Original matrices
-# matrix_a = np.array([
-#     [5, 2, 8, 1],
-#     [3, 6, 4, 9],
-#     [7, 2, 5, 3]
-# ])
-
-# matrix_b = np.array([
-#     [4, 7],
-#     [2, 1],
-#     [5, 3],
-#     [8, 6]
-# ])
-
 RANDOM_MATRIX_COLS = 1_000
 RANDOM_MATRIX_ROWS = 1_000
 CHUNK_SIZE = 400

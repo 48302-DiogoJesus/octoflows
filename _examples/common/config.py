@@ -17,7 +17,7 @@ def get_planner_from_sys_argv():
     supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform", "non-uniform-opt"]
     
     if len(sys.argv) < 2:
-        print(f"Usage: python <script.py> <planner_type: {supported_planners}>")
+        print(f"Usage: python <script.py> <planner_type: {supported_planners}> <sla: average or 0-100>")
         sys.exit(-1)
     
     script_name = os.path.basename(sys.argv[0])
