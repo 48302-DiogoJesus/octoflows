@@ -13,18 +13,6 @@ from src.planning.wukong_planner import WUKONGPlanner
 import sys
 import os
 
-def cpus_from_memory(memory_mb: int) -> float:
-    """
-    AWS Lambda CPU allocation rule:
-    ~1792 MB = 1 vCPU. Max 6 vCPUs.
-    Rounded to 2 decimal places.
-    """
-    vcpus = memory_mb / 1792.0
-    return round(min(vcpus, 6.0), 2)
-
-def make_resource_config(memory_mb: int) -> TaskWorkerResourceConfiguration:
-    return TaskWorkerResourceConfiguration(cpus=cpus_from_memory(memory_mb), memory_mb=memory_mb)
-
 def get_planner_from_sys_argv():
     supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform", "non-uniform-opt"]
     
@@ -41,28 +29,28 @@ def get_planner_from_sys_argv():
 
     is_montage_workflow = script_name == "montage.py"
 
-    montage_min_worker_resource_config = make_resource_config(8192)
+    montage_min_worker_resource_config = TaskWorkerResourceConfiguration(8192)
 
     min_resources = (
         montage_min_worker_resource_config
         if is_montage_workflow
-        else make_resource_config(512)
+        else TaskWorkerResourceConfiguration(512)
     )
 
-    mid_resources = make_resource_config(min_resources.memory_mb * 4)
+    mid_resources = TaskWorkerResourceConfiguration(min_resources.memory_mb * 4)
 
     non_uniform_resources = (
         [
             min_resources,
-            make_resource_config(min_resources.memory_mb * 2),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 2),
         ]
         if is_montage_workflow
         else [
             min_resources,
-            make_resource_config(min_resources.memory_mb * 2),
-            make_resource_config(min_resources.memory_mb * 4),
-            make_resource_config(min_resources.memory_mb * 8),
-            make_resource_config(min_resources.memory_mb * 16),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 2),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 4),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 8),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 16),
         ]
     )
 
