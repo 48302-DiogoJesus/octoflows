@@ -75,11 +75,12 @@ class MetadataStorage():
         len_before_flush = len(self.cached_metrics)
         if len_before_flush == 0: return
 
-        keys_to_remove = []
-        for key, metrics in self.cached_metrics.items():
-            await self.storage.set(key, cloudpickle.dumps(metrics))
-            # remove from self.cached_metrics
-            keys_to_remove.append(key)
+        async with self.lock:
+            keys_to_remove = []
+            for key, metrics in self.cached_metrics.items():
+                await self.storage.set(key, cloudpickle.dumps(metrics))
+                # remove from self.cached_metrics
+                keys_to_remove.append(key)
 
         for key in keys_to_remove: self.cached_metrics.pop(key, None)
         
