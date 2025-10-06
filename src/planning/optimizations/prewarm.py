@@ -85,8 +85,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 # tasks of this worker OR tasks that start after this worker
                 for o in w["tasks"] if o.earliest_start_ms > my_info["start"] or o.node_ref.worker_config.worker_id == my_info["worker_config"].worker_id
             )
-            if my_info["startup"] <= tasks_exec_time:
-                print(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
+            if my_info["startup"] >= tasks_exec_time:
+                logger.warning(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
                 continue
 
             # logger.info(f"[PREWARM-ASSIGNMENT] Will try to prewarm worker {my_key}")
@@ -218,8 +218,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
 
                 if best_delay_s is not None:
-                    logger.info(f"[PREWARM-ASSIGNMENT] Prewarm successful for worker id: {my_info['worker_config'].worker_id} starting at {my_info['start']}ms: "
-                        f"trigger from worker id {best_worker['worker_config'].worker_id} (trigger at {(best_worker['start'] + (best_delay_s * 1000)):.1f}ms) startup time: {best_worker['startup']:.1f}ms")
+                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{(best_worker['start'] + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s")
 
                 annotation.target_resource_configs.append(
                     (best_delay_s, my_info["worker_config"])
