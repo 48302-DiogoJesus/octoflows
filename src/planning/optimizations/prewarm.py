@@ -62,8 +62,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # --- Step 3: assign prewarms ---
         time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
         # HTTP handler latency for prewarm requests (in milliseconds)
-        PREWARM_LATENCY_MS = 500  # time to send request + be received + launch container
-        PREWARM_TIMING_PREFERENCE = 0.8
+        PREWARM_TIMING_PREFERENCE = 0.7
 
         for wid, my_info in worker_timelines.items():
             if my_info["worker_startup_state"] != "cold":
@@ -80,8 +79,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 logger.warning(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
                 continue
 
-            # Total time from trigger to warm state includes HTTP latency + startup
-            total_prewarm_time_ms = PREWARM_LATENCY_MS + my_info["startup"]
+            total_prewarm_time_ms = my_info["startup"]
             
             # Ideal trigger time accounting for HTTP latency
             ideal_prewarm_trigger_time = my_info["start"] - total_prewarm_time_ms
@@ -168,7 +166,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
 
                 if best_delay_s is not None:
-                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | HTTP latency: {PREWARM_LATENCY_MS / 1000}s | timing pref: {PREWARM_TIMING_PREFERENCE}")
+                    logger.info(f"[PREWARM-ASSIGNMENT] Worker tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | timing pref: {PREWARM_TIMING_PREFERENCE}")
 
                 annotation.target_resource_configs.append(
                     (best_delay_s, my_info["worker_config"])

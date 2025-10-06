@@ -4,9 +4,9 @@
         Only run 4 instances each to begin with
 
     - Showing Optimizations Impact:
+        - Compare all metrics of workflows with different counts of each optimization
         - PreWarm (note: (only makes sense for non uniform))
             MEASURE
-            - compare all metrics of workflows with different counts of preloads used per workflow
             - compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness (code portion already in dashboard)
         - TaskDup
             MEASURE (time waiting for inputs should be lower => add this metric to the Actual Metrics bar chart)

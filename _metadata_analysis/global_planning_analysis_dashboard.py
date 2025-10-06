@@ -44,7 +44,9 @@ class WorkflowInstanceTaskInfo:
     
     optimization_preloads_done: int
     optimization_task_dups_done: int
+    
     optimization_prewarms_done: int
+    optimization_prewarms_successful: int
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -131,6 +133,7 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         -1,
                         0,
                         0,
+                        0,
                         0
                     )
                     for t, td in zip(dag._all_nodes.values(), tasks_data) if td
@@ -139,6 +142,13 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     print(f"[WARNING] Skipping incomplete metrics for {dag.dag_name}")
                     continue
                 
+                # Worker startup metrics
+                worker_keys_pattern = f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
+                worker_keys = scan_keys(metadata_storage_conn, worker_keys_pattern)
+                worker_data: Any = metadata_storage_conn.mget(worker_keys)
+                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
+                worker_startup_metrics.extend(this_workflow_wsm)
+
                 total_inputs_downloaded = 0
                 total_outputs_uploaded = 0
                 for task in tasks:
@@ -147,24 +157,21 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                     task.output_size_uploaded_bytes = tm.output_metrics.serialized_size_bytes if tm.output_metrics.tp_time_ms is not None else 0
                     total_inputs_downloaded += task.input_size_downloaded_bytes
                     total_outputs_uploaded += task.output_size_uploaded_bytes
-
                     if tm.optimization_metrics:
                         task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
                         task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
                         task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
+                        task.optimization_prewarms_successful = len([
+                            om for om in tm.optimization_metrics 
+                            if isinstance(om, PreWarmOptimization.OptimizationMetrics) and \
+                                [wsm for wsm in this_workflow_wsm if wsm.resource_configuration.worker_id == om.resource_config.worker_id][0].state == "warm"
+                        ])
                     
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 submission_data: Any = metadata_storage_conn.get(submission_key)
                 if not submission_data: continue
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
-
-                # Worker startup metrics
-                worker_keys_pattern = f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
-                worker_keys = scan_keys(metadata_storage_conn, worker_keys_pattern)
-                worker_data: Any = metadata_storage_conn.mget(worker_keys)
-                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
-                worker_startup_metrics.extend(this_workflow_wsm)
 
                 #DEBUG: Understand effectiveness of prewarm
                 # why did non-uniform have less warm starts
