@@ -17,9 +17,10 @@ def cpus_from_memory(memory_mb: int) -> float:
     """
     AWS Lambda CPU allocation rule:
     ~1792 MB = 1 vCPU. Max 6 vCPUs.
+    Rounded to 2 decimal places.
     """
     vcpus = memory_mb / 1792.0
-    return min(vcpus, 6.0)
+    return round(min(vcpus, 6.0), 2)
 
 def make_resource_config(memory_mb: int) -> TaskWorkerResourceConfiguration:
     return TaskWorkerResourceConfiguration(cpus=cpus_from_memory(memory_mb), memory_mb=memory_mb)
@@ -64,7 +65,6 @@ def get_planner_from_sys_argv():
             make_resource_config(min_resources.memory_mb * 16),
         ]
     )
-
 
     sla: SLA
     sla_str: str = sys.argv[2]
