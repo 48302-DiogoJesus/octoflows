@@ -62,8 +62,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # --- Step 3: assign prewarms ---
         time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
         # HTTP handler latency for prewarm requests (in milliseconds)
-        PREWARM_LATENCY_MS = 1500  # time to send request + be received + launch container
-        PREWARM_TIMING_PREFERENCE = 0.5
+        PREWARM_LATENCY_MS = 1000  # time to send request + be received + launch container
+        PREWARM_TIMING_PREFERENCE = 0.75
 
         for wid, my_info in worker_timelines.items():
             if my_info["worker_startup_state"] != "cold":
@@ -74,7 +74,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             tasks_exec_time = sum(
                 o.tp_exec_time_ms
                 for wid, w in worker_timelines.items() if w["worker_config"].memory_mb == my_info["worker_config"].memory_mb
-                for o in w["tasks"] if o.earliest_start_ms > my_info["start"] or o.node_ref.worker_config.worker_id == my_info["worker_config"].worker_id
+                for o in w["tasks"] if o.earliest_start_ms >= my_info["start"]
             )
             if my_info["startup"] >= tasks_exec_time:
                 logger.warning(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
