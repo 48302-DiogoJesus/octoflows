@@ -186,10 +186,10 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             try:
                 if delay_s > 0:
                     await asyncio.sleep(delay_s)  # non-blocking wait
+                await worker.warmup(dag_id, [resource_config])
                 node.metrics.optimization_metrics.append(
                     PreWarmOptimization.OptimizationMetrics(resource_config=resource_config, absolute_trigger_timestamp_s=time.time())
                 )
-                await worker.warmup(dag_id, [resource_config])
             except Exception as e:
                 # optional: log error
                 print(f"Warmup failed after {delay_s}s delay: {e}")
