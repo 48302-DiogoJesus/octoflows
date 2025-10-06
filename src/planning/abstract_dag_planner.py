@@ -488,31 +488,23 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         """
         
         # Track worker availability over time for each resource configuration
-        # Key: (cpus, memory_mb), Value: List of (worker_id, start_ms, end_ms)
-        worker_active_periods: dict[tuple[float, int], list[tuple[str | None, float, float]]] = defaultdict(list)
+        # Key: (memory_mb), Value: List of (worker_id, start_ms, end_ms)
+        worker_active_periods: dict[int, list[tuple[str | None, float, float]]] = defaultdict(list)
 
-        # Collect expected worker activity periods from pre-warming
-        for node in topo_sorted_nodes:
-            my_resource_config = node.worker_config
-            my_node_info = nodes_info[node.id.get_full_id()]
-
-        def _count_available_warm_workers(worker_config: tuple[float, int], target_time_ms: float, 
+        def _count_available_warm_workers(worker_memory: int, target_time_ms: float, 
                                         exclude_worker_id: str | None) -> int:
             """Count how many warm workers are available at the target time."""
             return sum(
-                1 for worker_id, start_ms, end_ms in worker_active_periods[worker_config]
+                1 for worker_id, start_ms, end_ms in worker_active_periods[worker_memory]
                 if worker_id != exclude_worker_id and start_ms < target_time_ms < end_ms
             )
 
-        def _count_concurrent_tasks(resource_config: tuple[float, int], target_time_ms: float, 
-                                    exclude_node_id: str) -> int:
+        def _count_concurrent_tasks(resource_config: int, target_time_ms: float, exclude_node_id: str) -> int:
             """Count how many tasks with same resource config need workers at target_time_ms."""
             count = 0
             for node in topo_sorted_nodes:
-                if node.id.get_full_id() == exclude_node_id:
-                    continue
-                if (node.worker_config.cpus == resource_config[0] and 
-                    node.worker_config.memory_mb == resource_config[1]):
+                if node.id.get_full_id() == exclude_node_id: continue
+                if node.worker_config.memory_mb == resource_config:
                     node_info = nodes_info[node.id.get_full_id()]
                     # Check if this node will be executing at target_time_ms
                     if node_info.earliest_start_ms <= target_time_ms < node_info.task_completion_time_ms:
@@ -526,7 +518,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
             # Check if any upstream node uses same or compatible worker config
             if any(
-                n.worker_config.cpus == my_resource_config.cpus and \
                 n.worker_config.memory_mb == my_resource_config.memory_mb and \
                 (
                     n.worker_config.worker_id == my_resource_config.worker_id or \
@@ -543,14 +534,13 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 continue
 
             # Count available warm workers and concurrent demand
-            resource_key = (my_resource_config.cpus, my_resource_config.memory_mb)
             available_warm_workers = _count_available_warm_workers(
-                resource_key, 
+                my_resource_config.memory_mb, 
                 my_node_info.earliest_start_ms,
                 my_resource_config.worker_id
             )
             concurrent_demand = _count_concurrent_tasks(
-                resource_key,
+                my_resource_config.memory_mb,
                 my_node_info.earliest_start_ms,
                 node.id.get_full_id()
             )
@@ -565,7 +555,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 my_node_info.task_completion_time_ms += worker_startup_prediction
                 
                 # Register this worker's activity period for future capacity calculations
-                worker_active_periods[resource_key].append((
+                worker_active_periods[my_resource_config.memory_mb].append((
                     my_resource_config.worker_id,
                     my_node_info.earliest_start_ms, 
                     my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
@@ -579,7 +569,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 my_node_info.task_completion_time_ms += worker_startup_prediction
                 
                 # Register this NEW worker's activity period
-                worker_active_periods[resource_key].append((
+                worker_active_periods[my_resource_config.memory_mb].append((
                     my_resource_config.worker_id,
                     my_node_info.earliest_start_ms, 
                     my_node_info.task_completion_time_ms + AbstractDAGPlanner.TIME_UNTIL_WORKER_GOES_COLD_S * 1_000
