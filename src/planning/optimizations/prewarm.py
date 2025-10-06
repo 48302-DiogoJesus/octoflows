@@ -85,7 +85,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 # tasks of this worker OR tasks that start after this worker
                 for o in w["tasks"] if o.earliest_start_ms > my_info["start"] or o.node_ref.worker_config.worker_id == my_info["worker_config"].worker_id
             )
-            if my_info["startup"] < tasks_exec_time * 0.5:
+            if my_info["startup"] <= tasks_exec_time:
                 print(f"Doesn't compensate to prewarm | tasks exec time: {tasks_exec_time / 1000:.2f}s | Worker Startup: {my_info['startup'] / 1000:.2f}s")
                 continue
 
