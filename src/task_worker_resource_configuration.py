@@ -5,14 +5,17 @@ from dataclasses import dataclass, field
 class TaskWorkerResourceConfiguration:
     memory_mb: int
     worker_id: str | None = None
-    cpus: float = field(init=False)
 
-    def __post_init__(self):
+    @property
+    def cpus(self) -> float:
         """
-        Calculate CPUs based on memory using AWS Lambda rules:
-        ~1792 MB = 1 vCPU, max 6 vCPUs, rounded to 2 decimals.
+        AWS Lambda CPU allocation rule:
+        ~1792 MB = 1 vCPU. Max 6 vCPUs.
+        Rounded to 2 decimal places.
         """
-        self.cpus = round(min(self.memory_mb / 1792.0, 6.0), 2)
+        if self.memory_mb == -1: return -1
+        vcpus = self.memory_mb / 1792.0
+        return round(min(vcpus, 6.0), 2)
 
     def clone(self, memory_mb: int | None = None):
         return TaskWorkerResourceConfiguration(

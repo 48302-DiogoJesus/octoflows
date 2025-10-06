@@ -13,7 +13,7 @@ BASE_URL = "http://localhost:5000"  # Update with your server URL
 NUM_REQUESTS = 5
 
 # Sample resource configuration - adjust based on your actual requirements
-SAMPLE_RESOURCE_CONFIG = TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
+SAMPLE_RESOURCE_CONFIG = TaskWorkerResourceConfiguration(memory_mb=512)
 
 # Convert resource config to the expected format
 def get_resource_config() -> str:

@@ -28,6 +28,8 @@
         - Non uniform without optimizations + with optimizations
         - More SLAs (90, 95, 99)
 
+- Don't need to compare cpus, as they are proportional to memory now
+
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task

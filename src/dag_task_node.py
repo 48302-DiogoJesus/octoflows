@@ -49,7 +49,7 @@ class DAGTaskNode:
         # after the DAG is optimized, this will be set to None and the code will be stored in a map on the DAG structure
         self.func_code = func
         self.func_args = args
-        self.worker_config = TaskWorkerResourceConfiguration(cpus=-1, memory_mb=-1, worker_id=None)
+        self.worker_config = TaskWorkerResourceConfiguration(memory_mb=-1, worker_id=None)
         self.func_kwargs = kwargs
         self.downstream_nodes: list[DAGTaskNode] = []
         self.upstream_nodes: list[DAGTaskNode] = []
