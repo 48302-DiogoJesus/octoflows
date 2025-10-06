@@ -68,7 +68,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # - 0.0: earliest possible prewarm (maximum time buffer, safest but worker might go cold)
         # - 0.5: balanced
         # - 1.0: latest possible prewarm (closest to target start, riskier but fresher warm state)
-        PREWARM_TIMING_PREFERENCE = 0.5
+        PREWARM_TIMING_PREFERENCE = 0.4
         # if worker won't be active for more than X seconds, don't prewarm. The value is low (3 seconds because there may be other workers which will reuse this container, making prewarm compensate)
 
         for wid, my_info in worker_timelines.items():
