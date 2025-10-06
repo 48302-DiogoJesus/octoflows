@@ -67,15 +67,7 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-            # UPLOAD SPEEDS
-            # if metrics.output_metrics.tp_time_ms and metrics.output_metrics.serialized_size_bytes != -1: # it can be None if the output was present at the worker, for example
-            #     # Normalize the upload speed based on memory
-            #     self.cached_data_transfer_speeds.append((
-            #         metrics.output_metrics.serialized_size_bytes / metrics.output_metrics.tp_time_ms,
-            #         metrics.output_metrics.serialized_size_bytes,
-            #         metrics.worker_resource_configuration.cpus,
-            #         metrics.worker_resource_configuration.memory_mb
-            #     ))
+            #! UPLOAD SPEEDS are not used as they were distabilizing predictions
 
         worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys)
         for wsm in worker_startup_metrics:
@@ -141,7 +133,6 @@ class PredictionsProvider:
 
     def predict_data_transfer_time(
         self,
-        type: Literal['upload', 'download'],
         data_size_bytes: int,
         resource_config: TaskWorkerResourceConfiguration,
         sla: SLA,
@@ -150,7 +141,6 @@ class PredictionsProvider:
         """Predict data transfer time for upload/download given data size and resources.
         
         Args:
-            type: 'upload' or 'download'
             data_size_bytes: Size of data to transfer in bytes
             resource_config: Worker resource configuration (CPUs + RAM)
             sla: Either "average" for mean prediction or percentile (0-100)
@@ -165,7 +155,7 @@ class PredictionsProvider:
         all_samples = self.cached_data_transfer_speeds
         if len(all_samples) == 0: return 0
         
-        prediction_key = f"{type}-{data_size_bytes}-{resource_config}-{sla}"
+        prediction_key = f"{data_size_bytes}-{resource_config}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_data_transfer_times: 
             return self._cached_prediction_data_transfer_times[prediction_key]
 
@@ -175,22 +165,8 @@ class PredictionsProvider:
             if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
         ]
 
-        # download_k_base = 1
-        # upload_k_base = 1
-
-        prediction_key = ""
         if len(_matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
             matching_samples = self._select_related_samples(data_size_bytes, _matching_samples, sla)
-            # matching_samples = [speed for speed, _ in _matching_samples]
-
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(
-            #     data_size_bytes, 
-            #     [total_bytes for _, total_bytes in _matching_samples], 
-            #     sla, 
-            #     k_base=download_k_base if type == 'download' else upload_k_base,
-            #     alpha=0.5
-            # )
 
             if sla == "average":
                 speed_bytes_per_ms = np.average(matching_samples)
@@ -198,10 +174,9 @@ class PredictionsProvider:
                 speed_bytes_per_ms = np.percentile(matching_samples, sla.value)
             
             if speed_bytes_per_ms <= 0:
-                raise ValueError(f"No data available for {type} or invalid speed data")
+                raise ValueError(f"No data available or invalid speed data")
             
-            res = (data_size_bytes ** 1) / speed_bytes_per_ms
-            # print(f"Time to {type} {data_size_bytes} bytes: {res}ms | exponent: {1}")
+            res = data_size_bytes / speed_bytes_per_ms
         else:
             _baseline_normalized_samples = [
                 (speed * (BASELINE_MEMORY_MB / memory_mb) ** 0.3, total_bytes)
@@ -211,22 +186,16 @@ class PredictionsProvider:
             baseline_normalized_samples = self._select_related_samples(data_size_bytes, _baseline_normalized_samples, sla)
             # baseline_normalized_samples = [speed for speed, _ in _baseline_normalized_samples]
 
-            adaptive_exponent = 1
-            # adaptive_exponent = self._adaptive_scaling_exponent(data_size_bytes, [total_bytes for _, total_bytes in _baseline_normalized_samples], sla, 
-            #     k_base=download_k_base if type == 'download' else upload_k_base,
-            #     alpha=0.5
-            # )
-            
             if sla == "average":
                 baseline_speed_bytes_per_ms = np.average(baseline_normalized_samples)
             else:
                 baseline_speed_bytes_per_ms = np.percentile(baseline_normalized_samples, sla.value)
             
             if baseline_speed_bytes_per_ms <= 0:
-                raise ValueError(f"No data available for {type} or invalid baseline speed data")
+                raise ValueError(f"No data available or invalid baseline speed data")
             
             scaled_speed_bytes_per_ms = baseline_speed_bytes_per_ms * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.3
-            res = (data_size_bytes ** adaptive_exponent) / scaled_speed_bytes_per_ms
+            res = data_size_bytes / scaled_speed_bytes_per_ms
 
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
         return float(res)
@@ -344,26 +313,6 @@ class PredictionsProvider:
         
         self._cached_prediction_execution_times[prediction_key] = float(res)
         return float(res)
-
-    def _adaptive_scaling_exponent(self, value_for_which_to_predict, samples: list[int | float], sla: SLA, k_base=0.8, alpha=0.5):
-        """
-        Compute adaptive scaling exponent for input size prediction.
-
-        Args:
-            value_for_which_to_predict: value to predict for
-            samples: list of sample values used for prediction
-            k_base: nominal power-law exponent
-            alpha: smoothing factor (higher = faster transition to k_base)
-
-        Returns:
-            adaptive exponent (float)
-        """
-        # Use median sample size to reduce outlier influence
-        if sla == "average": S_sample = np.average(samples)
-        else: S_sample = np.percentile(samples, sla.value)
-        ratio = np.abs(np.log(value_for_which_to_predict / S_sample))
-        k_eff = 1 - (1 - k_base) * (1 - np.exp(-alpha * ratio)) # Smoothly interpolate between 1 and k_base
-        return k_eff
 
     def _select_related_samples(self, reference_value: int, all_samples: list[tuple[float, int]], sla: SLA, max_samples = 100, min_samples = 5) -> list[float]:
         """

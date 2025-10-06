@@ -56,32 +56,30 @@ class Worker(ABC):
         """
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
-        if not is_dupping: # if im dupping i shouldn't override my worker id
-            self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.worker_config
-            # To help understand locality decisions afterwards, at the dashboard
-            _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
-            _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
-            self.my_worker_id = my_worker_id
-        
         tasks_executed_by_this_coroutine: list[dag_task_node.DAGTaskNode] = []
         other_coroutines_i_launched = []
 
         branch_id = uuid.uuid4().hex
         try:
             while True:
+                if not is_dupping:
+                    self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.worker_config
+                    # To help understand locality decisions afterwards, at the dashboard
+                    _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
+                    _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
+                    self.my_worker_id = my_worker_id
+                    # not when dupping, otherwise would override our real id by the worker_id assigned to the duppable task
+                    current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
+                    current_task.metrics.started_at_timestamp_s = time.time()
+                    current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
+
                 if self.my_resource_configuration.worker_id is not None:
                     assert self.my_worker_id == self.my_resource_configuration.worker_id
-
 
                 if not await current_task.is_handling.set_if_not_set():
                     # avoid duplicate execution on same worker
                     raise CancelCurrentWorkerLoopException("Task is/was already being handled by this worker on another coroutine. Aborting")
                 
-                if not is_dupping:
-                    # not when dupping, otherwise would override our real id by the worker_id assigned to the duppable task
-                    current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
-                    current_task.metrics.started_at_timestamp_s = time.time()
-                    current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
                 

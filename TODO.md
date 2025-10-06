@@ -18,7 +18,6 @@
             - do nothing, use the existing cold start vs warm start comparison (expect the planner that uses it to have more warm starts)
         - Plot showing the median of counts for each optimization per instance, only for the "opt" planners
 
-
     - Have to RERUN ALL!!
     - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)
         - fix: make preloading happen on separate Thread?
@@ -28,19 +27,15 @@
         - Non uniform without optimizations + with optimizations
         - More SLAs (90, 95, 99)
 
-- Don't need to compare cpus, as they are proportional to memory now
-
 [NEW_ISSUES_FOUND]
 - In the start, planners assign worker ids randomly/first upstream worker id
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
     requires: rethinking order of actions by the planner algorithm
 - [SEMI_BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
-# Where we can be better than WUKONG
-    - On 1-1, it may compensate to swap workers if the second task benefits from running on a stronger worker and it compensates sending the data over the network
-    - On fan-out, clustering tasks that are expected to produce large outputs on the same worker will make fan-ins cheaper, because then, the worker that accumulated the most amount of data can run the fan-in task and avoid sending the data over the network
-
-# Possible extensions/improvements
+# Possible future directions, extensions, and improvements
+    - Don't need to compare cpus, as they are proportional to memory now
+    - Make dynamic library fetching work and efficient
     - improvements to prediction logic
     - make the metrics collection more scalable while not sacrificing predictions
     - supporting dynamic fan-outs
@@ -53,3 +48,4 @@
         CLI program (input (stdin or cli args) => output (stdout))
     - Handle conflicting optimizations that override the same problematic (those that have return values) WEL methods AND have side effects (like delegating stuff inside them)
     - Workflow error handling and presentation to the user
+    - AWS Lambda worker implementation an tests
