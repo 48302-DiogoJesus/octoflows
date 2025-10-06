@@ -13,6 +13,17 @@ from src.planning.wukong_planner import WUKONGPlanner
 import sys
 import os
 
+def cpus_from_memory(memory_mb: int) -> float:
+    """
+    AWS Lambda CPU allocation rule:
+    ~1792 MB = 1 vCPU. Max 6 vCPUs.
+    """
+    vcpus = memory_mb / 1792.0
+    return min(vcpus, 6.0)
+
+def make_resource_config(memory_mb: int) -> TaskWorkerResourceConfiguration:
+    return TaskWorkerResourceConfiguration(cpus=cpus_from_memory(memory_mb), memory_mb=memory_mb)
+
 def get_planner_from_sys_argv():
     supported_planners = ["wukong", "wukong-opt", "uniform", "uniform-opt", "non-uniform", "non-uniform-opt"]
     
@@ -28,19 +39,32 @@ def get_planner_from_sys_argv():
         sys.exit(-1)
 
     is_montage_workflow = script_name == "montage.py"
-    montage_min_worker_resource_config = TaskWorkerResourceConfiguration(cpus=3, memory_mb=8192)
-    min_resources = montage_min_worker_resource_config if is_montage_workflow else TaskWorkerResourceConfiguration(cpus=3, memory_mb=512)
-    avg_resources = TaskWorkerResourceConfiguration(cpus=3, memory_mb=min_resources.memory_mb * 2)
-    non_uniform_resources = [
-        min_resources,
-        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-    ] if is_montage_workflow else [
-        min_resources,
-        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 2),
-        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 4),
-        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 8),
-        min_resources.clone(cpus=min_resources.cpus, memory_mb=min_resources.memory_mb * 16),
-    ]
+
+    montage_min_worker_resource_config = make_resource_config(8192)
+
+    min_resources = (
+        montage_min_worker_resource_config
+        if is_montage_workflow
+        else make_resource_config(512)
+    )
+
+    mid_resources = make_resource_config(min_resources.memory_mb * 4)
+
+    non_uniform_resources = (
+        [
+            min_resources,
+            make_resource_config(min_resources.memory_mb * 2),
+        ]
+        if is_montage_workflow
+        else [
+            min_resources,
+            make_resource_config(min_resources.memory_mb * 2),
+            make_resource_config(min_resources.memory_mb * 4),
+            make_resource_config(min_resources.memory_mb * 8),
+            make_resource_config(min_resources.memory_mb * 16),
+        ]
+    )
+
 
     sla: SLA
     sla_str: str = sys.argv[2]
@@ -55,13 +79,13 @@ def get_planner_from_sys_argv():
     if planner_type == "wukong":
         return WUKONGPlanner.Config(
             sla=sla, # won't be used
-            worker_resource_configurations=[avg_resources],
+            worker_resource_configurations=[mid_resources],
             optimizations=[],
         )
     elif planner_type == "wukong-opt":
         return WUKONGPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[avg_resources],
+            worker_resource_configurations=[mid_resources],
             optimizations=[
                 WukongOptimizations.configured(
                     task_clustering_fan_outs=True, 
@@ -74,13 +98,13 @@ def get_planner_from_sys_argv():
     elif planner_type == "uniform":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[avg_resources],
+            worker_resource_configurations=[mid_resources],
             optimizations=[],
         )
     elif planner_type == "uniform-opt":
         return UniformPlanner.Config(
             sla=sla,
-            worker_resource_configurations=[avg_resources],
+            worker_resource_configurations=[mid_resources],
             optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization],
         )
     elif planner_type == "non-uniform":
