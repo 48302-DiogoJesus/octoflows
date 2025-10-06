@@ -28,6 +28,7 @@ def word_count_chunk(text: str, start: int, end: int) -> int:
 
 @DAGTask
 def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
+    time.sleep(2)
     return sum(counts), text
 
 # --- Single processing task that creates intermediate result ---

@@ -1,9 +1,11 @@
 - Dashboard
     [IMPLEMENTATION]
-        - BUG: not all workflows are storing their metrics
-
-    - Cold starts were not too effective locally, re-check if remote is the same and try adjusing parameters
+    - PREWARM was not used/effective?:
+        ISSUE: prewarm not assigned many times
+            how to force it?
         compare metrics prewarm timestamp vs target tast actual start time to measure effectiveness
+        and adjust parameters accordingly (launch closer to target or farther worker warm time? 8 seconds?)
+            use prewarmmetric.resource_config.worker_id to compare against reality
     
     - Run all experiments on VM
         Only run 4 instances each to begin with

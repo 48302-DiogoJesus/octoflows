@@ -148,9 +148,6 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
                         task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
                         task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
-
-                # if plan_output:
-                #     print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
                     
                 # DAG submission metrics
                 submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -164,6 +161,20 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                 worker_data: Any = metadata_storage_conn.mget(worker_keys)
                 this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
                 worker_startup_metrics.extend(this_workflow_wsm)
+
+                #DEBUG: Understand effectiveness of prewarm
+                for task in tasks:
+                    for om in task.metrics.optimization_metrics:
+                        if not isinstance(om, PreWarmOptimization.OptimizationMetrics): continue
+                        target_worker_id = om.resource_config.worker_id
+                        worker_startup_metrics = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
+                        if not len(worker_startup_metrics): continue
+                        this_worker_startup_metrics = worker_startup_metrics[0]
+                        print(f"worker_start_time-prewarm happened at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
+
+                #DEBUG
+                if plan_output and "opt" in plan_output.planner_name:
+                        print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
 
                 warm_starts_count = len([m for m in this_workflow_wsm if m.state == "warm"])
                 cold_starts_count = len([m for m in this_workflow_wsm if m.state == "cold"])
