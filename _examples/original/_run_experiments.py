@@ -5,13 +5,13 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'gemm.py',
-    'tree_reduction.py',
+    # 'gemm.py',
+    # 'tree_reduction.py',
     'image_transformer.py',
     'text_analysis.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 6
 ALGORITHMS = ['uniform-opt', 'non-uniform-opt'] # testing prewarm
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
 # ALGORITHMS = ['uniform']
