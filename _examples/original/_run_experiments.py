@@ -11,10 +11,10 @@ WORKFLOWS_PATHS = [
     'text_analysis.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 6
 ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
-SLAS = ['50']
-# SLAS = ['50', '75', '90', '99']
+# SLAS = ['50']
+SLAS = ['50', '75', '90']
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
 
