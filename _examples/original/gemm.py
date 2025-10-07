@@ -76,6 +76,6 @@ distributed_result = aggregate_results(partial_results, (matrix_a.shape[0], matr
 # exit()
 
 start_time = time.time()
-distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False)
+distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG, download_result=False, open_dashboard=False)
 print(f"User waited: {time.time() - start_time:.2f}s")
 # print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), distributed_result)}")

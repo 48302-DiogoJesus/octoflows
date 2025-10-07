@@ -1,10 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Analyse remote data regarding non uniform vs uniform
-    - Try heavier gemm to see if it takes longer and then uniform vs non uniform
-    - Run all experiments on VM
-        Run 5 instances of each to begin with on sla 50
-
+    - Analyse remote data
     - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
         to see for example, we have 8% less makespan, while spending 10% more resources
     - Showing Optimizations Impact:
@@ -15,20 +11,8 @@
         - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)
         - Measure the impact of the SLAs in the actual metrics (see if more conservative yeilds better results than optimistic SLAs)
 
-    - Have to RERUN ALL!!
-    - !! optimizations seem to be increasing times (makespan and resource usage for uniform vs uniform w/ opts)
-        - fix: make preloading happen on separate Thread?
-        - Force prewarm to be used! (test on non-uniform)
-    
-    - More variation in workflows
-        - Non uniform without optimizations + with optimizations
-        - More SLAs (90, 95, 99)
-
-[NEW_ISSUES_FOUND]
-- In the start, planners assign worker ids randomly/first upstream worker id
-    this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
-    requires: rethinking order of actions by the planner algorithm
-- [SEMI_BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
+[KNOWN_ISSUES]
+- worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
 
 - move taskdup logic from the docker worker.py to `taskup.on_worker_ready()`
 

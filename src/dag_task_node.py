@@ -119,7 +119,7 @@ class DAGTaskNode:
         }
 
     """ config: worker.Worker.Config """
-    def compute(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False, download_result: bool = False) -> Any:
+    def compute(self, config, dag_name: str = "unnamed-dag", download_result: bool = True, open_dashboard: bool = False) -> Any:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config
@@ -128,7 +128,7 @@ class DAGTaskNode:
         logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
         return asyncio.run(dag_representation.compute(_config, dag_name, open_dashboard, download_result))
 
-    async def compute_async(self, config, dag_name: str = "unnamed-dag", open_dashboard: bool = False, download_result: bool = False) -> Any:
+    async def compute_async(self, config, dag_name: str = "unnamed-dag", download_result: bool = True, open_dashboard: bool = False) -> Any:
         import src.dag.dag as dag
         from src.workers.worker import Worker
         _config: Worker.Config = config

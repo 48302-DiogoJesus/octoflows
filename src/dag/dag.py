@@ -119,7 +119,7 @@ class FullDAG(GenericDAG):
             logger.info(f"[DONE] Uploading {len(tasks)} hardcoded objects...")
         self._hardcoded_data_ids = {} # Free dag space
             
-    async def compute(self, config, dag_name: str, open_dashboard: bool = False, download_result: bool = False):
+    async def compute(self, config, dag_name: str, download_result: bool, open_dashboard: bool = False):
         from src.workers.worker import Worker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.predictions.predictions_provider import PredictionsProvider
