@@ -889,10 +889,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id, this_worker)
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
         _planner: AbstractDAGPlanner = planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task)
+            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
 
     @staticmethod
     async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):

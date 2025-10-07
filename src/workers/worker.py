@@ -81,7 +81,7 @@ class Worker(ABC):
                     raise CancelCurrentWorkerLoopException("Task is/was already being handled by this worker on another coroutine. Aborting")
                 
 
-                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
+                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task, is_dupping)
                 
                 # don't store metrics for dupped tasks
                 if not is_dupping: tasks_executed_by_this_coroutine.append(current_task)

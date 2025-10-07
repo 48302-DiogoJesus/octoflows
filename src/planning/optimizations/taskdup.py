@@ -39,15 +39,15 @@ class TaskDupOptimization(TaskOptimization, WorkerExecutionLogic):
             if node_info.node_ref.try_get_optimization(TaskDupOptimization): 
                 # Skip if node already has TaskDup annotation. Cloud have been added by the user
                 continue
-            node_has_at_least_one_downstream_with_diff_resources = any([dnode.worker_config.worker_id is None or dnode.worker_config.worker_id != node_info.node_ref.worker_config.worker_id for dnode in node_info.node_ref.downstream_nodes])
-            if not node_has_at_least_one_downstream_with_diff_resources: continue
+            node_has_at_least_one_downstream_with_diff_worker = any([dnode.worker_config.worker_id is None or dnode.worker_config.worker_id != node_info.node_ref.worker_config.worker_id for dnode in node_info.node_ref.downstream_nodes])
+            if not node_has_at_least_one_downstream_with_diff_worker: continue
             if len(node_info.node_ref.downstream_nodes) == 0: continue
             node_info.node_ref.add_optimization(TaskDupOptimization())
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage: Storage, subdag: SubDAG, current_task: DAGTaskNode, is_dupping: bool):
         is_duppable = current_task.try_get_optimization(TaskDupOptimization) is not None
-        if is_duppable: await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
+        if is_duppable and not is_dupping: await metadata_storage.set(f"{DUPPABLE_TASK_STARTED_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", time.time())
 
     @staticmethod
     async def wel_override_should_upload_output(planner, current_task, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
