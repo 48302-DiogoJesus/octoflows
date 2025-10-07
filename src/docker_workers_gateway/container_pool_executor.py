@@ -62,7 +62,7 @@ class ContainerPoolExecutor:
             [
                 "docker", "exec", "-i", 
                 "-e", "TZ=UTC-1", 
-                "-e", "LOGS=0",
+                "-e", "LOGS=1",
                 "-e", f"HOST_OS={platform}",
                 container_id, "sh"
             ],
