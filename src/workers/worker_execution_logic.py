@@ -63,6 +63,7 @@ class WorkerExecutionLogic(ABC):
         assert not is_dupping
 
         downstream_tasks_ready: list[DAGTaskNode] = []
+        # contains all downstream tasks that depend on more than one upstream task, or on tasks from other workers (not just this one).
         downstream_tasks_that_depend_on_other_tasks = [dt for dt in _current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
         
         updating_dependency_counters_timer = Timer()

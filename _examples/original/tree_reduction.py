@@ -26,4 +26,4 @@ sink: DAGTaskNode = L[0] # type: ignore
 
 start_time = time.time()
 result = sink.compute(dag_name="tree_reduction", config=WORKER_CONFIG, open_dashboard=False)
-print(f"Result: {result} | User waited: {time.time() - start_time}s")
+print(f"User waited: {time.time() - start_time}s")
