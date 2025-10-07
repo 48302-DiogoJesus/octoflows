@@ -1,6 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - Analyse remote data regarding non uniform vs uniform
+    - Try heavier gemm to see if it takes longer and then uniform vs non uniform
     - Run all experiments on VM
         Run 5 instances of each to begin with on sla 50
 

@@ -26,9 +26,6 @@ def multiply_chunks(a_chunk_with_pos, b_chunk_with_pos):
 
     product = np.matmul(a_chunk, b_chunk)
 
-    # Dummy CPU work
-    _ = np.sum(np.sqrt(np.abs(product)) + np.tanh(product))
-
     return ((i_a, j_b), product)
 
 
@@ -40,16 +37,12 @@ def aggregate_results(partial_results, final_shape):
         rows, cols = value.shape
         result[i:i+rows, j:j+cols] = value
 
-        # Dummy CPU work
-        chunk = result[i:i+rows, j:j+cols]
-        _ = np.sum(np.exp(np.sin(chunk) + np.log1p(np.abs(chunk))))
-
     return result
 
 
-RANDOM_MATRIX_COLS = 1_000
-RANDOM_MATRIX_ROWS = 1_000
-CHUNK_SIZE = 400
+RANDOM_MATRIX_COLS = 2_000
+RANDOM_MATRIX_ROWS = 2_000
+CHUNK_SIZE = 450
 
 def generate_matrices(rows_a, cols_a):
     matrix_a = np.random.randint(1, 10, (rows_a, cols_a))
@@ -79,7 +72,8 @@ print(f"Created {len(partial_results)} partial results in {time.time() - start_t
 
 distributed_result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1]))
 
-# distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
+distributed_result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
+exit()
 
 start_time = time.time()
 distributed_result = distributed_result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False)

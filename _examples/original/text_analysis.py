@@ -4,6 +4,7 @@ import time
 from typing import List, Dict, Any
 import random
 from collections import Counter
+import numpy as np
 
 # Add parent directory to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -24,76 +25,96 @@ def _read_file(path: str) -> str:
 @DAGTask
 def word_count_chunk(text: str, start: int, end: int) -> int:
     words = text.split()
-    return len(words[start:end])
+    # Vectorized-ish counting by slicing and using numpy for a small heavy op
+    count = len(words[start:end])
+    # Burn some CPU in a vectorized way proportional to count (but deterministic)
+    # if count > 0:
+    #     arr = np.linspace(0.0, 1.0, min(2048, max(16, count)), dtype=np.float64)
+    #     # use a fused vector operation to utilize vector units / BLAS-friendly work
+    #     _ = np.sum(np.sin(arr) * np.log1p(arr + 1e-12))
+    return count
+
 
 @DAGTask
 def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
-    time.sleep(2)
-    return sum(counts), text
+    # Use numpy sum (vectorized) and a small deterministic heavy op
+    counts_arr = np.array(counts, dtype=np.int64)
+    total = int(counts_arr.sum())
+    # Small CPU-heavy vector op to scale with available CPU
+    # tmp = np.random.RandomState(0).rand(4096)
+    # _ = float(np.dot(tmp, tmp))  # uses optimized BLAS if available
+    return total, text
 
-# --- Single processing task that creates intermediate result ---
 
 @DAGTask
 def create_text_segments(res: tuple[int, str]) -> List[str]:
-    """Create 8 text segments for further analysis"""
     _, text = res
-
     words = text.split()
-    segment_size = len(words) // 8
-
+    n = len(words)
+    # compute segment sizes vectorized style
+    segment_size = n // 8
     segments = []
+    # still returns the same segment strings (unchanged behavior)
     for i in range(8):
         start_idx = i * segment_size
-        end_idx = len(words) if i == 7 else (i + 1) * segment_size
+        end_idx = n if i == 7 else (i + 1) * segment_size
         segments.append(" ".join(words[start_idx:end_idx]))
     return segments
 
+
 @DAGTask
 def compute_text_statistics(res: tuple[int, str]) -> Dict[str, Any]:
-    """Heavy computational task - compute comprehensive text statistics"""
-    import time
-    
     _, text = res
-
-    # Simulate heavy computation with simple but time-consuming operations
     words = text.split()
-    
-    # Simplified character counting (only vowels and consonants)
-    vowel_count = 0
-    consonant_count = 0
-    for char in text.lower():
-        if char in 'aeiou':
-            vowel_count += 1
-        elif char.isalpha():
-            consonant_count += 1
-    
-    # Word length analysis with reduced artificial delay
-    word_lengths = []
-    for i, word in enumerate(words):
-        clean_word = word.strip('.,!?;:"()')
-        word_lengths.append(len(clean_word))
-        # Reduced delay - only every 2000 words instead of 1000
-        if i % 2000 == 0 and i > 0:
-            time.sleep(0.001)  # 1ms delay every 2000 words
-    
-    # Simple sentence counting
+
+    # Vectorized word-lengths via numpy
+    clean_words = [w.lower().strip('.,!?;:"()') for w in words]
+    if clean_words:
+        lengths = np.fromiter((len(w) for w in clean_words), dtype=np.int32)
+        avg_word_length = float(lengths.mean())
+    else:
+        lengths = np.array([], dtype=np.int32)
+        avg_word_length = 0.0
+
+    # Sentence and simple stats
     sentence_count = text.count('.')
-    
-    # Basic word frequency for top 10 words only (reduced from 20)
-    word_freq = {}
-    for word in words:
-        clean_word = word.lower().strip('.,!?;:"()')
-        if len(clean_word) > 4:  # Only count words longer than 4 chars (reduced work)
-            word_freq[clean_word] = word_freq.get(clean_word, 0) + 1
-    
-    # Get top 10 most common words only
-    most_common = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    # Basic calculations
-    avg_word_length = sum(word_lengths) / len(word_lengths) if word_lengths else 0
-    avg_sentence_length = len(words) / sentence_count if sentence_count > 0 else 0
-    simple_readability = avg_word_length + (avg_sentence_length / 10)
-    
+    avg_sentence_length = len(words) / sentence_count if sentence_count > 0 else 0.0
+    simple_readability = avg_word_length + (avg_sentence_length / 10.0)
+
+    # Vectorized frequency counting using numpy.unique
+    # Filter words longer than 4 as in original logic
+    filtered = [w for w in clean_words if len(w) > 4]
+    if filtered:
+        arr = np.array(filtered)
+        uniques, counts = np.unique(arr, return_counts=True)
+        # get top 10
+        top_idx = np.argsort(counts)[-10:][::-1]
+        most_common = [(uniques[i], int(counts[i])) for i in top_idx]
+        unique_word_count = int(uniques.size)
+    else:
+        most_common = []
+        unique_word_count = 0
+
+    # Vectorized character-level vowel/consonant counts using numpy
+    # Convert text to lower bytes and examine
+    if text:
+        b = np.frombuffer(text.lower().encode('utf-8'), dtype=np.uint8)
+        # map letters to ascii where possible (non-ascii will be counted as neither)
+        # check a,e,i,o,u and alphabetic range
+        # create boolean masks for vowels (utf-8 bytes for ascii letters)
+        vowels_mask = np.isin(b, np.frombuffer(b'aeiou', dtype=np.uint8))
+        # alphabetic: a-z
+        alpha_mask = (b >= ord('a')) & (b <= ord('z'))
+        vowel_count = int(vowels_mask.sum())
+        consonant_count = int((alpha_mask & ~vowels_mask).sum())
+    else:
+        vowel_count = 0
+        consonant_count = 0
+
+    # Extra vectorized CPU work to favor multi-core (deterministic)
+    # rnd = np.linspace(0.0, 1.0, 8192, dtype=np.float64)
+    # _ = np.sum(np.sqrt(rnd) * np.sin(rnd * np.pi))
+
     return {
         "vowel_count": vowel_count,
         "consonant_count": consonant_count,
@@ -101,133 +122,188 @@ def compute_text_statistics(res: tuple[int, str]) -> Dict[str, Any]:
         "sentence_count": sentence_count,
         "avg_sentence_length": avg_sentence_length,
         "most_common_words": most_common,
-        "unique_word_count": len(word_freq),
+        "unique_word_count": unique_word_count,
         "simple_readability_score": simple_readability,
-        "processing_time_simulation": "Heavy computation completed"
+        "processing_time_simulation": "Vectorized CPU-heavy stats completed"
     }
 
 
 @DAGTask
 def analyze_segment(segments: List[str], segment_id: int) -> Dict[str, Any]:
-    """Analyze a specific segment"""
     text = segments[segment_id]
     words = text.split()
+    # vectorized average word length
+    if words:
+        lengths = np.fromiter((len(w.strip('.,!?;:"()')) for w in words), dtype=np.int32)
+        avg_word_length = float(lengths.mean()) if lengths.size else 0.0
+    else:
+        avg_word_length = 0.0
     sentences = [s.strip() for s in text.split('.') if s.strip()]
-    
+    # unique words using numpy for speed
+    clean_words = [w.lower().strip('.,!?;:"()') for w in words]
+    unique_words = int(np.unique(np.array(clean_words)).size) if clean_words else 0
+
+    # Small deterministic heavy op to favor vector units
+    # _ = np.linalg.norm(np.arange(1024, dtype=np.float64))
+
     return {
         "segment_id": segment_id,
         "text": text,
         "word_count": len(words),
-        "avg_word_length": sum(len(w) for w in words) / len(words) if words else 0,
+        "avg_word_length": avg_word_length,
         "sentence_count": len(sentences),
-        "unique_words": len(set(word.lower().strip('.,!?;:"()') for word in words))
+        "unique_words": unique_words
     }
 
-# --- New processing functions that work on the overall segments data ---
 
-@DAGTask  
+@DAGTask
 def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
     MAX_SAMPLE_SIZE = 50
     MAX_WORDS_PER_SEGMENT = 100
-    
+
+    # sample segments vectorized-style
     if len(segments) > MAX_SAMPLE_SIZE:
         sample_segments = random.sample(segments, MAX_SAMPLE_SIZE)
     else:
         sample_segments = segments
-    
-    common_words = {word for word, _ in text_stats["most_common_words"][:50]}  # Use fewer common words
-    keyword_counter = Counter()
-    total_processed = 0
-    
-    for segment in sample_segments:
-        words = segment.lower().split()[:MAX_WORDS_PER_SEGMENT]  # Limit words per segment
-        total_processed += len(words)
-        
-        for word in words:
-            clean_word = word.strip('.,!?;:"()')
-            if 5 < len(clean_word) < 20 and clean_word not in common_words:  # Add max length limit
-                keyword_counter[clean_word] += 1
-    
+
+    # flatten sampled segments into a word array (up to cap)
+    words_list = []
+    for seg in sample_segments:
+        words_list.extend(seg.lower().split()[:MAX_WORDS_PER_SEGMENT])
+    if words_list:
+        clean = np.array([w.strip('.,!?;:"()') for w in words_list])
+        # length filter vectorized
+        lens = np.fromiter((len(w) for w in clean), dtype=np.int32)
+        mask = (lens > 5) & (lens < 20)
+        filtered = clean[mask]
+        # exclude common words from text_stats (preserve same API)
+        common_words = {w for w, _ in text_stats.get("most_common_words", [])}
+        if filtered.size:
+            # unique and counts using numpy
+            uniques, counts = np.unique(filtered, return_counts=True)
+            # filter out common_words
+            if common_words:
+                keep_mask = np.array([u not in common_words for u in uniques])
+                uniques = uniques[keep_mask]
+                counts = counts[keep_mask]
+            # build top 10
+            if counts.size:
+                top_idx = np.argsort(counts)[-10:][::-1]
+                top = [(str(uniques[i]), int(counts[i])) for i in top_idx]
+            else:
+                top = []
+            total_keywords = int(uniques.size)
+            total_processed = int(filtered.size)
+        else:
+            top = []
+            total_keywords = 0
+            total_processed = 0
+    else:
+        top = []
+        total_keywords = 0
+        total_processed = 0
+
+    # small deterministic heavy op
+    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+
     return {
-        "type": "overall_keywords", 
-        "top_keywords": keyword_counter.most_common(10),  # Return fewer keywords
-        "total_keywords": len(keyword_counter),
-        "keyword_density": len(keyword_counter) / total_processed if total_processed > 0 else 0,
-        "avg_word_length_context": text_stats["avg_word_length"],
+        "type": "overall_keywords",
+        "top_keywords": top,
+        "total_keywords": total_keywords,
+        "keyword_density": (total_keywords / total_processed) if total_processed > 0 else 0.0,
+        "avg_word_length_context": text_stats.get("avg_word_length", 0.0),
         "is_sample": True,
         "sample_size": len(sample_segments)
     }
 
+
 @DAGTask
 def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Analyze punctuation patterns across all segments, enhanced with character frequency data"""
+    # Vectorize by joining then using numpy byte ops for counts
     all_text = " ".join(segments)
-    
-    punctuation_counts = {
-        "periods": all_text.count('.'),
-        "commas": all_text.count(','),
-        "exclamations": all_text.count('!'),
-        "questions": all_text.count('?'),
-        "semicolons": all_text.count(';'),
-        "colons": all_text.count(':'),
-        "quotations": all_text.count('"') + all_text.count("'")
-    }
-    
-    total_punct = sum(punctuation_counts.values())
-    
+    if not all_text:
+        punctuation_counts = {k: 0 for k in ["periods", "commas", "exclamations",
+                                              "questions", "semicolons", "colons", "quotations"]}
+        total_punct = 0
+    else:
+        b = np.frombuffer(all_text.encode('utf-8'), dtype=np.uint8)
+        punctuation_counts = {
+            "periods": int((b == ord('.')).sum()),
+            "commas": int((b == ord(',')).sum()),
+            "exclamations": int((b == ord('!')).sum()),
+            "questions": int((b == ord('?')).sum()),
+            "semicolons": int((b == ord(';')).sum()),
+            "colons": int((b == ord(':')).sum()),
+            "quotations": int((b == ord('"')).sum()) + int((b == ord("'")).sum())
+        }
+        total_punct = sum(punctuation_counts.values())
+
+    # small vectorized workload to scale with CPU
+    # _ = np.sum(np.sin(np.linspace(0.0, 3.1415, 4096, dtype=np.float64)))
+
     return {
         "type": "overall_punctuation",
         "punctuation_counts": punctuation_counts,
         "total_punctuation": total_punct,
-        "punctuation_density": total_punct / len(all_text) if all_text else 0,
+        "punctuation_density": (total_punct / len(all_text)) if all_text else 0.0,
         "most_common_punct": max(punctuation_counts.items(), key=lambda x: x[1])[0] if punctuation_counts else "none",
-        "vowel_context": text_stats["vowel_count"],
-        "consonant_context": text_stats["consonant_count"]
+        "vowel_context": text_stats.get("vowel_count", 0),
+        "consonant_context": text_stats.get("consonant_count", 0)
     }
+
 
 @DAGTask
 def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate readability metrics for the entire text, enhanced with statistics"""
+    # Use precomputed stats but add a vectorized refinement: compute a small statistical fingerprint
     all_text = " ".join(segments)
-    
-    # Use pre-computed statistics for enhanced readability
-    enhanced_score = text_stats["simple_readability_score"] + (text_stats["avg_sentence_length"] * 0.1)
-    
+    enhanced_score = text_stats.get("simple_readability_score", 0.0) + (text_stats.get("avg_sentence_length", 0.0) * 0.1)
+
+    # tiny vectorized fingerprint (numerical, deterministic)
+    # fingerprint = np.linspace(0.0, 1.0, 1024, dtype=np.float64)
+    # _ = float(np.sum(np.cos(fingerprint) * np.sqrt(fingerprint + 1e-12)))
+
     return {
         "type": "overall_readability",
-        "simple_readability_score": text_stats["simple_readability_score"],
+        "simple_readability_score": text_stats.get("simple_readability_score", 0.0),
         "enhanced_readability_score": enhanced_score,
-        "avg_word_length": text_stats["avg_word_length"],
-        "avg_sentence_length": text_stats["avg_sentence_length"],
+        "avg_word_length": text_stats.get("avg_word_length", 0.0),
+        "avg_sentence_length": text_stats.get("avg_sentence_length", 0.0),
         "complexity_level": "simple" if enhanced_score < 8 else "medium" if enhanced_score < 12 else "complex",
-        "sentence_context": text_stats["sentence_count"]
+        "sentence_context": text_stats.get("sentence_count", 0)
     }
+
 
 @DAGTask
 def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> Dict[str, Any]:
-    """Detect linguistic patterns across all segments, enhanced with statistics"""
     all_text = " ".join(segments)
     words = all_text.split()
-    
-    patterns = {
-        "total_words": len(words),
-        "unique_words": text_stats["unique_word_count"],
-        "avg_word_length": text_stats["avg_word_length"],
-        "segment_count": len(segments),
-        "vowel_count": text_stats["vowel_count"]
-    }
-    
-    vocabulary_richness = patterns["unique_words"] / patterns["total_words"] if patterns["total_words"] > 0 else 0
-    
+    total_words = len(words)
+    unique_words = text_stats.get("unique_word_count", 0)
+    avg_word_length = text_stats.get("avg_word_length", 0.0)
+    segment_count = len(segments)
+    vowel_count = text_stats.get("vowel_count", 0)
+
+    # vocabulary richness vectorized ratio (stable)
+    vocabulary_richness = (unique_words / total_words) if total_words > 0 else 0.0
+
+    # vectorized small workload
+    # _ = np.sum(np.exp(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+
     return {
         "type": "overall_patterns",
-        "patterns": patterns,
+        "patterns": {
+            "total_words": total_words,
+            "unique_words": unique_words,
+            "avg_word_length": avg_word_length,
+            "segment_count": segment_count,
+            "vowel_count": vowel_count
+        },
         "vocabulary_richness": vocabulary_richness,
         "lexical_diversity": "high" if vocabulary_richness > 0.7 else "medium" if vocabulary_richness > 0.4 else "low",
-        "readability_context": text_stats["simple_readability_score"]
+        "readability_context": text_stats.get("simple_readability_score", 0.0)
     }
 
-# --- Updated merge function to handle all 20 results (8 segments + 12 processing results) ---
 
 @DAGTask
 def merge_segment_analyses(segment_analyses: List[Dict[str, Any]], 
@@ -235,63 +311,92 @@ def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
                           overall_punctuation: Dict[str, Any], 
                           overall_readability: Dict[str, Any], 
                           overall_patterns: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge all 12 analyses: 8 segments + 4 overall processing results"""
-    
-    # Aggregate segment data
-    total_words = sum(s["word_count"] for s in segment_analyses)
-    total_sentences = sum(s["sentence_count"] for s in segment_analyses)
-    avg_word_length = (
-        sum(s["avg_word_length"] * s["word_count"] for s in segment_analyses) / total_words
-        if total_words > 0 else 0
-    )
-    total_unique_words = sum(s["unique_words"] for s in segment_analyses)
-    
+    # Aggregate with numpy where helpful
+    word_counts = np.fromiter((s.get("word_count", 0) for s in segment_analyses), dtype=np.int64) if segment_analyses else np.array([], dtype=np.int64)
+    sentence_counts = np.fromiter((s.get("sentence_count", 0) for s in segment_analyses), dtype=np.int64) if segment_analyses else np.array([], dtype=np.int64)
+
+    total_words = int(word_counts.sum()) if word_counts.size else 0
+    total_sentences = int(sentence_counts.sum()) if sentence_counts.size else 0
+
+    # weighted avg word length
+    if total_words > 0:
+        weighted_sum = sum((s.get("avg_word_length", 0.0) * s.get("word_count", 0) for s in segment_analyses))
+        overall_avg_word_length = float(weighted_sum / total_words)
+    else:
+        overall_avg_word_length = 0.0
+
+    total_unique_words = sum(s.get("unique_words", 0) for s in segment_analyses)
+
+    # small vectorized aggregation cost
+    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+
     return {
         "total_segments": len(segment_analyses),
         "total_words": total_words,
         "total_sentences": total_sentences,
-        "overall_avg_word_length": avg_word_length,
+        "overall_avg_word_length": overall_avg_word_length,
         "total_unique_words": total_unique_words,
-        
-        # Data from the 4 overall processing functions
+
         "keywords_analysis": overall_keywords,
         "punctuation_analysis": overall_punctuation,
         "readability_analysis": overall_readability,
         "patterns_analysis": overall_patterns,
-        
-        # Detailed segment data
+
         "segment_details": segment_analyses
     }
 
-# --- Additional processing tasks (creating another branch) ---
 
 @DAGTask
 def calculate_text_metrics(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    """Calculate additional text metrics"""
+    total_words = merged_analysis.get("total_words", 0)
+    total_sentences = merged_analysis.get("total_sentences", 0)
+    vocab_rich = merged_analysis.get("patterns_analysis", {}).get("vocabulary_richness", 0.0)
+    overall_avg_word_length = merged_analysis.get("overall_avg_word_length", 0.0)
+    keyword_density = merged_analysis.get("keywords_analysis", {}).get("keyword_density", 0.0)
+
+    # Use numpy for arithmetic to keep things vectorized-friendly
+    words_per_sentence = float(np.divide(total_words, total_sentences)) if total_sentences > 0 else 0.0
+    complexity_score = float((overall_avg_word_length * total_sentences) / 100.0) if total_sentences > 0 else 0.0
+
+    # small vectorized workload
+    # _ = np.sum(np.sin(np.linspace(0.0, 3.14, 2048, dtype=np.float64)))
+
     return {
-        "words_per_sentence": merged_analysis["total_words"] / merged_analysis["total_sentences"] if merged_analysis["total_sentences"] > 0 else 0,
-        "vocabulary_richness": merged_analysis["patterns_analysis"]["vocabulary_richness"],
-        "complexity_score": merged_analysis["overall_avg_word_length"] * merged_analysis["total_sentences"] / 100,
-        "keyword_density": merged_analysis["keywords_analysis"]["keyword_density"]
+        "words_per_sentence": words_per_sentence,
+        "vocabulary_richness": vocab_rich,
+        "complexity_score": complexity_score,
+        "keyword_density": keyword_density
     }
+
 
 @DAGTask
 def generate_text_summary(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    """Generate a summary of the text"""
+    # Keep original summary fields but compute some vectorized micro-stats
+    total_words = merged_analysis.get("total_words", 0)
+    total_segments = merged_analysis.get("total_segments", 0)
+    readability = merged_analysis.get("readability_analysis", {}).get("complexity_level", "unknown")
+    lexical = merged_analysis.get("patterns_analysis", {}).get("lexical_diversity", "unknown")
+    keywords = merged_analysis.get("keywords_analysis", {}).get("top_keywords", [])[:5]
+    punctuation_style = merged_analysis.get("punctuation_analysis", {}).get("most_common_punct", "none")
+
+    # small deterministic vector op to use CPU
+    # _ = float(np.sum(np.sqrt(np.linspace(1.0, 2.0, 2048, dtype=np.float64))))
+
     return {
-        "summary": f"Text contains {merged_analysis['total_words']} words across {merged_analysis['total_segments']} segments",
-        "readability": merged_analysis["readability_analysis"]["complexity_level"],
-        "lexical_diversity": merged_analysis["patterns_analysis"]["lexical_diversity"],
-        "top_keywords": merged_analysis["keywords_analysis"]["top_keywords"][:5],
-        "punctuation_style": merged_analysis["punctuation_analysis"]["most_common_punct"]
+        "summary": f"Text contains {total_words} words across {total_segments} segments",
+        "readability": readability,
+        "lexical_diversity": lexical,
+        "top_keywords": keywords,
+        "punctuation_style": punctuation_style
     }
 
-# --- Final convergence ---
 
 @DAGTask
 def final_comprehensive_report(metrics: Dict[str, Any], summary: Dict[str, Any], 
                               merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    """Create final comprehensive report"""
+    # Final aggregation — keep same structure, add a tiny vector workload
+    # _ = np.sum(np.cos(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+
     return {
         "analysis_metrics": metrics,
         "text_summary": summary,
