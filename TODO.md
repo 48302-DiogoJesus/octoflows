@@ -4,8 +4,8 @@
         Only run 4 instances of each to begin with on sla 50
 
     - Showing Optimizations Impact:
-        - Compare all metrics of workflows with different counts of each optimization
-        - PreLoad
+        - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)
+            PreLoad
             MEASURE
             - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
         - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)

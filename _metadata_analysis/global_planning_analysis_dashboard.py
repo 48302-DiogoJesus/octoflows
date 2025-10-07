@@ -182,12 +182,16 @@ def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[
                         worker_startup_metrics = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
                         if not len(worker_startup_metrics): continue
                         this_worker_startup_metrics = worker_startup_metrics[0]
-                        if plan_output:
-                            print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
+                        # if plan_output:
+                        #     print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
 
                 #DEBUG
                 if plan_output and "opt" in plan_output.planner_name:
-                    print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {sum([t.optimization_task_dups_done for t in tasks])} | Preloads: {sum([t.optimization_preloads_done for t in tasks])} | Prewarms: {sum([t.optimization_prewarms_done for t in tasks])}")
+                    dups = sum([t.optimization_task_dups_done for t in tasks])
+                    preloads = sum([t.optimization_preloads_done for t in tasks])
+                    prewarm = sum([t.optimization_prewarms_done for t in tasks])
+                    # if dups != 0 or preloads != 0:
+                    #     print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {dups} | Preloads: {preloads} | Prewarms: {prewarm}")
 
                 warm_starts_count = len([m for m in this_workflow_wsm if m.state == "warm"])
                 cold_starts_count = len([m for m in this_workflow_wsm if m.state == "cold"])

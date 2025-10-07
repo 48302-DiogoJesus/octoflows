@@ -15,8 +15,8 @@ ITERATIONS_PER_ALGORITHM = 3
 # ALGORITHMS = ['uniform-opt'] # testing prewarm
 ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
 # ALGORITHMS = ['uniform']
-# SLAS = ['50', '75', '90', '95', '99']
-SLAS = ['50']
+# SLAS = ['50', '75', '90', '99']
+SLAS = ['75']
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
 
