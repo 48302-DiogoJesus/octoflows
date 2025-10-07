@@ -160,7 +160,6 @@ class FullDAG(GenericDAG):
                 raise Exception("Can't use dashboard when using in-memory storage!")
             vis.DAGVisualizationDashboard.start(self, _wk_config)
         
-        logger.info(f"Invoking {len(self.root_nodes)} initial workers...")
         _start_time = Timer()
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
         await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))

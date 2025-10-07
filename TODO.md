@@ -1,8 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Comment code that generates plan image on abstract_dag_planner.py
-
-    - Delete VM experiments
+    - Analyse remote data regarding non uniform vs uniform
     - Run all experiments on VM
         Run 5 instances of each to begin with on sla 50
 
