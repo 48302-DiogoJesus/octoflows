@@ -26,7 +26,7 @@ class PreLoadOptimization(TaskOptimization):
     class OptimizationMetrics(TaskOptimizationMetrics):
         preloaded: DAGTaskNodeId
 
-    MIN_DEPENDENCIES_TO_APPLY_OPTIMIZATION = 5
+    MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION = 4
 
     # for upstream tasks
     preloading_subscription_ids: dict[str, str] = field(default_factory=dict) # dependent task + upstream task -> subscription id
@@ -46,13 +46,7 @@ class PreLoadOptimization(TaskOptimization):
         _planner: AbstractDAGPlanner = planner
         _predictions_provider: PredictionsProvider = predictions_provider
         iteration = 0
-
-        for node in topo_sorted_nodes:
-            if len([
-                n for n in node.upstream_nodes if n.worker_config.worker_id != node.worker_config.worker_id or n.worker_config.worker_id is None
-                ]) >= PreLoadOptimization.MIN_DEPENDENCIES_TO_APPLY_OPTIMIZATION:
-                node.add_optimization(PreLoadOptimization())
-
+        
         while True:
             iteration += 1
             
@@ -66,7 +60,7 @@ class PreLoadOptimization(TaskOptimization):
             # Try to optimize nodes in the current critical path with PreLoad
             nodes_optimized_this_iteration = 0
             
-            for node in critical_path_nodes:
+            for node in topo_sorted_nodes:
                 if node.try_get_optimization(PreLoadOptimization): 
                     # Skip if node already has PreLoad annotation. Either added by this planner or the user
                     continue 
@@ -74,8 +68,8 @@ class PreLoadOptimization(TaskOptimization):
                 resource_config: TaskWorkerResourceConfiguration = node.worker_config
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
-                # Only apply preload to nodes that depend on > 1 tasks AND at least 1 of them is from different worker id
-                if len(node.upstream_nodes) == 0 or len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) == 0:
+                # Only apply preload to nodes that depend on at least {MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION} external tasks
+                if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) <= PreLoadOptimization.MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION:
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")

@@ -50,7 +50,7 @@ def get_planner_from_sys_argv():
             TaskWorkerResourceConfiguration(min_resources.memory_mb * 2),
             TaskWorkerResourceConfiguration(min_resources.memory_mb * 4),
             TaskWorkerResourceConfiguration(min_resources.memory_mb * 8),
-            TaskWorkerResourceConfiguration(min_resources.memory_mb * 16),
+            TaskWorkerResourceConfiguration(min_resources.memory_mb * 16), # 8GB
         ]
     )
 

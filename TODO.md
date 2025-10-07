@@ -1,7 +1,14 @@
 - Dashboard
     [IMPLEMENTATION]
+    - Debug the non-uniform worker assignments and look for inneficiencies (looking at the plan image)
+    - Compare results of:
+        - Change config.py to make the weakest config be mid (2GB)
+
+    - Comment code that generates plan image on abstract_dag_planner.py
+
+    - Delete VM experiments
     - Run all experiments on VM
-        Only run 4 instances of each to begin with on sla 50
+        Run 5 instances of each to begin with on sla 50
 
     - Showing Optimizations Impact:
         - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)
@@ -25,6 +32,8 @@
     this is not optimal: for example, if task is on critical path it should have priority to use the same worker id as the CP upstream task
     requires: rethinking order of actions by the planner algorithm
 - [SEMI_BAD] worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
+
+- move taskdup logic from the docker worker.py to `taskup.on_worker_ready()`
 
 # Possible future directions, extensions, and improvements
     - Don't need to compare cpus, as they are proportional to memory now
