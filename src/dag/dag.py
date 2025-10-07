@@ -119,7 +119,7 @@ class FullDAG(GenericDAG):
             logger.info(f"[DONE] Uploading {len(tasks)} hardcoded objects...")
         self._hardcoded_data_ids = {} # Free dag space
             
-    async def compute(self, config, dag_name: str, open_dashboard: bool = False):
+    async def compute(self, config, dag_name: str, open_dashboard: bool = False, download_result: bool = False):
         from src.workers.worker import Worker
         from src.storage.in_memory_storage import InMemoryStorage
         from src.planning.predictions.predictions_provider import PredictionsProvider
@@ -170,7 +170,8 @@ class FullDAG(GenericDAG):
             wk.intermediate_storage,
             self.sink_node,
             self,
-            _start_time
+            _start_time,
+            download_result
         )
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {total_time_ms / 1000:.2f} s")
 

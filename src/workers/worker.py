@@ -343,7 +343,7 @@ class Worker(ABC):
         return (calculate_data_structure_size_bytes(serialized_dag), deserialized_dag)
 
     @staticmethod
-    async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, timer: Timer) -> tuple[Any, float]:
+    async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, timer: Timer, download_result: bool = False) -> tuple[Any, float]:
         # Poll Storage for final result. Asynchronous wait
         channel = f"{TASK_COMPLETED_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
         # Use an event to signal when we've received our message
@@ -360,14 +360,16 @@ class Worker(ABC):
         try:
             await message_received.wait()
             time_of_final_notification = timer.stop()
-
-            final_task_id = task.id.get_full_id_in_dag(dag)
-            final_result = await intermediate_storage.get(final_task_id)
-            if final_result is not None:
-                final_result = cloudpickle.loads(final_result) # type: ignore
-                return (final_result, time_of_final_notification)
+            if download_result:
+                final_task_id = task.id.get_full_id_in_dag(dag)
+                final_result = await intermediate_storage.get(final_task_id)
+                if final_result is not None:
+                    final_result = cloudpickle.loads(final_result) # type: ignore
+                    return (final_result, time_of_final_notification)
+                else:
+                    return (None, time_of_final_notification)
             else:
-                return (None, -1)
+                return (None, time_of_final_notification)
         finally:
             await metadata_storage.unsubscribe(channel, None)
 

@@ -259,9 +259,8 @@ def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any
     all_text = " ".join(segments)
     enhanced_score = text_stats.get("simple_readability_score", 0.0) + (text_stats.get("avg_sentence_length", 0.0) * 0.1)
 
-    # tiny vectorized fingerprint (numerical, deterministic)
-    # fingerprint = np.linspace(0.0, 1.0, 1024, dtype=np.float64)
-    # _ = float(np.sum(np.cos(fingerprint) * np.sqrt(fingerprint + 1e-12)))
+    # Consume time using CPU, more CPU = faster
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "type": "overall_readability",
@@ -287,8 +286,8 @@ def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> 
     # vocabulary richness vectorized ratio (stable)
     vocabulary_richness = (unique_words / total_words) if total_words > 0 else 0.0
 
-    # vectorized small workload
-    # _ = np.sum(np.exp(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    # Consume time using CPU, more CPU = faster
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "type": "overall_patterns",
@@ -327,8 +326,8 @@ def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
 
     total_unique_words = sum(s.get("unique_words", 0) for s in segment_analyses)
 
-    # small vectorized aggregation cost
-    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    # Consume time using CPU, more CPU = faster
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "total_segments": len(segment_analyses),
@@ -358,8 +357,8 @@ def calculate_text_metrics(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
     words_per_sentence = float(np.divide(total_words, total_sentences)) if total_sentences > 0 else 0.0
     complexity_score = float((overall_avg_word_length * total_sentences) / 100.0) if total_sentences > 0 else 0.0
 
-    # small vectorized workload
-    # _ = np.sum(np.sin(np.linspace(0.0, 3.14, 2048, dtype=np.float64)))
+    # Consume time using CPU, more CPU = faster
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "words_per_sentence": words_per_sentence,
@@ -379,9 +378,6 @@ def generate_text_summary(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
     keywords = merged_analysis.get("keywords_analysis", {}).get("top_keywords", [])[:5]
     punctuation_style = merged_analysis.get("punctuation_analysis", {}).get("most_common_punct", "none")
 
-    # small deterministic vector op to use CPU
-    # _ = float(np.sum(np.sqrt(np.linspace(1.0, 2.0, 2048, dtype=np.float64))))
-
     return {
         "summary": f"Text contains {total_words} words across {total_segments} segments",
         "readability": readability,
@@ -394,8 +390,6 @@ def generate_text_summary(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
 @DAGTask
 def final_comprehensive_report(metrics: Dict[str, Any], summary: Dict[str, Any], 
                               merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    # Final aggregation — keep same structure, add a tiny vector workload
-    # _ = np.sum(np.cos(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "analysis_metrics": metrics,
