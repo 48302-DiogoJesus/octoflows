@@ -54,7 +54,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         
         # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        self._basic_worker_id_assignment(dag, predictions_provider, best_resource_config, topo_sorted_nodes)
+        self._basic_worker_id_assignment(dag, predictions_provider, self.config.worker_resource_configurations[-1], topo_sorted_nodes)
 
         # Calculate initial critical path with best resources
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)

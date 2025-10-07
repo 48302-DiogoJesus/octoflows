@@ -37,7 +37,7 @@ def get_planner_from_sys_argv():
         else TaskWorkerResourceConfiguration(512)
     )
 
-    mid_resources = TaskWorkerResourceConfiguration(min_resources.memory_mb * 4)
+    mid_resources = TaskWorkerResourceConfiguration(min_resources.memory_mb * 4) # 2GB
 
     non_uniform_resources = (
         [
@@ -46,9 +46,7 @@ def get_planner_from_sys_argv():
         ]
         if is_montage_workflow
         else [
-            min_resources,
-            TaskWorkerResourceConfiguration(min_resources.memory_mb * 2),
-            TaskWorkerResourceConfiguration(min_resources.memory_mb * 4),
+            mid_resources, # worst resource config possible is the same that uniform planners and WUKONG use
             TaskWorkerResourceConfiguration(min_resources.memory_mb * 8),
             TaskWorkerResourceConfiguration(min_resources.memory_mb * 16), # 8GB
         ]

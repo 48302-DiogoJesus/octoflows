@@ -21,21 +21,31 @@ def create_matrix_chunks(matrix, row_chunk_size=1, col_chunk_size=1):
 
 @DAGTask
 def multiply_chunks(a_chunk_with_pos, b_chunk_with_pos):
-    """Multiply two matrix chunks and return result with position"""
     (i_a, _), a_chunk = a_chunk_with_pos
     (_, j_b), b_chunk = b_chunk_with_pos
+
     product = np.matmul(a_chunk, b_chunk)
+
+    # Dummy CPU work
+    _ = np.sum(np.sqrt(np.abs(product)) + np.tanh(product))
+
     return ((i_a, j_b), product)
+
 
 @DAGTask
 def aggregate_results(partial_results, final_shape):
-    """Combine all partial results into final matrix"""
     result = np.zeros(final_shape)
     for position, value in partial_results:
         i, j = position
         rows, cols = value.shape
         result[i:i+rows, j:j+cols] = value
+
+        # Dummy CPU work
+        chunk = result[i:i+rows, j:j+cols]
+        _ = np.sum(np.exp(np.sin(chunk) + np.log1p(np.abs(chunk))))
+
     return result
+
 
 RANDOM_MATRIX_COLS = 1_000
 RANDOM_MATRIX_ROWS = 1_000

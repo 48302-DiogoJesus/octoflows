@@ -10,6 +10,8 @@
     - Run all experiments on VM
         Run 5 instances of each to begin with on sla 50
 
+    - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
+        to see for example, we have 8% less makespan, while spending 10% more resources
     - Showing Optimizations Impact:
         - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)
             PreLoad

@@ -831,6 +831,7 @@ def main():
                     actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                     actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
                     actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                    actual_unique_workers_count = len(set([task.metrics.worker_resource_configuration.worker_id for task in instance.tasks if task.metrics.worker_resource_configuration.worker_id is not None]))
 
                     # Get predicted metrics
                     predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0
@@ -866,6 +867,7 @@ def main():
                             'output_size_predicted': predicted_output_size,
                             'worker_startup_time_actual': actual_worker_startup_time_s,
                             'worker_startup_time_predicted': predicted_worker_startup_time_s,
+                            'actual_unique_workers_count': actual_unique_workers_count
                         })
 
                 # Calculate averages for each planner
@@ -905,6 +907,10 @@ def main():
                             'actual': np.median([m['worker_startup_time_actual'] for m in planner_data]),
                             'predicted': np.median([m['worker_startup_time_predicted'] for m in planner_data])
                         },
+                        'Workers Count': {
+                            'actual': np.median([m['actual_unique_workers_count'] for m in planner_data]),
+                            'predicted': np.median([m['actual_unique_workers_count'] for m in planner_data])
+                        }
                     }
                 
                 # Create a dropdown to select planner
