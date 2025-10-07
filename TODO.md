@@ -1,9 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Debug the non-uniform worker assignments and look for inneficiencies (looking at the plan image)
-    - Compare results of:
-        - Change config.py to make the weakest config be mid (2GB)
-
     - Comment code that generates plan image on abstract_dag_planner.py
 
     - Delete VM experiments
