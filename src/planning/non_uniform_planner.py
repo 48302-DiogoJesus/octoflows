@@ -50,11 +50,13 @@ class NonUniformPlanner(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return None
         
-        best_resource_config = self.config.worker_resource_configurations[0]
-        
         # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         self._basic_worker_id_assignment(dag, predictions_provider, self.config.worker_resource_configurations[-1], topo_sorted_nodes)
+        
+        best_resource_config = self.config.worker_resource_configurations[0]
+        for node in topo_sorted_nodes:
+            node.worker_config.memory_mb = best_resource_config.memory_mb
 
         # Calculate initial critical path with best resources
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
