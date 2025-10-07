@@ -76,7 +76,7 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
         cmd = [sys.executable, full_script_path, algorithm, sla]
 
     percentage = (current / total) * 100 if total > 0 else 0
-    print(f" > [{percentage:5.1f}%] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}) [{current}/{total}]")
+    print(f" > [{percentage:5.1f}%] [failed_instances:{failed_instances}] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}) [{current}/{total}]")
 
     try:
         subprocess.run(cmd, check=True, cwd=script_dir, timeout=120)
