@@ -33,7 +33,7 @@ c3 = c(b1)
 b2 = b([c1, c2, c3])
 c4 = c(b2)
 
-# c4.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "fanoutsfanins"), open_after=True)
+c4.visualize_dag(output_file=os.path.join("..", "_dag_visualization", "fanoutsfanins"), open_after=True)
 
 start_time = time.time()
 result = c4.compute(dag_name="fanoutsfanins", config=WORKER_CONFIG)
