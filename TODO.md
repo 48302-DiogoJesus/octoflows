@@ -1,8 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
-        to see for example, we have 8% less makespan, while spending 10% more resources
-    - ensure all makespans are being calculated consistently
     - check out task.optimization_prewarms_successful anbd compare to the .done to
 
     - Analyse remote data
