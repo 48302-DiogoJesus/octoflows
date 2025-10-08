@@ -11,11 +11,11 @@ WORKFLOWS_PATHS = [
     'gemm.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 6
+ITERATIONS_PER_ALGORITHM = 3
 ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
-SLAS = ['50', '75', '90']
+SLAS = ['50']
+# SLAS = ['50', '75', '90']
 # ALGORITHMS = ['non-uniform-opt', 'uniform-opt']
-# SLAS = ['50']
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
 
