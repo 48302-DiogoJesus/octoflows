@@ -1,13 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Analyse remote data
     - Showing Optimizations Impact:
-        - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)
-            PreLoad
-            MEASURE
-            - compare the start times of all tasks with preload optimization that have non-empty `TaskOptimizationMetrics.preloaded` VERSUS planners that don't use this optimization (start times should be lower/earlier)
         - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)
         - Measure the impact of the SLAs in the actual metrics (see if more conservative yeilds better results than optimistic SLAs)
+    - Analyse remote data
 
 [KNOWN_ISSUES]
 - worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time

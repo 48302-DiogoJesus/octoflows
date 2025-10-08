@@ -1372,9 +1372,15 @@ async def main():
                 # Convert metrics_data to DataFrame
                 df_metrics = pd.DataFrame(metrics_data)
 
+                # Sort DataFrame alphabetically by Metric
+                df_metrics = df_metrics.sort_values(by='Metric', key=lambda col: col.str.lower())
+
+                # Get sorted list of metric names
+                sorted_metrics = df_metrics['Metric'].unique()
+
                 # Create a list of (df_for_metric, metric_name) for each metric
                 all_metrics_to_plot = []
-                for metric in df_metrics['Metric'].unique():
+                for metric in sorted_metrics:
                     df_metric = df_metrics[df_metrics['Metric'] == metric]
                     all_metrics_to_plot.append((df_metric, metric))
 
