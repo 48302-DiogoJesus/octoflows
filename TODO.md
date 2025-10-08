@@ -1,11 +1,10 @@
 - Dashboard
     [IMPLEMENTATION]
-    - DASHBOARD: ensure that planners are sorted on all graphs (n u w)
-    - DASHBOARD: Fix name of chart "median absolute relative error" + make it separe prediction errors by sla, on bars side by side
-    - DASHBOARD: make "actual vs predicted" bar chart separe prediction errors by sla, on bars side by side
     - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
         to see for example, we have 8% less makespan, while spending 10% more resources
-        
+    - ensure all makespans are being calculated consistently
+    - check out task.optimization_prewarms_successful anbd compare to the .done to
+
     - Analyse remote data
     - Showing Optimizations Impact:
         - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)

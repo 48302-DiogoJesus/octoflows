@@ -1,4 +1,5 @@
-import math
+import seaborn as sns
+import matplotlib.pyplot as plt
 import plotly.subplots as sp
 import plotly.graph_objects as go
 import streamlit as st
@@ -248,6 +249,17 @@ async def get_workflows_information(
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(
                     submission_data
                 )
+
+                #* DEBUG
+                # for task in tasks:
+                #     for om in task.metrics.optimization_metrics:
+                #         if not isinstance(om, PreWarmOptimization.OptimizationMetrics): continue
+                #         target_worker_id = om.resource_config.worker_id
+                #         wsm = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
+                #         if not len(wsm): continue
+                #         this_worker_startup_metrics = wsm[0]
+                #         if plan_output:
+                #             print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
 
                 warm_starts_count = len(
                     [m for m in this_workflow_wsm if m.state == "warm"]
@@ -1528,8 +1540,6 @@ async def main():
             for instance in workflow_types[selected_workflow].instances:
                 if not instance.plan or not instance.tasks: continue
 
-                if "wukong" in instance.plan.planner_name.lower(): continue
-                
                 planner = instance.plan.planner_name if instance.plan else 'Unknown'
                 if planner not in planner_metrics:
                     # store lists to compute median later
@@ -1815,7 +1825,6 @@ async def main():
                     'Value': instance.resource_usage_cost
                 })
 
-
             ######## Network I/O
             df_network = pd.DataFrame(network_data)
 
@@ -1883,6 +1892,92 @@ async def main():
                 # Move to a new row after 2 plots
                 if i % 2 == 1:
                     cols = st.columns(2)
+
+            ##########
+            data = []
+            for wf_name, wf_info in workflow_types.items():
+                for instance in wf_info.instances:
+                    planner_name = instance.plan.planner_name if instance.plan else "unknown"
+
+                    if "opt" not in planner_name.lower() and "uniform" in planner_name.lower():
+                        sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                        sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
+                        actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                        ru = instance.resource_usage
+                        data.append({
+                            "workflow": wf_name,
+                            "makespan": actual_makespan_s,
+                            "planner": planner_name,
+                            "run_time_seconds": ru.run_time_seconds,
+                            "cpu_seconds": ru.cpu_seconds,
+                            "memory_gb": ru.memory_bytes / 1024 / 1024 / 1024
+                        })
+
+            df = pd.DataFrame(data)
+
+            # Sort planner names alphabetically
+            sorted_planners = sorted(df["planner"].unique())
+
+            # Calculate median for each planner and metric
+            df_summary = df.groupby("planner").agg({
+                "makespan": "median",
+                "run_time_seconds": "median",
+                "cpu_seconds": "median",
+                "memory_gb": "median"
+            }).reset_index()
+
+            # Melt DataFrame to have metrics as a single column
+            df_melted = df_summary.melt(
+                id_vars=["planner"],
+                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"],
+                var_name="metric",
+                value_name="value"
+            )
+
+            # Calculate percentage difference relative to the best (minimum) planner for each metric
+            df_melted['min_value'] = df_melted.groupby('metric')['value'].transform('min')
+            df_melted['pct_diff'] = ((df_melted['value'] - df_melted['min_value']) / df_melted['min_value'] * 100)
+
+            # Create text labels with both absolute value and percentage difference
+            df_melted['text_label'] = df_melted.apply(
+                lambda row: f"{row['value']:.2f}<br>(+{row['pct_diff']:.1f}%)" if row['pct_diff'] > 0 else f"{row['value']:.2f}<br>(baseline)",
+                axis=1
+            )
+
+            # Create a grouped bar chart
+            fig = px.bar(
+                df_melted,
+                x="metric",
+                y="value",
+                color="planner",
+                barmode="group",
+                text="text_label",
+                category_orders={"planner": sorted_planners},
+                labels={
+                    "metric": "Metric",
+                    "value": "Median Value",
+                    "planner": "Planner"
+                },
+                title="Makespan vs Resource Usage (Planners: Uniform and Non-Uniform)"
+            )
+
+            # Layout improvements
+            fig.update_layout(
+                xaxis_title="Metric",
+                yaxis_title="Median Value (log scale)",
+                height=600,
+                legend_title="Planner",
+                xaxis={
+                    "categoryorder": "array",
+                    "categoryarray": ["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"]
+                }
+            )
+
+            fig.update_traces(textposition='outside', textangle=0)
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            #############
 
             planner_start_stats = []
             for instance in workflow_types[selected_workflow].instances:

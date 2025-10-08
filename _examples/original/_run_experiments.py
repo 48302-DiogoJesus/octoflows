@@ -5,15 +5,15 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'tree_reduction.py',
-    'gemm.py',
     'image_transformer.py',
     'text_analysis.py',
+    'tree_reduction.py',
+    'gemm.py',
 ]
 
 ITERATIONS_PER_ALGORITHM = 6
 # ALGORITHMS = ['non-uniform-opt']
-ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
+ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt', 'wukong', 'wukong-opt']
 SLAS = ['50', '75', '90']
 
 DOCKER_FAAS_GATEWAY_IP = "localhost"
