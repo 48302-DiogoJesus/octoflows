@@ -120,9 +120,10 @@ async def get_workflows_information(
                     ].task_completion_time_ms
                     / 1000
                 )
+                # Accept bad predictions for wukong but not us (because its normal on wukong, since we don't use the predictions)
                 if predicted_makespan_s > 500:
                     print(
-                        f"Discard workflow with predicted makespan of {predicted_makespan_s}"
+                        f"{dag.dag_name} | planner: {plan_output.planner_name} | Discard workflow with predicted makespan of {predicted_makespan_s}"
                     )
                     return None
 
