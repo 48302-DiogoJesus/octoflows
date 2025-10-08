@@ -1,7 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - check out task.optimization_prewarms_successful anbd compare to the .done to
-
     - Analyse remote data
     - Showing Optimizations Impact:
         - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)

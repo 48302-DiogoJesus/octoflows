@@ -120,7 +120,7 @@ class DockerContainerUsageMonitor:
                 total_cpu_seconds += num_cpus * runtime
 
         # Weighted cost: CPU seconds * memory GB-seconds
-        total_cost = total_cpus * total_cpu_seconds * (total_memory_bytes / (1024**3))
+        total_cost = total_cpu_seconds * (total_memory_bytes / (1024**3))
 
         return DAGResourceUsageMetrics(
             master_dag_id=dag_id,

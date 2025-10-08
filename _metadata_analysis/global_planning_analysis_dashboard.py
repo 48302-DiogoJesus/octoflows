@@ -63,7 +63,6 @@ class WorkflowInstanceInfo:
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
     resource_usage: DAGResourceUsageMetrics
-    resource_usage_cost: float
     total_transferred_data_bytes: int
     total_inputs_downloaded_bytes: float
     total_outputs_uploaded_bytes: float
@@ -284,6 +283,8 @@ async def get_workflows_information(
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(
                     resource_usage_data
                 )
+                # AWS-like calculation: GB-s, but scaled down for easier comparison
+                resource_usage.cost = (resource_usage.cpu_seconds * (resource_usage.memory_bytes / (1024**3))) / 1000
 
                 total_transferred_data_bytes = (
                     total_inputs_downloaded + total_outputs_uploaded
@@ -302,7 +303,6 @@ async def get_workflows_information(
                     total_workers,
                     tasks,
                     resource_usage,
-                    resource_usage.cost,
                     total_transferred_data_bytes,
                     total_inputs_downloaded,
                     total_outputs_uploaded,
@@ -381,7 +381,9 @@ async def main():
         print(f"Time to load workflow information: {(timer.stop() / 1_000):.2f} s")
     
     workflow_types = st.session_state.workflow_types
-    
+
+    all_resource_usages = []
+
     if not workflow_types:
         st.warning("No DAGs found in Redis")
         st.stop()
@@ -590,7 +592,7 @@ async def main():
             'Run Time': f"{instance.resource_usage.run_time_seconds:.2f}",
             'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
             'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.2f} GB",
-            'Resources Cost': f"{instance.resource_usage_cost:.2f}",
+            'Resources Cost': f"{instance.resource_usage.cost:.2f}",
             'Warm/Cold Starts': f"{instance.warm_starts_count}/{instance.cold_starts_count}",
             '_actual_worker_startup': actual_total_worker_startup_time_s,
             '_actual_invocation': actual_invocation,
@@ -1347,7 +1349,7 @@ async def main():
                     ),
                     'Total Data Transferred': instance.total_transferred_data_bytes,
                     'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                    'Resource Usage': instance.resource_usage_cost,
+                    'Resource Usage': instance.resource_usage.cost,
                     'Total Prewarms': total_prewarms,
                     'Total Preloads': total_preloads,
                     'Total TaskDups': total_taskdups
@@ -1598,7 +1600,7 @@ async def main():
                 ))
                 metrics['total_time_waiting_for_inputs'].append(total_time_waiting_for_inputs_s)
                 metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
-                metrics['resource_usage'].append(instance.resource_usage_cost)
+                metrics['resource_usage'].append(instance.resource_usage.cost)
                 metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
                 metrics['data_size_downloaded'].append(sum(
                     sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
@@ -1783,6 +1785,98 @@ async def main():
             )
             st.plotly_chart(fig_taskdup, use_container_width=True)
 
+            # Collect prewarm data
+            prewarm_data = []
+
+            for wf_name, wf_info in workflow_types.items():
+                if wf_name == "All":
+                    continue
+                
+                for instance in wf_info.instances:
+                    if not instance.plan:
+                        continue
+                    
+                    planner_name = instance.plan.planner_name.lower()
+                    
+                    # Count prewarms for this instance
+                    total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
+                    successful_prewarms = sum(task.optimization_prewarms_successful for task in instance.tasks)
+                    
+                    if total_prewarms > 0:
+                        prewarm_data.append({
+                            'workflow': wf_name,
+                            'planner': planner_name,
+                            'total_prewarms': total_prewarms,
+                            'successful_prewarms': successful_prewarms,
+                            'failed_prewarms': total_prewarms - successful_prewarms,
+                            'success_rate': (successful_prewarms / total_prewarms * 100)
+                        })
+
+            if prewarm_data:
+                df = pd.DataFrame(prewarm_data)
+                
+                # Sort planners alphabetically
+                sorted_planners = sorted(df['planner'].unique())
+                
+                # Calculate summary statistics per planner
+                summary = df.groupby('planner').agg({
+                    'total_prewarms': 'sum',
+                    'successful_prewarms': 'sum',
+                    'failed_prewarms': 'sum'
+                }).reset_index()
+                
+                summary['success_rate'] = (summary['successful_prewarms'] / summary['total_prewarms'] * 100)
+                summary['planner'] = pd.Categorical(summary['planner'], categories=sorted_planners, ordered=True)
+                summary = summary.sort_values('planner')
+                
+                # Melt for stacked bar chart
+                summary_melted = summary.melt(
+                    id_vars=['planner', 'success_rate'],
+                    value_vars=['successful_prewarms', 'failed_prewarms'],
+                    var_name='status',
+                    value_name='count'
+                )
+                
+                # Create stacked bar chart
+                fig = px.bar(
+                    summary_melted,
+                    x='planner',
+                    y='count',
+                    color='status',
+                    title='Prewarm Success and Failure Counts by Planner',
+                    labels={'count': 'Number of Prewarms', 'planner': 'Planner', 'status': 'Status'},
+                    color_discrete_map={
+                        'successful_prewarms': '#2ecc71',
+                        'failed_prewarms': '#e74c3c'
+                    },
+                    text='count'
+                )
+                
+                # Add success rate as annotations
+                for i, row in summary.iterrows():
+                    fig.add_annotation(
+                        x=row['planner'],
+                        y=row['total_prewarms'],
+                        text=f"{row['success_rate']:.1f}%",
+                        showarrow=False,
+                        yshift=10,
+                        font=dict(size=12, color='black', family='Arial Black')
+                    )
+                
+                fig.update_layout(
+                    xaxis_title='Planner',
+                    yaxis_title='Number of Prewarms',
+                    height=500,
+                    showlegend=True,
+                    legend_title='Status',
+                    barmode='stack'
+                )
+                
+                fig.update_traces(textposition='inside', textfont_size=10)
+                fig.update_xaxes(tickangle=-45)
+                
+                st.plotly_chart(fig, use_container_width=True)
+
             st.markdown("## Resource Usage")
             ######### Resource Usage plot
             # Collect resource usage metrics per planner
@@ -1813,7 +1907,7 @@ async def main():
                 resource_data.append({
                     'Planner': planner,
                     'Metric': 'Cost',
-                    'Value': instance.resource_usage_cost
+                    'Value': instance.resource_usage.cost
                 })
 
             ######## Network I/O
