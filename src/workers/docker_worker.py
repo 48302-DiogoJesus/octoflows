@@ -37,7 +37,7 @@ class DockerWorker(Worker):
     def __init__(self, config: Config):
         super().__init__(config)
         self.docker_config = config
-        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # 20ms (10 ms each way)
+        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # ~10 ms each way (request, response)
         self.MAX_DAG_SIZE_BYTES = 300 * 1024 # 300KB
         self.MAX_DAG_CACHED_RESULTS_BYTES = 250 * 1024 # 250KB
         # On linux, docker containers don't have access to host.docker.internal. They can just call localhost, on Windows they have to use host.docker.internal
