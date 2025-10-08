@@ -25,7 +25,6 @@ print(f"Montage workload: {montage_workload}")
 
 failed_instances = 0
 
-
 def wait_containers_shutdown():
     url = f"http://{DOCKER_FAAS_GATEWAY_IP}:5000/wait-containers-shutdown"
     print("Waiting for all containers to shutdown...")

@@ -1,6 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
+    - Debug issue with taskdup on tree reduction locally
+
     - Analyse remote data
+    - Make remote data load faster (use async redis and parallelize)
     - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
         to see for example, we have 8% less makespan, while spending 10% more resources
     - Showing Optimizations Impact:

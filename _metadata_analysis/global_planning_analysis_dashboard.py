@@ -2,7 +2,6 @@ import math
 import plotly.subplots as sp
 import plotly.graph_objects as go
 import streamlit as st
-import redis
 import cloudpickle
 from typing import Dict, List
 import pandas as pd
@@ -13,6 +12,8 @@ import colorsys
 from dataclasses import dataclass
 import sys
 import os
+import asyncio
+import redis.asyncio as aioredis
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.storage.metadata.metadata_storage import MetadataStorage
@@ -27,12 +28,13 @@ from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.planning.optimizations.prewarm import PreWarmOptimization
 
 def get_redis_connection(port: int = 6379):
-    return redis.Redis(
-        host='localhost',
+    return aioredis.Redis(
+        host="localhost",
         port=port,
-        password='redisdevpwd123',
-        decode_responses=False
+        password="redisdevpwd123",
+        decode_responses=False,
     )
+
 
 @dataclass
 class WorkflowInstanceTaskInfo:
@@ -41,12 +43,13 @@ class WorkflowInstanceTaskInfo:
     metrics: TaskMetrics
     input_size_downloaded_bytes: int
     output_size_uploaded_bytes: int
-    
+
     optimization_preloads_done: int
     optimization_task_dups_done: int
-    
+
     optimization_prewarms_done: int
     optimization_prewarms_successful: int
+
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -66,6 +69,7 @@ class WorkflowInstanceInfo:
     warm_starts_count: int
     cold_starts_count: int
 
+
 @dataclass
 class WorkflowInfo:
     type: str
@@ -73,168 +77,242 @@ class WorkflowInfo:
     instances: List[WorkflowInstanceInfo]
 
 
-def get_workflows_information(metadata_storage_conn: redis.Redis) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
+async def async_scan_keys(conn: aioredis.Redis, pattern: str) -> List[str]:
+    """Efficient async scan for Redis keys."""
+    cursor = b"0"
+    keys = []
+    while cursor:
+        cursor, batch = await conn.scan(cursor=cursor, match=pattern, count=1000)
+        keys.extend(batch)
+    return keys
+
+
+async def get_workflows_information(
+    metadata_storage_conn: aioredis.Redis,
+) -> tuple[List[WorkerStartupMetrics], Dict[str, WorkflowInfo]]:
     workflow_types: Dict[str, WorkflowInfo] = {
-        "All": WorkflowInfo("All", None, []) # type: ignore
+        "All": WorkflowInfo("All", None, [])  # type: ignore
     }
     worker_startup_metrics: List[WorkerStartupMetrics] = []
 
-    def scan_keys(conn, pattern: str):
-        """Efficiently scan Redis keys matching pattern."""
-        cursor = 0
-        keys = []
-        while True:
-            cursor, batch = conn.scan(cursor=cursor, match=pattern, count=1000)
-            keys.extend(batch)
-            if cursor == 0:
-                break
-        return keys
-
     try:
-        # Scan DAG keys instead of using keys()
-        all_dag_keys = scan_keys(metadata_storage_conn, f"{DAG_PREFIX}*")
+        all_dag_keys = await async_scan_keys(metadata_storage_conn, f"{DAG_PREFIX}*")
         print(f"Found {len(all_dag_keys)} workflow instances")
-        from typing import Any
 
-        for dag_key in all_dag_keys:
+        async def process_dag_key(dag_key: str):
             try:
-                dag_data = metadata_storage_conn.get(dag_key)
-                if not dag_data: continue
-                dag: FullDAG = cloudpickle.loads(dag_data)  # type: ignore
+                dag_data = await metadata_storage_conn.get(dag_key)
+                if not dag_data:
+                    return None
+                dag: FullDAG = cloudpickle.loads(dag_data)
 
-                # Plan output
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
-                plan_data: Any = metadata_storage_conn.get(plan_key)
-                plan_output: AbstractDAGPlanner.PlanOutput | None = cloudpickle.loads(plan_data) if plan_data else None
-                if plan_output is None: continue # don't count warmup runs to get metadata
-                predicted_makespan_s = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                plan_data = await metadata_storage_conn.get(plan_key)
+                plan_output = (
+                    cloudpickle.loads(plan_data) if plan_data else None
+                )
+                if plan_output is None:
+                    return None
+
+                predicted_makespan_s = (
+                    plan_output.nodes_info[
+                        dag.sink_node.id.get_full_id()
+                    ].task_completion_time_ms
+                    / 1000
+                )
                 if predicted_makespan_s > 500:
-                    print(f"Discard workflow with predicted makespan of {predicted_makespan_s}")
-                    continue
+                    print(
+                        f"Discard workflow with predicted makespan of {predicted_makespan_s}"
+                    )
+                    return None
 
                 # DAG download stats
-                download_keys_pattern = f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*"
-                download_keys = scan_keys(metadata_storage_conn, download_keys_pattern)
-                download_data: Any = metadata_storage_conn.mget(download_keys) if download_keys else []
-                dag_download_stats: List[FullDAGPrepareTime] = [cloudpickle.loads(d) for d in download_data]
+                download_keys = await async_scan_keys(
+                    metadata_storage_conn,
+                    f"{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*",
+                )
+                if download_keys:
+                    download_data = await metadata_storage_conn.mget(download_keys)
+                    dag_download_stats = [
+                        cloudpickle.loads(d) for d in download_data if d
+                    ]
+                else:
+                    dag_download_stats = []
 
-                # Tasks data
+                # Tasks data (pipeline to minimize round-trips)
                 task_keys = [
                     f"{MetadataStorage.TASK_MD_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}"
                     for t in dag._all_nodes.values()
                 ]
-                tasks_data: Any = metadata_storage_conn.mget(task_keys) if task_keys else []
-                tasks: List[WorkflowInstanceTaskInfo] = [
+                if task_keys:
+                    task_data = await metadata_storage_conn.mget(task_keys)
+                else:
+                    task_data = []
+
+                tasks = [
                     WorkflowInstanceTaskInfo(
-                        t.id.get_full_id_in_dag(dag), 
-                        t.id.get_full_id(), 
+                        t.id.get_full_id_in_dag(dag),
+                        t.id.get_full_id(),
                         cloudpickle.loads(td),
                         -1,
                         -1,
                         0,
                         0,
                         0,
-                        0
+                        0,
                     )
-                    for t, td in zip(dag._all_nodes.values(), tasks_data) if td
+                    for t, td in zip(dag._all_nodes.values(), task_data)
+                    if td
                 ]
                 if len(tasks) != len(dag._all_nodes):
                     print(f"[WARNING] Skipping incomplete metrics for {dag.dag_name}")
-                    continue
-                
+                    return None
+
                 # Worker startup metrics
-                worker_keys_pattern = f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*"
-                worker_keys = scan_keys(metadata_storage_conn, worker_keys_pattern)
-                worker_data: Any = metadata_storage_conn.mget(worker_keys)
-                this_workflow_wsm: List[WorkerStartupMetrics] = [cloudpickle.loads(d) for d in worker_data]
+                worker_keys = await async_scan_keys(
+                    metadata_storage_conn,
+                    f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*",
+                )
+                worker_data = await metadata_storage_conn.mget(worker_keys)
+                this_workflow_wsm = [
+                    cloudpickle.loads(d) for d in worker_data if d
+                ]
                 worker_startup_metrics.extend(this_workflow_wsm)
 
                 total_inputs_downloaded = 0
                 total_outputs_uploaded = 0
+
                 for task in tasks:
                     tm = task.metrics
-                    task.input_size_downloaded_bytes = sum([m.serialized_size_bytes for m in tm.input_metrics.input_download_metrics.values() if m.time_ms is not None])
-                    task.output_size_uploaded_bytes = tm.output_metrics.serialized_size_bytes if tm.output_metrics.tp_time_ms is not None else 0
+                    task.input_size_downloaded_bytes = sum(
+                        [
+                            m.serialized_size_bytes
+                            for m in tm.input_metrics.input_download_metrics.values()
+                            if m.time_ms is not None
+                        ]
+                    )
+                    task.output_size_uploaded_bytes = (
+                        tm.output_metrics.serialized_size_bytes
+                        if tm.output_metrics.tp_time_ms is not None
+                        else 0
+                    )
                     total_inputs_downloaded += task.input_size_downloaded_bytes
                     total_outputs_uploaded += task.output_size_uploaded_bytes
+
                     if tm.optimization_metrics:
-                        task.optimization_preloads_done = len([om for om in tm.optimization_metrics if isinstance(om, PreLoadOptimization.OptimizationMetrics)])
-                        task.optimization_task_dups_done = len([om for om in tm.optimization_metrics if isinstance(om, TaskDupOptimization.OptimizationMetrics)])
-                        task.optimization_prewarms_done = len([om for om in tm.optimization_metrics if isinstance(om, PreWarmOptimization.OptimizationMetrics)])
-                        task.optimization_prewarms_successful = len([
-                            om for om in tm.optimization_metrics 
-                            if isinstance(om, PreWarmOptimization.OptimizationMetrics) and \
-                                [wsm for wsm in this_workflow_wsm if wsm.resource_configuration.worker_id == om.resource_config.worker_id][0].state == "warm"
-                        ])
-                    
-                # DAG submission metrics
-                submission_key = f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
-                submission_data: Any = metadata_storage_conn.get(submission_key)
-                if not submission_data: continue
-                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
+                        task.optimization_preloads_done = len(
+                            [
+                                om
+                                for om in tm.optimization_metrics
+                                if isinstance(om, PreLoadOptimization.OptimizationMetrics)
+                            ]
+                        )
+                        task.optimization_task_dups_done = len(
+                            [
+                                om
+                                for om in tm.optimization_metrics
+                                if isinstance(om, TaskDupOptimization.OptimizationMetrics)
+                            ]
+                        )
+                        task.optimization_prewarms_done = len(
+                            [
+                                om
+                                for om in tm.optimization_metrics
+                                if isinstance(om, PreWarmOptimization.OptimizationMetrics)
+                            ]
+                        )
+                        task.optimization_prewarms_successful = len(
+                            [
+                                om
+                                for om in tm.optimization_metrics
+                                if isinstance(
+                                    om, PreWarmOptimization.OptimizationMetrics
+                                )
+                                and [
+                                    wsm
+                                    for wsm in this_workflow_wsm
+                                    if wsm.resource_configuration.worker_id
+                                    == om.resource_config.worker_id
+                                ][0].state
+                                == "warm"
+                            ]
+                        )
 
-                #DEBUG: Understand effectiveness of prewarm
-                # why did non-uniform have less warm starts
-                for task in tasks:
-                    for om in task.metrics.optimization_metrics:
-                        if not isinstance(om, PreWarmOptimization.OptimizationMetrics): continue
-                        target_worker_id = om.resource_config.worker_id
-                        worker_startup_metrics = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
-                        if not len(worker_startup_metrics): continue
-                        this_worker_startup_metrics = worker_startup_metrics[0]
-                        # if plan_output:
-                        #     print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
+                submission_key = (
+                    f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
+                )
+                submission_data = await metadata_storage_conn.get(submission_key)
+                if not submission_data:
+                    return None
+                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(
+                    submission_data
+                )
 
-                #DEBUG
-                if plan_output and "opt" in plan_output.planner_name:
-                    dups = sum([t.optimization_task_dups_done for t in tasks])
-                    preloads = sum([t.optimization_preloads_done for t in tasks])
-                    prewarm = sum([t.optimization_prewarms_done for t in tasks])
-                    # if dups != 0 or preloads != 0:
-                    #     print(f"Planner name: {plan_output.planner_name} | Workflow name: {dag.dag_name} | Dups: {dups} | Preloads: {preloads} | Prewarms: {prewarm}")
+                warm_starts_count = len(
+                    [m for m in this_workflow_wsm if m.state == "warm"]
+                )
+                cold_starts_count = len(
+                    [m for m in this_workflow_wsm if m.state == "cold"]
+                )
 
-                warm_starts_count = len([m for m in this_workflow_wsm if m.state == "warm"])
-                cold_starts_count = len([m for m in this_workflow_wsm if m.state == "cold"])
-
-                total_worker_startup_time_ms = 0
-                for metric in this_workflow_wsm:
-                    if not metric.end_time_ms: continue
-                    total_worker_startup_time_ms += metric.end_time_ms - metric.start_time_ms
-
+                total_worker_startup_time_ms = sum(
+                    [
+                        (m.end_time_ms - m.start_time_ms)
+                        for m in this_workflow_wsm
+                        if m.end_time_ms
+                    ]
+                )
                 total_workers = len(this_workflow_wsm)
 
-                # Resource usage metrics
-                resource_usage_key = f"{MetadataStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
-                resource_usage_data: Any = metadata_storage_conn.get(resource_usage_key)
-                resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(resource_usage_data)
+                resource_usage_key = (
+                    f"{MetadataStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
+                )
+                resource_usage_data = await metadata_storage_conn.get(resource_usage_key)
+                resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(
+                    resource_usage_data
+                )
 
-                total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
+                total_transferred_data_bytes = (
+                    total_inputs_downloaded + total_outputs_uploaded
+                )
 
-                # Update workflow_types dict
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
+
                 instance_info = WorkflowInstanceInfo(
-                        dag.master_dag_id,
-                        plan_output,
-                        dag,
-                        dag_download_stats,
-                        dag_submission_metrics.dag_submission_time_ms,
-                        total_worker_startup_time_ms,
-                        total_workers,
-                        tasks,
-                        resource_usage,
-                        resource_usage.cost,
-                        total_transferred_data_bytes,
-                        total_inputs_downloaded,
-                        total_outputs_uploaded,
-                        warm_starts_count,
-                        cold_starts_count
-                    )
+                    dag.master_dag_id,
+                    plan_output,
+                    dag,
+                    dag_download_stats,
+                    dag_submission_metrics.dag_submission_time_ms,
+                    total_worker_startup_time_ms,
+                    total_workers,
+                    tasks,
+                    resource_usage,
+                    resource_usage.cost,
+                    total_transferred_data_bytes,
+                    total_inputs_downloaded,
+                    total_outputs_uploaded,
+                    warm_starts_count,
+                    cold_starts_count,
+                )
+
                 workflow_types[dag.dag_name].instances.append(instance_info)
                 workflow_types["All"].instances.append(instance_info)
+
             except Exception as e:
                 print(f"Error processing DAG {dag_key}: {e}")
-                raise e
+                return None
+
+        # Process all DAGs concurrently (limit concurrency to avoid overloading Redis)
+        semaphore = asyncio.Semaphore(50)
+
+        async def limited_process(dag_key):
+            async with semaphore:
+                return await process_dag_key(dag_key)
+
+        await asyncio.gather(*(limited_process(k) for k in all_dag_keys))
+
     except Exception as e:
         print(f"Error accessing Redis: {e}")
         raise e
@@ -275,7 +353,7 @@ def calculate_prediction_error(actual, predicted):
         return float('inf')
     return abs(actual - predicted) / actual * 100
 
-def main():
+async def main():
     # Configure page layout for better visualization
     st.set_page_config(layout="wide")
     st.title("Planning Analysis Dashboard")
@@ -286,7 +364,7 @@ def main():
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:
         timer = Timer()
-        st.session_state.worker_startup_metrics, st.session_state.workflow_types = get_workflows_information(metadata_storage_conn)
+        st.session_state.worker_startup_metrics, st.session_state.workflow_types = await get_workflows_information(metadata_storage_conn)
         print(f"Time to load workflow information: {(timer.stop() / 1_000):.2f} s")
     
     workflow_types = st.session_state.workflow_types
@@ -1931,4 +2009,4 @@ def main():
         st.warning("No instance data available for the selected filters.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
