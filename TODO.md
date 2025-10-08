@@ -1,7 +1,8 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Should I retry lowering baseline resources to 1GB and try making text analysis workload smaller or just ignore the killed instances?
-    
+    - Check new results to see the impact of NOT using taskdup
+        => if it's not that, should I retry lowering baseline resources to 1GB + just ignore the killed instances?
+
     - Showing Optimizations Impact:
         - Measure prediction accuracy over time (line chart, need to sort instances by time: use dag_submission_time_ms)
         - Measure the impact of the SLAs in the actual metrics (see if more conservative yeilds better results than optimistic SLAs)
