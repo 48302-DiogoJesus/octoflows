@@ -7,11 +7,11 @@ import requests
 WORKFLOWS_PATHS = [
     'text_analysis.py',
     'image_transformer.py',
-    'tree_reduction.py',
-    'gemm.py',
+    # 'tree_reduction.py',
+    # 'gemm.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 5
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['uniform-opt', 'non-uniform-opt']
 ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
 SLAS = ['50']
