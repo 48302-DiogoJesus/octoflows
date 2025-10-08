@@ -126,7 +126,7 @@ class DAGTaskNode:
         timer = Timer()
         dag_representation = dag.FullDAG(sink_node=self)
         logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
-        return asyncio.run(dag_representation.compute(_config, dag_name, open_dashboard, download_result))
+        return asyncio.run(dag_representation.compute(_config, dag_name, download_result, open_dashboard))
 
     async def compute_async(self, config, dag_name: str = "unnamed-dag", download_result: bool = True, open_dashboard: bool = False) -> Any:
         import src.dag.dag as dag
@@ -135,7 +135,7 @@ class DAGTaskNode:
         timer = Timer()
         dag_representation = dag.FullDAG(sink_node=self)
         logger.info(f"Created DAG with {len(dag_representation._all_nodes)} nodes in {timer.stop():.3f} ms")
-        res = await dag_representation.compute(_config, dag_name, open_dashboard, download_result)
+        res = await dag_representation.compute(_config, dag_name, download_result, open_dashboard)
         return res
 
     def visualize_dag(self, output_file="dag_graph", open_after: bool = True):
