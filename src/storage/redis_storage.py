@@ -41,7 +41,7 @@ class RedisStorage(storage.Storage):
         self._pubsub: Optional[PubSub] = None
         self._pubsub_task: Optional[asyncio.Task] = None
         self._sub_lock = asyncio.Lock()
-        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.020 # ~10 ms each way (request, response)
+        self.ARTIFICIAL_NETWORK_LATENCY_S = 0.030 # ~15 ms each way (request, response)
         # Changed to store multiple subscriptions per channel
         # Format: {channel: {subscription_id: SubscriptionInfo, ...}}
         self._channel_subscriptions: Dict[str, Dict[str, SubscriptionInfo]] = {}
