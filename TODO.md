@@ -1,11 +1,12 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Debug issue with taskdup on tree reduction locally
-
-    - Analyse remote data
-    - Make remote data load faster (use async redis and parallelize)
+    - DASHBOARD: ensure that planners are sorted on all graphs (n u w)
+    - DASHBOARD: Fix name of chart "median absolute relative error" + make it separe prediction errors by sla, on bars side by side
+    - DASHBOARD: make "actual vs predicted" bar chart separe prediction errors by sla, on bars side by side
     - DASHBOARD: Show "non-uniform" vs "uniform" regarding makespan, execution time and resource usage in a single chart
         to see for example, we have 8% less makespan, while spending 10% more resources
+        
+    - Analyse remote data
     - Showing Optimizations Impact:
         - [continue creating preload viz after running more instances] (https://chatgpt.com/c/68e3ff78-525c-832e-aa15-85c4ade67a26)
             PreLoad

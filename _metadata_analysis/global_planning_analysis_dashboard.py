@@ -883,7 +883,7 @@ async def main():
                 })
             
             if metrics_data:
-                # Group metrics by planner
+                # --- Group metrics by planner and SLA ---
                 planner_metrics = {}
                 instances_clone = workflow_types[selected_workflow].instances.copy()
                 for instance in instances_clone:
@@ -891,28 +891,59 @@ async def main():
                         continue
                     if 'wukong' in instance.plan.planner_name.lower():
                         continue
-                        
-                    # Get metrics for this instance
+
+                    # Ensure SLA exists
+                    if not instance.plan.sla or instance.plan.sla.value is None:
+                        continue
+                    sla_value = instance.plan.sla.value
+
+                    # Compute actual metrics
                     actual_makespan_s = (
                         max([
-                            (task.metrics.started_at_timestamp_s * 1000) + 
-                            (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + 
-                            (task.metrics.tp_execution_time_ms or 0) + 
-                            (task.metrics.output_metrics.tp_time_ms or 0) + 
-                            (task.metrics.total_invocation_time_ms or 0) 
+                            (task.metrics.started_at_timestamp_s * 1000)
+                            + (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0)
+                            + (task.metrics.tp_execution_time_ms or 0)
+                            + (task.metrics.output_metrics.tp_time_ms or 0)
+                            + (task.metrics.total_invocation_time_ms or 0)
                             for task in instance.tasks
                         ]) - instance.start_time_ms
                     ) / 1000
-                    
-                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
-                    actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
-                    actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
-                    actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
-                    actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
-                    actual_worker_startup_time_s = sum([(metric.end_time_ms - metric.start_time_ms) / 1000 for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
-                    actual_unique_workers_count = len(set([task.metrics.worker_resource_configuration.worker_id for task in instance.tasks if task.metrics.worker_resource_configuration.worker_id is not None]))
 
-                    # Get predicted metrics
+                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
+                    actual_total_download = sum([
+                        sum([
+                            input_metric.time_ms / 1000
+                            for input_metric in task.metrics.input_metrics.input_download_metrics.values()
+                            if input_metric.time_ms is not None
+                        ]) for task in instance.tasks
+                    ])
+                    actual_total_upload = sum(
+                        task.metrics.output_metrics.tp_time_ms / 1000
+                        for task in instance.tasks
+                        if task.metrics.output_metrics.tp_time_ms is not None
+                    )
+                    actual_input_size = sum([
+                        sum([
+                            input_metric.serialized_size_bytes
+                            for input_metric in task.metrics.input_metrics.input_download_metrics.values()
+                        ]) + task.metrics.input_metrics.hardcoded_input_size_bytes
+                        for task in instance.tasks
+                    ])
+                    actual_output_size = sum([
+                        task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks
+                    ])
+                    actual_worker_startup_time_s = sum([
+                        (metric.end_time_ms - metric.start_time_ms) / 1000
+                        for metric in st.session_state.worker_startup_metrics
+                        if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
+                    ])
+                    actual_unique_workers_count = len(set([
+                        task.metrics.worker_resource_configuration.worker_id
+                        for task in instance.tasks
+                        if task.metrics.worker_resource_configuration.worker_id is not None
+                    ]))
+
+                    # Compute predicted metrics
                     predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0
                     if instance.plan and instance.plan.nodes_info:
                         predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
@@ -927,11 +958,12 @@ async def main():
                             if info.node_ref.worker_config.worker_id is None or info.node_ref.worker_config.worker_id not in workers_accounted_for:
                                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                 workers_accounted_for.add(info.node_ref.worker_config.worker_id)
-                    
+
                         planner_name = instance.plan.planner_name
-                        if planner_name not in planner_metrics:
-                            planner_metrics[planner_name] = []
-                        planner_metrics[planner_name].append({
+                        key = (planner_name, sla_value)
+                        if key not in planner_metrics:
+                            planner_metrics[key] = []
+                        planner_metrics[key].append({
                             'makespan_actual': actual_makespan_s,
                             'makespan_predicted': predicted_makespan_s,
                             'execution_actual': actual_execution,
@@ -949,94 +981,105 @@ async def main():
                             'actual_unique_workers_count': actual_unique_workers_count
                         })
 
-                # Calculate averages for each planner
+                # --- Calculate medians per planner per SLA ---
                 planner_median_metrics = {}
-                for planner_name, planner_data in planner_metrics.items():
-                    if not planner_data:
+                for (planner_name, sla_value), data_points in planner_metrics.items():
+                    if not data_points:
                         continue
                     if 'wukong' in planner_name.lower():
                         continue
-                        
-                    planner_median_metrics[planner_name] = {
+
+                    planner_median_metrics[(planner_name, sla_value)] = {
                         'Makespan (s)': {
-                            'actual': np.median([m['makespan_actual'] for m in planner_data]),
-                            'predicted': np.median([m['makespan_predicted'] for m in planner_data])
+                            'actual': np.median([m['makespan_actual'] for m in data_points]),
+                            'predicted': np.median([m['makespan_predicted'] for m in data_points])
                         },
                         'Execution Time (s)': {
-                            'actual': np.median([m['execution_actual'] for m in planner_data]),
-                            'predicted': np.median([m['execution_predicted'] for m in planner_data])
+                            'actual': np.median([m['execution_actual'] for m in data_points]),
+                            'predicted': np.median([m['execution_predicted'] for m in data_points])
                         },
                         'Download Time (s)': {
-                            'actual': np.median([m['download_actual'] for m in planner_data]),
-                            'predicted': np.median([m['download_predicted'] for m in planner_data])
+                            'actual': np.median([m['download_actual'] for m in data_points]),
+                            'predicted': np.median([m['download_predicted'] for m in data_points])
                         },
                         'Upload Time (s)': {
-                            'actual': np.median([m['upload_actual'] for m in planner_data]),
-                            'predicted': np.median([m['upload_predicted'] for m in planner_data])
+                            'actual': np.median([m['upload_actual'] for m in data_points]),
+                            'predicted': np.median([m['upload_predicted'] for m in data_points])
                         },
                         'Input Size (bytes)': {
-                            'actual': np.median([m['input_size_actual'] for m in planner_data]),
-                            'predicted': np.median([m['input_size_predicted'] for m in planner_data])
+                            'actual': np.median([m['input_size_actual'] for m in data_points]),
+                            'predicted': np.median([m['input_size_predicted'] for m in data_points])
                         },
                         'Output Size (bytes)': {
-                            'actual': np.median([m['output_size_actual'] for m in planner_data]),
-                            'predicted': np.median([m['output_size_predicted'] for m in planner_data])
+                            'actual': np.median([m['output_size_actual'] for m in data_points]),
+                            'predicted': np.median([m['output_size_predicted'] for m in data_points])
                         },
                         'Worker Startup Time (s)': {
-                            'actual': np.median([m['worker_startup_time_actual'] for m in planner_data]),
-                            'predicted': np.median([m['worker_startup_time_predicted'] for m in planner_data])
+                            'actual': np.median([m['worker_startup_time_actual'] for m in data_points]),
+                            'predicted': np.median([m['worker_startup_time_predicted'] for m in data_points])
                         },
                         'Workers Count': {
-                            'actual': np.median([m['actual_unique_workers_count'] for m in planner_data]),
-                            'predicted': np.median([m['actual_unique_workers_count'] for m in planner_data])
+                            'actual': np.median([m['actual_unique_workers_count'] for m in data_points]),
+                            'predicted': np.median([m['actual_unique_workers_count'] for m in data_points])
                         }
                     }
-                
-                # Create a dropdown to select planner
-                if planner_median_metrics:
-                    plot_data = []
-                    for planner_name, metrics in planner_median_metrics.items():
-                        for metric_name, values in metrics.items():
-                            plot_data.append({
-                                'Planner': planner_name,
-                                'Metric': metric_name,
-                                'Type': 'Actual',
-                                'Value': values['actual']
-                            })
-                            plot_data.append({
-                                'Planner': planner_name,
-                                'Metric': metric_name,
-                                'Type': 'Predicted',
-                                'Value': values['predicted']
-                            })
 
+                # --- Prepare DataFrame for Plotly ---
+                plot_data = []
+                for (planner_name, sla_value), metrics in planner_median_metrics.items():
+                    for metric_name, values in metrics.items():
+                        plot_data.append({
+                            'Planner': planner_name,
+                            'Metric': metric_name,
+                            'Type': 'Actual',
+                            'Value': values['actual'],
+                            'SLA': sla_value
+                        })
+                        plot_data.append({
+                            'Planner': planner_name,
+                            'Metric': metric_name,
+                            'Type': 'Predicted',
+                            'Value': values['predicted'],
+                            'SLA': sla_value
+                        })
+
+                if plot_data:
                     df_plot = pd.DataFrame(plot_data)
+                    df_plot['SLA'] = pd.to_numeric(df_plot['SLA'], errors='coerce')
 
-                    # Create overlapped bars: use facet for metric, color for Actual/Predicted, x=Planner
+                    # --- Sort SLA (ascending: lower at top) ---
+                    sla_order = sorted(df_plot['SLA'].unique())
+
+                    # --- Sort planners globally by median makespan ---
+                    planner_order = sorted(df_plot['Planner'].unique())
+
+                    # --- Plot ---
                     fig = px.bar(
                         df_plot,
                         x='Planner',
                         y='Value',
                         color='Type',
-                        facet_col='Metric',   # One small multiple per metric, horizontally
-                        barmode='overlay',    # Overlap Actual & Predicted on top of each other
-                        opacity=0.6,          # Slight transparency to see overlap
-                        title='Comparison of Actual vs Predicted Metrics Across Planners',
+                        facet_row='SLA',      # one SLA per row
+                        facet_col='Metric',   # one metric per column
+                        barmode='overlay',
+                        opacity=0.6,
+                        title='Actual vs Predicted Metrics per SLA and Planner',
+                        category_orders={
+                            'SLA': sla_order,
+                            'Planner': planner_order
+                        },
                         color_discrete_map={'Actual': '#1f77b4', 'Predicted': '#ff7f0e'}
                     )
 
                     # Layout improvements
                     fig.update_layout(
-                        height=600,
+                        height=1400,
                         legend_title='',
                         plot_bgcolor='rgba(0,0,0,0)',
-                        yaxis_type='log'  # keep log scale if still useful
+                        yaxis_type='log'
                     )
 
-                    # Rotate x labels for clarity
                     fig.update_xaxes(tickangle=-45)
-
-                    # Add labels on top of bars
                     fig.update_traces(
                         texttemplate='%{y:.2f}',
                         textposition='outside',
@@ -1044,20 +1087,40 @@ async def main():
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
+
             
             # Add prediction accuracy evolution chart
             # st.markdown("### Prediction Accuracy Evolution")
             
             # Collect all data
             data = []
+            sla_results = []
 
             for workflow_name, workflow in workflow_types.items():
-                for instance in workflow.instances:
+                # Sort instances by start time for SLA calculation
+                sorted_instances = sorted(workflow.instances, key=lambda inst: inst.start_time_ms)
+                
+                # Keep track of history for each metric
+                history = {
+                    'makespan': [], 
+                    'execution': [], 
+                    'download': [], 
+                    'upload': [], 
+                    'input_size': [], 
+                    'output_size': [], 
+                    'worker_startup_time': []
+                }
+                
+                for instance in sorted_instances:
                     if not instance.plan or not instance.tasks:
                         continue
                     planner_name = instance.plan.planner_name.lower()
                     if 'wukong' in planner_name:
                         continue
+                    if not instance.plan.sla or instance.plan.sla.value is None:
+                        continue
+
+                    sla_value = instance.plan.sla.value
 
                     # Actual metrics
                     actual_metrics = {
@@ -1072,14 +1135,23 @@ async def main():
                             ]) - instance.start_time_ms
                         ) / 1000,
                         'execution': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
-                        'download': sum(sum(input_metric.time_ms for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None) for task in instance.tasks) / 1000,
+                        'download': sum(
+                            sum(input_metric.time_ms for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
+                            for task in instance.tasks
+                        ) / 1000,
                         'upload': sum(task.metrics.output_metrics.tp_time_ms or 0 for task in instance.tasks) / 1000,
-                        'input_size': sum(sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) + 
-                                        (task.metrics.input_metrics.hardcoded_input_size_bytes or 0) for task in instance.tasks),
-                        'output_size': sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks if hasattr(task.metrics, 'output_metrics')),
+                        'input_size': sum(
+                            sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()) +
+                            (task.metrics.input_metrics.hardcoded_input_size_bytes or 0)
+                            for task in instance.tasks
+                        ),
+                        'output_size': sum(
+                            task.metrics.output_metrics.serialized_size_bytes
+                            for task in instance.tasks if hasattr(task.metrics, 'output_metrics')
+                        ),
                         'worker_startup_time': sum(
-                            (metric.end_time_ms - metric.start_time_ms) / 1000 
-                            for metric in st.session_state.worker_startup_metrics 
+                            (metric.end_time_ms - metric.start_time_ms) / 1000
+                            for metric in st.session_state.worker_startup_metrics
                             if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
                         )
                     }
@@ -1095,6 +1167,7 @@ async def main():
                             if worker_id is not None and worker_id not in workers_accounted_for:
                                 predicted_worker_startup_time_s += info.tp_worker_startup_time_ms / 1000
                                 workers_accounted_for.add(worker_id)
+
                         predicted_metrics = {
                             'makespan': instance.plan.nodes_info[sink_node].task_completion_time_ms / 1000,
                             'execution': sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values()),
@@ -1108,53 +1181,122 @@ async def main():
                     # Append to data with relative error calculated
                     for metric in actual_metrics:
                         actual = actual_metrics[metric]
-                        predicted = predicted_metrics[metric]
-                        # Calculate absolute relative error: |predicted - actual| / actual * 100
+                        predicted = predicted_metrics.get(metric, 0)
                         relative_error = (abs(predicted - actual) / actual * 100) if actual != 0 else 0
-                        
+
                         data.append({
                             'planner': planner_name,
                             'metric': metric,
+                            'sla': sla_value,
                             'actual': actual,
                             'predicted': predicted,
                             'relative_error': relative_error
                         })
+                        
+                        # Calculate SLA fulfillment
+                        prev_values = history[metric]
+                        if prev_values:
+                            threshold = np.percentile(prev_values, sla_value)
+                            success = actual <= threshold
+                            sla_results.append({
+                                'sla': sla_value,
+                                'metric': metric,
+                                'success': success
+                            })
+                        
+                        # Update history
+                        history[metric].append(actual)
 
-            # Create DataFrame and prepare for plotting
+            # Create DataFrames
             df = pd.DataFrame(data)
+            df_sla = pd.DataFrame(sla_results)
 
-            # Group by metric only, taking the median relative error across all planners
-            error_summary = df.groupby('metric')['relative_error'].median().reset_index()
+            # Compute median relative error grouped by metric and SLA
+            error_summary = df.groupby(['metric', 'sla'])['relative_error'].median().reset_index()
 
-            # Define the metric order
+            # Compute SLA fulfillment rate
+            if not df_sla.empty:
+                sla_summary = df_sla.groupby(['sla', 'metric'])['success'].mean().reset_index()
+                sla_summary['fulfillment_rate'] = sla_summary['success'] * 100
+                sla_summary = sla_summary[['metric', 'sla', 'fulfillment_rate']]
+                
+                # Merge with error summary
+                error_summary = error_summary.merge(sla_summary, on=['metric', 'sla'], how='left')
+            else:
+                error_summary['fulfillment_rate'] = 0
+
+            # Define metric order
             metric_order = ['makespan', 'execution', 'download', 'upload', 'input_size', 'output_size', 'worker_startup_time']
-            # Filter and sort metrics in the defined order
             error_summary['metric'] = pd.Categorical(error_summary['metric'], categories=metric_order, ordered=True)
             error_summary = error_summary.sort_values('metric')
 
-            # Create the bar chart
-            fig = go.Figure()
+            # Sort SLA numerically
+            sla_order = sorted(error_summary['sla'].unique())
+            error_summary['sla'] = error_summary['sla'].astype(str)
 
-            # Add a single bar series for all metrics
-            fig.add_trace(go.Bar(
-                x=error_summary['metric'],
-                y=error_summary['relative_error'],
-                text=[f'{val:.1f}%' for val in error_summary['relative_error']],
-                textposition='auto',
-                marker_color='steelblue'
-            ))
+            # Create figure with secondary y-axis
+            from plotly.subplots import make_subplots
+            import plotly.graph_objects as go
+
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+            # Add bars for relative error
+            for sla_val in [str(s) for s in sla_order]:
+                sla_data = error_summary[error_summary['sla'] == sla_val]
+                fig.add_trace(
+                    go.Bar(
+                        name=f'P{sla_val} Error',
+                        x=sla_data['metric'],
+                        y=sla_data['relative_error'],
+                        text=sla_data['relative_error'].apply(lambda v: f'{v:.1f}%'),
+                        textposition='outside',
+                        legendgroup=sla_val,
+                        showlegend=True
+                    ),
+                    secondary_y=False
+                )
+
+            # Add line for SLA fulfillment rate
+            for sla_val in [str(s) for s in sla_order]:
+                sla_data = error_summary[error_summary['sla'] == sla_val]
+                fig.add_trace(
+                    go.Scatter(
+                        name=f'P{sla_val} Fulfillment',
+                        x=sla_data['metric'],
+                        y=sla_data['fulfillment_rate'],
+                        mode='lines+markers',
+                        marker=dict(size=10),
+                        line=dict(width=3, dash='dash'),
+                        text=sla_data['fulfillment_rate'].apply(lambda v: f'{v:.1f}%'),
+                        textposition='top center',
+                        legendgroup=sla_val,
+                        showlegend=True
+                    ),
+                    secondary_y=True
+                )
 
             # Update layout
             fig.update_layout(
-                title='Median Absolute Relative Error (%) by Metric',
+                title='Median Relative Error (%) and SLA Fulfillment Rate by Metric and SLA',
                 xaxis_title='Metric',
-                yaxis_title='Median Absolute Relative Error (%)',
-                height=500,
-                showlegend=False
+                height=600,
+                barmode='group',
+                legend=dict(
+                    orientation='v',
+                    yanchor='top',
+                    y=1,
+                    xanchor='left',
+                    x=1.05
+                )
             )
 
-            # Display the chart
+            # fig.update_xaxis(categoryorder='array', categoryarray=metric_order)
+            fig.update_yaxes(title_text='Median Relative Error (%)', secondary_y=False)
+            fig.update_yaxes(title_text='SLA Fulfillment Rate (%)', range=[0, 110], secondary_y=True)
+
+            # Display chart
             st.plotly_chart(fig, use_container_width=True)
+
             
         with TAB_ACTUAL_VALUES:
             # Prepare data for all metrics comparison
@@ -1384,8 +1526,9 @@ async def main():
             planner_metrics = {}
 
             for instance in workflow_types[selected_workflow].instances:
-                if not instance.plan or not instance.tasks:
-                    continue
+                if not instance.plan or not instance.tasks: continue
+
+                if "wukong" in instance.plan.planner_name.lower(): continue
                 
                 planner = instance.plan.planner_name if instance.plan else 'Unknown'
                 if planner not in planner_metrics:
@@ -1421,7 +1564,7 @@ async def main():
                     + (sink_task_metrics.total_invocation_time_ms or 0)
                 )
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                total_time_waiting_for_inputs_s = sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000
+                total_time_waiting_for_inputs_s = sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 if sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms else 0
 
                 metrics['makespan'].append(actual_makespan_s)
                 metrics['execution'].append(sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks))
@@ -1639,72 +1782,6 @@ async def main():
             )
             st.plotly_chart(fig_taskdup, use_container_width=True)
 
-            records = []
-
-            for workflow_name, workflow_info in workflow_types.items():
-                if workflow_name == "All":  # skip aggregated "All"
-                    continue
-                for instance in workflow_info.instances:
-                    if not instance.plan or not instance.tasks:
-                        continue
-                    planner_name = instance.plan.planner_name
-                    workflow_start_s = instance.start_time_ms / 1000
-                    for task in instance.tasks:
-                        used_preload = task.optimization_preloads_done > 0
-                        start_time_s = task.metrics.started_at_timestamp_s - workflow_start_s
-                        records.append({
-                            "Task ID": task.internal_task_id,
-                            "Planner": planner_name,
-                            "Used Preload": used_preload,  # keep boolean for easier plotting
-                            "Start Time [s]": start_time_s
-                        })
-
-            df_tasks = pd.DataFrame(records)
-
-            # Plot per planner
-            planners = df_tasks['Planner'].unique()
-
-            for planner in planners:
-                df_planner = df_tasks[df_tasks['Planner'] == planner]
-
-                fig = go.Figure()
-
-                # Draw a line for each task
-                for task_id, task_group in df_planner.groupby('Task ID'):
-                    if len(task_group) < 2:
-                        continue  # skip tasks that only appear in preload or no-preload
-                    # Sort by preload (False first, True second)
-                    task_group = task_group.sort_values('Used Preload')
-                    fig.add_trace(go.Scatter(
-                        x=task_group['Used Preload'].map({False: 'No Preload', True: 'Preload'}),
-                        y=task_group['Start Time [s]'],
-                        mode='lines+markers',
-                        name=task_id,
-                        showlegend=False,  # too many tasks, hide legend
-                        line=dict(color='gray', width=1),
-                        marker=dict(size=6)
-                    ))
-
-                # Optionally, overlay mean start times
-                mean_times = df_planner.groupby('Used Preload')['Start Time [s]'].mean().reset_index()
-                fig.add_trace(go.Scatter(
-                    x=mean_times['Used Preload'].map({False: 'No Preload', True: 'Preload'}),
-                    y=mean_times['Start Time [s]'],
-                    mode='lines+markers',
-                    name='Mean',
-                    line=dict(color='red', width=3),
-                    marker=dict(size=10)
-                ))
-
-                fig.update_layout(
-                    title=f"Task Start Times with vs Without Preload | Planner: {planner}",
-                    xaxis_title="Used Preload",
-                    yaxis_title="Task Start Time [s] (relative to workflow start)",
-                    height=600
-                )
-
-                st.plotly_chart(fig, use_container_width=True)
-
             st.markdown("## Resource Usage")
             ######### Resource Usage plot
             # Collect resource usage metrics per planner
@@ -1883,129 +1960,6 @@ async def main():
             )
 
             st.plotly_chart(fig, use_container_width=True)
-
-            #########
-            st.markdown("### SLA")
-
-            # Define the metrics we want to track
-            metrics_list = [
-                "makespan",
-                "execution",
-                "download",
-                "upload",
-                "input_size",
-                "output_size",
-                "worker_startup_time"
-            ]
-
-            results = []
-
-            for workflow_name, workflow_info in st.session_state.workflow_types.items():
-                # Sort instances by start time
-                sorted_instances = sorted(workflow_info.instances, key=lambda inst: inst.start_time_ms)
-
-                # Keep track of history for each metric
-                history = {metric: [] for metric in metrics_list}
-
-                for inst in sorted_instances:
-                    if not inst.plan or not inst.tasks:
-                        continue
-                    sla = inst.plan.sla
-                    if sla == "average": continue  # skip "average"
-
-                    sla_value = sla.value  # percentile 1-100
-
-                    # --- Compute actual metrics like before ---
-                    actual_makespan = (
-                        max([
-                            (task.metrics.started_at_timestamp_s * 1000) +
-                            (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
-                            (task.metrics.tp_execution_time_ms or 0) +
-                            (task.metrics.output_metrics.tp_time_ms or 0) +
-                            (task.metrics.total_invocation_time_ms or 0)
-                            for task in inst.tasks
-                        ]) - inst.start_time_ms
-                    ) / 1000
-
-                    actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in inst.tasks)
-                    actual_download = sum(
-                        sum(im.time_ms for im in task.metrics.input_metrics.input_download_metrics.values() if im.time_ms) 
-                        for task in inst.tasks
-                    ) / 1000
-                    actual_upload = sum(task.metrics.output_metrics.tp_time_ms or 0 for task in inst.tasks) / 1000
-                    actual_input_size = sum(
-                        sum(im.serialized_size_bytes for im in task.metrics.input_metrics.input_download_metrics.values()) +
-                        task.metrics.input_metrics.hardcoded_input_size_bytes
-                        for task in inst.tasks
-                    )
-                    actual_output_size = sum(task.metrics.output_metrics.serialized_size_bytes for task in inst.tasks)
-                    actual_worker_startup = inst.total_worker_startup_time_ms / 1000
-
-                    actuals = {
-                        "makespan": actual_makespan,
-                        "execution": actual_execution,
-                        "download": actual_download,
-                        "upload": actual_upload,
-                        "input_size": actual_input_size,
-                        "output_size": actual_output_size,
-                        "worker_startup_time": actual_worker_startup
-                    }
-
-                    # Compare to historical percentile for each metric
-                    for metric in metrics_list:
-                        prev_values = history[metric]
-                        if prev_values:
-                            threshold = np.percentile(prev_values, sla_value)
-                            success = actuals[metric] <= threshold
-                            results.append({
-                                "SLA": sla_value,
-                                "Metric": metric,
-                                "Success": success
-                            })
-
-                        # Update history
-                        history[metric].append(actuals[metric])
-
-            # Convert to DataFrame and compute success rate
-            df = pd.DataFrame(results)
-            if not df.empty:
-                # Per-metric success rate
-                summary = df.groupby(["SLA", "Metric"])["Success"].mean().reset_index()
-                summary["SuccessRate"] = summary["Success"] * 100
-
-                # Overall success rate across all metrics
-                overall = df.groupby("SLA")["Success"].mean().reset_index()
-                overall["SuccessRate"] = overall["Success"] * 100
-                overall["Metric"] = "Overall"
-
-                # Merge
-                summary = pd.concat([summary, overall], ignore_index=True)
-
-                # Convert SLA numeric to categorical label
-                summary["SLA_label"] = "P" + summary["SLA"].astype(str)
-
-                # Bar chart
-                fig = px.bar(
-                    summary,
-                    x="SLA_label",
-                    y="SuccessRate",
-                    color="Metric",
-                    barmode="group",
-                    title="SLA Fulfillment Rate Across Metrics (with Overall)",
-                    text="SuccessRate"
-                )
-
-                fig.update_layout(
-                    xaxis_title="SLA Percentile",
-                    yaxis_title="Fulfillment Rate (%)",
-                    yaxis=dict(range=[0, 100]),
-                    legend_title="Metric"
-                )
-                fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.write("No percentile SLA data available to plot.")
     else:
         st.warning("No instance data available for the selected filters.")
 
