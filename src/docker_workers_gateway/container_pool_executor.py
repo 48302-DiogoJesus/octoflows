@@ -37,7 +37,6 @@ class ContainerPoolExecutor:
         self.cleanup_thread = threading.Thread(target=self._cleanup_idle_containers, daemon=True)
         self.shutdown_flag = threading.Event()
         self.cleanup_thread.start()
-        self._reserved_containers = 0
         self._remove_all_containers()
 
     def _get_time_formatted(self):
@@ -203,44 +202,34 @@ class ContainerPoolExecutor:
             self.containers_available_condition.notify_all()
 
     def wait_for_container(self, cpus: float, memory: int, dag_id: str) -> str:
-        while True:
-            with self.lock:
+        """
+        Wait for a container with the specified resources to become available,
+        mark it as busy, and return its ID.
+        """
+        with self.lock:
+            while True:
                 resource_key = (cpus, memory)
                 available_containers = [
                     cid for cid in self.container_by_resources[resource_key]
                     if not self.containers[cid].is_busy
                 ]
+                
                 if available_containers and ALLOW_CONTAINER_REUSAGE:
                     container_id = available_containers[0]
                     self.containers[container_id].is_busy = True
-                    self.containers[container_id].last_active_time = time.time()
+                    self.containers[container_id].last_active_time = time.time()  # Update last active time
                     return container_id
-
-                # --- reservation phase ---
-                if len(self.containers) < self.max_containers:
-                    # Reserve a slot (before actually launching)
-                    self._reserved_containers += 1
-                    launch_permitted = True
-                else:
-                    launch_permitted = False
-
-            if not launch_permitted:
-                # Wait for an available container or slot
-                with self.lock:
+                        
+                if len(self.containers) >= self.max_containers:
+                    # print("(wait_for_container) No container available. Waiting")
+                    # Wait for a container to become available. Can't launch new ones
                     self.containers_available_condition.wait(timeout=2)
-                continue
-
-            # --- launch phase (outside lock) ---
-            container_id = self._launch_container(cpus, memory, dag_id)
-
-            # --- registration phase ---
-            with self.lock:
-                self._reserved_containers -= 1  # Undo reservation
-                if container_id:
-                    return container_id
                 else:
-                    # Failed to launch, retry
-                    continue
+                    # Launch a new container
+                    logger.info(f"(wait_for_container) Launching new container for DAG: {dag_id}")
+                    container_id = self._launch_container(cpus, memory, dag_id)
+                    assert container_id is not None, "ContainerPoolExecutor.wait_for_container: _launch_container returned None"
+                    return container_id
     
     def _launch_container(self, cpus, memory, dag_id, name_prefix: str = "", is_prewarm: bool = False) -> str | None:
         # Generate a random 16-digit ID
