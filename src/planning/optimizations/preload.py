@@ -26,8 +26,6 @@ class PreLoadOptimization(TaskOptimization):
     class OptimizationMetrics(TaskOptimizationMetrics):
         preloaded: DAGTaskNodeId
 
-    MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION = 4
-
     # for upstream tasks
     preloading_subscription_ids: dict[str, str] = field(default_factory=dict) # dependent task + upstream task -> subscription id
     # Flag that indicates if starting new preloading for upstream tasks of this task is allowed or not
@@ -69,7 +67,7 @@ class PreLoadOptimization(TaskOptimization):
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
                 # Only apply preload to nodes that depend on at least {MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION} external tasks
-                if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) <= PreLoadOptimization.MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION:
+                if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]):
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")

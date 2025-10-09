@@ -1,6 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - try new approach
+        - issue: preload not being assigned
         - wo/ taskdup + task limiting at 6
     - Check new results to see the impact of NOT using taskdup
         => if it's not that, should I retry lowering baseline resources to 1GB + just ignore the killed instances?

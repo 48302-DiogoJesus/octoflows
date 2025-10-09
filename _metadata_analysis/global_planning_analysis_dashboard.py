@@ -108,7 +108,7 @@ async def get_workflows_information(
 
                 plan_key = f"{MetadataStorage.PLAN_KEY_PREFIX}{dag.master_dag_id}"
                 plan_data = await metadata_storage_conn.get(plan_key)
-                plan_output = (
+                plan_output: AbstractDAGPlanner.PlanOutput | None = (
                     cloudpickle.loads(plan_data) if plan_data else None
                 )
                 if plan_output is None:
@@ -238,6 +238,9 @@ async def get_workflows_information(
                                 == "warm"
                             ]
                         )
+
+                if plan_output:
+                    print(f"{plan_output.planner_name} | Total preloads assigned: {sum([len([o for o in n.optimizations if isinstance(o, PreLoadOptimization)]) for n in dag._all_nodes.values()])} | Preloads Done: {sum([t.optimization_preloads_done for t in tasks])}")
 
                 submission_key = (
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
