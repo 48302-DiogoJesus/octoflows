@@ -205,7 +205,7 @@ def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) ->
         total_processed = 0
 
     # small deterministic heavy op
-    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_keywords",
@@ -240,7 +240,7 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
         total_punct = sum(punctuation_counts.values())
 
     # small vectorized workload to scale with CPU
-    # _ = np.sum(np.sin(np.linspace(0.0, 3.1415, 4096, dtype=np.float64)))
+    _ = np.sum(np.sin(np.linspace(0.0, 3.1415, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_punctuation",
@@ -287,7 +287,7 @@ def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> 
     vocabulary_richness = (unique_words / total_words) if total_words > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_patterns",
@@ -327,7 +327,7 @@ def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
     total_unique_words = sum(s.get("unique_words", 0) for s in segment_analyses)
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "total_segments": len(segment_analyses),

@@ -1,9 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - try new approach
-        - issue: preload not being assigned
-        - note that I made container launch faster
-        - wo/ taskdup + try preload asignment
+        - wo/ taskdup + less preload asignment + less tasks per worker
     - Check new results to see the impact of NOT using taskdup
         => if it's not that, should I retry lowering baseline resources to 1GB + just ignore the killed instances?
 

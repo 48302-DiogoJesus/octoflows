@@ -91,7 +91,7 @@ def get_planner_from_sys_argv():
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[mid_resources],
-            optimizations=[PreLoadOptimization, PreWarmOptimization],
+            optimizations=[PreWarmOptimization, PreLoadOptimization],
             # optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization],
         )
     elif planner_type == "non-uniform":
@@ -104,7 +104,7 @@ def get_planner_from_sys_argv():
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=non_uniform_resources,
-            optimizations=[PreLoadOptimization, PreWarmOptimization]
+            optimizations=[PreWarmOptimization, PreLoadOptimization]
             # optimizations=[PreLoadOptimization, TaskDupOptimization, PreWarmOptimization]
         )
     else:
