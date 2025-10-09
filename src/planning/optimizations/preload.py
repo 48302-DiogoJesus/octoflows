@@ -55,7 +55,6 @@ class PreLoadOptimization(TaskOptimization):
             
             # logger.info(f"CRITICAL PATH | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Predicted Completion Time: {critical_path_time} ms")
 
-            # Try to optimize nodes in the current critical path with PreLoad
             nodes_optimized_this_iteration = 0
             
             for node in topo_sorted_nodes:
@@ -66,8 +65,8 @@ class PreLoadOptimization(TaskOptimization):
                 resource_config: TaskWorkerResourceConfiguration = node.worker_config
                 if resource_config.worker_id is None: continue # flexible workers can't have preload
 
-                # Only apply preload to nodes that depend on at least {MIN_EXTERNAL_DEPENDENCIES_TO_APPLY_OPTIMIZATION} external tasks
-                if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]):
+                # Only apply preload to nodes that depend on at least 1 external tasks
+                if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) == 0:
                     continue
 
                 # logger.info(f"Trying to assign 'PreLoad' annotation to critical path node: {node_id}")
