@@ -41,7 +41,7 @@ class Worker(ABC):
 
     intermediate_storage: storage_module.Storage
     config: Config
-    task_execution_limiter = asyncio.Semaphore(3) # only allow up to 4 tasks to be executed at once, to avoid resource contention
+    task_execution_limiter = asyncio.Semaphore(6) # only allow up to 6 tasks to be executed at once, to avoid resource contention
 
     def __init__(self, config: Config):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
