@@ -123,9 +123,9 @@ async def get_workflows_information(
                 # Accept bad predictions for wukong but not us (because its normal on wukong, since we don't use the predictions)
                 if predicted_makespan_s > 500 and "wukong" not in plan_output.planner_name:
                     print(
-                        f"{dag.dag_name} | planner: {plan_output.planner_name} | Discard workflow with predicted makespan of {predicted_makespan_s}"
+                        f"{dag.dag_name} | planner: {plan_output.planner_name} | predicted makespan of {predicted_makespan_s} | Discard plan, assume it didn't have it"
                     )
-                    return None
+                    plan_output = None
 
                 # DAG download stats
                 download_keys = await async_scan_keys(
