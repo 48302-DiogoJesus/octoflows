@@ -1,8 +1,8 @@
 - Dashboard
     [IMPLEMENTATION]
     - try new approach
-        - w/ taskdup
-        - wo/ taskdup
+        - w/ taskdup + task limiting + less fan-out tasks to same worker
+        - wo/ taskdup + task limiting + less fan-out tasks to same worker
     - Check new results to see the impact of NOT using taskdup
         => if it's not that, should I retry lowering baseline resources to 1GB + just ignore the killed instances?
 

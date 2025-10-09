@@ -63,33 +63,53 @@ def kill_docker_workers():
         print(f"Error while killing docker_worker containers: {e}")
 
 
-def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int) -> None:
+def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int, max_retries: int = 3) -> None:
     global failed_instances
-    wait_containers_shutdown()  # sync
-
+    
     script_dir = os.path.dirname(os.path.abspath(__file__))
     full_script_path = os.path.join(script_dir, script_path)
 
     if os.path.basename(script_path) == 'montage.py':
-        print(f"Montage Workflow will run with workload: {montage_workload}")
         cmd = [sys.executable, full_script_path, algorithm, sla, montage_workload]
     else:
         cmd = [sys.executable, full_script_path, algorithm, sla]
 
     percentage = (current / total) * 100 if total > 0 else 0
-    print(f" > [{percentage:5.1f}%] [failed_instances:{failed_instances}] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}) [{current}/{total}]")
+    
+    for attempt in range(1, max_retries + 1):
+        wait_containers_shutdown()  # sync before each attempt
+        
+        retry_suffix = f" (retry {attempt}/{max_retries})" if attempt > 1 else ""
+        print(f" > [{percentage:5.1f}%] [failed_instances:{failed_instances}] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}){retry_suffix} [{current}/{total}]")
 
-    try:
-        subprocess.run(cmd, check=True, cwd=script_dir, timeout=120)
-    except subprocess.TimeoutExpired:
-        print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 2 minutes. Skipping...", file=sys.stderr)
-        failed_instances += 1
-        kill_docker_workers()
-    except subprocess.CalledProcessError as e:
-        print(f"Error running {script_path} with {algorithm} and SLA {sla}: {e}", file=sys.stderr)
-        failed_instances += 1
-        kill_docker_workers()
-
+        try:
+            subprocess.run(cmd, check=True, cwd=script_dir, timeout=150)
+            # Success! Exit the retry loop
+            return
+            
+        except subprocess.TimeoutExpired:
+            print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 2.5 minutes (attempt {attempt}/{max_retries})", file=sys.stderr)
+            kill_docker_workers()
+            
+            if attempt == max_retries:
+                # Final attempt failed
+                print(f"Failed after {max_retries} attempts. Skipping...", file=sys.stderr)
+                failed_instances += 1
+            else:
+                print(f"Retrying in 5 seconds...", file=sys.stderr)
+                time.sleep(5)
+                
+        except subprocess.CalledProcessError as e:
+            print(f"Error running {script_path} with {algorithm} and SLA {sla}: {e} (attempt {attempt}/{max_retries})", file=sys.stderr)
+            kill_docker_workers()
+            
+            if attempt == max_retries:
+                # Final attempt failed
+                print(f"Failed after {max_retries} attempts. Skipping...", file=sys.stderr)
+                failed_instances += 1
+            else:
+                print(f"Retrying in 5 seconds...", file=sys.stderr)
+                time.sleep(5)
 
 def main():
     global failed_instances

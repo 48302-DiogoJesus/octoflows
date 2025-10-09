@@ -1998,7 +1998,7 @@ async def main():
                 for instance in wf_info.instances:
                     planner_name = instance.plan.planner_name if instance.plan else "unknown"
 
-                    if "opt" not in planner_name.lower() and "uniform" in planner_name.lower():
+                    if "opt" not in planner_name.lower() and ("uniform" in planner_name.lower() or "wukong" in planner_name.lower()):
                         sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
                         sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                         actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
@@ -2057,7 +2057,7 @@ async def main():
                     "value": "Median Value",
                     "planner": "Planner"
                 },
-                title="Makespan vs Resource Usage (Planners: Uniform and Non-Uniform)"
+                title="Makespan vs Resource Usage (Non Optimized Planners)"
             )
 
             # Layout improvements
