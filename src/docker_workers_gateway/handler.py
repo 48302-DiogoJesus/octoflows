@@ -97,47 +97,46 @@ def handle_containers_shutdown():
     logger.info("All containers have shutdown!")
     return "", 200
 
-@app.route('/job', methods=['POST', 'GET'])
+@app.route('/job', methods=['POST'])
 def handle_job():
     """
     Handles POST and GET requests to /job.
     - POST: Accepts the job and immediately returns 202, then processes the job asynchronously.
     - GET: Returns a list of available container IDs grouped by resource configuration. Used for DEBUG
     """
-    if request.method == 'POST':
-        # Parse request data
-        if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
-        data = request.get_json()
+    # Parse request data
+    if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
+    data = request.get_json()
 
-        resource_config_key = data.get('resource_configuration', None)
-        if resource_config_key is None: 
-            logger.error("'resource_configuration' field is required")
-            return jsonify({"error": "'resource_configuration' field is required"}), 400
-        resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
-        if resource_configuration is None: 
-            logger.error("'resource_configuration' field is required")
-            return jsonify({"error": "'resource_configuration' field is required"}), 400
-        dag_id = data.get('dag_id', None)
-        if dag_id is None: 
-            logger.error("'dag_id' field is required")
-            return jsonify({"error": "'dag_id' field is required"}), 400
-        b64_task_ids = data.get('task_ids', None)
-        if b64_task_ids is None: 
-            logger.error("'task_id' field is required")
-            return jsonify({"error": "'task_id' field is required"}), 400
-        b64config = data.get('config', None)
-        if b64config is None: 
-            logger.error("'config' field is required")
-            return jsonify({"error": "'config' field is required"}), 400
-        b64_fulldag = data.get('fulldag', None)
-        b64_relevant_cached_results = data.get('relevant_cached_results', None)
-        if b64_relevant_cached_results is None:
-            logger.error("'relevant_cached_results' field is required")
-            return jsonify({"error": "'relevant_cached_results' field is required"}), 400
+    resource_config_key = data.get('resource_configuration', None)
+    if resource_config_key is None: 
+        logger.error("'resource_configuration' field is required")
+        return jsonify({"error": "'resource_configuration' field is required"}), 400
+    resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
+    if resource_configuration is None: 
+        logger.error("'resource_configuration' field is required")
+        return jsonify({"error": "'resource_configuration' field is required"}), 400
+    dag_id = data.get('dag_id', None)
+    if dag_id is None: 
+        logger.error("'dag_id' field is required")
+        return jsonify({"error": "'dag_id' field is required"}), 400
+    b64_task_ids = data.get('task_ids', None)
+    if b64_task_ids is None: 
+        logger.error("'task_id' field is required")
+        return jsonify({"error": "'task_id' field is required"}), 400
+    b64config = data.get('config', None)
+    if b64config is None: 
+        logger.error("'config' field is required")
+        return jsonify({"error": "'config' field is required"}), 400
+    b64_fulldag = data.get('fulldag', None)
+    b64_relevant_cached_results = data.get('relevant_cached_results', None)
+    if b64_relevant_cached_results is None:
+        logger.error("'relevant_cached_results' field is required")
+        return jsonify({"error": "'relevant_cached_results' field is required"}), 400
 
-        thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag, b64_relevant_cached_results)
-        
-        return "", 202 # Immediately return 202 Accepted
+    thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag, b64_relevant_cached_results)
+    
+    return "", 202 # Immediately return 202 Accepted
 
 if __name__ == '__main__':
     is_shutting_down_flag = threading.Event()
