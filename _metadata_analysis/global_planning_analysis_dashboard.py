@@ -1559,7 +1559,8 @@ async def main():
                         'resource_usage': [],
                         'warm_starts': [],
                         'cold_starts': [],
-                        'total_time_waiting_for_inputs': []
+                        'total_time_waiting_for_inputs': [],
+                        'unique_workers': []
                     }
                 
                 metrics = planner_metrics[planner]
@@ -1574,6 +1575,11 @@ async def main():
                 )
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 total_time_waiting_for_inputs_s = sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 if sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms else 0
+                actual_unique_workers_count = len(set([
+                        task.metrics.worker_resource_configuration.worker_id
+                        for task in instance.tasks
+                        if task.metrics.worker_resource_configuration.worker_id is not None
+                    ]))
 
                 metrics['makespan'].append(actual_makespan_s)
                 metrics['execution'].append(sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks))
@@ -1614,6 +1620,7 @@ async def main():
                 ))
                 metrics['warm_starts'].append(instance.warm_starts_count)
                 metrics['cold_starts'].append(instance.cold_starts_count)
+                metrics['unique_workers'].append(actual_unique_workers_count)
 
             # Compute median per planner
 
@@ -1637,6 +1644,7 @@ async def main():
                     ('Data Size Downloaded (MB)', 'data_size_downloaded'),
                     ('Warm Starts', 'warm_starts'),
                     ('Cold Starts', 'cold_starts'),
+                    ('Unique Workers', 'unique_workers'),
                 ]
                 
                 for display_name, key in metric_names:

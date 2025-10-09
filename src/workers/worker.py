@@ -41,6 +41,7 @@ class Worker(ABC):
 
     intermediate_storage: storage_module.Storage
     config: Config
+    task_execution_limiter = asyncio.Semaphore(3) # only allow up to 4 tasks to be executed at once, to avoid resource contention
 
     def __init__(self, config: Config):
         self.intermediate_storage = config.intermediate_storage_config.create_instance()
@@ -214,10 +215,11 @@ class Worker(ABC):
                 await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task, is_dupping)
 
                 #* 2) EXECUTE TASK
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"2) Executing Task...", is_dupping)
-                exec_timer = Timer()
-                deserialized_task_result = await asyncio.to_thread(current_task.invoke, dependencies=task_dependencies)
-                task_execution_time_ms = exec_timer.stop()
+                async with self.task_execution_limiter:
+                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"2) Executing Task...", is_dupping)
+                    exec_timer = Timer()
+                    deserialized_task_result = await asyncio.to_thread(current_task.invoke, dependencies=task_dependencies)
+                    task_execution_time_ms = exec_timer.stop()
 
                 current_task.metrics.tp_execution_time_ms = task_execution_time_ms
                 # normalize based on the memory used. Calculate "per input size byte"
