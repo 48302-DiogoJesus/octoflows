@@ -107,7 +107,7 @@ class DockerContainerUsageMonitor:
         DockerContainerUsageMonitor._tasks.pop(dag_id)
 
         runtime = data["end_time"] - data["start_time"]
-        total_memory_bytes = sum(data["memory_seconds"].values())
+        total_memory_bytes_seconds = sum(data["memory_seconds"].values())
         total_cpu_seconds = 0
 
         # Calculate total allocated CPU seconds and clean cache
@@ -119,13 +119,10 @@ class DockerContainerUsageMonitor:
                 total_cpus += num_cpus
                 total_cpu_seconds += num_cpus * runtime
 
-        # Weighted cost: CPU seconds * memory GB-seconds
-        total_cost = total_cpu_seconds * (total_memory_bytes / (1024**3))
-
         return DAGResourceUsageMetrics(
             master_dag_id=dag_id,
             run_time_seconds=runtime,
             cpu_seconds=total_cpu_seconds,
-            memory_bytes=total_memory_bytes,
-            cost=total_cost,
+            # AWS-like calculation: GB-s, but scaled down for easier comparison
+            gb_seconds=total_memory_bytes_seconds / (1024**3),
         )

@@ -286,8 +286,6 @@ async def get_workflows_information(
                 resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(
                     resource_usage_data
                 )
-                # AWS-like calculation: GB-s, but scaled down for easier comparison
-                resource_usage.cost = (resource_usage.cpu_seconds * (resource_usage.memory_bytes / (1024**3))) / 1000
 
                 total_transferred_data_bytes = (
                     total_inputs_downloaded + total_outputs_uploaded
@@ -594,8 +592,7 @@ async def main():
             'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0 if is_wukong_instance else predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
             'Run Time': f"{instance.resource_usage.run_time_seconds:.2f}",
             'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
-            'Memory Usage': f"{convert_bytes_to_GB(instance.resource_usage.memory_bytes):.2f} GB",
-            'Resources Cost': f"{instance.resource_usage.cost:.2f}",
+            'Resource Usage': f"{instance.resource_usage.gb_seconds:.2f}",
             'Warm/Cold Starts': f"{instance.warm_starts_count}/{instance.cold_starts_count}",
             '_actual_worker_startup': actual_total_worker_startup_time_s,
             '_actual_invocation': actual_invocation,
@@ -806,8 +803,7 @@ async def main():
                     'Total Worker Startup Time': "Total Worker Startup Time (Predicted → Actual)",
                     'Run Time': "Run Time",
                     'CPU Time': "CPU Time",
-                    'Memory Usage': "Memory Usage",
-                    'Resources Cost': "Resources Cost",
+                    'Resource Usage': "Resource Usage",
                     'Warm/Cold Starts': "Warm/Cold Starts",
                 },
                 use_container_width=True,
@@ -830,12 +826,10 @@ async def main():
                     'Total Data Transferred',
                     'Total Task Invocation Time',
                     'Total Dependency Counter Update Time',
-                    # 'Total DAG Download Time',
                     'Total Worker Startup Time',
                     'Run Time',
                     'CPU Time',
-                    'Memory Usage',
-                    'Resources Cost',
+                    'Resource Usage',
                     'Warm/Cold Starts',
                 ]
             )
@@ -1352,7 +1346,7 @@ async def main():
                     ),
                     'Total Data Transferred': instance.total_transferred_data_bytes,
                     'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                    'Resource Usage': instance.resource_usage.cost,
+                    'Resource Usage': instance.resource_usage.gb_seconds,
                     'Total Prewarms': total_prewarms,
                     'Total Preloads': total_preloads,
                     'Total TaskDups': total_taskdups
@@ -1615,7 +1609,7 @@ async def main():
                 ))
                 metrics['total_time_waiting_for_inputs'].append(total_time_waiting_for_inputs_s)
                 metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
-                metrics['resource_usage'].append(instance.resource_usage.cost)
+                metrics['resource_usage'].append(instance.resource_usage.gb_seconds)
                 metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
                 metrics['data_size_downloaded'].append(sum(
                     sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
@@ -1918,13 +1912,8 @@ async def main():
                 })
                 resource_data.append({
                     'Planner': planner,
-                    'Metric': 'Memory (GB)',
-                    'Value': usage.memory_bytes / (1024 * 1024 * 1024)  # convert to MB
-                })
-                resource_data.append({
-                    'Planner': planner,
-                    'Metric': 'Cost',
-                    'Value': instance.resource_usage.cost
+                    'Metric': 'Cost (GB-seconds)',
+                    'Value': usage.gb_seconds
                 })
 
             ######## Network I/O
@@ -1964,7 +1953,7 @@ async def main():
             df_resource = pd.DataFrame(resource_data)
 
             # Plot each metric separately
-            metrics = ['Run Time (s)', 'CPU Time (s)', 'Memory (GB)', 'Cost']
+            metrics = ['Run Time (s)', 'CPU Time (s)', 'Cost (GB-seconds)']
 
             cols = st.columns(2)
 
@@ -2012,7 +2001,7 @@ async def main():
                             "planner": planner_name,
                             "run_time_seconds": ru.run_time_seconds,
                             "cpu_seconds": ru.cpu_seconds,
-                            "memory_gb": ru.memory_bytes / 1024 / 1024 / 1024
+                            "cost": ru.gb_seconds / 1024 / 1024 / 1024
                         })
 
             df = pd.DataFrame(data)
@@ -2025,13 +2014,13 @@ async def main():
                 "makespan": "median",
                 "run_time_seconds": "median",
                 "cpu_seconds": "median",
-                "memory_gb": "median"
+                "cost": "median"
             }).reset_index()
 
             # Melt DataFrame to have metrics as a single column
             df_melted = df_summary.melt(
                 id_vars=["planner"],
-                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"],
+                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "cost"],
                 var_name="metric",
                 value_name="value"
             )

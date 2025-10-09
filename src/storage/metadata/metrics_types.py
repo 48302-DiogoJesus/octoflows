@@ -74,5 +74,4 @@ class DAGResourceUsageMetrics:
     master_dag_id: str
     run_time_seconds: float
     cpu_seconds: float
-    memory_bytes: int
-    cost: float
+    gb_seconds: float
