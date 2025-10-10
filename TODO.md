@@ -1,6 +1,8 @@
 - Dashboard
     [IMPLEMENTATION]
+    - text analysis and gemm are bad
     - some charts are showing ALL information instead of the selected planner only
+    - show all slas show all workflows in the time breakdown chart
     - Check new results to see the impact of NOT using taskdup
         => if it's not that, should I retry lowering baseline resources to 1GB + just ignore the killed instances?
 

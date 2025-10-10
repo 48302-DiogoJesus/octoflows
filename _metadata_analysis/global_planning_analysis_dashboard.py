@@ -1305,7 +1305,7 @@ async def main():
             metrics_data = []
 
             for instance in workflow_types[selected_workflow].instances:
-                if not instance.plan or not instance.tasks: 
+                if not instance.plan or not instance.tasks:
                     continue
 
                 # Calculate all metrics for this instance
@@ -1324,18 +1324,25 @@ async def main():
                 total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
                 total_preloads = sum(task.optimization_preloads_done for task in instance.tasks)
                 total_taskdups = sum(task.optimization_task_dups_done for task in instance.tasks)
+                
+                # **Calculate unique workers for this instance**
+                unique_workers = len(set(
+                    task.metrics.worker_resource_configuration.worker_id
+                    for task in instance.tasks
+                    if hasattr(task.metrics, 'worker_resource_configuration')
+                ))
 
                 # Create instance metrics dictionary
                 instance_metrics = {
                     'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
                     'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
                     'Total Time Waiting for Inputs [s]': sum(
-                        (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) / 1000 
+                        (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) / 1000
                         for task in instance.tasks
                     ),
                     'Download Time [s]': sum(
-                        sum(input_metric.time_ms / 1000 
-                            for input_metric in task.metrics.input_metrics.input_download_metrics.values() 
+                        sum(input_metric.time_ms / 1000
+                            for input_metric in task.metrics.input_metrics.input_download_metrics.values()
                             if input_metric.time_ms is not None)
                         for task in instance.tasks
                     ),
@@ -1358,10 +1365,12 @@ async def main():
                         'Metric': metric_name,
                         'Value': value,
                         'Planner': instance.plan.planner_name if instance.plan else 'No Planner',
+                        'SLA': instance.plan.sla.value if instance.plan and hasattr(instance.plan, 'sla') and hasattr(instance.plan.sla, 'value') else 'No SLA',
                         'Instance ID': instance.master_dag_id.split('-')[0],
                         'Total Prewarms': total_prewarms,
                         'Total Preloads': total_preloads,
-                        'Total TaskDups': total_taskdups
+                        'Total TaskDups': total_taskdups,
+                        'Unique Workers': unique_workers
                     })
 
             st.markdown("### Metrics Comparison")
@@ -1421,113 +1430,59 @@ async def main():
                 # ---------------------                        
                 # Add pie charts for time distribution by activity for each planner
                 st.markdown("### Time Breakdown Analysis")
-                
-                # Define the time metrics we want to include in the pie charts
+
                 time_metrics = ['Worker Startup Time [s]', 'Total Time Waiting for Inputs [s]', 'Execution Time [s]', 'Upload Time [s]']
-                
-                # Get unique planners and filter for time-related metrics
-                planner_names = sorted(df_metrics['Planner'].unique())
                 time_metrics_df = df_metrics[df_metrics['Metric'].isin(time_metrics)]
-                
-                # Create columns for the pie charts - one per planner
-                cols = st.columns(len(planner_names) if len(planner_names) > 0 else 1)
-                
-                # for idx, planner_name in enumerate(planner_names):
-                #     with cols[idx % len(cols)]:
-                #         # Get metrics for this planner
-                #         planner_data = time_metrics_df[time_metrics_df['Planner'] == planner_name]
-                        
-                #         # Create a dictionary with the time data
-                #         time_data = {}
-                #         for metric in time_metrics:
-                #             metric_data = planner_data[planner_data['Metric'] == metric]
-                #             time_data[metric] = metric_data['Value'].mean() if not metric_data.empty else 0
-                        
-                #         # Create a DataFrame for the pie chart
-                #         df_pie = pd.DataFrame({
-                #             'Activity': list(time_data.keys()),
-                #             'Time (s)': list(time_data.values())
-                #         })
-                        
-                #         # Create the pie chart with legend
-                #         fig_pie = px.pie(
-                #             df_pie, 
-                #             values='Time (s)', 
-                #             names='Activity',
-                #             title=f'{planner_name} Time Distribution',
-                #             color='Activity'
-                #         )
-                        
-                #         # Update layout for better visualization
-                #         fig_pie.update_traces(
-                #             textposition='inside',
-                #             textinfo='percent+label',
-                #             hovertemplate='%{label}: %{value:.2f}s (%{percent})',
-                #             textfont_size=12,
-                #             # Enable click-to-toggle behavior
-                #             customdata=df_pie['Activity'],
-                #             selector=dict(type='pie')
-                #         )
-                        
-                #         fig_pie.update_layout(
-                #             showlegend=True,
-                #             legend=dict(
-                #                 title='Legend',
-                #                 orientation='h',
-                #                 yanchor='bottom',
-                #                 y=-0.2,
-                #                 xanchor='center',
-                #                 x=0.5
-                #             ),
-                #             margin=dict(t=30, b=80, l=10, r=10),
-                #             height=450,
-                #             title_x=0.5,
-                #             title_font_size=14,
-                #             # Enable click-to-toggle functionality
-                #             clickmode='event+select'
-                #         )
-                        
-                #         # Add click-to-toggle functionality
-                #         fig_pie.update_traces(
-                #             hovertemplate='%{label}: %{value:.2f}s (%{percent})<extra></extra>',
-                #             selector=dict(type='pie')
-                #         )
-                        
-                #         st.plotly_chart(fig_pie, use_container_width=True, key=f"pie_{planner_name}")
-                
-                # STACKED BAR CHART of time breakdown
-                bar_data = []
 
-                for planner_name in planner_names:
-                    planner_data = time_metrics_df[time_metrics_df['Planner'] == planner_name]
-                    time_data = {}
-                    for metric in time_metrics:
-                        metric_data = planner_data[planner_data['Metric'] == metric]
-                        time_data[metric] = metric_data['Value'].mean() if not metric_data.empty else 0
-                    bar_data.append({'Planner': planner_name, **time_data})
+                if not time_metrics_df.empty:
+                    # **Calculate median unique workers for each Planner group**
+                    median_workers = df_metrics.groupby(['Planner'])['Unique Workers'].median().reset_index()
+                    median_workers = median_workers.rename(columns={'Unique Workers': 'Median Unique Workers'})
 
-                df_bar = pd.DataFrame(bar_data)
+                    # **Group and pivot time metrics by Planner only**
+                    bar_data = time_metrics_df.groupby(['Planner', 'Metric'])['Value'].mean().reset_index()
+                    df_bar = bar_data.pivot_table(index=['Planner'], columns='Metric', values='Value').reset_index()
+                    
+                    # **Merge the median worker data into the plotting dataframe**
+                    df_bar = pd.merge(df_bar, median_workers, on=['Planner'], how='left')
+                    df_bar['Median Unique Workers'] = df_bar['Median Unique Workers'].fillna(0).astype(int)
+                    df_bar = df_bar.fillna(0)
+                    
+                    metric_cols_ordered = [m for m in time_metrics if m in df_bar.columns]
 
-                # Create stacked bar chart
-                fig_bar = px.bar(
-                    df_bar,
-                    x='Planner',
-                    y=time_metrics,
-                    title="Time Distribution",
-                    labels={'value': 'Time (s)', 'Planner': 'Planner'}
-                )
+                    # **Create a single stacked bar chart per planner**
+                    fig_bar = px.bar(
+                        df_bar,
+                        x='Planner',
+                        y=metric_cols_ordered,
+                        title="Time Distribution by Planner",
+                        labels={'value': 'Time (s)', 'Planner': 'Planner'},
+                        category_orders={"Planner": sorted(df_bar['Planner'].unique())},
+                        custom_data=['Median Unique Workers'] # Pass median workers to custom_data
+                    )
 
-                # Update layout
-                fig_bar.update_layout(
-                    barmode='stack',
-                    xaxis_title='Planner',
-                    yaxis_title='Time (s)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    height=500,
-                    legend_title='Activity'
-                )
+                    fig_bar.update_layout(
+                        barmode='stack',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=500,
+                        legend_title='Activity',
+                        yaxis_title='Time (s)'
+                    )
+                    
+                    # **Iterate through traces to set custom hover templates**
+                    for trace in fig_bar.data:
+                        # Default template for all bars
+                        template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<extra></extra>'
 
-                st.plotly_chart(fig_bar, use_container_width=True)
+                        # Custom template for the 'Worker Startup Time' bar segment
+                        if trace.name == 'Worker Startup Time [s]':
+                            template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<br><b>Median Unique Workers:</b> %{customdata[0]}<extra></extra>'
+                        
+                        trace.hovertemplate = template
+
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.write("No time metrics data available to display.")
             
             # Calculate metrics by planner type
             # Collect metrics per planner
@@ -1623,7 +1578,9 @@ async def main():
 
             # Prepare plot data with median and std
             plot_data = []
-            network_data = []  # keep this array intact
+            # The user asked to keep network_data intact, so we'll leave its logic as is,
+            # even though it's not used in the new plotting scheme.
+            network_data = [] 
 
             for planner_name, metrics in planner_metrics.items():
                 metric_names = [
@@ -1645,66 +1602,79 @@ async def main():
                 ]
                 
                 for display_name, key in metric_names:
-                    median_val = np.median(metrics[key])
-                    
-                    # Convert units where needed
-                    if display_name == 'Data Transferred (GB)':
-                        median_val /= 1024**3
-                    if display_name in ['Data Size Uploaded (MB)', 'Data Size Downloaded (MB)']:
-                        median_val /= 1024**2
-                    
-                    plot_data.append({
-                        'Planner': planner_name,
-                        'Metric': display_name,
-                        'Value': median_val,
-                    })
-
-                    # Keep network_data intact
-                    if display_name == 'Data Size Uploaded (MB)':
-                        network_data.append({
+                    # Ensure the key exists and the list is not empty before calculating median
+                    if key in metrics and metrics[key]:
+                        median_val = np.median(metrics[key])
+                        
+                        # Convert units where needed
+                        if display_name == 'Data Transferred (GB)':
+                            median_val /= 1024**3
+                        if display_name in ['Data Size Uploaded (MB)', 'Data Size Downloaded (MB)']:
+                            median_val /= 1024**2
+                        
+                        plot_data.append({
                             'Planner': planner_name,
-                            'Type': 'Upload (MB)',
-                            'Value': median_val
-                        })
-                    if display_name == 'Data Size Downloaded (MB)':
-                        network_data.append({
-                            'Planner': planner_name,
-                            'Type': 'Download (MB)',
-                            'Value': median_val
+                            'Metric': display_name,
+                            'Value': median_val,
                         })
 
-            df_plot = pd.DataFrame(plot_data)
-            sorted_planners = sorted(df_plot['Planner'].unique())
+                        # This section remains unchanged as requested
+                        if display_name == 'Data Size Uploaded (MB)':
+                            network_data.append({
+                                'Planner': planner_name, 'Type': 'Upload (MB)', 'Value': median_val
+                            })
+                        if display_name == 'Data Size Downloaded (MB)':
+                            network_data.append({
+                                'Planner': planner_name, 'Type': 'Download (MB)', 'Value': median_val
+                            })
 
-            # Create bar chart
-            fig = px.bar(
-                df_plot,
-                x='Metric',
-                y='Value',
-                color='Planner',
-                barmode='group',
-                title='All Metrics Comparison (Median)',
-                labels={'Value': 'Value', 'Metric': 'Metric'},
-                category_orders={'Planner': sorted_planners}
-            )
+            if plot_data:
+                df_plot = pd.DataFrame(plot_data)
+                
+                # **1. Create a sorted list of planner names**
+                sorted_planners = sorted(df_plot['Planner'].unique())
+                
+                # Create a dropdown menu to select the metric
+                st.markdown("### Metric Comparison (Median)")
+                selected_metric = st.selectbox(
+                    'Select a metric to display',
+                    options=sorted(df_plot['Metric'].unique())
+                )
 
-            # Add median value above bars
-            fig.update_traces(
-                texttemplate='%{y:.2f}',  # this will always match the actual bar height
-                textposition='outside',
-            )
+                # Filter the DataFrame based on the selection
+                df_filtered = df_plot[df_plot['Metric'] == selected_metric]
+                
+                # Create a bar chart for the selected metric
+                if not df_filtered.empty:
+                    fig = px.bar(
+                        df_filtered,
+                        x='Planner',
+                        y='Value',
+                        color='Planner',
+                        title=f'{selected_metric} Comparison',
+                        labels={'Value': 'Median Value', 'Planner': 'Planner'},
+                        # **2. Use the sorted list to enforce the order**
+                        category_orders={'Planner': sorted_planners}
+                    )
 
-            fig.update_layout(
-                xaxis_title='Metric',
-                yaxis_title='Value',
-                legend_title='Planner',
-                plot_bgcolor='rgba(0,0,0,0)',
-                yaxis_type='log',
-                height=800,
-                xaxis={'categoryorder':'total descending'}
-            )
+                    # Add median value text above bars
+                    fig.update_traces(
+                        texttemplate='%{y:.3f}',
+                        textposition='outside',
+                    )
 
-            st.plotly_chart(fig, use_container_width=True)
+                    fig.update_layout(
+                        xaxis_title='Planner',
+                        yaxis_title='Median Value',
+                        legend_title='Planner',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        height=600,
+                        # **3. The line for sorting by value has been removed**
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No data available to plot.")
 
             st.markdown("## Optimizations")
 
@@ -2001,7 +1971,7 @@ async def main():
                             "planner": planner_name,
                             "run_time_seconds": ru.run_time_seconds,
                             "cpu_seconds": ru.cpu_seconds,
-                            "cost": ru.gb_seconds / 1024 / 1024 / 1024
+                            "memory_gb": ru.gb_seconds
                         })
 
             df = pd.DataFrame(data)
@@ -2014,13 +1984,13 @@ async def main():
                 "makespan": "median",
                 "run_time_seconds": "median",
                 "cpu_seconds": "median",
-                "cost": "median"
+                "memory_gb": "median",
             }).reset_index()
 
             # Melt DataFrame to have metrics as a single column
             df_melted = df_summary.melt(
                 id_vars=["planner"],
-                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "cost"],
+                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"],
                 var_name="metric",
                 value_name="value"
             )
