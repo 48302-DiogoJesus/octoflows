@@ -43,7 +43,7 @@ def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
     # Small CPU-heavy vector op to scale with available CPU
     tmp = np.random.RandomState(0).rand(4096)
     _ = float(np.dot(tmp, tmp))  # uses optimized BLAS if available
-    time.sleep(1)
+    time.sleep(2)
     return total, text
 
 
