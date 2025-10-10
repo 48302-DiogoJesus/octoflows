@@ -465,7 +465,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 my_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
             )
 
-            
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
             serialized_input_size,

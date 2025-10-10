@@ -13,7 +13,7 @@ from src.task_worker_resource_configuration import TaskWorkerResourceConfigurati
 logger = create_logger(__name__)
 
 class PredictionsProvider:
-    MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 5
+    MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION = 6
 
     nr_of_previous_instances: int = 0
 
