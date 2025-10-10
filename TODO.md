@@ -1,9 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - try with better base resources so that gemm isnt bottleneck
-        - try same with taskdup and compare
-        notes:
-            - 
+    - try same with taskdup and compare
     - text analysis and gemm are bad
     - some charts are showing ALL information instead of the selected planner only
     - show all slas show all workflows in the time breakdown chart

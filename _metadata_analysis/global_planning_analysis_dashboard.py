@@ -590,7 +590,6 @@ async def main():
             'Total Dependency Counter Update Time': f"{actual_dependency_update:.2f}s",
             # 'Total DAG Download Time': dag_download_time,
             'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0 if is_wukong_instance else predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
-            'Run Time': f"{instance.resource_usage.run_time_seconds:.2f}",
             'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
             'Resource Usage': f"{instance.resource_usage.gb_seconds:.2f}",
             'Warm/Cold Starts': f"{instance.warm_starts_count}/{instance.cold_starts_count}",
@@ -1868,13 +1867,8 @@ async def main():
                     continue
                 
                 planner = instance.plan.planner_name if instance.plan else 'Unknown'
-                usage = instance.resource_usage  # assuming it has run_time_seconds, cpu_seconds, memory_bytes, cost
+                usage = instance.resource_usage
 
-                resource_data.append({
-                    'Planner': planner,
-                    'Metric': 'Run Time (s)',
-                    'Value': usage.run_time_seconds
-                })
                 resource_data.append({
                     'Planner': planner,
                     'Metric': 'CPU Time (s)',
@@ -1882,7 +1876,7 @@ async def main():
                 })
                 resource_data.append({
                     'Planner': planner,
-                    'Metric': 'Cost (GB-seconds)',
+                    'Metric': 'GB-seconds',
                     'Value': usage.gb_seconds
                 })
 
@@ -1969,9 +1963,8 @@ async def main():
                             "workflow": wf_name,
                             "makespan": actual_makespan_s,
                             "planner": planner_name,
-                            "run_time_seconds": ru.run_time_seconds,
                             "cpu_seconds": ru.cpu_seconds,
-                            "memory_gb": ru.gb_seconds
+                            "GB-seconds": ru.gb_seconds
                         })
 
             df = pd.DataFrame(data)
@@ -1982,15 +1975,14 @@ async def main():
             # Calculate median for each planner and metric
             df_summary = df.groupby("planner").agg({
                 "makespan": "median",
-                "run_time_seconds": "median",
                 "cpu_seconds": "median",
-                "memory_gb": "median",
+                "GB-seconds": "median",
             }).reset_index()
 
             # Melt DataFrame to have metrics as a single column
             df_melted = df_summary.melt(
                 id_vars=["planner"],
-                value_vars=["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"],
+                value_vars=["makespan", "cpu_seconds", "GB-seconds"],
                 var_name="metric",
                 value_name="value"
             )
@@ -2030,7 +2022,7 @@ async def main():
                 legend_title="Planner",
                 xaxis={
                     "categoryorder": "array",
-                    "categoryarray": ["makespan", "run_time_seconds", "cpu_seconds", "memory_gb"]
+                    "categoryarray": ["makespan", "cpu_seconds", "GB-seconds"]
                 }
             )
 
