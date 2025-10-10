@@ -74,7 +74,8 @@ class Worker(ABC):
                     current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
                 else:
                     self.my_worker_id = my_worker_id
-                    current_task.metrics.worker_resource_configuration = TaskWorkerResourceConfiguration(-1, worker_id=my_worker_id)
+                    current_task.metrics.worker_resource_configuration = current_task.worker_config.clone()
+                    current_task.metrics.worker_resource_configuration.worker_id = my_worker_id
                     current_task.metrics.started_at_timestamp_s = time.time()
                     current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
