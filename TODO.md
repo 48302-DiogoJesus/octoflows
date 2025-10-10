@@ -1,6 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - try same with taskdup and compare
+    - dashboard: remove dupped metrics
     - text analysis and gemm are bad
     - some charts are showing ALL information instead of the selected planner only
     - show all slas show all workflows in the time breakdown chart
