@@ -1,6 +1,6 @@
+from typing import Any, Awaitable
 from abc import abstractmethod
 from dataclasses import dataclass
-from types import CoroutineType
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 @dataclass
@@ -20,7 +20,7 @@ class TaskOptimization(WorkerExecutionLogic):
     async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], CoroutineType | None] | None: return None
+    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict) -> tuple[list, list[str], Awaitable[Any] | None] | None: return None
     
     @staticmethod
     async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool): pass

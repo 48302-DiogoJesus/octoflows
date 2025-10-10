@@ -74,7 +74,7 @@ def edge_detect_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk).convert("L")
     img_edge = img.filter(ImageFilter.FIND_EDGES)
     img_edge = img_edge.resize((chunk.shape[1], chunk.shape[0]))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return np.array(img_edge)
 
 
@@ -93,7 +93,7 @@ def combine_chunk(branch_a: np.ndarray, branch_b: np.ndarray) -> np.ndarray:
         if len(branch_b.shape) == 2:  # grayscale → 3 channels
             branch_b = np.stack([branch_b] * 3, axis=-1)
         branch_b = np.array(Image.fromarray(branch_b).resize((branch_a.shape[1], branch_a.shape[0])))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return ((branch_a.astype(np.float32) + branch_b.astype(np.float32)) / 2).astype(np.uint8)
 
 
@@ -106,7 +106,7 @@ def merge_chunks_grid(chunks: list[np.ndarray], grid_size: int = 4) -> np.ndarra
         row = np.hstack(row_chunks)
         rows.append(row)
     full_image = np.vstack(rows)
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return full_image
 
 

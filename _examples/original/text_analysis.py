@@ -41,8 +41,8 @@ def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
     counts_arr = np.array(counts, dtype=np.int64)
     total = int(counts_arr.sum())
     # Small CPU-heavy vector op to scale with available CPU
-    # tmp = np.random.RandomState(0).rand(4096)
-    # _ = float(np.dot(tmp, tmp))  # uses optimized BLAS if available
+    tmp = np.random.RandomState(0).rand(4096)
+    _ = float(np.dot(tmp, tmp))  # uses optimized BLAS if available
     return total, text
 
 
@@ -358,7 +358,7 @@ def calculate_text_metrics(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
     complexity_score = float((overall_avg_word_length * total_sentences) / 100.0) if total_sentences > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "words_per_sentence": words_per_sentence,

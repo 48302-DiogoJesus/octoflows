@@ -1,8 +1,6 @@
 import asyncio
-from types import CoroutineType
-from typing import Any
+from typing import Any, Awaitable
 from abc import ABC
-import uuid
 
 from src.utils.logger import create_logger
 from src.utils.timer import Timer
@@ -20,7 +18,7 @@ class WorkerExecutionLogic(ABC):
         pass
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], CoroutineType | None] | None:
+    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], Awaitable[Any] | None] | None:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
