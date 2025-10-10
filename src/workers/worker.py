@@ -72,12 +72,6 @@ class Worker(ABC):
                     current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
                     current_task.metrics.started_at_timestamp_s = time.time()
                     current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
-                else:
-                    self.my_worker_id = my_worker_id
-                    current_task.metrics.worker_resource_configuration = current_task.worker_config.clone()
-                    current_task.metrics.worker_resource_configuration.worker_id = my_worker_id
-                    current_task.metrics.started_at_timestamp_s = time.time()
-                    current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
                 if self.my_resource_configuration.worker_id is not None:
                     assert self.my_worker_id == self.my_resource_configuration.worker_id
@@ -88,7 +82,7 @@ class Worker(ABC):
                 
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task, is_dupping)
                 
-                tasks_executed_by_this_coroutine.append(current_task)
+                if not is_dupping: tasks_executed_by_this_coroutine.append(current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...", is_dupping)
