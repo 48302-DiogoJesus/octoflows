@@ -272,27 +272,3 @@ class ContainerPoolExecutor:
             self.containers_available_condition.notify_all()
 
         return container_id
-    
-    def get_all_resource_configurations(self):
-        # Get all running containers
-        containers = subprocess.check_output(
-            ["docker", "ps", "--filter", f"ancestor={self.docker_image}", "--format", "{{.ID}}"],
-            text=True
-        ).strip().splitlines()
-
-        with self.lock:
-            # Group containers by resource configuration
-            configurations: dict[str, list[str]] = {}
-            for container_id in containers:
-                inspect_output = subprocess.check_output(
-                    ["docker", "inspect", "--format", "{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}", container_id],
-                    text=True
-                ).strip().split()
-                container_cpus = int(inspect_output[0]) / 1e9  # Convert nanoseconds to CPUs
-                container_memory = int(inspect_output[1]) // (1024 * 1024)  # Convert bytes to MB
-
-                config_key = f"{container_cpus}_{container_memory}"
-                if config_key not in configurations:
-                    configurations[config_key] = []
-                configurations[config_key].append(container_id)
-            return configurations
