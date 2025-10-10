@@ -1,6 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Changed MAX_FAN_OUT_SIZE_W_SAME_WORKER to 5 + taskdup w/metrics?, test again
+    - Changed MAX_FAN_OUT_SIZE_W_SAME_WORKER to 5 and NO taskdup?, test again
 
     - Dashboard: check if text analysis has data for uniform-opt now, cause: dupped?
 
