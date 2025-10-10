@@ -27,11 +27,6 @@ def word_count_chunk(text: str, start: int, end: int) -> int:
     words = text.split()
     # Vectorized-ish counting by slicing and using numpy for a small heavy op
     count = len(words[start:end])
-    # Burn some CPU in a vectorized way proportional to count (but deterministic)
-    # if count > 0:
-    #     arr = np.linspace(0.0, 1.0, min(2048, max(16, count)), dtype=np.float64)
-    #     # use a fused vector operation to utilize vector units / BLAS-friendly work
-    #     _ = np.sum(np.sin(arr) * np.log1p(arr + 1e-12))
     return count
 
 
@@ -41,9 +36,6 @@ def merge_word_counts(text: str, counts: List[int]) -> tuple[int, str]:
     counts_arr = np.array(counts, dtype=np.int64)
     total = int(counts_arr.sum())
     # Small CPU-heavy vector op to scale with available CPU
-    tmp = np.random.RandomState(0).rand(4096)
-    _ = float(np.dot(tmp, tmp))  # uses optimized BLAS if available
-    time.sleep(2)
     return total, text
 
 
@@ -261,7 +253,7 @@ def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any
     enhanced_score = text_stats.get("simple_readability_score", 0.0) + (text_stats.get("avg_sentence_length", 0.0) * 0.1)
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "type": "overall_readability",

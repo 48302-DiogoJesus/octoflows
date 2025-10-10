@@ -130,7 +130,6 @@ class PreLoadOptimization(TaskOptimization):
             async with annotation._state_lock:
                 annotation._active_preloads.pop(upstream_full_id, None)
 
-
     @staticmethod
     async def wel_on_worker_ready(planner, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG, this_worker_id: str | None, this_worker):
         if this_worker_id is None: 

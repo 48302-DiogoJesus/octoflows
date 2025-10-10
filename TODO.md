@@ -1,6 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
-    - try with preload and modded
+    - try with better base resources so that gemm isnt bottleneck
+        - try same with preload and compare
+        notes:
+            - 
     - text analysis and gemm are bad
     - some charts are showing ALL information instead of the selected planner only
     - show all slas show all workflows in the time breakdown chart
