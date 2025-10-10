@@ -1,5 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
+    - Changed MAX_FAN_OUT_SIZE_W_SAME_WORKER to 5, test again
     - try same with taskdup and compare
     - Dashboard: remove dupped metrics, caused by taskdup
     - text analysis and gemm are bad
