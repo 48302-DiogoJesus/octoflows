@@ -121,7 +121,7 @@ async def get_workflows_information(
                     / 1000
                 ) if len(plan_output.nodes_info.keys()) > 0 else 0 # wukong has empty nodes info
                 # Accept bad predictions for wukong but not us (because its normal on wukong, since we don't use the predictions)
-                if predicted_makespan_s > 500 and "wukong" not in plan_output.planner_name:
+                if predicted_makespan_s > 200 and "wukong" not in plan_output.planner_name:
                     print(
                         f"{dag.dag_name} | planner: {plan_output.planner_name} | predicted makespan of {predicted_makespan_s} | Discard plan, assume it didn't have it"
                     )
