@@ -1,7 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
     - try with better base resources so that gemm isnt bottleneck
-        - try same with preload and compare
+        - try same with taskdup and compare
         notes:
             - 
     - text analysis and gemm are bad
