@@ -62,16 +62,18 @@ class Worker(ABC):
         branch_id = uuid.uuid4().hex
         try:
             while True:
+                _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
+                _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
+
                 if not is_dupping:
                     self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.worker_config
                     # To help understand locality decisions afterwards, at the dashboard
-                    _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
-                    _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
                     self.my_worker_id = my_worker_id
                     # not when dupping, otherwise would override our real id by the worker_id assigned to the duppable task
-                    current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
-                    current_task.metrics.started_at_timestamp_s = time.time()
-                    current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
+                
+                current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
+                current_task.metrics.started_at_timestamp_s = time.time()
+                current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
 
                 if self.my_resource_configuration.worker_id is not None:
                     assert self.my_worker_id == self.my_resource_configuration.worker_id
@@ -82,7 +84,6 @@ class Worker(ABC):
                 
                 await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task, is_dupping)
                 
-                # don't store metrics for dupped tasks
                 tasks_executed_by_this_coroutine.append(current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
