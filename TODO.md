@@ -1,10 +1,7 @@
 - Dashboard
     [IMPLEMENTATION]
-    - Changed MAX_FAN_OUT_SIZE_W_SAME_WORKER to 5 and NO taskdup?, test again
-
-    - Dashboard: check if text analysis has data for uniform-opt now, cause: dupped?
-
     - text analysis and gemm are bad
+    
     - some charts are showing ALL information instead of the selected planner only
     - show all slas show all workflows in the time breakdown chart
     - Check new results to see the impact of NOT using taskdup

@@ -1677,120 +1677,28 @@ async def main():
 
             st.markdown("## Optimizations")
 
-            st.markdown("### Impact of Optimizations in metrics")
-            # Convert metrics_data to DataFrame
-            df = pd.DataFrame(metrics_data)
-
-            # -------------------------
-            # 1) Line chart for Total Prewarms
-            # Metrics: Makespan, Worker Startup Time, Resource Usage
-            prewarms_metrics = ['Makespan [s]', 'Worker Startup Time [s]', 'Resource Usage']
-            df_prewarms = df[df['Metric'].isin(prewarms_metrics)]
-
-            # Group by Total Prewarms and Metric
-            df_prewarms_grouped = df_prewarms.groupby(['Total Prewarms', 'Metric']).agg({'Value':'mean'}).reset_index()
-
-            # Plot line chart
-            fig_prewarms = px.line(
-                df_prewarms_grouped,
-                x='Total Prewarms',
-                y='Value',
-                color='Metric',
-                markers=True,
-                title='Effect of Prewarms on Makespan, Worker Startup Time, and Resource Usage'
-            )
-            fig_prewarms.update_layout(
-                xaxis_title='Total Prewarms',
-                yaxis_title='Metric Value',
-                legend_title='Metric',
-                height=600
-            )
-            st.plotly_chart(fig_prewarms, use_container_width=True)
-
-            # -------------------------
-            # 2) Line chart for Total Preloads
-            # Metrics: Makespan, Total Time Waiting for Inputs, Download Time
-            preload_metrics = ['Makespan [s]', 'Total Time Waiting for Inputs [s]', 'Download Time [s]']
-            df_preload = df[df['Metric'].isin(preload_metrics)]
-
-            # Group by Total Preloads and Metric
-            df_preload_grouped = df_preload.groupby(['Total Preloads', 'Metric']).agg({'Value':'mean'}).reset_index()
-
-            # Plot line chart
-            fig_preload = px.line(
-                df_preload_grouped,
-                x='Total Preloads',
-                y='Value',
-                color='Metric',
-                markers=True,
-                title='Effect of Preloads on Makespan, Total Time Waiting, and Download Time'
-            )
-            fig_preload.update_layout(
-                xaxis_title='Total Preloads',
-                yaxis_title='Metric Value',
-                legend_title='Metric',
-                height=600
-            )
-            st.plotly_chart(fig_preload, use_container_width=True)
-
-            # -------------------------
-            # 3) Line chart for Total TaskDups
-            # Metrics: Makespan, Total Time Waiting for Inputs, Download Time, Resource Usage, Total Data Transferred
-            taskdup_metrics = [
-                'Makespan [s]',
-                'Total Time Waiting for Inputs [s]',
-                'Download Time [s]',
-                'Resource Usage',
-                'Total Data Transferred'
-            ]
-            df_taskdup = df[df['Metric'].isin(taskdup_metrics)]
-
-            # Group by Total TaskDups and Metric
-            df_taskdup_grouped = df_taskdup.groupby(['Total TaskDups', 'Metric']).agg({'Value':'mean'}).reset_index()
-
-            # Plot line chart
-            fig_taskdup = px.line(
-                df_taskdup_grouped,
-                x='Total TaskDups',
-                y='Value',
-                color='Metric',
-                markers=True,
-                title='Effect of TaskDups on Makespan, Waiting Time, Download Time, Resource Usage, and Data Transferred'
-            )
-            fig_taskdup.update_layout(
-                xaxis_title='Total TaskDups',
-                yaxis_title='Metric Value',
-                legend_title='Metric',
-                height=600
-            )
-            st.plotly_chart(fig_taskdup, use_container_width=True)
-
             # Collect prewarm data
             prewarm_data = []
 
-            for wf_name, wf_info in workflow_types.items():
-                if wf_name == "All":
+            for instance in workflow_types[selected_workflow].instances:
+                if not instance.plan:
                     continue
                 
-                for instance in wf_info.instances:
-                    if not instance.plan:
-                        continue
-                    
-                    planner_name = instance.plan.planner_name.lower()
-                    
-                    # Count prewarms for this instance
-                    total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
-                    successful_prewarms = sum(task.optimization_prewarms_successful for task in instance.tasks)
-                    
-                    if total_prewarms > 0:
-                        prewarm_data.append({
-                            'workflow': wf_name,
-                            'planner': planner_name,
-                            'total_prewarms': total_prewarms,
-                            'successful_prewarms': successful_prewarms,
-                            'failed_prewarms': total_prewarms - successful_prewarms,
-                            'success_rate': (successful_prewarms / total_prewarms * 100)
-                        })
+                planner_name = instance.plan.planner_name.lower()
+                
+                # Count prewarms for this instance
+                total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
+                successful_prewarms = sum(task.optimization_prewarms_successful for task in instance.tasks)
+                
+                if total_prewarms > 0:
+                    prewarm_data.append({
+                        'workflow': selected_workflow,
+                        'planner': planner_name,
+                        'total_prewarms': total_prewarms,
+                        'successful_prewarms': successful_prewarms,
+                        'failed_prewarms': total_prewarms - successful_prewarms,
+                        'success_rate': (successful_prewarms / total_prewarms * 100)
+                    })
 
             if prewarm_data:
                 df = pd.DataFrame(prewarm_data)
@@ -1917,7 +1825,7 @@ async def main():
             df_resource = pd.DataFrame(resource_data)
 
             # Plot each metric separately
-            metrics = ['Run Time (s)', 'CPU Time (s)', 'Cost (GB-seconds)']
+            metrics = ['CPU Time (s)', 'GB-seconds']
 
             cols = st.columns(2)
 
@@ -1950,22 +1858,21 @@ async def main():
 
             ##########
             data = []
-            for wf_name, wf_info in workflow_types.items():
-                for instance in wf_info.instances:
-                    planner_name = instance.plan.planner_name if instance.plan else "unknown"
+            for instance in workflow_types[selected_workflow].instances:
+                planner_name = instance.plan.planner_name if instance.plan else "unknown"
 
-                    if "opt" not in planner_name.lower() and ("uniform" in planner_name.lower() or "wukong" in planner_name.lower()):
-                        sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
-                        sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
-                        actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                        ru = instance.resource_usage
-                        data.append({
-                            "workflow": wf_name,
-                            "makespan": actual_makespan_s,
-                            "planner": planner_name,
-                            "cpu_seconds": ru.cpu_seconds,
-                            "GB-seconds": ru.gb_seconds
-                        })
+                if "opt" not in planner_name.lower() and ("uniform" in planner_name.lower() or "wukong" in planner_name.lower()):
+                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                    sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
+                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                    ru = instance.resource_usage
+                    data.append({
+                        "workflow": selected_workflow,
+                        "makespan": actual_makespan_s,
+                        "planner": planner_name,
+                        "cpu_seconds": ru.cpu_seconds,
+                        "GB-seconds": ru.gb_seconds
+                    })
 
             df = pd.DataFrame(data)
 

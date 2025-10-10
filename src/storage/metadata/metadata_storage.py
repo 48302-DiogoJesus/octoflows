@@ -91,4 +91,4 @@ class MetadataStorage():
         await self.storage.close_connection()
 
 
-BASELINE_MEMORY_MB = 1024 # reference value for normalization
+BASELINE_MEMORY_MB = 2048 # reference value for normalization
