@@ -1,6 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - no task dup + 4 tasks per worker + 2048mb
+    - no task dup + 4 tasks per worker + 2048mb (good)
     - try with taskdup again + check results
     
     - some charts are showing ALL information instead of the selected planner only
