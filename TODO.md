@@ -19,19 +19,14 @@
 - move taskdup + preload logic from the docker worker.py to `taskup.on_worker_ready()`
 
 # Possible future directions, extensions, and improvements
-    - fix slow predictions when not cached
-    - Don't need to compare cpus, as they are proportional to memory now
-    - Make dynamic library fetching work and efficient
-    - improvements to prediction logic
-    - make the metrics collection more scalable while not sacrificing predictions
-    - supporting dynamic fan-outs
-        so that its possible to, for example, dynamically partition an output and process it in parallel
-        compromise predictions but give more expressiveness to the user 
-            OR
-        just force them to partition into 2 workflows (this way predictions are more accurate, despite having to split up the workflow)
-    - Optimize DAG structure to make it smaller and scale better as number of tasks increase
-    - ? supporting execution of generic executables as tasks, and not just python functions
-        CLI program (input (stdin or cli args) => output (stdout))
-    - Handle conflicting optimizations that override the same problematic (those that have return values) WEL methods AND have side effects (like delegating stuff inside them)
-    - Workflow error handling and presentation to the user
-    - AWS Lambda worker implementation an tests
+- Solution Improvements
+    - prediction samples summarization (to avoid infinite scaling of samples stored)
+    - improve optimizations abstraction to handle conflicting optimizations that override the same worker execution logic stages
+    - Implement error handling, using exponential backoff for example, to retry failed task executions and error presentation to the client
+- Usability improvements
+    - adding supporting dynamic fan-outs
+    - allow users to also specify a minimum resource configuration for specific tasks
+    - presentation: making the real-time dashboard more informative and maybe even allowing users to manage, launch and manually simulate workflows from there
+- Experimentation
+    - experiment with other prediction strategies acessing their performance and accuracy
+    - implement worker logic for commercial FaaS platforms to see how it performs under higher instability, in a more realistic environment
