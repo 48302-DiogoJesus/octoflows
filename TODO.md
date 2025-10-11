@@ -1,6 +1,6 @@
 - Dashboard
     [IMPLEMENTATION]
-    - no task dup + 3 tasks per worker + reduced worse config to 1024mb
+    - no task dup + 3 tasks per worker + reduced worse config to 1024mb + changed tree reduction and text analysis workflows
     - if not better try with taskdup again
     
     - some charts are showing ALL information instead of the selected planner only

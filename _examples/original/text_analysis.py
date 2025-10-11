@@ -233,7 +233,7 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
         total_punct = sum(punctuation_counts.values())
 
     # small vectorized workload to scale with CPU
-    _ = np.sum(np.sin(np.linspace(0.0, 3.1415, 4096, dtype=np.float64)))
+    # _ = np.sum(np.sin(np.linspace(0.0, 3.1415, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_punctuation",
@@ -252,7 +252,7 @@ def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any
     all_text = " ".join(segments)
     enhanced_score = text_stats.get("simple_readability_score", 0.0) + (text_stats.get("avg_sentence_length", 0.0) * 0.1)
 
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "type": "overall_readability",

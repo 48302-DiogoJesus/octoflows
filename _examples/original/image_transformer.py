@@ -83,7 +83,7 @@ def sharpen_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_sharp = img.filter(ImageFilter.UnsharpMask())
     img_sharp = img_sharp.resize((chunk.shape[1], chunk.shape[0]))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
     return np.array(img_sharp)
 
 
@@ -93,7 +93,7 @@ def combine_chunk(branch_a: np.ndarray, branch_b: np.ndarray) -> np.ndarray:
         if len(branch_b.shape) == 2:  # grayscale → 3 channels
             branch_b = np.stack([branch_b] * 3, axis=-1)
         branch_b = np.array(Image.fromarray(branch_b).resize((branch_a.shape[1], branch_a.shape[0])))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
     return ((branch_a.astype(np.float32) + branch_b.astype(np.float32)) / 2).astype(np.uint8)
 
 
