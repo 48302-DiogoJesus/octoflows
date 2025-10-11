@@ -1,7 +1,9 @@
 - Dashboard
     [IMPLEMENTATION]
-    - no task dup + 3 tasks per worker + 2048mb
-    - try with taskdup again + check results
+    - no task dup + 3 tasks per worker + 2048mb => GOOD
+    - no task dup + 3 tasks per worker + 2048mb + image transformer and text analysis being more CPU dependent => TRYING
+    - if good try with taskdup again + check results
+    - decide on what to do and run 5 instances of each
     
     - some charts are showing ALL information instead of the selected planner only
     - show all slas show all workflows in the time breakdown chart
