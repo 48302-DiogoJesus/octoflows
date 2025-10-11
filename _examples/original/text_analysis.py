@@ -45,12 +45,12 @@ def create_text_segments(res: tuple[int, str]) -> List[str]:
     words = text.split()
     n = len(words)
     # compute segment sizes vectorized style
-    segment_size = n // 8
+    segment_size = n // 16  # CHANGED: Was 8
     segments = []
     # still returns the same segment strings (unchanged behavior)
-    for i in range(8):
+    for i in range(16):  # CHANGED: Was 8
         start_idx = i * segment_size
-        end_idx = n if i == 7 else (i + 1) * segment_size
+        end_idx = n if i == 15 else (i + 1) * segment_size  # CHANGED: Was 7
         segments.append(" ".join(words[start_idx:end_idx]))
     return segments
 
@@ -217,7 +217,7 @@ def analyze_overall_punctuation(segments: List[str], text_stats: Dict[str, Any])
     all_text = " ".join(segments)
     if not all_text:
         punctuation_counts = {k: 0 for k in ["periods", "commas", "exclamations",
-                                              "questions", "semicolons", "colons", "quotations"]}
+                                             "questions", "semicolons", "colons", "quotations"]}
         total_punct = 0
     else:
         b = np.frombuffer(all_text.encode('utf-8'), dtype=np.uint8)
@@ -297,11 +297,11 @@ def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> 
 
 
 @DAGTask
-def merge_segment_analyses(segment_analyses: List[Dict[str, Any]], 
-                          overall_keywords: Dict[str, Any],
-                          overall_punctuation: Dict[str, Any], 
-                          overall_readability: Dict[str, Any], 
-                          overall_patterns: Dict[str, Any]) -> Dict[str, Any]:
+def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
+                           overall_keywords: Dict[str, Any],
+                           overall_punctuation: Dict[str, Any],
+                           overall_readability: Dict[str, Any],
+                           overall_patterns: Dict[str, Any]) -> Dict[str, Any]:
     # Aggregate with numpy where helpful
     word_counts = np.fromiter((s.get("word_count", 0) for s in segment_analyses), dtype=np.int64) if segment_analyses else np.array([], dtype=np.int64)
     sentence_counts = np.fromiter((s.get("sentence_count", 0) for s in segment_analyses), dtype=np.int64) if segment_analyses else np.array([], dtype=np.int64)
@@ -380,8 +380,8 @@ def generate_text_summary(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @DAGTask
-def final_comprehensive_report(metrics: Dict[str, Any], summary: Dict[str, Any], 
-                              merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
+def final_comprehensive_report(metrics: Dict[str, Any], summary: Dict[str, Any],
+                               merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "analysis_metrics": metrics,
@@ -396,7 +396,7 @@ text = _read_file(input_file)
 
 # Initial fan-out group (word count tasks)
 chunk_size = 200
-num_chunks = 32
+num_chunks = 32  # CHANGED: Was 10
 word_counts = []
 
 for i in range(num_chunks):
