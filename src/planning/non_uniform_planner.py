@@ -78,6 +78,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         successful_worker_resources_downgrades = 0
 
         # For each worker outside critical path, simulate downgrading resources without introducing a new critical path
+        logger.info(f"Downgrade simulation for workers: {len(worker_ids_outside_critical_path)}")
         for worker_id in worker_ids_outside_critical_path:
             last_successful_configs: dict[str, TaskWorkerResourceConfiguration] = {}
             
@@ -87,6 +88,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     last_successful_configs[node.id.get_full_id()] = node.worker_config
             
             for simul_resource_config in self.config.worker_resource_configurations[1:]:
+                logger.info(f"Try {worker_id} on {simul_resource_config.memory_mb}mb")
                 new_res_config = simul_resource_config.clone()
                 new_res_config.worker_id = worker_id # use same worker_id, just change the resource config
                 

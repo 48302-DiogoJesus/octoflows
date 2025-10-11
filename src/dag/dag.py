@@ -177,7 +177,6 @@ class FullDAG(GenericDAG):
 
         metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
         await wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
-
         await wk.metadata_storage.flush()
 
         return res
