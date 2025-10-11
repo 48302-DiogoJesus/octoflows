@@ -48,6 +48,7 @@ def resize_chunk(chunk: np.ndarray, size=None) -> np.ndarray:
 def blur_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_blurred = img.filter(ImageFilter.GaussianBlur(1))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return np.array(img_blurred)
 
 
@@ -60,12 +61,13 @@ def sepia_chunk(chunk: np.ndarray) -> np.ndarray:
                              [0.272, 0.534, 0.131]])
     sepia_img = img @ sepia_filter.T
     sepia_img = np.clip(sepia_img, 0, 255)
-    time.sleep(2)
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return sepia_img.astype(np.uint8)
 
 
 @DAGTask
 def normalize_chunk(chunk: np.ndarray) -> np.ndarray:
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
     return ((chunk - chunk.min()) / (chunk.max() - chunk.min()) * 255).astype(np.uint8)
 
 
@@ -83,7 +85,6 @@ def sharpen_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_sharp = img.filter(ImageFilter.UnsharpMask())
     img_sharp = img_sharp.resize((chunk.shape[1], chunk.shape[0]))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
     return np.array(img_sharp)
 
 

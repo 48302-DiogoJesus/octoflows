@@ -396,7 +396,7 @@ text = _read_file(input_file)
 
 # Initial fan-out group (word count tasks)
 chunk_size = 200
-num_chunks = 10
+num_chunks = 32
 word_counts = []
 
 for i in range(num_chunks):
@@ -413,8 +413,8 @@ segments_data = create_text_segments(merge_wc_result)
 # Heavy computational task that also fans out from merge_word_counts
 text_statistics = compute_text_statistics(merge_wc_result)
 
-# FAN-OUT: Generate 8 segment analyses + 4 direct processing functions (12 total tasks)
-segment_analyses = [analyze_segment(segments_data, i) for i in range(8)]
+# FAN-OUT: Generate 16 segment analyses + 4 direct processing functions (20 total tasks)
+segment_analyses = [analyze_segment(segments_data, i) for i in range(16)] # CHANGED: Was 8
 
 # 4 additional processing functions that work on segments data + text statistics
 overall_keywords = extract_overall_keywords(segments_data, text_statistics)
@@ -422,12 +422,12 @@ overall_punctuation = analyze_overall_punctuation(segments_data, text_statistics
 overall_readability = calculate_overall_readability(segments_data, text_statistics)
 overall_patterns = detect_overall_patterns(segments_data, text_statistics)
 
-# Fan-in: Merge all 12 analyses (8 segments + 4 overall processing results)
+# Fan-in: Merge all 20 analyses (16 segments + 4 overall processing results)
 merged_analysis = merge_segment_analyses(
-    segment_analyses, 
-    overall_keywords, 
-    overall_punctuation, 
-    overall_readability, 
+    segment_analyses,
+    overall_keywords,
+    overall_punctuation,
+    overall_readability,
     overall_patterns
 )
 
@@ -442,7 +442,7 @@ final_report = final_comprehensive_report(metrics, summary, merged_analysis)
 # --- Run workflow ---
 start_time = time.time()
 result = final_report.compute(dag_name="text_analysis", config=WORKER_CONFIG, download_result=False, open_dashboard=False)
-# Result keys: {list(result.keys())} | 
+# Result keys: {list(result.keys())} |
 print(f"User waited: {time.time() - start_time:.3f}s")
 # print(f"Analysis complete - processed {result['detailed_analysis']['total_words']} words in {result['detailed_analysis']['total_segments']} segments")
 # print(f"Found {result['detailed_analysis']['keywords_analysis']['total_keywords']} unique keywords")
