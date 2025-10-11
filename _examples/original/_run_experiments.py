@@ -65,7 +65,7 @@ def kill_docker_workers():
         print(f"Error while killing docker_worker containers: {e}")
 
 
-def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int, max_retries: int = 3) -> None:
+def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, current: int, total: int, max_retries: int = 2) -> None:
     global failed_instances
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -85,12 +85,12 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
         print(f" > [{percentage:5.1f}%] [failed_instances:{failed_instances}] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}){retry_suffix} [{current}/{total}]")
 
         try:
-            subprocess.run(cmd, check=True, cwd=script_dir, timeout=150)
+            subprocess.run(cmd, check=True, cwd=script_dir, timeout=400)
             # Success! Exit the retry loop
             return
             
         except subprocess.TimeoutExpired:
-            print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 2.5 minutes (attempt {attempt}/{max_retries})", file=sys.stderr)
+            print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 6.5 minutes (attempt {attempt}/{max_retries})", file=sys.stderr)
             kill_docker_workers()
             
             if attempt == max_retries:
@@ -98,8 +98,8 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
                 print(f"Failed after {max_retries} attempts. Skipping...", file=sys.stderr)
                 failed_instances += 1
             else:
-                print(f"Retrying in 5 seconds...", file=sys.stderr)
-                time.sleep(5)
+                print(f"Retrying in 3 seconds...", file=sys.stderr)
+                time.sleep(3)
                 
         except subprocess.CalledProcessError as e:
             print(f"Error running {script_path} with {algorithm} and SLA {sla}: {e} (attempt {attempt}/{max_retries})", file=sys.stderr)
@@ -110,8 +110,8 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
                 print(f"Failed after {max_retries} attempts. Skipping...", file=sys.stderr)
                 failed_instances += 1
             else:
-                print(f"Retrying in 5 seconds...", file=sys.stderr)
-                time.sleep(5)
+                print(f"Retrying in 3 seconds...", file=sys.stderr)
+                time.sleep(3)
 
 def main():
     global failed_instances

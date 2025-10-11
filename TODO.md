@@ -20,6 +20,7 @@
 - move taskdup + preload logic from the docker worker.py to `taskup.on_worker_ready()`
 
 # Possible future directions, extensions, and improvements
+    - fix slow predictions when not cached
     - Don't need to compare cpus, as they are proportional to memory now
     - Make dynamic library fetching work and efficient
     - improvements to prediction logic
