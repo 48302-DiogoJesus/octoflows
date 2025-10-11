@@ -83,7 +83,7 @@ def sharpen_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_sharp = img.filter(ImageFilter.UnsharpMask())
     img_sharp = img_sharp.resize((chunk.shape[1], chunk.shape[0]))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
     return np.array(img_sharp)
 
 

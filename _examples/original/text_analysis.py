@@ -137,7 +137,7 @@ def analyze_segment(segments: List[str], segment_id: int) -> Dict[str, Any]:
     unique_words = int(np.unique(np.array(clean_words)).size) if clean_words else 0
 
     # Small deterministic heavy op to favor vector units
-    # _ = np.linalg.norm(np.arange(1024, dtype=np.float64))
+    _ = np.linalg.norm(np.arange(2048, dtype=np.float64))
 
     return {
         "segment_id": segment_id,
