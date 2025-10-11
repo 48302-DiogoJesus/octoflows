@@ -11,12 +11,12 @@ WORKFLOWS_PATHS = [
     'gemm.py',
 ]
 
-ITERATIONS_PER_ALGORITHM = 3
+ITERATIONS_PER_ALGORITHM = 4
 # ALGORITHMS = ['non-uniform']
-ALGORITHMS = ['non-uniform', 'wukong', 'uniform']
-# ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
-SLAS = ['50']
-# SLAS = ['90', '75', '50']
+# ALGORITHMS = ['non-uniform', 'wukong', 'uniform']
+ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt', 'wukong', 'wukong-opt']
+# SLAS = ['50']
+SLAS = ['50', '75', '90']
 # SLAS = ['50', '75']
 # ALGORITHMS = ['non-uniform-opt', 'uniform-opt']
 

@@ -1,6 +1,5 @@
 - Dashboard
     [IMPLEMENTATION]
-    - no task dup + 3 tasks per worker + 2048mb + image transformer and text analysis being more CPU dependent => CURRENT
     - try with taskdup again + compare
         - decide on what to do (keep taskdup or not? ask prof) and run 5 instances of each
     
