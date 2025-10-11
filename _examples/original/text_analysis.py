@@ -45,12 +45,12 @@ def create_text_segments(res: tuple[int, str]) -> List[str]:
     words = text.split()
     n = len(words)
     # compute segment sizes vectorized style
-    segment_size = n // 16  # CHANGED: Was 8
+    segment_size = n // 12  # CHANGED: Was 16
     segments = []
     # still returns the same segment strings (unchanged behavior)
-    for i in range(16):  # CHANGED: Was 8
+    for i in range(12):  # CHANGED: Was 16
         start_idx = i * segment_size
-        end_idx = n if i == 15 else (i + 1) * segment_size  # CHANGED: Was 7
+        end_idx = n if i == 11 else (i + 1) * segment_size  # CHANGED: Was 15
         segments.append(" ".join(words[start_idx:end_idx]))
     return segments
 
@@ -396,7 +396,7 @@ text = _read_file(input_file)
 
 # Initial fan-out group (word count tasks)
 chunk_size = 200
-num_chunks = 32  # CHANGED: Was 10
+num_chunks = 24  # CHANGED: Was 32
 word_counts = []
 
 for i in range(num_chunks):
@@ -413,8 +413,8 @@ segments_data = create_text_segments(merge_wc_result)
 # Heavy computational task that also fans out from merge_word_counts
 text_statistics = compute_text_statistics(merge_wc_result)
 
-# FAN-OUT: Generate 16 segment analyses + 4 direct processing functions (20 total tasks)
-segment_analyses = [analyze_segment(segments_data, i) for i in range(16)] # CHANGED: Was 8
+# FAN-OUT: Generate 12 segment analyses + 4 direct processing functions (16 total tasks)
+segment_analyses = [analyze_segment(segments_data, i) for i in range(12)] # CHANGED: Was 16
 
 # 4 additional processing functions that work on segments data + text statistics
 overall_keywords = extract_overall_keywords(segments_data, text_statistics)
@@ -422,7 +422,7 @@ overall_punctuation = analyze_overall_punctuation(segments_data, text_statistics
 overall_readability = calculate_overall_readability(segments_data, text_statistics)
 overall_patterns = detect_overall_patterns(segments_data, text_statistics)
 
-# Fan-in: Merge all 20 analyses (16 segments + 4 overall processing results)
+# Fan-in: Merge all 16 analyses (12 segments + 4 overall processing results)
 merged_analysis = merge_segment_analyses(
     segment_analyses,
     overall_keywords,
