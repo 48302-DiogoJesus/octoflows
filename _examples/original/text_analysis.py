@@ -252,7 +252,7 @@ def calculate_overall_readability(segments: List[str], text_stats: Dict[str, Any
     all_text = " ".join(segments)
     enhanced_score = text_stats.get("simple_readability_score", 0.0) + (text_stats.get("avg_sentence_length", 0.0) * 0.1)
 
-    # _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_readability",
@@ -279,7 +279,7 @@ def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> 
     vocabulary_richness = (unique_words / total_words) if total_words > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
 
     return {
         "type": "overall_patterns",
@@ -396,7 +396,7 @@ text = _read_file(input_file)
 
 # Initial fan-out group (word count tasks)
 chunk_size = 200
-num_chunks = 32  # CHANGED: Was 10
+num_chunks = 32
 word_counts = []
 
 for i in range(num_chunks):
@@ -414,7 +414,7 @@ segments_data = create_text_segments(merge_wc_result)
 text_statistics = compute_text_statistics(merge_wc_result)
 
 # FAN-OUT: Generate 16 segment analyses + 4 direct processing functions (20 total tasks)
-segment_analyses = [analyze_segment(segments_data, i) for i in range(16)] # CHANGED: Was 8
+segment_analyses = [analyze_segment(segments_data, i) for i in range(16)]
 
 # 4 additional processing functions that work on segments data + text statistics
 overall_keywords = extract_overall_keywords(segments_data, text_statistics)

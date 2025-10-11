@@ -48,7 +48,7 @@ def resize_chunk(chunk: np.ndarray, size=None) -> np.ndarray:
 def blur_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_blurred = img.filter(ImageFilter.GaussianBlur(1))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64))) # cpu-bound work
     return np.array(img_blurred)
 
 
@@ -61,7 +61,7 @@ def sepia_chunk(chunk: np.ndarray) -> np.ndarray:
                              [0.272, 0.534, 0.131]])
     sepia_img = img @ sepia_filter.T
     sepia_img = np.clip(sepia_img, 0, 255)
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64))) # cpu-bound work
     return sepia_img.astype(np.uint8)
 
 
@@ -76,7 +76,7 @@ def edge_detect_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk).convert("L")
     img_edge = img.filter(ImageFilter.FIND_EDGES)
     img_edge = img_edge.resize((chunk.shape[1], chunk.shape[0]))
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64))) # cpu-bound work
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64))) # cpu-bound work
     return np.array(img_edge)
 
 
@@ -85,6 +85,7 @@ def sharpen_chunk(chunk: np.ndarray) -> np.ndarray:
     img = Image.fromarray(chunk)
     img_sharp = img.filter(ImageFilter.UnsharpMask())
     img_sharp = img_sharp.resize((chunk.shape[1], chunk.shape[0]))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64))) # cpu-bound work
     return np.array(img_sharp)
 
 
