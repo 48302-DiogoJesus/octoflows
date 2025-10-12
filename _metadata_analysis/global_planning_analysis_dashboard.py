@@ -938,11 +938,6 @@ async def main():
                         for metric in st.session_state.worker_startup_metrics
                         if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
                     ])
-                    actual_unique_workers_count = len(set([
-                        task.metrics.worker_resource_configuration.worker_id
-                        for task in instance.tasks
-                        if task.metrics.worker_resource_configuration.worker_id is not None
-                    ]))
 
                     # Compute predicted metrics
                     predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0
@@ -979,7 +974,6 @@ async def main():
                             'output_size_predicted': predicted_output_size,
                             'worker_startup_time_actual': actual_worker_startup_time_s,
                             'worker_startup_time_predicted': predicted_worker_startup_time_s,
-                            'actual_unique_workers_count': actual_unique_workers_count
                         })
 
                 # --- Calculate medians per planner per SLA ---
@@ -1018,10 +1012,6 @@ async def main():
                         'Worker Startup Time (s)': {
                             'actual': np.median([m['worker_startup_time_actual'] for m in data_points]),
                             'predicted': np.median([m['worker_startup_time_predicted'] for m in data_points])
-                        },
-                        'Workers Count': {
-                            'actual': np.median([m['actual_unique_workers_count'] for m in data_points]),
-                            'predicted': np.median([m['actual_unique_workers_count'] for m in data_points])
                         }
                     }
 
@@ -1064,7 +1054,7 @@ async def main():
                         facet_col='Metric',   # one metric per column
                         barmode='overlay',
                         opacity=0.6,
-                        title='Actual vs Predicted Metrics per SLA and Planner',
+                        title='Actual vs Predicted Metrics (per SLA and Planner)',
                         category_orders={
                             'SLA': sla_order,
                             'Planner': planner_order
@@ -1278,7 +1268,7 @@ async def main():
 
             # Update layout
             fig.update_layout(
-                title='Median Relative Error (%) and SLA Fulfillment Rate by Metric and SLA',
+                title='Predictions Relative Error and SLA Fulfillment (per Metric and SLA)',
                 xaxis_title='Metric',
                 height=600,
                 barmode='group',
@@ -1374,6 +1364,7 @@ async def main():
 
             st.markdown("### Metrics Comparison")
             if metrics_data:
+                import math
                 # Convert metrics_data to DataFrame
                 df_metrics = pd.DataFrame(metrics_data)
 
@@ -1390,8 +1381,7 @@ async def main():
                     all_metrics_to_plot.append((df_metric, metric))
 
                 # Plot in 3 columns per row
-                import math
-                num_cols = 3
+                num_cols = 2
                 num_rows = math.ceil(len(all_metrics_to_plot) / num_cols)
 
                 for i in range(num_rows):
@@ -1412,17 +1402,38 @@ async def main():
                             color='Planner',
                             points="all",
                             hover_data=['Instance ID'],
-                            title=f"{metric_name} by Planner",
+                            title=f"{metric_name} Distribution (per Planner)",
                             category_orders={"Planner": sorted(df_plot['Planner'].unique())}
                         )
+
+                        # Calculate medians per Planner
+                        medians = df_plot.groupby('Planner')['Value'].median()
+
+                        # Add scatter for median to make it visually prominent
+                        for planner, median_value in medians.items():
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[planner],
+                                    y=[median_value],
+                                    mode='markers+text',
+                                    marker=dict(color='black', symbol='diamond', size=12),
+                                    text=[f"{median_value:.2f}"],
+                                    textposition='top center',
+                                    showlegend=False
+                                )
+                            )
+
                         fig.update_layout(
                             plot_bgcolor='rgba(0,0,0,0)',
                             boxmode='group',
                             height=500,
                             legend_title="Planner",
                             xaxis_title="Planner",
-                            yaxis_title="Value"
+                            yaxis_title="Value",
+                            boxgap=0.001,
+                            boxgroupgap=0.001
                         )
+
                         cols[j].plotly_chart(fig, use_container_width=True)
 
 
@@ -1434,30 +1445,32 @@ async def main():
                 time_metrics_df = df_metrics[df_metrics['Metric'].isin(time_metrics)]
 
                 if not time_metrics_df.empty:
-                    # **Calculate median unique workers for each Planner group**
+                    # Calculate median unique workers for each Planner
                     median_workers = df_metrics.groupby(['Planner'])['Unique Workers'].median().reset_index()
                     median_workers = median_workers.rename(columns={'Unique Workers': 'Median Unique Workers'})
 
-                    # **Group and pivot time metrics by Planner only**
-                    bar_data = time_metrics_df.groupby(['Planner', 'Metric'])['Value'].mean().reset_index()
-                    df_bar = bar_data.pivot_table(index=['Planner'], columns='Metric', values='Value').reset_index()
+                    # Group by Planner and Metric, calculate median
+                    bar_data = time_metrics_df.groupby(['Planner', 'Metric'])['Value'].median().reset_index()
                     
-                    # **Merge the median worker data into the plotting dataframe**
-                    df_bar = pd.merge(df_bar, median_workers, on=['Planner'], how='left')
+                    # Pivot table for stacked bar chart
+                    df_bar = bar_data.pivot_table(index='Planner', columns='Metric', values='Value').reset_index()
+                    
+                    # Merge median workers
+                    df_bar = pd.merge(df_bar, median_workers, on='Planner', how='left')
                     df_bar['Median Unique Workers'] = df_bar['Median Unique Workers'].fillna(0).astype(int)
                     df_bar = df_bar.fillna(0)
-                    
+
                     metric_cols_ordered = [m for m in time_metrics if m in df_bar.columns]
 
-                    # **Create a single stacked bar chart per planner**
+                    # Create stacked bar chart
                     fig_bar = px.bar(
                         df_bar,
                         x='Planner',
                         y=metric_cols_ordered,
-                        title="Time Distribution by Planner",
+                        title="Time Breakdown Analysis (per Planner)",
                         labels={'value': 'Time (s)', 'Planner': 'Planner'},
                         category_orders={"Planner": sorted(df_bar['Planner'].unique())},
-                        custom_data=['Median Unique Workers'] # Pass median workers to custom_data
+                        custom_data=['Median Unique Workers']
                     )
 
                     fig_bar.update_layout(
@@ -1467,16 +1480,12 @@ async def main():
                         legend_title='Activity',
                         yaxis_title='Time (s)'
                     )
-                    
-                    # **Iterate through traces to set custom hover templates**
-                    for trace in fig_bar.data:
-                        # Default template for all bars
-                        template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<extra></extra>'
 
-                        # Custom template for the 'Worker Startup Time' bar segment
+                    # Custom hover templates
+                    for trace in fig_bar.data:
+                        template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<extra></extra>'
                         if trace.name == 'Worker Startup Time [s]':
                             template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<br><b>Median Unique Workers:</b> %{customdata[0]}<extra></extra>'
-                        
                         trace.hovertemplate = template
 
                     st.plotly_chart(fig_bar, use_container_width=True)
@@ -1592,7 +1601,7 @@ async def main():
                     ('Task Invocation Time (s)', 'invocation'),
                     ('Dependency Counter Update Time (s)', 'dependency_update'),
                     ('Worker Startup Time (s)', 'worker_startup'),
-                    ('Resource Usage', 'resource_usage'),
+                    ('Resource Usage (GB-seconds)', 'resource_usage'),
                     ('Data Size Uploaded (MB)', 'data_size_uploaded'),
                     ('Data Size Downloaded (MB)', 'data_size_downloaded'),
                     ('Warm Starts', 'warm_starts'),
@@ -1650,7 +1659,7 @@ async def main():
                         x='Planner',
                         y='Value',
                         color='Planner',
-                        title=f'{selected_metric} Comparison',
+                        title=f'{selected_metric} (per Planner)',
                         labels={'Value': 'Median Value', 'Planner': 'Planner'},
                         # **2. Use the sorted list to enforce the order**
                         category_orders={'Planner': sorted_planners}
@@ -1843,6 +1852,21 @@ async def main():
                     category_orders={'Planner': sorted_planners}
                 )
                 
+                # Calculate median per Planner and add as scatter points
+                medians = df_metric.groupby('Planner')['Value'].median()
+                for planner, median_value in medians.items():
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[planner],
+                            y=[median_value],
+                            mode='markers+text',
+                            marker=dict(color='black', symbol='diamond', size=12),
+                            text=[f"{median_value:.2f}"],
+                            textposition='top center',
+                            showlegend=False
+                        )
+                    )
+                
                 fig.update_layout(
                     plot_bgcolor='rgba(0,0,0,0)',
                     height=400,
@@ -1856,53 +1880,59 @@ async def main():
                 if i % 2 == 1:
                     cols = st.columns(2)
 
+
             ##########
             data = []
             for instance in workflow_types[selected_workflow].instances:
-                planner_name = instance.plan.planner_name if instance.plan else "unknown"
+                if not instance.plan: continue
+                planner_name = instance.plan.planner_name
 
-                if "opt" not in planner_name.lower() and ("uniform" in planner_name.lower() or "wukong" in planner_name.lower()):
-                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
-                    sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
-                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                    ru = instance.resource_usage
-                    data.append({
-                        "workflow": selected_workflow,
-                        "makespan": actual_makespan_s,
-                        "planner": planner_name,
-                        "cpu_seconds": ru.cpu_seconds,
-                        "GB-seconds": ru.gb_seconds
-                    })
+
+                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                sink_task_ended_timestamp_ms = (
+                    sink_task_metrics.started_at_timestamp_s * 1000 +
+                    (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
+                    (sink_task_metrics.tp_execution_time_ms or 0) +
+                    (sink_task_metrics.output_metrics.tp_time_ms or 0) +
+                    (sink_task_metrics.total_invocation_time_ms or 0)
+                )
+                actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                ru = instance.resource_usage
+                data.append({
+                    "workflow": selected_workflow,
+                    "makespan": actual_makespan_s,
+                    "planner": planner_name,
+                    "GB-seconds / 10": ru.gb_seconds / 10
+                })
 
             df = pd.DataFrame(data)
 
             # Sort planner names alphabetically
-            sorted_planners = sorted(df["planner"].unique())
+            # sorted_planners = sorted(df["planner"].unique())
+
+            manual_order = ["NonUniformPlanner", "UniformPlanner", "WUKONGPlanner", "NonUniformPlanner-opt", "UniformPlanner-opt", "WUKONGPlanner-opt"]
+
+            sorted_planners = sorted(
+                df["planner"].unique(),
+                key=lambda x: manual_order.index(x) if x in manual_order else len(manual_order)
+            )
 
             # Calculate median for each planner and metric
             df_summary = df.groupby("planner").agg({
                 "makespan": "median",
-                "cpu_seconds": "median",
-                "GB-seconds": "median",
+                "GB-seconds / 10": "median",
             }).reset_index()
 
             # Melt DataFrame to have metrics as a single column
             df_melted = df_summary.melt(
                 id_vars=["planner"],
-                value_vars=["makespan", "cpu_seconds", "GB-seconds"],
+                value_vars=["makespan", "GB-seconds / 10"],
                 var_name="metric",
                 value_name="value"
             )
 
-            # Calculate percentage difference relative to the best (minimum) planner for each metric
-            df_melted['min_value'] = df_melted.groupby('metric')['value'].transform('min')
-            df_melted['pct_diff'] = ((df_melted['value'] - df_melted['min_value']) / df_melted['min_value'] * 100)
-
-            # Create text labels with both absolute value and percentage difference
-            df_melted['text_label'] = df_melted.apply(
-                lambda row: f"{row['value']:.2f}<br>(+{row['pct_diff']:.1f}%)" if row['pct_diff'] > 0 else f"{row['value']:.2f}<br>(baseline)",
-                axis=1
-            )
+            # Create text labels showing only the median values
+            df_melted['text_label'] = df_melted['value'].apply(lambda v: f"{v:.2f}")
 
             # Create a grouped bar chart
             fig = px.bar(
@@ -1918,18 +1948,18 @@ async def main():
                     "value": "Median Value",
                     "planner": "Planner"
                 },
-                title="Makespan vs Resource Usage (Non Optimized Planners)"
+                title="Makespan vs Resource Usage"
             )
 
             # Layout improvements
             fig.update_layout(
                 xaxis_title="Metric",
-                yaxis_title="Median Value (log scale)",
+                yaxis_title="Median Value",
                 height=600,
                 legend_title="Planner",
                 xaxis={
                     "categoryorder": "array",
-                    "categoryarray": ["makespan", "cpu_seconds", "GB-seconds"]
+                    "categoryarray": ["makespan", "GB-seconds / 10"]
                 }
             )
 
@@ -1989,20 +2019,10 @@ async def main():
                 color="Start Type",
                 barmode="stack",
                 text=df_melted["Percentage"].round(1).astype(str) + "%",
-                title="Warm vs Cold Starts per Planner (Mean % + Counts)"
+                title="Warm vs Cold Starts (per Planner)"
             )
 
             fig.update_traces(textposition="inside")
-
-            # Add annotations for mean counts above each bar
-            for i, row in df_agg.iterrows():
-                fig.add_annotation(
-                    x=row["Planner"],
-                    y=105,  # slightly above the 100% bar
-                    text=f"Avg Warm={row['Warm']:.1f}, Cold={row['Cold']:.1f} p/ instance",
-                    showarrow=False,
-                    font=dict(size=12, color="black")
-                )
 
             # Layout tweaks
             fig.update_layout(
