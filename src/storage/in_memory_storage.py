@@ -121,7 +121,7 @@ class InMemoryStorage(storage.Storage):
                     
             return subscriber_count
 
-    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> str:
+    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", debug_worker_id: str = "") -> str:
         """
         Subscribe to a channel with a callback function.
         

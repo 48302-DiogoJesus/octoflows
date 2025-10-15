@@ -188,12 +188,12 @@ class RedisStorage(storage.Storage):
             logger.error(f"Error in PubSub listener: {e}")
             raise
 
-    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", worker_id: str | None = None) -> str:
+    async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", debug_worker_id: str = "") -> str:
         await self._simulate_network_latency()
         await self._ensure_pubsub()
 
         subscription_id = str(uuid.uuid4())
-        sub_info = SubscriptionInfo(subscription_id, callback, decode_responses, worker_id)
+        sub_info = SubscriptionInfo(subscription_id, callback, decode_responses, debug_worker_id)
 
         async with self._sub_lock:
             first_for_channel = channel not in self._channel_subscriptions
@@ -203,7 +203,7 @@ class RedisStorage(storage.Storage):
             await self._pubsub.subscribe(channel)  # type: ignore
             logger.info(f"Subscribed to Redis channel {channel}")
 
-        logger.info(f"W({worker_id}) Subscribed to channel: {channel} | tag: {coroutine_tag} | id: {subscription_id}")
+        logger.info(f"W({debug_worker_id}) Subscribed to channel: {channel} | tag: {coroutine_tag} | id: {subscription_id}")
         return subscription_id
 
     async def unsubscribe(self, channel: str, subscription_id: Optional[str] = None):

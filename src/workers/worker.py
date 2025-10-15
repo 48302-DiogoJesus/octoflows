@@ -47,12 +47,13 @@ class Worker(ABC):
         self.metadata_storage = config.metadata_storage_config.create_instance()
         self.planner = config.planner_config.create_instance()
         self.config = config
+        self.my_resource_configuration: TaskWorkerResourceConfiguration
+        # non-nullable id, if flex: "flex-{uuid4().hex}" else the worker id
+        self.debug_worker_id: str
 
-    async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG, my_worker_id: str) -> None:
-        """
-        Note: {my_worker_id} can't be None. for flexible worker it will be prefixed "flexible-"
+    def is_flex(self): return self.my_resource_configuration.worker_id is None
 
-        """
+    async def execute_branch(self, subdag: dag.SubDAG, fulldag: dag.FullDAG) -> None:
         if not subdag.root_node: raise Exception(f"AbstractWorker expected a subdag with only 1 root node. Got {len(subdag.root_node)}")
         current_task = subdag.root_node
         tasks_executed_by_this_coroutine: list[dag_task_node.DAGTaskNode] = []
@@ -61,17 +62,11 @@ class Worker(ABC):
         branch_id = uuid.uuid4().hex
         try:
             while True:
-                self.my_resource_configuration: TaskWorkerResourceConfiguration = current_task.worker_config
-                # To help understand locality decisions afterwards, at the dashboard
-                _my_resource_configuration_with_flexible_worker_id = self.my_resource_configuration.clone()
-                _my_resource_configuration_with_flexible_worker_id.worker_id = my_worker_id
-                self.my_worker_id = my_worker_id
-                current_task.metrics.worker_resource_configuration = _my_resource_configuration_with_flexible_worker_id # type: ignore
+                # To help understand locality decisions for flexible workers afterwards, at the dashboard
+                current_task.metrics.worker_resource_configuration = self.my_resource_configuration.clone() # type: ignore
+                current_task.metrics.worker_resource_configuration.worker_id = self.debug_worker_id # so that in the dashboard, appears the "flex-" worker id
                 current_task.metrics.started_at_timestamp_s = time.time()
                 current_task.metrics.planner_used_name = self.planner.planner_name if self.planner else None
-
-                if self.my_resource_configuration.worker_id is not None:
-                    assert self.my_worker_id == self.my_resource_configuration.worker_id
 
                 if not await current_task.is_handling.set_if_not_set():
                     # avoid duplicate execution on same worker
@@ -117,7 +112,7 @@ class Worker(ABC):
                     timer = Timer()
                     data_serialized = await self.intermediate_storage.get(storage_id)
                     download_time = timer.stop()
-                    if data_serialized is None: raise TaskOutputNotAvailableException(self.my_worker_id, storage_id, current_task.id.get_full_id())
+                    if data_serialized is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_full_id())
                     data = cloudpickle.loads(data_serialized)
                     subdag.cached_hardcoded_data_map[storage_id] = data
                     time_spent_downloading[storage_id] = download_time
@@ -179,7 +174,7 @@ class Worker(ABC):
                         _timer = Timer()
                         serialized_task_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
                         if serialized_task_result is None: 
-                            raise TaskOutputNotAvailableException(self.my_worker_id, utask.id.get_full_id(), current_task.id.get_full_id())
+                            raise TaskOutputNotAvailableException(self.debug_worker_id, utask.id.get_full_id(), current_task.id.get_full_id())
 
                         time_to_fetch_ms = _timer.stop()
                         deserialized_result = cloudpickle.loads(serialized_task_result)
@@ -204,7 +199,7 @@ class Worker(ABC):
                         if utask_id not in task_dependencies and utask.cached_result is not None:
                             task_dependencies[utask_id] = utask.cached_result.result
 
-                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_worker_id for t in current_task.upstream_nodes]) else None
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
 
                 # Store raw values, normalization will be done during prediction
                 await self.planner.wel_before_task_execution(self, current_task, subdag)
@@ -276,7 +271,7 @@ class Worker(ABC):
                     for t in my_other_tasks:
                         other_coroutines_i_launched.append(
                             asyncio.create_task(
-                                self.execute_branch(subdag.create_subdag(t), fulldag, my_worker_id), 
+                                self.execute_branch(subdag.create_subdag(t), fulldag), 
                                 name=f"start_executing_immediate_followup(task={t.id.get_full_id()})")
                             )
         except CancelCurrentWorkerLoopException as e:
@@ -302,7 +297,7 @@ class Worker(ABC):
         self.log(current_task.id.get_full_id() + "++" + branch_id, f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print
         this_coro = asyncio.current_task()
-        logger.info(f"W({self.my_resource_configuration.worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks() if not this_coro or t.get_name() != this_coro.get_name()]}")
+        logger.info(f"W({self.debug_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks() if not this_coro or t.get_name() != this_coro.get_name()]}")
         return None
 
     @abstractmethod
@@ -343,7 +338,7 @@ class Worker(ABC):
             nonlocal result
             message_received.set()
         
-        await metadata_storage.subscribe(channel, callback, coroutine_tag="wait_for_result_of_task")
+        await metadata_storage.subscribe(channel, callback, coroutine_tag="wait_for_result_of_task", debug_worker_id="CLIENT")
         
         try:
             await message_received.wait()
@@ -366,4 +361,4 @@ class Worker(ABC):
         """Log a message with worker ID prefix."""
         curr_coro = asyncio.current_task()
         coro_name = curr_coro.get_name() if curr_coro else "Unknown"
-        logger.info(f"Coro({coro_name}) W({self.my_resource_configuration.worker_id}) T({task_id}) | {message}")
+        logger.info(f"Coro({coro_name}) W({self.debug_worker_id}) T({task_id}) | {message}")

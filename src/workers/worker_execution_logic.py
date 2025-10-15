@@ -10,7 +10,7 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic(ABC):
     @staticmethod
-    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(worker, dag):
         pass
 
     @staticmethod
@@ -68,7 +68,7 @@ class WorkerExecutionLogic(ABC):
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
             _worker.log(_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
-                if _worker.my_resource_configuration.worker_id is not None and _worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
+                if not _worker.is_flex() and _worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
                     await _worker.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
@@ -107,7 +107,7 @@ class WorkerExecutionLogic(ABC):
                 else:
                     # delegate all other DS tasks to other workers
                     other_continuation_tasks.append(task)
-            elif task_resource_config.worker_id == _worker.my_worker_id:
+            elif task_resource_config.worker_id == _worker.debug_worker_id:
                 my_continuation_tasks.append(task)
             else: # diff. worker id
                 requires_launching_worker = True
@@ -127,11 +127,11 @@ class WorkerExecutionLogic(ABC):
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(f"W({_worker.my_resource_configuration.worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
+            logger.info(f"W({_worker.debug_worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
             await _worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True)
 
         for my_task in my_continuation_tasks:
-            logger.info(f"W({_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
+            logger.info(f"W({_worker.debug_worker_id}) I will execute {my_task.id.get_full_id()}...")
 
         _task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
         _task.metrics.total_invocations_count = total_invocations_count

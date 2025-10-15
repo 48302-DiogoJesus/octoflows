@@ -859,12 +859,12 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return output_data
 
     @staticmethod
-    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None):
+    async def wel_on_worker_ready(worker, dag):
         from src.workers.worker import Worker
         _worker: Worker = worker
         _planner: AbstractDAGPlanner = _worker.planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_on_worker_ready(_worker, dag, this_worker_id)
+            await optimization.wel_on_worker_ready(_worker, dag)
 
     @staticmethod
     async def wel_before_task_handling(worker, task, subdag):

@@ -14,7 +14,7 @@ class TaskOptimization(WorkerExecutionLogic):
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list): pass
 
     @staticmethod
-    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None): pass
+    async def wel_on_worker_ready(worker, dag): pass
 
     @staticmethod
     async def wel_before_task_handling(worker, task, subdag): pass

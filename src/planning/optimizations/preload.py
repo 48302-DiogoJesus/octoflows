@@ -130,12 +130,11 @@ class PreLoadOptimization(TaskOptimization):
                 annotation._active_preloads.pop(upstream_full_id, None)
 
     @staticmethod
-    async def wel_on_worker_ready(worker, dag: FullDAG, this_worker_id: str | None):
+    async def wel_on_worker_ready(worker, dag: FullDAG):
         from src.workers.worker import Worker
         _worker: Worker = worker
         
-        if this_worker_id is None: 
-            return # Flexible workers can't look ahead for their tasks to see if they have preload
+        if _worker.is_flex(): return # Flexible workers can't look ahead for their tasks to see if they have preload
 
         def _on_preload_task_completed_builder(dependent_task: DAGTaskNode, upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG):
             async def _callback(_: dict, subscription_id: str | None = None):
@@ -152,13 +151,13 @@ class PreLoadOptimization(TaskOptimization):
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
             
-            if current_node.worker_config.worker_id != this_worker_id: continue
+            if current_node.worker_config.worker_id != _worker.my_resource_configuration.worker_id: continue
             
             preload_optimization = current_node.try_get_optimization(PreLoadOptimization)
             if not preload_optimization: continue
             
             for unode in current_node.upstream_nodes:
-                if unode.worker_config.worker_id == this_worker_id: continue
+                if unode.worker_config.worker_id == _worker.my_resource_configuration.worker_id: continue
 
                 if await _worker.intermediate_storage.exists(unode.id.get_full_id_in_dag(dag)):
                     logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
@@ -168,7 +167,8 @@ class PreLoadOptimization(TaskOptimization):
                     subscription_id = await _worker.metadata_storage.storage.subscribe(
                         f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
                         _on_preload_task_completed_builder(current_node, unode, preload_optimization, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
-                        coroutine_tag=COROTAG_PRELOAD
+                        coroutine_tag=COROTAG_PRELOAD,
+                        debug_worker_id=_worker.debug_worker_id
                     )
                     logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                     preload_optimization.preloading_subscription_ids[f"{current_node.id.get_full_id()}{unode.id.get_full_id()}"] = subscription_id

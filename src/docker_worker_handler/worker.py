@@ -95,6 +95,8 @@ async def main():
             fulldag._all_nodes[cached_task_id].cached_result = _CachedResultWrapper(cloudpickle.loads(cached_result))
 
         immediate_task_ids: list[DAGTaskNodeId] = cloudpickle.loads(base64.b64decode(b64_task_ids))
+        wk.my_resource_configuration = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config
+        wk.debug_worker_id = f"flex-{uuid4().hex}" if wk.my_resource_configuration.worker_id is None else wk.my_resource_configuration.worker_id
 
         filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
         is_warm_start = create_if_not_exists(filepath)
@@ -105,9 +107,7 @@ async def main():
             master_dag_id=dag_id
         )
 
-        this_worker_id = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config.worker_id
-        _debug_flexible_worker_id: str = f"flexible-{uuid4().hex}" if this_worker_id is None else this_worker_id
-        logger.info(f"W({_debug_flexible_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
+        logger.info(f"W({wk.debug_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
@@ -116,13 +116,13 @@ async def main():
             if current_node.id.get_full_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_full_id())
             
-            if this_worker_id is not None and current_node.worker_config.worker_id == this_worker_id: all_tasks_for_this_worker.append(current_node)
+            if not wk.is_flex() and current_node.worker_config.worker_id == wk.my_resource_configuration.worker_id: all_tasks_for_this_worker.append(current_node)
             
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
         #* 1) Execute wel_on_worker_ready
-        await wk.planner.wel_on_worker_ready(wk, fulldag, this_worker_id)
+        await wk.planner.wel_on_worker_ready(wk, fulldag)
 
         #* 2) Subscribe to {TASK_READY} events for MY tasks*
         #       * this is required only for tasks assigned to ME that require at least one upstream task executed on another worker
@@ -132,17 +132,17 @@ async def main():
                     await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
                 logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
+                asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
             return callback
         
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
-        if this_worker_id is not None:
+        if wk.my_resource_configuration.worker_id is not None:
             for task in all_tasks_for_this_worker:
                 if task.id in immediate_task_ids: continue # don't need to sub to these because we know they are READY
-                if all(n.worker_config.worker_id == this_worker_id for n in task.upstream_nodes):
+                if all(n.worker_config.worker_id == wk.my_resource_configuration.worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), worker_id=this_worker_id, coroutine_tag="my task that depends on others")
+                await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), debug_worker_id=wk.my_resource_configuration.worker_id, coroutine_tag="my task that depends on others")
 
                 upstream_dependencies = [utask.id.get_full_id_in_dag(fulldag) for utask in task.upstream_nodes]
                 if len(upstream_dependencies) > 0:
@@ -158,10 +158,10 @@ async def main():
         for task_id in immediate_task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
-            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag, _debug_flexible_worker_id), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
-        logger.info(f"W({_debug_flexible_worker_id}) Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
+        logger.info(f"W({wk.debug_worker_id}) Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
         #* 4) Wait for direct executions to finish
         await asyncio.gather(*direct_task_branches_coroutines)
 
@@ -170,9 +170,9 @@ async def main():
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
                 completion_events = [(task.id.get_full_id(), task.completed_event) for task in remaining_tasks_for_this_worker]
-                logger.info(f"W({_debug_flexible_worker_id}) Waiting for {[task_id for task_id, _ in completion_events]} to complete locally...")
+                logger.info(f"W({wk.debug_worker_id}) Waiting for {[task_id for task_id, _ in completion_events]} to complete locally...")
                 await asyncio.wait([asyncio.create_task(event.wait(), name=f"wait_my_execution_{task_id}") for task_id, event in completion_events])
-                logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for {[task_id for task_id, _ in completion_events]} to complete locally")
+                logger.info(f"W({wk.debug_worker_id}) DONE Waiting for {[task_id for task_id, _ in completion_events]} to complete locally")
 
         #* 6) Wait for remaining coroutines to finish. 
         # *     REASON: Just because the final result is ready doesn't mean all work is done (emitting READY events, etc...)
@@ -181,10 +181,10 @@ async def main():
             if not pending: 
                 break
 
-            logger.info(f"W({_debug_flexible_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
+            logger.info(f"W({wk.debug_worker_id}) Waiting for coroutines: {[t.get_name() for t in pending]}")
             await asyncio.wait(pending, timeout=None)  # Wait indefinitely
             
-        logger.info(f"W({_debug_flexible_worker_id}) DONE Waiting for all coroutines!")
+        logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
 
         # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):
@@ -210,7 +210,7 @@ async def main():
         await wk.metadata_storage.close_connection()
         await wk.intermediate_storage.close_connection()
 
-        logger.info(f"Worker({_debug_flexible_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
+        logger.info(f"Worker({wk.debug_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:
         # Release the lock and clean up
         if platform.system() == "Windows":
