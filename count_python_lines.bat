@@ -1,0 +1,1 @@
+tokei src --type Python --exclude "__pycache__" --exclude "docker_workers_gateway"

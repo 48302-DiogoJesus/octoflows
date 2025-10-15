@@ -166,7 +166,7 @@ async def main():
         await asyncio.gather(*direct_task_branches_coroutines)
 
         #* 5) Wait for MY executions that depend on OTHER tasks (because we have pending pubsub subscriptions for those)
-        if this_worker_id is not None:
+        if wk.my_resource_configuration.worker_id is not None:
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
                 completion_events = [(task.id.get_full_id(), task.completed_event) for task in remaining_tasks_for_this_worker]

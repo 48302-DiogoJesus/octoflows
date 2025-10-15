@@ -40,7 +40,7 @@ class WorkerExecutionLogic(ABC):
         from src.dag_task_node import DAGTaskNode
         _task: DAGTaskNode = task
 
-        has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != worker.my_worker_id for dt in _task.downstream_nodes)
+        has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
         # only upload if necessary
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or has_other_workers_dependant

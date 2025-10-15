@@ -185,7 +185,6 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 mutable_downstream_tasks_ready = downstream_tasks_ready.copy()
                 while mutable_downstream_tasks_ready:
                     dtask_ready = mutable_downstream_tasks_ready.pop() # remove task
-                    assert _worker.my_resource_configuration.worker_id
                     # can't await `execute_branch` as it will keep on going and we only want to wait for the first task to complete
                     asyncio.create_task(_worker.execute_branch(subdag.create_subdag(dtask_ready), fulldag), name=f"TCO_DIO_{dtask_ready.id.get_full_id()}")
                     logger.info(f"[WUKONG_DBG] W({_worker.debug_worker_id}) TCO | Executing task {dtask_ready.id.get_full_id()}...")
