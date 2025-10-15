@@ -10,7 +10,6 @@ import statistics
 from src import dag_task_node
 from src.dag_task_node import DAGTaskNode
 from src.planning.optimizations.preload import PreLoadOptimization
-from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.planning.sla import SLA
 from src.utils.logger import create_logger
@@ -52,16 +51,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             self.worker_resource_configurations.sort(key=lambda x: x.memory_mb, reverse=True)
 
     config: BaseConfig
-
-    @dataclass
-    class DuppableTaskPrediction:
-        original_download_time_ms: float # time to download the duppable task input from storage on it's planned worker
-        original_exec_time_ms: float # time to execute the duppable task on it's planned worker
-        original_upload_time_ms: float # time to upload the duppable task output to storage on it's planned worker
-        my_download_output_time_ms: float # time to download the duppable task output from storage on my worker
-
-        my_inputs_download_time_ms: float # time to download inputs of the duppable task on my worker
-        my_exec_time_ms: float # time to execute the duppable task on my worker
 
     @dataclass
     class PlanningTaskInfo:
@@ -452,18 +441,6 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # 6. Total timing
         task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
-
-        for u_task in node.upstream_nodes:
-            if not u_task.try_get_optimization(TaskDupOptimization): continue
-            node.duppable_tasks_predictions[u_task.id.get_full_id()] = AbstractDAGPlanner.DuppableTaskPrediction(
-                original_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, u_task.worker_config, sla),
-                original_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, u_task.worker_config, sla),
-                original_upload_time_ms=predictions_provider.predict_data_transfer_time('upload', nodes_info[u_task.id.get_full_id()].serialized_output_size, u_task.worker_config, sla),
-                my_download_output_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_output_size, resource_config, sla),
-                
-                my_inputs_download_time_ms=predictions_provider.predict_data_transfer_time('download', nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla),
-                my_exec_time_ms=predictions_provider.predict_execution_time(u_task.func_name, nodes_info[u_task.id.get_full_id()].serialized_input_size, resource_config, sla)
-            )
 
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node, 
@@ -888,16 +865,16 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id, this_worker)
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
         _planner: AbstractDAGPlanner = planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task)
 
     @staticmethod
-    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task):
         _planner: AbstractDAGPlanner = planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+            await optimization.wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task)
 
     @staticmethod
     async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict):
@@ -921,34 +898,34 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return res
 
     @staticmethod
-    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool):
+    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage):
         from src.workers.worker_execution_logic import WorkerExecutionLogic
         _planner: AbstractDAGPlanner = planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping)
+            opt_res = await optimization.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping)
+            res = await WorkerExecutionLogic.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage)
 
         return res
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool) -> list[DAGTaskNode] | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list[DAGTaskNode] | None:
         from src.workers.worker_execution_logic import WorkerExecutionLogic
         _planner: AbstractDAGPlanner = planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping)
+            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
 
         return res
 

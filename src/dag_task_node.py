@@ -66,7 +66,6 @@ class DAGTaskNode:
             planner_used_name=None,
             optimization_metrics=[]
         )
-        self.duppable_tasks_predictions: dict[str, AbstractDAGPlanner.DuppableTaskPrediction] = {}
         self.optimizations: list[TaskOptimization] = []
         # Initialized with a dummy worker config annotation for local worker
         #! Don't clone this on the clone() function to avoid sending large data on invocation to other workers

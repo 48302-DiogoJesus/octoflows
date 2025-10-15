@@ -63,7 +63,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
                 ))
 
     @staticmethod
-    async def wel_override_should_upload_output(planner, current_task: DAGTaskNode, subdag: SubDAG, this_worker, metadata_storage: Storage, is_dupping: bool):
+    async def wel_override_should_upload_output(planner, current_task: DAGTaskNode, subdag: SubDAG, this_worker, metadata_storage: Storage):
         optimization = current_task.try_get_optimization(WukongOptimizations)
         if optimization is None: return None
         if not optimization.task_clustering_fan_outs and not optimization.delayed_io and not optimization.task_clustering_fan_ins: return None
@@ -79,7 +79,7 @@ class WukongOptimizations(TaskOptimization, WorkerExecutionLogic):
         return not is_task_size_large # only upload if not large
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode, is_dupping: bool) -> list | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task: DAGTaskNode) -> list | None:
         from src.workers.worker import Worker
         _this_worker: Worker = this_worker
         optimization: WukongOptimizations | None = current_task.try_get_optimization(WukongOptimizations)

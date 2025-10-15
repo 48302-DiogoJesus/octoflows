@@ -14,7 +14,7 @@ class WorkerExecutionLogic(ABC):
         pass
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
         pass
 
     @staticmethod
@@ -29,11 +29,11 @@ class WorkerExecutionLogic(ABC):
         return (upstream_tasks_without_cached_results, [], None)
 
     @staticmethod
-    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool):
+    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task):
         pass
 
     @staticmethod
-    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage, is_dupping: bool) -> bool | None:
+    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage) -> bool | None:
         """
         return value indicates if the task result was uploaded or not 
         """
@@ -46,11 +46,10 @@ class WorkerExecutionLogic(ABC):
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or has_other_workers_dependant
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task, is_dupping: bool) -> list | None:
+    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
         from src.dag_task_node import DAGTaskNode
         from src.storage.events import TASK_READY_EVENT_PREFIX
         from src.storage.metadata.metadata_storage import MetadataStorage
-        from src.planning.optimizations.taskdup import TaskDupOptimization
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
 
@@ -58,7 +57,6 @@ class WorkerExecutionLogic(ABC):
         _this_worker: Worker = this_worker
         _current_task: DAGTaskNode = current_task
 
-        assert not is_dupping
 
         downstream_tasks_ready: list[DAGTaskNode] = []
         # contains all downstream tasks that depend on more than one upstream task, or on tasks from other workers (not just this one).
@@ -66,14 +64,14 @@ class WorkerExecutionLogic(ABC):
         
         updating_dependency_counters_timer = Timer()
         for downstream_task in _current_task.downstream_nodes:
-            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()} | is dupping: {is_dupping}")
+            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
             if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
                 downstream_tasks_ready.append(downstream_task)
                 continue
 
             dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            _this_worker.log(_current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}", is_dupping)
+            _this_worker.log(_current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
                 if _this_worker.my_resource_configuration.worker_id is not None and _this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
@@ -84,29 +82,9 @@ class WorkerExecutionLogic(ABC):
                     _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
                     name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
                 )
-                _this_worker.log(_current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}", is_dupping)
+                _this_worker.log(_current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
                 
                 downstream_tasks_ready.append(downstream_task)
-            # Downstream task should have at least 1 REMOTE upstream duppable task, for this check to be needed
-            elif downstream_task.worker_config.worker_id is not None and downstream_task.worker_config.worker_id == _this_worker.my_worker_id and any([dunode.try_get_optimization(TaskDupOptimization) is not None and dunode.worker_config.worker_id != downstream_task.worker_config.worker_id for dunode in downstream_task.upstream_nodes]):
-                # downstream_tasks_ready should only be filled with tasks that are assigned to this worker!
-                _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Checking remote dependencies of {downstream_task.id.get_full_id()}")
-                ready_dependencies: set[str] = set()
-                for udtask in downstream_task.upstream_nodes:
-                    if udtask.cached_result is not None and udtask.upload_complete.is_set(): # ensure that even if data is present locally it also is remotely
-                        _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Task {udtask.id.get_full_id()} dupped already cached!!")
-                        ready_dependencies.add(udtask.id.get_full_id())
-                        continue # task already cached, skip
-
-                    task_output_ready = await _this_worker.intermediate_storage.exists(udtask.id.get_full_id_in_dag(subdag))
-                    if task_output_ready: 
-                        _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Task {udtask.id.get_full_id()} ready in storage!!")
-                        ready_dependencies.add(udtask.id.get_full_id())
-
-                _this_worker.log(_current_task.id.get_full_id(), f"TDUP FALLBACK | Ready dependencies of {downstream_task.id.get_full_id()}: {len(ready_dependencies)} vs {downstream_task_total_dependencies} Missing task ids: {set([udtask.id.get_full_id() for udtask in downstream_task.upstream_nodes]) - ready_dependencies}")
-                if len(ready_dependencies) == downstream_task_total_dependencies:
-                    # don't broadcast that it's ready because some of the data may not be in storage yet, if I dupped it
-                    downstream_tasks_ready.append(downstream_task)
 
         _this_worker.log(_current_task.id.get_full_id(), f"Downstream tasks ready: {[t.id.get_full_id() for t in downstream_tasks_ready]}")
         _current_task.metrics.update_dependency_counters_time_ms = (_current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0

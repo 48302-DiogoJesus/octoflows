@@ -419,7 +419,7 @@ def main():
                 worker_id = [m for m in task_metrics_data if m["task_id"] == node_id][0]['worker_id']
 
                 if node_id in visited:
-                    return  # Prevents duplicate processing
+                    return # Prevents duplicate processing
 
                 visited.add(node_id)
                 node_levels[node_id] = level

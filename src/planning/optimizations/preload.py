@@ -65,7 +65,6 @@ class PreLoadOptimization(TaskOptimization):
         metadata_storage: Storage, 
         dag: FullDAG
     ):
-        """ Helper to create and track a preload task, ensuring no duplicates. """
         async with self._state_lock:
             if not self.allow_new_preloads: return
             if upstream_task.cached_result is not None: return

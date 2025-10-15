@@ -25,7 +25,6 @@ from src.dag.dag import FullDAG
 from src.storage.metadata.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics, DAGResourceUsageMetrics
 from src.utils.timer import Timer
 from src.planning.optimizations.preload import PreLoadOptimization
-from src.planning.optimizations.taskdup import TaskDupOptimization
 from src.planning.optimizations.prewarm import PreWarmOptimization
 
 def get_redis_connection(port: int = 6379):
@@ -46,7 +45,6 @@ class WorkflowInstanceTaskInfo:
     output_size_uploaded_bytes: int
 
     optimization_preloads_done: int
-    optimization_task_dups_done: int
 
     optimization_prewarms_done: int
     optimization_prewarms_successful: int
@@ -206,13 +204,6 @@ async def get_workflows_information(
                                 om
                                 for om in tm.optimization_metrics
                                 if isinstance(om, PreLoadOptimization.OptimizationMetrics)
-                            ]
-                        )
-                        task.optimization_task_dups_done = len(
-                            [
-                                om
-                                for om in tm.optimization_metrics
-                                if isinstance(om, TaskDupOptimization.OptimizationMetrics)
                             ]
                         )
                         task.optimization_prewarms_done = len(
@@ -1241,6 +1232,7 @@ async def main():
                         y=sla_data['relative_error'],
                         text=sla_data['relative_error'].apply(lambda v: f'{v:.1f}%'),
                         textposition='outside',
+                        textfont=dict(size=14),  # 🔹 Make bar text bigger
                         legendgroup=sla_val,
                         showlegend=True
                     ),
@@ -1255,11 +1247,12 @@ async def main():
                         name=f'P{sla_val} Fulfillment',
                         x=sla_data['metric'],
                         y=sla_data['fulfillment_rate'],
-                        mode='lines+markers',
+                        mode='lines+markers+text',
                         marker=dict(size=10),
                         line=dict(width=3, dash='dash'),
                         text=sla_data['fulfillment_rate'].apply(lambda v: f'{v:.1f}%'),
                         textposition='top center',
+                        textfont=dict(size=13),  # 🔹 Make line text bigger too
                         legendgroup=sla_val,
                         showlegend=True
                     ),
@@ -1270,7 +1263,8 @@ async def main():
             fig.update_layout(
                 title='Predictions Relative Error and SLA Fulfillment (per Metric and SLA)',
                 xaxis_title='Metric',
-                height=600,
+                height=550,
+                width=900,
                 barmode='group',
                 legend=dict(
                     orientation='v',
@@ -1278,16 +1272,21 @@ async def main():
                     y=1,
                     xanchor='left',
                     x=1.05
-                )
+                ),
             )
 
-            # fig.update_xaxis(categoryorder='array', categoryarray=metric_order)
-            fig.update_yaxes(title_text='Median Relative Error (%)', secondary_y=False)
-            fig.update_yaxes(title_text='SLA Fulfillment Rate (%)', range=[0, 110], secondary_y=True)
+            # 🔹 Improve X-axis readability and label size
+            fig.update_xaxes(
+                tickangle=-35,  # Diagonal labels
+                tickfont=dict(size=14)  # Bigger text for metrics
+            )
+
+            # 🔹 Improve Y-axes text sizes
+            fig.update_yaxes(title_text='Median Relative Error (%)', secondary_y=False, tickfont=dict(size=13))
+            fig.update_yaxes(title_text='SLA Fulfillment Rate (%)', range=[0, 110], secondary_y=True, tickfont=dict(size=13))
 
             # Display chart
-            st.plotly_chart(fig, use_container_width=True)
-
+            st.plotly_chart(fig, use_container_width=False)
             
         with TAB_ACTUAL_VALUES:
             # Prepare data for all metrics comparison
@@ -1312,7 +1311,6 @@ async def main():
                 # Calculate total prewarms for this instance
                 total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
                 total_preloads = sum(task.optimization_preloads_done for task in instance.tasks)
-                total_taskdups = sum(task.optimization_task_dups_done for task in instance.tasks)
                 
                 # **Calculate unique workers for this instance**
                 unique_workers = len(set(
@@ -1345,7 +1343,6 @@ async def main():
                     'Resource Usage': instance.resource_usage.gb_seconds,
                     'Total Prewarms': total_prewarms,
                     'Total Preloads': total_preloads,
-                    'Total TaskDups': total_taskdups
                 }
 
                 # Add all metrics to the data list
@@ -1358,7 +1355,6 @@ async def main():
                         'Instance ID': instance.master_dag_id.split('-')[0],
                         'Total Prewarms': total_prewarms,
                         'Total Preloads': total_preloads,
-                        'Total TaskDups': total_taskdups,
                         'Unique Workers': unique_workers
                     })
 
@@ -1477,6 +1473,7 @@ async def main():
                         barmode='stack',
                         plot_bgcolor='rgba(0,0,0,0)',
                         height=500,
+                        width=600,
                         legend_title='Activity',
                         yaxis_title='Time (s)'
                     )
@@ -1488,7 +1485,7 @@ async def main():
                             template = '<b>Planner:</b> %{x}<br><b>Time (s):</b> %{y:.2f}s<br><b>Median Unique Workers:</b> %{customdata[0]}<extra></extra>'
                         trace.hovertemplate = template
 
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    st.plotly_chart(fig_bar, use_container_width=False)
                 else:
                     st.write("No time metrics data available to display.")
             
@@ -1882,13 +1879,27 @@ async def main():
 
 
             ##########
+            
+            # manual_order = ["NonUniformPlanner", "UniformPlanner", "WUKONGPlanner"]
+            # manual_order = ["NonUniformPlanner-opt", "UniformPlanner-opt", "WUKONGPlanner-opt"]
+            manual_order = [
+                "NonUniformPlanner", "UniformPlanner", "WUKONGPlanner",
+                "NonUniformPlanner-opt", "UniformPlanner-opt", "WUKONGPlanner-opt"
+            ]
+
             data = []
             for instance in workflow_types[selected_workflow].instances:
-                if not instance.plan: continue
+                if not instance.plan:
+                    continue
                 planner_name = instance.plan.planner_name
+                if planner_name not in manual_order:
+                    continue
 
+                sink_task_metrics = [
+                    t for t in instance.tasks
+                    if t.internal_task_id == instance.dag.sink_node.id.get_full_id()
+                ][0].metrics
 
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
                 sink_task_ended_timestamp_ms = (
                     sink_task_metrics.started_at_timestamp_s * 1000 +
                     (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
@@ -1896,76 +1907,92 @@ async def main():
                     (sink_task_metrics.output_metrics.tp_time_ms or 0) +
                     (sink_task_metrics.total_invocation_time_ms or 0)
                 )
+
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 ru = instance.resource_usage
+
                 data.append({
                     "workflow": selected_workflow,
                     "makespan": actual_makespan_s,
                     "planner": planner_name,
-                    "GB-seconds / 10": ru.gb_seconds / 10
+                    "GB-seconds": ru.gb_seconds
                 })
 
             df = pd.DataFrame(data)
 
-            # Sort planner names alphabetically
-            # sorted_planners = sorted(df["planner"].unique())
-
-            manual_order = ["NonUniformPlanner", "UniformPlanner", "WUKONGPlanner", "NonUniformPlanner-opt", "UniformPlanner-opt", "WUKONGPlanner-opt"]
-
+            # Sort planners by custom manual order
             sorted_planners = sorted(
                 df["planner"].unique(),
                 key=lambda x: manual_order.index(x) if x in manual_order else len(manual_order)
             )
 
-            # Calculate median for each planner and metric
+            # Calculate median per planner
             df_summary = df.groupby("planner").agg({
                 "makespan": "median",
-                "GB-seconds / 10": "median",
+                "GB-seconds": "median",
             }).reset_index()
 
-            # Melt DataFrame to have metrics as a single column
-            df_melted = df_summary.melt(
-                id_vars=["planner"],
-                value_vars=["makespan", "GB-seconds / 10"],
-                var_name="metric",
-                value_name="value"
-            )
-
-            # Create text labels showing only the median values
-            df_melted['text_label'] = df_melted['value'].apply(lambda v: f"{v:.2f}")
-
-            # Create a grouped bar chart
-            fig = px.bar(
-                df_melted,
-                x="metric",
-                y="value",
+            # === Chart 1: Makespan ===
+            fig_makespan = px.bar(
+                df_summary,
+                x="planner",
+                y="makespan",
+                text=df_summary["makespan"].apply(lambda v: f"{v:.2f}"),
                 color="planner",
-                barmode="group",
-                text="text_label",
                 category_orders={"planner": sorted_planners},
-                labels={
-                    "metric": "Metric",
-                    "value": "Median Value",
-                    "planner": "Planner"
-                },
-                title="Makespan vs Resource Usage"
+                labels={"planner": "Planner", "makespan": "Median Makespan (s)"},
+                title="Makespan (per Planner)"
             )
-
-            # Layout improvements
-            fig.update_layout(
-                xaxis_title="Metric",
-                yaxis_title="Median Value",
-                height=600,
+            fig_makespan.update_traces(
+                textposition="outside",
+                textfont=dict(size=14)  # 🔹 Increase text on top of bars
+            )
+            fig_makespan.update_layout(
+                xaxis_title="Planner",
+                yaxis_title="Median Makespan (s)",
+                height=650,
+                width=650,
                 legend_title="Planner",
-                xaxis={
-                    "categoryorder": "array",
-                    "categoryarray": ["makespan", "GB-seconds / 10"]
-                }
+                xaxis=dict(tickfont=dict(size=14)),  # 🔹 Increase x-axis labels
+                yaxis=dict(tickfont=dict(size=12)),
+                title_font=dict(size=20),
+                bargap=0.05,          # 🔹 Decrease gap between bars
+                bargroupgap=0.02,      # 🔹 Decrease gap between groups of bars
+                showlegend=False
             )
 
-            fig.update_traces(textposition='outside', textangle=0)
+            # === Chart 2: Resource Usage (GB-seconds) ===
+            fig_resource = px.bar(
+                df_summary,
+                x="planner",
+                y="GB-seconds",
+                text=df_summary["GB-seconds"].apply(lambda v: f"{v:.2f}"),
+                color="planner",
+                category_orders={"planner": sorted_planners},
+                labels={"planner": "Planner", "GB-seconds": "Median GB-seconds"},
+                title="Resource Usage (per Planner)"
+            )
+            fig_resource.update_traces(
+                textposition="outside",
+                textfont=dict(size=14)  # 🔹 Bigger value text
+            )
+            fig_resource.update_layout(
+                xaxis_title="Planner",
+                yaxis_title="Median GB-seconds",
+                height=650,
+                width=650,
+                legend_title="Planner",
+                xaxis=dict(tickfont=dict(size=14)),  # 🔹 Bigger x-axis planner names
+                yaxis=dict(tickfont=dict(size=12)),
+                title_font=dict(size=20),
+                bargap=0.05,          # 🔹 Decrease gap between bars
+                bargroupgap=0.02,      # 🔹 Decrease gap between groups of bars
+                showlegend=False
+            )
 
-            st.plotly_chart(fig, use_container_width=True)
+            # === Display stacked vertically in Streamlit ===
+            st.plotly_chart(fig_makespan, use_container_width=False)
+            st.plotly_chart(fig_resource, use_container_width=False)
 
             #############
 
