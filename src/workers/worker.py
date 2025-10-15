@@ -255,7 +255,7 @@ class Worker(ABC):
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"5) Handling Downstream Tasks...")
-                my_continuation_tasks = await self.planner.wel_override_handle_downstream(self, fulldag, current_task, subdag, downstream_tasks_ready)
+                my_continuation_tasks = await self.planner.wel_override_handle_downstream(self, current_task, fulldag, subdag, downstream_tasks_ready)
                 assert my_continuation_tasks is not None
 
                 # Continue with one task in this worker
