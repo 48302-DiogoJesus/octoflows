@@ -859,25 +859,31 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return output_data
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
-        _planner: AbstractDAGPlanner = planner
+    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None):
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id, this_worker)
+            await optimization.wel_on_worker_ready(_worker, dag, this_worker_id)
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
-        _planner: AbstractDAGPlanner = planner
+    async def wel_before_task_handling(worker, task, subdag):
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task)
+            await optimization.wel_before_task_handling(_worker, task, subdag)
 
     @staticmethod
-    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task):
-        _planner: AbstractDAGPlanner = planner
+    async def wel_before_task_execution(worker, task, subdag):
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
         for optimization in _planner.config.optimizations:
-            await optimization.wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task)
+            await optimization.wel_before_task_execution(_worker, task, subdag)
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict):
+    async def wel_override_handle_inputs(worker, task, subdag, upstream_tasks_without_cached_results):
         """
         returns (
             tasks_to_fetch: list[task] (on default implementation, fetch ALL tasks that don't have cached results),
@@ -885,62 +891,70 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         )
         """
         from src.workers.worker_execution_logic import WorkerExecutionLogic
-        _planner: AbstractDAGPlanner = planner
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+            opt_res = await optimization.wel_override_handle_inputs(worker, task, subdag, upstream_tasks_without_cached_results)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results, worker_resource_config, task_dependencies)
+            res = await WorkerExecutionLogic.wel_override_handle_inputs(worker, task, subdag, upstream_tasks_without_cached_results)
         return res
 
     @staticmethod
-    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage):
+    async def wel_override_should_upload_output(worker, task, subdag):
         from src.workers.worker_execution_logic import WorkerExecutionLogic
-        _planner: AbstractDAGPlanner = planner
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage)
+            opt_res = await optimization.wel_override_should_upload_output(_worker, task, subdag)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage)
-
-        return res
-
-    @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list[DAGTaskNode] | None:
-        from src.workers.worker_execution_logic import WorkerExecutionLogic
-        _planner: AbstractDAGPlanner = planner
-
-        res = None
-        for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
-            if opt_res is not None: res = opt_res
-        
-        # fallback to default logic
-        if res is None:
-            res = await WorkerExecutionLogic.wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task)
+            res = await WorkerExecutionLogic.wel_override_should_upload_output(_worker, task, subdag)
 
         return res
 
     @staticmethod
-    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag):
+    async def wel_update_dependency_counters(worker, task, subdag) -> list[DAGTaskNode] | None:
         from src.workers.worker_execution_logic import WorkerExecutionLogic
-        _planner: AbstractDAGPlanner = planner
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
 
         res = None
         for optimization in _planner.config.optimizations:
-            opt_res = await optimization.wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag)
+            opt_res = await optimization.wel_update_dependency_counters(_worker, task, subdag)
             if opt_res is not None: res = opt_res
         
         # fallback to default logic
         if res is None:
-            res = await WorkerExecutionLogic.wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag)
+            res = await WorkerExecutionLogic.wel_update_dependency_counters(_worker, task, subdag)
+
+        return res
+
+    @staticmethod
+    async def wel_override_handle_downstream(worker, task, fulldag, subdag, downstream_tasks_ready):
+        from src.workers.worker_execution_logic import WorkerExecutionLogic
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        _planner: AbstractDAGPlanner = _worker.planner
+
+        res = None
+        for optimization in _planner.config.optimizations:
+            opt_res = await optimization.wel_override_handle_downstream(_worker, task, fulldag, subdag, downstream_tasks_ready)
+            if opt_res is not None: res = opt_res
+        
+        # fallback to default logic
+        if res is None:
+            res = await WorkerExecutionLogic.wel_override_handle_downstream(_worker, task, fulldag, subdag, downstream_tasks_ready)
 
         return res

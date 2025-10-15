@@ -1,7 +1,8 @@
+- Remove unused args from WEL methods
+- flex_worker_id changes (don't compare to None, compare to containing flex instead, maybe `Worker.is_flex()` class method?)
+
 [KNOWN_ISSUES]
 - worker_active_periods are not being calculated correctly (circular issue where I need to these times to know warm and cold starts but I only know them if I calculate worker times). Result: worker_active_periods assumes NO worker startup time
-
-- move taskdup + preload logic from the docker worker.py to `taskup.on_worker_ready()`
 
 # Possible future directions, extensions, and improvements
 - Solution Improvements

@@ -10,15 +10,15 @@ logger = create_logger(__name__)
 
 class WorkerExecutionLogic(ABC):
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
+    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None):
         pass
 
     @staticmethod
-    async def wel_before_task_handling(planner, this_worker, metadata_storage, subdag, current_task):
+    async def wel_before_task_handling(worker, task, subdag):
         pass
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage, metadata_storage, task, subdag, upstream_tasks_without_cached_results: list, worker_resource_config, task_dependencies: dict[str, Any]) -> tuple[list, list[str], Awaitable[Any] | None] | None:
+    async def wel_override_handle_inputs(worker, task, subdag, upstream_tasks_without_cached_results: list) -> tuple[list, list[str], Awaitable[Any] | None] | None:
         """
         returns (
             tasks_to_fetch (on default implementation, fetch ALL tasks that don't have cached results),
@@ -29,80 +29,75 @@ class WorkerExecutionLogic(ABC):
         return (upstream_tasks_without_cached_results, [], None)
 
     @staticmethod
-    async def wel_before_task_execution(planner, this_worker, metadata_storage, subdag, current_task):
+    async def wel_before_task_execution(worker, task, subdag):
         pass
 
     @staticmethod
-    async def wel_override_should_upload_output(planner, current_task, subdag, this_worker, metadata_storage) -> bool | None:
+    async def wel_override_should_upload_output(worker, task, subdag) -> bool | None:
         """
         return value indicates if the task result was uploaded or not 
         """
         from src.dag_task_node import DAGTaskNode
-        _task: DAGTaskNode = current_task
+        _task: DAGTaskNode = task
 
-        has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != this_worker.my_worker_id for dt in _task.downstream_nodes)
+        has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != worker.my_worker_id for dt in _task.downstream_nodes)
 
         # only upload if necessary
         return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or has_other_workers_dependant
 
     @staticmethod
-    async def wel_update_dependency_counters(planner, this_worker, metadata_storage, subdag, current_task) -> list | None:
+    async def wel_update_dependency_counters(worker, task, subdag) -> list | None:
         from src.dag_task_node import DAGTaskNode
         from src.storage.events import TASK_READY_EVENT_PREFIX
-        from src.storage.metadata.metadata_storage import MetadataStorage
         from src.workers.worker import Worker
-        from src.dag_task_node import DAGTaskNode
-
-        _metadata_storage: MetadataStorage = metadata_storage
-        _this_worker: Worker = this_worker
-        _current_task: DAGTaskNode = current_task
-
+        _worker: Worker = worker
+        _task: DAGTaskNode = task
 
         downstream_tasks_ready: list[DAGTaskNode] = []
         # contains all downstream tasks that depend on more than one upstream task, or on tasks from other workers (not just this one).
-        downstream_tasks_that_depend_on_other_tasks = [dt for dt in _current_task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _this_worker.my_resource_configuration.worker_id)]
+        downstream_tasks_that_depend_on_other_tasks = [dt for dt in _task.downstream_nodes if not (len(dt.upstream_nodes) == 1 and dt.upstream_nodes[0].worker_config.worker_id is not None and dt.upstream_nodes[0].worker_config.worker_id == _worker.my_resource_configuration.worker_id)]
         
         updating_dependency_counters_timer = Timer()
-        for downstream_task in _current_task.downstream_nodes:
-            _this_worker.log(_current_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
+        for downstream_task in _task.downstream_nodes:
+            _worker.log(_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
             if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
                 downstream_tasks_ready.append(downstream_task)
                 continue
 
-            dependencies_met = await _metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+            dependencies_met = await _worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            _this_worker.log(_current_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
+            _worker.log(_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
-                if _this_worker.my_resource_configuration.worker_id is not None and _this_worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
+                if _worker.my_resource_configuration.worker_id is not None and _worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
-                    await _metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+                    await _worker.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
 
                 # publishes the READY event asynchronously
                 asyncio.create_task(
-                    _metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
+                    _worker.metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
                     name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
                 )
-                _this_worker.log(_current_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
+                _worker.log(_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
                 
                 downstream_tasks_ready.append(downstream_task)
 
-        _this_worker.log(_current_task.id.get_full_id(), f"Downstream tasks ready: {[t.id.get_full_id() for t in downstream_tasks_ready]}")
-        _current_task.metrics.update_dependency_counters_time_ms = (_current_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
+        _worker.log(_task.id.get_full_id(), f"Downstream tasks ready: {[t.id.get_full_id() for t in downstream_tasks_ready]}")
+        _task.metrics.update_dependency_counters_time_ms = (_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
         return downstream_tasks_ready
 
     @staticmethod
-    async def wel_override_handle_downstream(planner, fulldag, current_task, this_worker, downstream_tasks_ready, subdag) -> list | None:
+    async def wel_override_handle_downstream(worker, task, fulldag, subdag, downstream_tasks_ready) -> list | None:
         from src.workers.worker import Worker
         from src.dag_task_node import DAGTaskNode
 
         _downstream_tasks_ready: list[DAGTaskNode] = downstream_tasks_ready
-        _current_task: DAGTaskNode = current_task
-        _this_worker: Worker = this_worker
+        _task: DAGTaskNode = task
+        _worker: Worker = worker
         my_continuation_tasks: list[DAGTaskNode] = []
         other_continuation_tasks: list[DAGTaskNode] = []
         total_invocation_time_timer = Timer()
         
-        _this_worker.log(_current_task.id.get_full_id(), f"Handling downstream tasks: {[(t.id.get_full_id(), t.worker_config.worker_id) for t in _downstream_tasks_ready]} my worker id: {_this_worker.my_resource_configuration.worker_id}")
+        _worker.log(_task.id.get_full_id(), f"Handling downstream tasks: {[(t.id.get_full_id(), t.worker_config.worker_id) for t in _downstream_tasks_ready]} my worker id: {_worker.my_resource_configuration.worker_id}")
 
         for task in _downstream_tasks_ready:
             task_resource_config = task.worker_config
@@ -112,7 +107,7 @@ class WorkerExecutionLogic(ABC):
                 else:
                     # delegate all other DS tasks to other workers
                     other_continuation_tasks.append(task)
-            elif task_resource_config.worker_id == _this_worker.my_worker_id:
+            elif task_resource_config.worker_id == _worker.my_worker_id:
                 my_continuation_tasks.append(task)
             else: # diff. worker id
                 requires_launching_worker = True
@@ -132,12 +127,12 @@ class WorkerExecutionLogic(ABC):
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
-            await _this_worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True)
+            logger.info(f"W({_worker.my_resource_configuration.worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
+            await _worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True)
 
         for my_task in my_continuation_tasks:
-            logger.info(f"W({_this_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
+            logger.info(f"W({_worker.my_resource_configuration.worker_id}) I will execute {my_task.id.get_full_id()}...")
 
-        _current_task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
-        _current_task.metrics.total_invocations_count = total_invocations_count
+        _task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
+        _task.metrics.total_invocations_count = total_invocations_count
         return my_continuation_tasks

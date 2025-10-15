@@ -77,7 +77,7 @@ class Worker(ABC):
                     # avoid duplicate execution on same worker
                     raise CancelCurrentWorkerLoopException("Task is/was already being handled by this worker on another coroutine. Aborting")
                 
-                await self.planner.wel_before_task_handling(self.planner, self, self.metadata_storage.storage, subdag, current_task)
+                await self.planner.wel_before_task_handling(self, current_task, subdag)
                 
                 tasks_executed_by_this_coroutine.append(current_task)
 
@@ -152,7 +152,7 @@ class Worker(ABC):
                 current_task.func_args = tuple(new_func_args)
                 current_task.func_kwargs = new_func_kwargs
 
-                res = await self.planner.wel_override_handle_inputs(self.planner, self.intermediate_storage, self.metadata_storage.storage, current_task, subdag, upstream_tasks_without_cached_results, self.my_resource_configuration, task_dependencies)
+                res = await self.planner.wel_override_handle_inputs(self, current_task, subdag, upstream_tasks_without_cached_results)
                 assert res is not None
                 tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = res
 
@@ -207,7 +207,7 @@ class Worker(ABC):
                 current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_worker_id for t in current_task.upstream_nodes]) else None
 
                 # Store raw values, normalization will be done during prediction
-                await self.planner.wel_before_task_execution(self.planner, self, self.metadata_storage, subdag, current_task)
+                await self.planner.wel_before_task_execution(self, current_task, subdag)
 
                 #* 2) EXECUTE TASK
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"2) Executing Task...")
@@ -229,7 +229,7 @@ class Worker(ABC):
                 )
 
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"3) Handling Task Output...")
-                upload_output = await self.planner.wel_override_should_upload_output(self.planner, current_task, subdag, self, self.metadata_storage)
+                upload_output = await self.planner.wel_override_should_upload_output(self, current_task, subdag)
                 
                 if upload_output:
                     output_upload_timer = Timer()
@@ -248,7 +248,7 @@ class Worker(ABC):
                     break
 
                 # Update Dependency Counters of Downstream Tasks
-                downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self.planner, self, self.metadata_storage, subdag, current_task)
+                downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self, current_task, subdag)
                 assert downstream_tasks_ready is not None
                 
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
@@ -260,7 +260,7 @@ class Worker(ABC):
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
                 self.log(current_task.id.get_full_id() + "++" + branch_id, f"5) Handling Downstream Tasks...")
-                my_continuation_tasks = await self.planner.wel_override_handle_downstream(self.planner, fulldag, current_task, self, downstream_tasks_ready, subdag)
+                my_continuation_tasks = await self.planner.wel_override_handle_downstream(self, fulldag, current_task, subdag, downstream_tasks_ready)
                 assert my_continuation_tasks is not None
 
                 # Continue with one task in this worker

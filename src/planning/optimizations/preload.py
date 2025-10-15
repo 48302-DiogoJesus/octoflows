@@ -130,7 +130,10 @@ class PreLoadOptimization(TaskOptimization):
                 annotation._active_preloads.pop(upstream_full_id, None)
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG, this_worker_id: str | None, this_worker):
+    async def wel_on_worker_ready(worker, dag: FullDAG, this_worker_id: str | None):
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+        
         if this_worker_id is None: 
             return # Flexible workers can't look ahead for their tasks to see if they have preload
 
@@ -157,22 +160,24 @@ class PreLoadOptimization(TaskOptimization):
             for unode in current_node.upstream_nodes:
                 if unode.worker_config.worker_id == this_worker_id: continue
 
-                if await intermediate_storage.exists(unode.id.get_full_id_in_dag(dag)):
+                if await _worker.intermediate_storage.exists(unode.id.get_full_id_in_dag(dag)):
                     logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                     # Use the helper to start the preload immediately
-                    asyncio.create_task(preload_optimization._start_preloading_if_not_running(unode, current_node, intermediate_storage, metadata_storage, dag))
+                    asyncio.create_task(preload_optimization._start_preloading_if_not_running(unode, current_node, _worker.intermediate_storage, _worker.metadata_storage.storage, dag))
                 else:
-                    subscription_id = await metadata_storage.subscribe(
+                    subscription_id = await _worker.metadata_storage.storage.subscribe(
                         f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_full_id_in_dag(dag)}", 
-                        _on_preload_task_completed_builder(current_node, unode, preload_optimization, intermediate_storage, metadata_storage, dag),
+                        _on_preload_task_completed_builder(current_node, unode, preload_optimization, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
                         coroutine_tag=COROTAG_PRELOAD
                     )
                     logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_full_id()} | Dependent task: {current_node.id.get_full_id()}")
                     preload_optimization.preloading_subscription_ids[f"{current_node.id.get_full_id()}{unode.id.get_full_id()}"] = subscription_id
 
     @staticmethod
-    async def wel_override_handle_inputs(planner, intermediate_storage: Storage, metadata_storage: Storage, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list, worker_resource_config: TaskWorkerResourceConfiguration | None, task_dependencies: dict[str, Any]) -> tuple[list, list[str], Awaitable[Any] | None]:
-        
+    async def wel_override_handle_inputs(worker, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list) -> tuple[list, list[str], Awaitable[Any] | None]:
+        from src.workers.worker import Worker
+        _worker: Worker = worker
+
         upstream_tasks_to_fetch = []
         wait_coro = None
         
@@ -197,7 +202,7 @@ class PreLoadOptimization(TaskOptimization):
             subscription_id = preload_optimization.preloading_subscription_ids.get(f"{task.id.get_full_id()}{t.id.get_full_id()}") if preload_optimization else None
             if subscription_id is not None:
                 # Unsubscribe from any remaining events; they are no longer needed.
-                await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=subscription_id)
+                await _worker.metadata_storage.storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_full_id_in_dag(subdag)}", subscription_id=subscription_id)
 
             if not t.cached_result:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_full_id()} | Dependent task: {task.id.get_full_id()}")

@@ -177,9 +177,9 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         return
 
     @staticmethod
-    async def wel_on_worker_ready(planner, intermediate_storage, metadata_storage, dag, this_worker_id: str | None, this_worker):
+    async def wel_on_worker_ready(worker, dag, this_worker_id: str | None):
         from src.workers.worker import Worker
-        _this_worker: Worker = this_worker
+        _this_worker: Worker = worker
         _dag: SubDAG = dag
 
         async def delayed_warmup(delay_s: float, node: DAGTaskNode, worker: Worker, dag_id: str, resource_config):
