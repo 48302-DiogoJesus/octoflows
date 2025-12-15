@@ -79,12 +79,12 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
         print(f" > [{percentage:5.1f}%] [failed_instances:{failed_instances}] Workflow: {os.path.basename(script_path)} | Planner: {algorithm.upper()} algorithm | SLA: {sla} (iteration: {iteration}){retry_suffix} [{current}/{total}]")
 
         try:
-            subprocess.run(cmd, check=True, cwd=script_dir, timeout=400)
+            subprocess.run(cmd, check=True, cwd=script_dir, timeout=8 * 60)
             # Success! Exit the retry loop
             return
             
         except subprocess.TimeoutExpired:
-            print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 6.5 minutes (attempt {attempt}/{max_retries})", file=sys.stderr)
+            print(f"Timeout: {script_path} with {algorithm} and SLA {sla} exceeded 8 minutes (attempt {attempt}/{max_retries})", file=sys.stderr)
             kill_docker_workers()
             
             if attempt == max_retries:
