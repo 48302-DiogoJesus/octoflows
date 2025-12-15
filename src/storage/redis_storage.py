@@ -74,6 +74,7 @@ class RedisStorage(storage.Storage):
 
                 self._connection = Redis(
                     connection_pool=self._pool,
+                    max_connections=50,
                     retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
                     retry=Retry(backoff=ExponentialBackoff(), retries=5),
                 )
