@@ -106,19 +106,28 @@ class Worker(ABC):
 
                 time_spent_downloading: dict[str, float] = {}
 
-                async def _fetch_and_cache(storage_id: str):
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Fetching hardcoded dependency: {storage_id}")
+                # ---------------------------------------------------------
+                # OPTIMIZED: Batch Fetch Hardcoded Dependencies (MGET)
+                # ---------------------------------------------------------
+                ids_to_fetch = list(non_repeated_storage_ids)
 
-                    timer = Timer()
-                    data_serialized = await self.intermediate_storage.get(storage_id)
-                    download_time = timer.stop()
-                    if data_serialized is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_full_id())
-                    data = cloudpickle.loads(data_serialized)
-                    subdag.cached_hardcoded_data_map[storage_id] = data
-                    time_spent_downloading[storage_id] = download_time
+                if ids_to_fetch:
+                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
+                    _timer = Timer()
+                    raw_payloads = await self.intermediate_storage.mget(ids_to_fetch)
+                    total_batch_time_ms = _timer.stop()
+                    total_batch_size_bytes = sum(len(p) for p in raw_payloads if p is not None)
 
-                # Launch all downloads concurrently
-                await asyncio.gather(*(_fetch_and_cache(sid) for sid in non_repeated_storage_ids))
+                    # 3. Process results
+                    for storage_id, raw_bytes in zip(ids_to_fetch, raw_payloads):
+                        if raw_bytes is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_full_id())
+                        # Weighted Time: (My Size / Total Batch Size) * Total Batch Time
+                        size_bytes = len(raw_bytes)
+                        if total_batch_size_bytes > 0: allocated_time = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
+                        else: allocated_time = 0
+                            
+                        time_spent_downloading[storage_id] = allocated_time
+                        subdag.cached_hardcoded_data_map[storage_id] = await asyncio.to_thread(cloudpickle.loads, raw_bytes)
 
                 new_func_args = []
                 for arg in current_task.func_args:
@@ -170,23 +179,40 @@ class Worker(ABC):
                     )
                 
                 if tasks_to_fetch:
-                    async def _fetch_task_result(utask):
-                        _timer = Timer()
-                        serialized_task_result = await self.intermediate_storage.get(utask.id.get_full_id_in_dag(subdag))
-                        if serialized_task_result is None: 
-                            raise TaskOutputNotAvailableException(self.debug_worker_id, utask.id.get_full_id(), current_task.id.get_full_id())
+                    keys_to_fetch = [utask.id.get_full_id_in_dag(subdag) for utask in tasks_to_fetch]
+                    _batch_timer = Timer()
+                    results_list = await self.intermediate_storage.mget(keys_to_fetch) 
+                    total_batch_time_ms = _batch_timer.stop()
 
-                        time_to_fetch_ms = _timer.stop()
-                        deserialized_result = cloudpickle.loads(serialized_task_result)
+                    # 3. Calculate total size (to calculate percentages later)
+                    # Filter out None to avoid errors in sum, though None raises exception later anyway
+                    total_batch_size_bytes = sum(len(res) for res in results_list if res is not None)
 
-                        # Store results
-                        task_dependencies[utask.id.get_full_id()] = deserialized_result
-                        current_task.metrics.input_metrics.input_download_metrics[utask.id.get_full_id()] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(serialized_task_result),
-                            time_ms=time_to_fetch_ms
+                    # 4. Iterate over TASKS and RESULTS together to keep context
+                    for task_node, serialized_result in zip(tasks_to_fetch, results_list):
+                        
+                        # A. Validation
+                        if serialized_result is None: 
+                            raise TaskOutputNotAvailableException(
+                                worker_id=self.debug_worker_id, 
+                                task_id=task_node.id.get_full_id(), 
+                                required_by_task_id=current_task.id.get_full_id()
+                            )
+
+                        size_bytes = len(serialized_result)
+
+                        # C. Calculate Weighted Time
+                        # Formula: (My Size / Total Size) * Total Time | If I am 50% of the data, I get 50% of the latency attributed to me.
+                        if total_batch_size_bytes > 0: allocated_time_ms = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
+                        else: allocated_time_ms = 0
+
+                        # D. Store the Metric
+                        # Note: We use the raw size_bytes. No need to re-serialize!
+                        current_task.metrics.input_metrics.input_download_metrics[task_node.id.get_full_id()] = TaskInputDownloadMetrics(
+                            serialized_size_bytes=size_bytes,
+                            time_ms=allocated_time_ms
                         )
-
-                    await asyncio.gather(*(_fetch_task_result(utask) for utask in tasks_to_fetch))
+                        task_dependencies[task_node.id.get_full_id()] = await asyncio.to_thread(cloudpickle.loads, serialized_result)
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine is not None: 

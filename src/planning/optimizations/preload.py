@@ -110,7 +110,7 @@ class PreLoadOptimization(TaskOptimization):
             _timer = Timer()
             serialized_data: Any = await intermediate_storage.get(upstream_id_in_dag)
             time_to_fetch_ms = _timer.stop()
-            deserialized_task_output = cloudpickle.loads(serialized_data)
+            deserialized_task_output = await asyncio.to_thread(cloudpickle.loads, serialized_data)
             upstream_task.cached_result = _CachedResultWrapper(deserialized_task_output)
 
             dependent_task.metrics.input_metrics.input_download_metrics[
