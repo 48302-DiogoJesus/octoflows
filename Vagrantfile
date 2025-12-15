@@ -31,7 +31,7 @@ Vagrant.configure("2") do |config|
 
   config.vm.provision "shell", inline: <<-SHELL
     sudo apt-get update
-    sudo apt-get install -y curl unzip
+    sudo apt-get install -y curl unzip git
     sudo apt-get install -y graphviz redis-tools
     sudo apt-get install -y python3-pip python3-venv
 
