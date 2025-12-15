@@ -1,13 +1,15 @@
  Notes:
-    - warmup requests could warm a container on a diff. gateway than the task will run
+    - ISSUE: Warmup requests could warm a container on a diff. gateway than the task will run
+        - TODO
 
-- Test workflows with: My vagrant (gateway) + 126 (gateway + DBs)
-- Deploy on 1 cluster machine using Vagrant
-- Try running tree reduction multiple times and with diff. planner algorithms
 - Try Vagrant up on local machine
 - Remove .bat scripts from repo
-- Test with 2 remote machines
-- Run ALL experiments 3 times on 2 remote machines
+
+- cluster node vagrant (gateway) + exmachina (gateway + DBs)
+    - Test each workflow individually
+    - Run experiments script 1 of each planner and workflow
+
+- Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
 
 - Update `Deployment.md` to also include instructions/mention for Vagrant
 

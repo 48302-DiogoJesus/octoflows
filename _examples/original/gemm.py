@@ -76,6 +76,6 @@ result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1
 # exit()
 
 start_time = time.time()
-result = result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False)
+result = result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False, download_result=False)
 print(f"User waited: {time.time() - start_time:.2f}s")
 # print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), result)}")
