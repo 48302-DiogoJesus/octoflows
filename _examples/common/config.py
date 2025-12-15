@@ -125,7 +125,7 @@ _REDIS_METADATA_STORAGE_CONFIG = RedisStorage.Config(
 # WORKER CONFIGS
 WORKER_CONFIG = DockerWorker.Config(
     external_docker_gateway_addresses=[
-        ("95.94.148.210", 5000), # LOCAL
+        ("10.100.0.12", 5000), # LOCAL
         ("146.193.41.126", 5000) # REMOTE docker instance
     ],
     container_monitoring_addresses=[
