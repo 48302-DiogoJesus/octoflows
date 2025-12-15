@@ -29,7 +29,7 @@ class RedisStorage(storage.Storage):
     class Config(storage.Storage.Config):
         address: tuple[str, int]
         password: str
-        max_concurrent_ops: int = 99
+        max_concurrent_heavy_ops: int = 15
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -43,7 +43,7 @@ class RedisStorage(storage.Storage):
         self._sub_lock = asyncio.Lock()
         
         # Gatekeeper for all Redis operations
-        self._heavy_ops_semaphore = asyncio.Semaphore(self.redis_config.max_concurrent_ops)
+        self._heavy_ops_semaphore = asyncio.Semaphore(self.redis_config.max_concurrent_heavy_ops)
         
         # self.ARTIFICIAL_NETWORK_LATENCY_S = 0.030 
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0
