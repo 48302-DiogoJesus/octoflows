@@ -60,8 +60,9 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", privileged: false, inline: <<-SHELL
     # Install pip3.12 and all to path
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc # Ensure path is set for the user when it logs in later
     source ~/.bashrc  
+    export PATH="$HOME/.local/bin:$PATH" # Ensure path is set for current shell
     pip3.12 install -r /octoflows/src/requirements.txt
   SHELL
 end
