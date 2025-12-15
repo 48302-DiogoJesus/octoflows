@@ -110,6 +110,7 @@ class Worker(ABC):
                 # OPTIMIZED: Batch Fetch Hardcoded Dependencies (MGET)
                 # ---------------------------------------------------------
                 ids_to_fetch = list(non_repeated_storage_ids)
+                sizes_map = {}
 
                 if ids_to_fetch:
                     self.log(current_task.id.get_full_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
@@ -123,6 +124,7 @@ class Worker(ABC):
                         if raw_bytes is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_full_id())
                         # Weighted Time: (My Size / Total Batch Size) * Total Batch Time
                         size_bytes = len(raw_bytes)
+                        sizes_map[storage_id] = size_bytes
                         if total_batch_size_bytes > 0: allocated_time = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
                         else: allocated_time = 0
                             
@@ -135,7 +137,7 @@ class Worker(ABC):
                         d = subdag.cached_hardcoded_data_map[arg.storage_id]
                         new_func_args.append(d)
                         current_task.metrics.input_metrics.input_download_metrics[arg.storage_id] = TaskInputDownloadMetrics(
-                            serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(d)),
+                            serialized_size_bytes=sizes_map[arg.storage_id],
                             time_ms=time_spent_downloading.get(arg.storage_id, None) # note: could be None if was cached
                         )
                     else:
