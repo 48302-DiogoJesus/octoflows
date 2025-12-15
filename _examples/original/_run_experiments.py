@@ -80,7 +80,6 @@ def run_experiment(script_path: str, algorithm: str, sla: str, iteration: str, c
 
         try:
             subprocess.run(cmd, check=True, cwd=script_dir, timeout=8 * 60)
-            # Success! Exit the retry loop
             return
             
         except subprocess.TimeoutExpired:
