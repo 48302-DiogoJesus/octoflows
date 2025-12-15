@@ -7,7 +7,10 @@ Vagrant.configure("2") do |config|
   # You can search for boxes at https://vagrantcloud.com/search.
   config.vm.box = "generic/ubuntu2204"
 
-  config.ssh.insert_key = false # fix?
+  # fix?
+  config.ssh.insert_key = false 
+  config.ssh.username = "vagrant"
+  config.ssh.password = "vagrant"
 
   # Forwarded ports example:
   config.vm.network "forwarded_port", guest: 2375, host: 2375
