@@ -29,7 +29,7 @@ class RedisStorage(storage.Storage):
     class Config(storage.Storage.Config):
         address: tuple[str, int]
         password: str
-        max_concurrent_ops: int = 20
+        max_concurrent_ops: int = 99
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -43,7 +43,7 @@ class RedisStorage(storage.Storage):
         self._sub_lock = asyncio.Lock()
         
         # Gatekeeper for all Redis operations
-        self._op_semaphore = asyncio.Semaphore(self.redis_config.max_concurrent_ops)
+        self._heavy_ops_semaphore = asyncio.Semaphore(self.redis_config.max_concurrent_ops)
         
         # self.ARTIFICIAL_NETWORK_LATENCY_S = 0.030 
         self.ARTIFICIAL_NETWORK_LATENCY_S = 0
@@ -81,7 +81,7 @@ class RedisStorage(storage.Storage):
 
     async def get(self, key: str) -> Any:
         # Wrap the operation in the semaphore
-        async with self._op_semaphore:
+        async with self._heavy_ops_semaphore:
             await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             if not await conn.exists(key):
@@ -89,22 +89,20 @@ class RedisStorage(storage.Storage):
             return await conn.get(key)
 
     async def set(self, key: str, value: Any) -> bool:
-        async with self._op_semaphore:
+        async with self._heavy_ops_semaphore:
             await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.set(key, value)
 
     async def atomic_increment_and_get(self, key: str) -> int:
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            conn = await self._get_or_create_connection()
-            return await conn.incr(key, amount=1)
+        await self._simulate_network_latency()
+        conn = await self._get_or_create_connection()
+        return await conn.incr(key, amount=1)
 
     async def exists(self, *keys: str) -> int:
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            conn = await self._get_or_create_connection()
-            return await conn.exists(*keys)
+        await self._simulate_network_latency()
+        conn = await self._get_or_create_connection()
+        return await conn.exists(*keys)
     
     async def close_connection(self):
         # Closing does not need the semaphore, it is cleanup
@@ -125,24 +123,22 @@ class RedisStorage(storage.Storage):
             self._connection = None
 
     async def keys(self, pattern: str) -> List[str]:
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            conn = await self._get_or_create_connection()
-            return await conn.keys(pattern)
+        await self._simulate_network_latency()
+        conn = await self._get_or_create_connection()
+        return await conn.keys(pattern)
 
     async def mget(self, keys: List[str]) -> List[Any]:
         # This is a heavy operation, definitely needs the semaphore
-        async with self._op_semaphore:
+        async with self._heavy_ops_semaphore:
             await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.mget(keys)
     
     async def publish(self, channel: str, message: Union[str, bytes]) -> int:
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            conn = await self._get_or_create_connection()
-            logger.info(f"Publishing message to: {channel}")
-            return await conn.publish(channel, message)
+        await self._simulate_network_latency()
+        conn = await self._get_or_create_connection()
+        logger.info(f"Publishing message to: {channel}")
+        return await conn.publish(channel, message)
 
     async def _ensure_pubsub(self):
         """Ensure a single PubSub connection and background task are running."""
@@ -194,43 +190,41 @@ class RedisStorage(storage.Storage):
 
     async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", debug_worker_id: str = "") -> str:
         # Subscribe is a quick control command, we can semaphore it safely
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            await self._ensure_pubsub()
+        await self._simulate_network_latency()
+        await self._ensure_pubsub()
 
-            subscription_id = str(uuid.uuid4())
-            sub_info = SubscriptionInfo(subscription_id, callback, decode_responses, debug_worker_id)
+        subscription_id = str(uuid.uuid4())
+        sub_info = SubscriptionInfo(subscription_id, callback, decode_responses, debug_worker_id)
 
-            async with self._sub_lock:
-                first_for_channel = channel not in self._channel_subscriptions
-                self._channel_subscriptions.setdefault(channel, {})[subscription_id] = sub_info
+        async with self._sub_lock:
+            first_for_channel = channel not in self._channel_subscriptions
+            self._channel_subscriptions.setdefault(channel, {})[subscription_id] = sub_info
 
-            if first_for_channel:
-                await self._pubsub.subscribe(channel)  # type: ignore
-                logger.info(f"Subscribed to Redis channel {channel}")
+        if first_for_channel:
+            await self._pubsub.subscribe(channel)  # type: ignore
+            logger.info(f"Subscribed to Redis channel {channel}")
 
-            logger.info(f"W({debug_worker_id}) Subscribed to channel: {channel} | tag: {coroutine_tag} | id: {subscription_id}")
-            return subscription_id
+        logger.info(f"W({debug_worker_id}) Subscribed to channel: {channel} | tag: {coroutine_tag} | id: {subscription_id}")
+        return subscription_id
 
     async def unsubscribe(self, channel: str, subscription_id: Optional[str] = None):
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            async with self._sub_lock:
-                if channel not in self._channel_subscriptions:
-                    return
-                if subscription_id:
-                    if subscription_id in self._channel_subscriptions[channel]:
-                        del self._channel_subscriptions[channel][subscription_id]
-                        logger.info(f"Unsubscribed {subscription_id} from channel {channel}")
-                else:
-                    self._channel_subscriptions[channel].clear()
-                    logger.info(f"Unsubscribed all from channel {channel}")
+        await self._simulate_network_latency()
+        async with self._sub_lock:
+            if channel not in self._channel_subscriptions:
+                return
+            if subscription_id:
+                if subscription_id in self._channel_subscriptions[channel]:
+                    del self._channel_subscriptions[channel][subscription_id]
+                    logger.info(f"Unsubscribed {subscription_id} from channel {channel}")
+            else:
+                self._channel_subscriptions[channel].clear()
+                logger.info(f"Unsubscribed all from channel {channel}")
 
-                # cleanup if empty
-                if not self._channel_subscriptions[channel]:
-                    del self._channel_subscriptions[channel]
-                    await self._pubsub.unsubscribe(channel)  # type: ignore
-                    logger.info(f"No more subscribers, unsubscribed Redis channel {channel}")
+            # cleanup if empty
+            if not self._channel_subscriptions[channel]:
+                del self._channel_subscriptions[channel]
+                await self._pubsub.unsubscribe(channel)  # type: ignore
+                logger.info(f"No more subscribers, unsubscribed Redis channel {channel}")
             
     async def _delete_matching_keys(self, conn: Redis, match_pattern: str) -> int:
         # Note: This helper is called by delete(), which already holds the semaphore.
@@ -246,20 +240,19 @@ class RedisStorage(storage.Storage):
         return await conn.delete(*keys_to_delete)
 
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
-        async with self._op_semaphore:
-            await self._simulate_network_latency()
-            conn = await self._get_or_create_connection()
-            
-            match_flags = sum([bool(pattern), bool(prefix), bool(suffix)])
-            if match_flags > 1:
-                raise ValueError("Only one of pattern, prefix, or suffix can be True")
-            
-            if pattern:
-                return await self._delete_matching_keys(conn, key)
-            elif prefix:
-                return await self._delete_matching_keys(conn, f"{key}*")
-            elif suffix:
-                return await self._delete_matching_keys(conn, f"*{key}")
-            else:
-                deleted = await conn.delete(key)
-                return deleted
+        await self._simulate_network_latency()
+        conn = await self._get_or_create_connection()
+        
+        match_flags = sum([bool(pattern), bool(prefix), bool(suffix)])
+        if match_flags > 1:
+            raise ValueError("Only one of pattern, prefix, or suffix can be True")
+        
+        if pattern:
+            return await self._delete_matching_keys(conn, key)
+        elif prefix:
+            return await self._delete_matching_keys(conn, f"{key}*")
+        elif suffix:
+            return await self._delete_matching_keys(conn, f"*{key}")
+        else:
+            deleted = await conn.delete(key)
+            return deleted
