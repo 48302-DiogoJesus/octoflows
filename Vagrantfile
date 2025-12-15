@@ -29,19 +29,21 @@ Vagrant.configure("2") do |config|
   
   config.vm.synced_folder "./", "/octoflows"
 
+  # Root commands
   config.vm.provision "shell", inline: <<-SHELL
-    sudo apt-get update
-    sudo apt-get install -y curl unzip git
-    sudo apt-get install -y graphviz redis-tools
-    sudo apt-get install -y python3-pip python3-venv
+    apt-get update
+    apt-get install -y software-properties-common # Required to install specific Python version
+    add-apt-repository ppa:deadsnakes/ppa -y # Required to install specific Python version
+    apt-get update
 
-    # Download and run the official Docker install script
+    # Install Python, Redis CLI and other debug tools
+    apt-get install -y curl unzip git graphviz redis-tools
+    apt-get install -y python3.12 python3.12-venv python3.12-dev
+
+    # Install Docker
     curl -fsSL https://get.docker.com -o get-docker.sh
     sh get-docker.sh
-    sudo usermod -aG docker vagrant
-
-    # Install Python dependencies
-    pip install -r /octoflows/src/requirements.txt
+    usermod -aG docker vagrant
 
     # Docker API (exposes 2375)
     mkdir -p /etc/systemd/system/docker.service.d
@@ -51,6 +53,15 @@ Vagrant.configure("2") do |config|
     systemctl daemon-reload
     systemctl restart docker
     
-    sudo apt-get clean
+    apt-get clean
+  SHELL
+
+  # User commands
+  config.vm.provision "shell", privileged: false, inline: <<-SHELL
+    # Install pip3.12 and all to path
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    source ~/.bashrc  
+    pip3.12 install -r /octoflows/src/requirements.txt
   SHELL
 end
