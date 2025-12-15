@@ -29,7 +29,7 @@ class RedisStorage(storage.Storage):
     class Config(storage.Storage.Config):
         address: tuple[str, int]
         password: str
-        max_concurrent_heavy_ops: int = 15
+        max_concurrent_heavy_ops: int = 30
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -74,7 +74,7 @@ class RedisStorage(storage.Storage):
 
                 self._connection = Redis(
                     connection_pool=self._pool,
-                    max_connections=50,
+                    max_connections=100,
                     retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
                     retry=Retry(backoff=ExponentialBackoff(), retries=5),
                 )
