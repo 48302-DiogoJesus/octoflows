@@ -31,7 +31,7 @@ def get_planner_from_sys_argv():
     montage_min_resources_mb = 8192
     base_mb = 1024
 
-    mid_resources = TaskWorkerResourceConfiguration(base_mb * 3) # 3GB
+    mid_resources = TaskWorkerResourceConfiguration(base_mb * 2) # 2GB
 
     non_uniform_resources = (
         [
@@ -40,7 +40,7 @@ def get_planner_from_sys_argv():
         ]
         if is_montage_workflow
         else [
-            TaskWorkerResourceConfiguration(base_mb * 3), # 3GB
+            TaskWorkerResourceConfiguration(base_mb * 2), # 3GB
             TaskWorkerResourceConfiguration(base_mb * 5), # 5GB
             TaskWorkerResourceConfiguration(base_mb * 8), # 8GB
         ]
