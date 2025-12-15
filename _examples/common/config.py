@@ -28,27 +28,21 @@ def get_planner_from_sys_argv():
 
     is_montage_workflow = script_name == "montage.py"
 
-    montage_min_worker_resource_config = TaskWorkerResourceConfiguration(8192)
+    montage_min_resources_mb = 8192
+    base_mb = 1024
 
-    base_resources = (
-        montage_min_worker_resource_config
-        if is_montage_workflow
-        else TaskWorkerResourceConfiguration(512)
-    )
-
-    mid_resources = TaskWorkerResourceConfiguration(base_resources.memory_mb * 4) # 2GB
-    # mid_resources = TaskWorkerResourceConfiguration(base_resources.memory_mb * 8) # 4GB
+    mid_resources = TaskWorkerResourceConfiguration(base_mb * 3) # 3GB
 
     non_uniform_resources = (
         [
-            base_resources,
-            TaskWorkerResourceConfiguration(base_resources.memory_mb * 2),
+            TaskWorkerResourceConfiguration(montage_min_resources_mb),
+            TaskWorkerResourceConfiguration(montage_min_resources_mb * 2),
         ]
         if is_montage_workflow
         else [
-            mid_resources, # worst resource config possible is the same that uniform planners and WUKONG use
-            TaskWorkerResourceConfiguration(base_resources.memory_mb * 8), # 4GB
-            TaskWorkerResourceConfiguration(base_resources.memory_mb * 16), # 8GB
+            TaskWorkerResourceConfiguration(base_mb * 3), # 3GB
+            TaskWorkerResourceConfiguration(base_mb * 5), # 5GB
+            TaskWorkerResourceConfiguration(base_mb * 8), # 8GB
         ]
     )
 
