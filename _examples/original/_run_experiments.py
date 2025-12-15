@@ -36,7 +36,7 @@ def wait_containers_shutdown():
             else:
                 print(f"Unexpected response: {response.status_code}, {response.text}")
         except requests.RequestException as e:
-            print(f"Error making request: {e}")
+            print(f"Error making request to {url}: {e}")
 
 
 def kill_docker_workers():
