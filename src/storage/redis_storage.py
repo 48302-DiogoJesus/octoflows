@@ -30,7 +30,7 @@ class RedisStorage(storage.Storage):
     class Config(storage.Storage.Config):
         address: tuple[str, int]
         password: str
-        max_concurrent_ops: int = 25
+        max_concurrent_ops: int = 20
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
@@ -67,17 +67,16 @@ class RedisStorage(storage.Storage):
                     decode_responses=False,
                     # Increased timeouts to handle queuing time if semaphore is busy
                     socket_connect_timeout=60,
-                    socket_timeout=60,
+                    socket_timeout=100,
                     retry_on_timeout=True,
-                    health_check_interval=25,
+                    health_check_interval=40,
                     socket_keepalive=True,
                 )
-                # choose random value between 0.256 and 0.900
                 self._connection = Redis(
                     connection_pool=self._pool,
                     max_connections=75,
                     retry_on_error=[ConnectionError, TimeoutError, OSError, BufferError],
-                    retry=Retry(backoff=ExponentialBackoff(cap=random.uniform(0.256, 0.900)), retries=10),
+                    retry=Retry(backoff=ExponentialBackoff(cap=random.uniform(0.256, 0.900)), retries=5),
                 )
             return self._connection
 
