@@ -5,10 +5,7 @@
 - Python 3.12
 
 ## Steps
-1) Create **python venv**
-    - `python3.12 -m venv venv`
-    - Activate it with `. activate_venv.sh`
-    - After activating the virtual environment, install the requirements: `pip install -r src/requirements.txt`
+1) Install Python dependencies: `pip install -r src/requirements.txt`
 2) Install `graphviz`
 ```bash
 sudo apt-get update

@@ -6,9 +6,8 @@ Workflow examples can be found in the `_examples` directory.
 
 The workflow is defined at `_examples/original/image_transformer.py`. To generate a graph representation of the workflow:
 
-1) Activate the Python virtual environment and navigate to the workflow directory: 
+1) Navigate to the workflow directory: 
 ```bash
-. activate_venv.sh
 cd _examples/original
 ```
 > Note: You can generate a visual graph representation of workflows by calling `visualize_dag()` on their **sink node** (e.g., `final_img.visualize_dag()`)

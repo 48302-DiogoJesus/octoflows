@@ -5,7 +5,6 @@ After configuring the environment as described in `DEPLOYMENT.md`, the set of ex
 > Note: Before starting a new experiment, the script waits for all containers to shut down gracefully, ensuring that the next workflow experiences cold starts for its initial workers.
 
 ```bash
-. activate_venv.sh
 cd _examples/original
 python _run_experiments.py
 ```
