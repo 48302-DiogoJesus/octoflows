@@ -1,4 +1,11 @@
-Vitamina02 (10.15.0.22) (db + vagrant gateway) + Proteina04 (vagrant gateway)
+Test Setup
+    - Vitamina02 (10.15.0.22) 
+        Client
+        DBs
+        Gateway (Inside Vagrant)
+        Tunnel Docker API from 10.15.0.14
+    - Proteina04 (10.15.0.14) 
+        Gateway (Inside Vagrant)
 
  Notes:
     - ISSUE: Warmup requests could warm a container on a diff. gateway than the task will run
@@ -6,6 +13,10 @@ Vitamina02 (10.15.0.22) (db + vagrant gateway) + Proteina04 (vagrant gateway)
 
 - Run experiments script 2 of each planner and workflow
 - Check if viz make sense 
+parameters:
+    resource configs
+    cold start time
+    fanout max clustering
 
 - Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
 
