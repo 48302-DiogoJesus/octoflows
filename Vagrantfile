@@ -7,19 +7,14 @@ Vagrant.configure("2") do |config|
   # You can search for boxes at https://vagrantcloud.com/search.
   config.vm.box = "generic/ubuntu2204"
 
-  # fix?
   config.ssh.insert_key = false 
   config.ssh.username = "vagrant"
   config.ssh.password = "vagrant"
 
-  # Forwarded ports example:
-  # config.vm.network "forwarded_port", guest: 2375, host: 2375
-  # config.vm.network "forwarded_port", guest: 5000, host: 5000
-  config.vm.network "public_network" # bridged networking
-
-  # If this machine will be the database, uncomment the following lines:
-  # config.vm.network "forwarded_port", guest: 6379, host: 6379
-  # config.vm.network "forwarded_port", guest: 6380, host: 6380
+  config.vm.network "forwarded_port", guest: 2375, host: 2375
+  config.vm.network "forwarded_port", guest: 5000, host: 5000
+  config.vm.network "forwarded_port", guest: 6379, host: 6379
+  config.vm.network "forwarded_port", guest: 6380, host: 6380
 
   config.vm.provider "virtualbox" do |vb|
     vb.name = "ubuntu-24.04-vm"
@@ -28,7 +23,6 @@ Vagrant.configure("2") do |config|
     vb.cpus = 6
     vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
     vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
-    vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
   end
   
   config.vm.synced_folder "./", "/octoflows"
