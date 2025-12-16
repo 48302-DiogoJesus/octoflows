@@ -1,3 +1,5 @@
+vitamina02 + proteina04
+
  Notes:
     - ISSUE: Warmup requests could warm a container on a diff. gateway than the task will run
         - TODO

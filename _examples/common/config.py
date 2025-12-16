@@ -31,7 +31,7 @@ def get_planner_from_sys_argv():
     montage_min_resources_mb = 8192
     base_mb = 1024
 
-    mid_resources = TaskWorkerResourceConfiguration(base_mb * 3)
+    mid_resources = TaskWorkerResourceConfiguration(base_mb * 4)
 
     non_uniform_resources = (
         [
@@ -40,9 +40,9 @@ def get_planner_from_sys_argv():
         ]
         if is_montage_workflow
         else [
-            TaskWorkerResourceConfiguration(base_mb * 3),
-            TaskWorkerResourceConfiguration(base_mb * 5),
-            TaskWorkerResourceConfiguration(base_mb * 7)
+            TaskWorkerResourceConfiguration(base_mb * 4),
+            TaskWorkerResourceConfiguration(base_mb * 6),
+            TaskWorkerResourceConfiguration(base_mb * 8)
         ]
     )
 
@@ -104,20 +104,20 @@ def get_planner_from_sys_argv():
 
 # STORAGE CONFIGS
 _REDIS_INTERMEDIATE_STORAGE_CONFIG = RedisStorage.Config(
-    address=("146.193.41.126", 6379),
+    address=("vitamina02", 6379),
     password="redisdevpwd123"
 )
 
 _REDIS_METADATA_STORAGE_CONFIG = RedisStorage.Config(
-    address=("146.193.41.126", 6380),
+    address=("vitamina02", 6380),
     password="redisdevpwd123"
 )
 
 # WORKER CONFIGS
 WORKER_CONFIG = DockerWorker.Config(
     external_docker_gateway_addresses=[
-        ("10.15.0.14", 5000), # LOCAL
-        ("146.193.41.126", 5000) # REMOTE docker instance
+        ("vitamina02", 5000), # LOCAL
+        ("proteina04", 5000) # REMOTE docker instance
     ],
     container_monitoring_addresses=[
         ("localhost", 2375), # LOCAL docker instance
