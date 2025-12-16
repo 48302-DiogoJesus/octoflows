@@ -30,7 +30,7 @@ class RedisStorage(storage.Storage):
     class Config(storage.Storage.Config):
         address: tuple[str, int]
         password: str
-        max_concurrent_ops: int = 10
+        max_concurrent_ops: int = 15
 
         def create_instance(self) -> "RedisStorage":
             return RedisStorage(self)
