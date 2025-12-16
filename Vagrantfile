@@ -17,8 +17,6 @@ Vagrant.configure("2") do |config|
   # config.vm.network "forwarded_port", guest: 5000, host: 5000
   config.vm.network "public_network" # bridged networking
 
-  vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
-  vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
   # If this machine will be the database, uncomment the following lines:
   # config.vm.network "forwarded_port", guest: 6379, host: 6379
   # config.vm.network "forwarded_port", guest: 6380, host: 6380
@@ -29,6 +27,8 @@ Vagrant.configure("2") do |config|
     vb.memory = "30720"
     vb.cpus = 6
     vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+    vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
+    vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
   end
   
   config.vm.synced_folder "./", "/octoflows"
