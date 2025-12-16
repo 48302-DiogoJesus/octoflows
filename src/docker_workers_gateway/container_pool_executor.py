@@ -199,6 +199,7 @@ class ContainerPoolExecutor:
     def release_container(self, container_id: str):
         with self.lock:
             self.containers[container_id].is_busy = False # ready to be used again
+            self.containers[container_id].last_active_time = time.time()  # Update last active time
             self.containers_available_condition.notify_all()
 
     def wait_for_container(self, cpus: float, memory: int, dag_id: str) -> str:
