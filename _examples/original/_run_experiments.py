@@ -19,8 +19,8 @@ SLAS = ['50']
 # SLAS = ['50', '75', '90']
 
 DOCKER_FAAS_GATEWAY_IPS = [
-    "proteina04",
-    "vitamina02"
+    "10.15.0.14",
+    "10.15.0.22"
 ]
 
 failed_instances = 0
