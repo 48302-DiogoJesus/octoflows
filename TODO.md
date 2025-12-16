@@ -1,15 +1,11 @@
-vitamina02 + proteina04
+Vitamina02 (10.15.0.22) (db + vagrant gateway) + Proteina04 (vagrant gateway)
 
  Notes:
     - ISSUE: Warmup requests could warm a container on a diff. gateway than the task will run
         - TODO
 
-- Try Vagrant up on local machine
-- Remove .bat scripts from repo
-
-- cluster node vagrant (gateway) + exmachina (gateway + DBs)
-    - Test each workflow individually
-    - Run experiments script 1 of each planner and workflow
+- Run experiments script 2 of each planner and workflow
+- Check if viz make sense 
 
 - Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
 
