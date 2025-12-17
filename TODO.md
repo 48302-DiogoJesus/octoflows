@@ -8,6 +8,8 @@ Test Setup
         Gateway (Inside Vagrant)
 
 - Check if pre-warm co-location optimization had better effect now
+- Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads
+    warmup + delegate
 - Run experiments script 2 of each planner and workflow
 - Check if viz make sense 
 parameters:

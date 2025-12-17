@@ -95,7 +95,7 @@ class DockerWorker(Worker):
         
         http_tasks = []
         # An individual request will result in a new worker/containerm, so 1 request per worker
-        async def make_worker_request(gateway_address: tuple[str, int], worker_id: str | None, worker_subdags: list[dag.SubDAG]):
+        async def make_worker_request(session: aiohttp.ClientSession, gateway_address: tuple[str, int], worker_id: str | None, worker_subdags: list[dag.SubDAG]):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
 
@@ -117,38 +117,41 @@ class DockerWorker(Worker):
                 fulldag_size = calculate_data_structure_size_bytes(self.docker_config.optimized_dag)
                 fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
             
-            async with aiohttp.ClientSession() as session:
-                async with await session.post(
-                    f"http://{gateway_address[0]}:{gateway_address[1]}" + "/job",
-                    data=json.dumps({
-                        "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
-                        "dag_id": _worker_subdags[0].master_dag_id,
-                        # if dag size is below 200KB, send the dag in the invocation, else, send the ID and the worker has to fetch it from storage
-                        "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
-                        # "fulldag": None,
-                        "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
-                        "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'),
-                        "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
-                    }),
-                    headers={'Content-Type': 'application/json'}
-                ) as response:
-                    if response.status != 202:
-                        text = await response.text()
-                        raise Exception(f"Failed to invoke worker: {text}")
-                    return response.status
+            http_body_data = {
+                "resource_configuration": targetWorkerResourcesConfig,
+                "dag_id": _worker_subdags[0].master_dag_id,
+                # if dag size is below 200KB, send the dag in the invocation, else, send the ID and the worker has to fetch it from storage
+                "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
+                # "fulldag": None,
+                "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
+                "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'),
+                "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
+            }
+            http_body_data_serialized = cloudpickle.dumps(http_body_data)
+
+            async with await session.post(
+                f"http://{gateway_address[0]}:{gateway_address[1]}" + "/job",
+                data=http_body_data_serialized,
+                headers={'Content-Type': 'application/octet-stream'}
+            ) as response:
+                if response.status != 202:
+                    text = await response.text()
+                    raise Exception(f"Failed to invoke worker: {text}")
+                return response.status
         
         # await self._simulate_network_latency()
 
-        for gateway, worker_id_to_dags in tasks_with_worker_id_by_gateway.items():
-            for worker_id, subdags in worker_id_to_dags.items():
-                http_tasks.append(make_worker_request(gateway, worker_id, subdags))
-        
-        # Create individual tasks for each subdag with worker_id = None
-        for subdag in tasks_without_worker_id:
-            assigned_gateway = random.choice(self.docker_config.external_docker_gateway_addresses) if not called_by_worker else ("localhost", 5000)
-            http_tasks.append(make_worker_request(assigned_gateway, None, [subdag]))
-        
-        await asyncio.gather(*http_tasks)
+        async with aiohttp.ClientSession() as session:
+            for gateway, worker_id_to_dags in tasks_with_worker_id_by_gateway.items():
+                for worker_id, subdags in worker_id_to_dags.items():
+                    http_tasks.append(make_worker_request(session, gateway, worker_id, subdags))
+            
+            # Create individual tasks for each subdag with worker_id = None
+            for subdag in tasks_without_worker_id:
+                assigned_gateway = random.choice(self.docker_config.external_docker_gateway_addresses) if not called_by_worker else ("localhost", 5000)
+                http_tasks.append(make_worker_request(session, assigned_gateway, None, [subdag]))
+            
+            await asyncio.gather(*http_tasks)
 
     async def warmup(self, dag_id: str, resource_configurations: list[TaskWorkerResourceConfiguration]):
         # await self._simulate_network_latency()
@@ -165,17 +168,17 @@ class DockerWorker(Worker):
                 tasks.append(self._send_warmup_request(
                     session, 
                     f"http://{gateway_address[0]}:{gateway_address[1]}/warmup",
-                    {
+                    cloudpickle.dumps({
                         "dag_id": dag_id,
-                        "resource_configurations": base64.b64encode(cloudpickle.dumps(rcs)).decode('utf-8')
-                    }
+                        "resource_configurations": rcs
+                    })
                 ))
 
             await asyncio.gather(*tasks)
 
-    async def _send_warmup_request(self, session: aiohttp.ClientSession, url: str, payload: dict):
+    async def _send_warmup_request(self, session: aiohttp.ClientSession, url: str, payload: bytes):
         try:
-            async with session.post(url, json=payload) as response:
+            async with session.post(url, data=payload, headers={'Content-Type': 'application/octet-stream'}) as response:
                 if response.status != 202:
                     text = await response.text()
                     logger.error(f"Warmup to {url} failed ({response.status}): {text}")
