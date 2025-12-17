@@ -7,6 +7,9 @@ Test Setup
     - Proteina04 (10.15.0.14) 
         Gateway (Inside Vagrant)
 
+Fix BUG:
+- Same worker_id on diff. gateways for root task
+
 - Check if pre-warm co-location optimization had better effect now
 - Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads
     warmup + delegate
