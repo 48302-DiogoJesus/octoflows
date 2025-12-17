@@ -7,11 +7,11 @@ Test Setup
     - Proteina04 (10.15.0.14) 
         Gateway (Inside Vagrant)
 
-- Implement:
-    - Client does balanced delegation OR random if easier to implement (!!use the hashcode of the task_id to choose the worker!!)
-    - Workers always talk to their own gateway
-- How to make Prewarm useful? (avoid prewarming a container on a gateway that won't be the one used)
-    - Use the hashcode of the task_id to choose the worker
+- How to make Prewarm useful? 
+    (avoid prewarming a container on a gateway that won't be the one used)
+    (if a worker prewarms a container on gateway X, the delegate() call should also go to gateway X)
+    solution
+    - Use the hashcode of the worker_id. Delegate and PreWarm of the worker_id should result in the same gateway being chosen
 - Run experiments script 2 of each planner and workflow
 - Check if viz make sense 
 parameters:

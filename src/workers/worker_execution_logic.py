@@ -43,7 +43,7 @@ class WorkerExecutionLogic(ABC):
         has_other_workers_dependant = any(dt.worker_config.worker_id is None or dt.worker_config.worker_id != worker.my_resource_configuration.worker_id for dt in _task.downstream_nodes)
 
         # only upload if necessary
-        return subdag.sink_node.id.get_full_id() == _task.id.get_full_id() or has_other_workers_dependant
+        return subdag.sink_node.id.get_internal_id() == _task.id.get_internal_id() or has_other_workers_dependant
 
     @staticmethod
     async def wel_update_dependency_counters(worker, task, subdag) -> list | None:
@@ -59,29 +59,29 @@ class WorkerExecutionLogic(ABC):
         
         updating_dependency_counters_timer = Timer()
         for downstream_task in _task.downstream_nodes:
-            _worker.log(_task.id.get_full_id(), f"Checking DC of {downstream_task.id.get_full_id()}")
+            _worker.log(_task.id.get_internal_id(), f"Checking DC of {downstream_task.id.get_internal_id()}")
             if downstream_task not in downstream_tasks_that_depend_on_other_tasks:
                 downstream_tasks_ready.append(downstream_task)
                 continue
 
-            dependencies_met = await _worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}")
+            dependencies_met = await _worker.metadata_storage.storage.atomic_increment_and_get(f"{DEPENDENCY_COUNTER_PREFIX}{downstream_task.id.get_remote_id(subdag)}")
             downstream_task_total_dependencies = len(downstream_task.upstream_nodes)
-            _worker.log(_task.id.get_full_id(), f"Incremented DC of {downstream_task.id.get_full_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
+            _worker.log(_task.id.get_internal_id(), f"Incremented DC of {downstream_task.id.get_internal_id()} ({dependencies_met}/{downstream_task_total_dependencies}) | {dependencies_met == downstream_task_total_dependencies}")
             if dependencies_met == downstream_task_total_dependencies:
                 if not _worker.is_flex() and _worker.my_resource_configuration.worker_id == downstream_task.worker_config.worker_id:
                     # avoids double-execution (one by following the execution branch, and another by the READY event callback)
-                    await _worker.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", subscription_id=None)
+                    await _worker.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_remote_id(subdag)}", subscription_id=None)
 
                 # publishes the READY event asynchronously
                 asyncio.create_task(
-                    _worker.metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_full_id_in_dag(subdag)}", b"1"),
-                    name=f"Async publish READY event for {downstream_task.id.get_full_id()}"
+                    _worker.metadata_storage.storage.publish(f"{TASK_READY_EVENT_PREFIX}{downstream_task.id.get_remote_id(subdag)}", b"1"),
+                    name=f"Async publish READY event for {downstream_task.id.get_internal_id()}"
                 )
-                _worker.log(_task.id.get_full_id(), f"Published READY event for {downstream_task.id.get_full_id()}")
+                _worker.log(_task.id.get_internal_id(), f"Published READY event for {downstream_task.id.get_internal_id()}")
                 
                 downstream_tasks_ready.append(downstream_task)
 
-        _worker.log(_task.id.get_full_id(), f"Downstream tasks ready: {[t.id.get_full_id() for t in downstream_tasks_ready]}")
+        _worker.log(_task.id.get_internal_id(), f"Downstream tasks ready: {[t.id.get_internal_id() for t in downstream_tasks_ready]}")
         _task.metrics.update_dependency_counters_time_ms = (_task.metrics.update_dependency_counters_time_ms or 0) + updating_dependency_counters_timer.stop() if len(downstream_tasks_that_depend_on_other_tasks) > 0 else 0
         return downstream_tasks_ready
 
@@ -97,7 +97,7 @@ class WorkerExecutionLogic(ABC):
         other_continuation_tasks: list[DAGTaskNode] = []
         total_invocation_time_timer = Timer()
         
-        _worker.log(_task.id.get_full_id(), f"Handling downstream tasks: {[(t.id.get_full_id(), t.worker_config.worker_id) for t in _downstream_tasks_ready]} my worker id: {_worker.my_resource_configuration.worker_id}")
+        _worker.log(_task.id.get_internal_id(), f"Handling downstream tasks: {[(t.id.get_internal_id(), t.worker_config.worker_id) for t in _downstream_tasks_ready]} my worker id: {_worker.my_resource_configuration.worker_id}")
 
         for task in _downstream_tasks_ready:
             task_resource_config = task.worker_config
@@ -127,11 +127,11 @@ class WorkerExecutionLogic(ABC):
         total_invocations_count = len(other_continuation_tasks)
 
         if len(other_continuation_tasks) > 0:
-            logger.info(f"W({_worker.debug_worker_id}) Delegating {[t.id.get_full_id() for t in other_continuation_tasks]} to other workers...")
+            logger.info(f"W({_worker.debug_worker_id}) Delegating {[t.id.get_internal_id() for t in other_continuation_tasks]} to other workers...")
             await _worker.delegate([subdag.create_subdag(t) for t in other_continuation_tasks], fulldag, called_by_worker=True)
 
         for my_task in my_continuation_tasks:
-            logger.info(f"W({_worker.debug_worker_id}) I will execute {my_task.id.get_full_id()}...")
+            logger.info(f"W({_worker.debug_worker_id}) I will execute {my_task.id.get_internal_id()}...")
 
         _task.metrics.total_invocation_time_ms = total_invocation_time_timer.stop() if len(_downstream_tasks_ready) > 0 else None
         _task.metrics.total_invocations_count = total_invocations_count

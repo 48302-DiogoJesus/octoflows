@@ -27,11 +27,10 @@ class DAGTaskNodeId:
         self.function_name = function_name
         self.task_id = task_id or str(uuid.uuid4())
 
-    def get_full_id(self) -> str:
+    def get_internal_id(self) -> str:
         return f"{self.function_name}+{self.task_id}"
     
-    # can't be typed because of circular import error.......
-    def get_full_id_in_dag(self, dag: Any) -> str:
+    def get_remote_id(self, dag: Any) -> str:
         return f"{self.function_name}+{self.task_id}+{dag.master_dag_id}"
 
 # Needed to distinguish a result=None (if R allows it) from "NO result yet"
@@ -190,23 +189,23 @@ class DAGTaskNode:
 
         for arg in self.func_args:
             if isinstance(arg, DAGTaskNodeId):
-                if arg.get_full_id() not in dependencies: raise Exception(f"[ERROR] Output of {arg.get_full_id()} not in dependencies")
-                final_func_args.append(dependencies[arg.get_full_id()])
+                if arg.get_internal_id() not in dependencies: raise Exception(f"[ERROR] Output of {arg.get_internal_id()} not in dependencies")
+                final_func_args.append(dependencies[arg.get_internal_id()])
             elif isinstance(arg, list) and all(isinstance(item, DAGTaskNodeId) for item in arg):
-                final_func_args.append([dependencies[item.get_full_id()] for item in arg])
+                final_func_args.append([dependencies[item.get_internal_id()] for item in arg])
             else:
                 final_func_args.append(arg)
 
         for key, value in self.func_kwargs.items():
             if isinstance(value, DAGTaskNodeId):
-                if value.get_full_id() not in dependencies: raise Exception(f"[ERROR] Output of {value.get_full_id()} not in dependencies")
-                final_func_kwargs[key] = dependencies[value.get_full_id()]
+                if value.get_internal_id() not in dependencies: raise Exception(f"[ERROR] Output of {value.get_internal_id()} not in dependencies")
+                final_func_kwargs[key] = dependencies[value.get_internal_id()]
             elif isinstance(value, list) and all(isinstance(item, DAGTaskNodeId) for item in value):
-                final_func_kwargs[key] = [dependencies[item.get_full_id()] for item in value]
+                final_func_kwargs[key] = [dependencies[item.get_internal_id()] for item in value]
             else:
                 final_func_kwargs[key] = value
 
-        # print(f"Executing task {self.id.get_full_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
+        # print(f"Executing task {self.id.get_internal_id()} with args {final_func_args} and kwargs {final_func_kwargs}")
 
         # res = function_code(*tuple(final_func_args), **final_func_kwargs)
         res = self.func_code(*tuple(final_func_args), **final_func_kwargs)

@@ -103,23 +103,23 @@ async def main():
         await wk.metadata_storage.update_invoked_worker_startup_metrics(
             end_time_ms=time.time() * 1000,
             worker_state="warm" if is_warm_start else "cold",
-            task_ids=[id.get_full_id() for id in immediate_task_ids],
+            task_ids=[id.get_internal_id() for id in immediate_task_ids],
             master_dag_id=dag_id
         )
 
-        logger.info(f"W({wk.debug_worker_id}) I should do: {[id.get_full_id() for id in immediate_task_ids]}")
+        logger.info(f"W({wk.debug_worker_id}) I should do: {[id.get_internal_id() for id in immediate_task_ids]}")
         all_tasks_for_this_worker: list[DAGTaskNode] = []
         _nodes_to_visit = [*fulldag.root_nodes]
         visited_nodes = set()
         while _nodes_to_visit:
             current_node = _nodes_to_visit.pop(0)
-            if current_node.id.get_full_id() in visited_nodes: continue
-            visited_nodes.add(current_node.id.get_full_id())
+            if current_node.id.get_internal_id() in visited_nodes: continue
+            visited_nodes.add(current_node.id.get_internal_id())
             
             if not wk.is_flex() and current_node.worker_config.worker_id == wk.my_resource_configuration.worker_id: all_tasks_for_this_worker.append(current_node)
             
             for downstream_node in current_node.downstream_nodes:
-                if downstream_node.id.get_full_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
+                if downstream_node.id.get_internal_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
         
         #* 1) Execute wel_on_worker_ready
         await wk.planner.wel_on_worker_ready(wk, fulldag)
@@ -129,10 +129,10 @@ async def main():
         def _on_task_ready_callback_builder(task_id: DAGTaskNodeId):
             async def callback(_: dict, subscription_id: str | None = None):
                 if subscription_id is not None:
-                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_full_id_in_dag(fulldag)}", subscription_id)
-                logger.info(f"Task {task_id.get_full_id()} is READY! Start executing...")
+                    await wk.metadata_storage.storage.unsubscribe(f"{TASK_READY_EVENT_PREFIX}{task_id.get_remote_id(fulldag)}", subscription_id)
+                logger.info(f"Task {task_id.get_internal_id()} is READY! Start executing...")
                 subdag = fulldag.create_subdag(fulldag.get_node_by_id(task_id))
-                asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_after_ready_event(task={task_id.get_full_id()})")
+                asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_after_ready_event(task={task_id.get_internal_id()})")
             return callback
         
         tasks_that_depend_on_other_workers: list[DAGTaskNode] = []
@@ -142,14 +142,14 @@ async def main():
                 if all(n.worker_config.worker_id == wk.my_resource_configuration.worker_id for n in task.upstream_nodes):
                     continue
                 tasks_that_depend_on_other_workers.append(task)
-                await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_full_id_in_dag(fulldag)}", _on_task_ready_callback_builder(task.id), debug_worker_id=wk.my_resource_configuration.worker_id, coroutine_tag="my task that depends on others")
+                await wk.metadata_storage.storage.subscribe(f"{TASK_READY_EVENT_PREFIX}{task.id.get_remote_id(fulldag)}", _on_task_ready_callback_builder(task.id), debug_worker_id=wk.my_resource_configuration.worker_id, coroutine_tag="my task that depends on others")
 
-                upstream_dependencies = [utask.id.get_full_id_in_dag(fulldag) for utask in task.upstream_nodes]
+                upstream_dependencies = [utask.id.get_remote_id(fulldag) for utask in task.upstream_nodes]
                 if len(upstream_dependencies) > 0:
                     dependencies_satisfied = await wk.metadata_storage.storage.exists(*upstream_dependencies)
                     if dependencies_satisfied == len(upstream_dependencies):
                         await _on_task_ready_callback_builder(task.id)({})
-                # logger.info(f"Task {task.id.get_full_id()} | Persistent READY flag state: {flag_exists}")
+                # logger.info(f"Task {task.id.get_internal_id()} | Persistent READY flag state: {flag_exists}")
 
         #* 3) Start executing my direct task IDs branches
         create_subdags_time_ms = Timer()
@@ -158,7 +158,7 @@ async def main():
         for task_id in immediate_task_ids:
             node = fulldag.get_node_by_id(task_id)
             subdag = fulldag.create_subdag(node)
-            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_immediate(task={task_id.get_full_id()})"))
+            direct_task_branches_coroutines.append(asyncio.create_task(wk.execute_branch(subdag, fulldag), name=f"start_executing_immediate(task={task_id.get_internal_id()})"))
         create_subdags_time_ms = create_subdags_time_ms.stop()
 
         logger.info(f"W({wk.debug_worker_id}) Waiting for {len(direct_task_branches_coroutines)} direct task branches to complete...")
@@ -169,7 +169,7 @@ async def main():
         if wk.my_resource_configuration.worker_id is not None:
             remaining_tasks_for_this_worker = [task for task in tasks_that_depend_on_other_workers if not task.completed_event.is_set()]
             if len(remaining_tasks_for_this_worker) > 0:
-                completion_events = [(task.id.get_full_id(), task.completed_event) for task in remaining_tasks_for_this_worker]
+                completion_events = [(task.id.get_internal_id(), task.completed_event) for task in remaining_tasks_for_this_worker]
                 logger.info(f"W({wk.debug_worker_id}) Waiting for {[task_id for task_id, _ in completion_events]} to complete locally...")
                 await asyncio.wait([asyncio.create_task(event.wait(), name=f"wait_my_execution_{task_id}") for task_id, event in completion_events])
                 logger.info(f"W({wk.debug_worker_id}) DONE Waiting for {[task_id for task_id, _ in completion_events]} to complete locally")
@@ -187,18 +187,18 @@ async def main():
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
 
         # Intermediate data cleanup after execution
-        if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_full_id_in_dag(fulldag)):
+        if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_remote_id(fulldag)):
             logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
 
             # logger.info(f"Deleting {len(fulldag._all_nodes.keys()) - 1} intermediate results for dag id: {fulldag.master_dag_id}")
             # Delete intermediate results
             for t in fulldag._all_nodes.values():
                 # note: don't delete final result because client needs it, but delete its DC if exists
-                if t.id.get_full_id() == fulldag.sink_node.id.get_full_id():
-                    await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_full_id_in_dag(fulldag)}")
+                if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
+                    await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_remote_id(fulldag)}")
                     continue
-                # logger.info(f"Deleting intermediate result for task: {t.id.get_full_id()}")
-                await wk.intermediate_storage.delete(f"*{t.id.get_full_id_in_dag(fulldag)}*", pattern=True)
+                # logger.info(f"Deleting intermediate result for task: {t.id.get_internal_id()}")
+                await wk.intermediate_storage.delete(f"*{t.id.get_remote_id(fulldag)}*", pattern=True)
             
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.store_dag_download_time(

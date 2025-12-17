@@ -65,7 +65,7 @@ class UniformPlanner(AbstractDAGPlanner):
         # Final statistics
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
-        final_critical_path_node_ids = { node.id.get_full_id() for node in final_critical_path_nodes }
+        final_critical_path_node_ids = { node.id.get_internal_id() for node in final_critical_path_nodes }
             
         unique_worker_ids: dict[str, int] = {}
         for my_node_id, node in _dag._all_nodes.items():

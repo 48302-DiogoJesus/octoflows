@@ -166,26 +166,26 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
             # predict exec/output
             for c in candidates:
-                input_size = nodes_info[c.id.get_full_id()].serialized_input_size
-                exec_times[c.id.get_full_id()] = (
+                input_size = nodes_info[c.id.get_internal_id()].serialized_input_size
+                exec_times[c.id.get_internal_id()] = (
                     predictions_provider.predict_execution_time(
                         c.func_name, input_size, resource_configuration, self.config.sla
                     )
                 )
-                outputs[c.id.get_full_id()] = predictions_provider.predict_output_size(
+                outputs[c.id.get_internal_id()] = predictions_provider.predict_output_size(
                     c.func_name, input_size, self.config.sla
                 )
 
             median_exec = statistics.median(exec_times.values())
             long_tasks = [
-                c for c in candidates if exec_times[c.id.get_full_id()] > median_exec
+                c for c in candidates if exec_times[c.id.get_internal_id()] > median_exec
             ]
             short_tasks = [
-                c for c in candidates if exec_times[c.id.get_full_id()] <= median_exec
+                c for c in candidates if exec_times[c.id.get_internal_id()] <= median_exec
             ]
 
             # Sort short tasks by descending output
-            short_tasks.sort(key=lambda c: outputs[c.id.get_full_id()], reverse=True)
+            short_tasks.sort(key=lambda c: outputs[c.id.get_internal_id()], reverse=True)
 
             # 1) Cluster short tasks first (big output first) on upstream worker if provided
             if upstream_worker_id and short_tasks:
@@ -196,7 +196,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     rc = resource_configuration.clone()
                     rc.worker_id = upstream_worker_id
                     c.worker_config = rc
-                    assigned_nodes.add(c.id.get_full_id())
+                    assigned_nodes.add(c.id.get_internal_id())
                 short_tasks = short_tasks[n_cluster:]
 
             # 2) Pair remaining longs with remaining shorts (1 long per group)
@@ -213,7 +213,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     rc = resource_configuration.clone()
                     rc.worker_id = wid
                     t.worker_config = rc
-                    assigned_nodes.add(t.id.get_full_id())
+                    assigned_nodes.add(t.id.get_internal_id())
 
             # 3) Group remaining short tasks
             while short_tasks:
@@ -226,7 +226,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     rc = resource_configuration.clone()
                     rc.worker_id = wid
                     t.worker_config = rc
-                    assigned_nodes.add(t.id.get_full_id())
+                    assigned_nodes.add(t.id.get_internal_id())
 
             # 4) Group remaining long tasks (half-size groups)
             long_cluster = max(
@@ -240,11 +240,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     rc = resource_configuration.clone()
                     rc.worker_id = wid
                     t.worker_config = rc
-                    assigned_nodes.add(t.id.get_full_id())
+                    assigned_nodes.add(t.id.get_internal_id())
 
         # Process nodes in topological order
         for node in topo_sorted_nodes:
-            if node.id.get_full_id() in assigned_nodes:
+            if node.id.get_internal_id() in assigned_nodes:
                 continue
 
             # Determine this node's assignment based on its upstream pattern
@@ -253,7 +253,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 remaining_roots = [
                     n
                     for n in topo_sorted_nodes
-                    if not n.upstream_nodes and n.id.get_full_id() not in assigned_nodes
+                    if not n.upstream_nodes and n.id.get_internal_id() not in assigned_nodes
                 ]
                 _assign_fanout_group(
                     upstream_worker_id=None, candidates=remaining_roots
@@ -268,13 +268,13 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                     rc = resource_configuration.clone()
                     rc.worker_id = upstream.worker_config.worker_id
                     node.worker_config = rc
-                    assigned_nodes.add(node.id.get_full_id())
+                    assigned_nodes.add(node.id.get_internal_id())
                 else:
                     # 1→N: Handle my entire fanout group
                     remaining_fanout = [
                         n
                         for n in upstream.downstream_nodes
-                        if n.id.get_full_id() not in assigned_nodes
+                        if n.id.get_internal_id() not in assigned_nodes
                     ]
                     _assign_fanout_group(
                         upstream_worker_id=upstream.worker_config.worker_id,
@@ -288,10 +288,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 for up in node.upstream_nodes:
                     wid = up.worker_config.worker_id
                     assert wid is not None, (
-                        f"Upstream node {up.id.get_full_id()} must have worker_id assigned"
+                        f"Upstream node {up.id.get_internal_id()} must have worker_id assigned"
                     )
 
-                    inp_size = nodes_info[up.id.get_full_id()].serialized_input_size
+                    inp_size = nodes_info[up.id.get_internal_id()].serialized_input_size
                     out_size = predictions_provider.predict_output_size(
                         up.func_name, inp_size, self.config.sla
                     )
@@ -299,7 +299,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
                 rc.worker_id = max(worker_output.items(), key=lambda kv: kv[1])[0]
                 node.worker_config = rc
-                assigned_nodes.add(node.id.get_full_id())
+                assigned_nodes.add(node.id.get_internal_id())
 
     def plan(self, dag, predictions_provider: PredictionsProvider) -> PlanOutput | None:
         """
@@ -349,9 +349,9 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         topo_order = []
 
         def dfs(node):
-            if node.id.get_full_id() in visited:
+            if node.id.get_internal_id() in visited:
                 return
-            visited.add(node.id.get_full_id())
+            visited.add(node.id.get_internal_id())
 
             for child in node.downstream_nodes:
                 dfs(child)
@@ -380,7 +380,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         for func_arg in node.func_args:
             if isinstance(func_arg, dag_task_node.DAGTaskNodeId):
-                upstream_node_id = func_arg.get_full_id()
+                upstream_node_id = func_arg.get_internal_id()
                 if upstream_node_id in nodes_info:
                     output_size = nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
@@ -388,7 +388,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_arg
             ):
                 for item in func_arg:
-                    upstream_node_id = item.get_full_id()
+                    upstream_node_id = item.get_internal_id()
                     if upstream_node_id in nodes_info:
                         output_size = nodes_info[
                             upstream_node_id
@@ -409,7 +409,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 )
         for func_kwarg_val in node.func_kwargs.values():
             if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId):
-                upstream_node_id = func_kwarg_val.get_full_id()
+                upstream_node_id = func_kwarg_val.get_internal_id()
                 if upstream_node_id in nodes_info:
                     output_size = nodes_info[upstream_node_id].serialized_output_size
                     total_input_size += output_size
@@ -417,7 +417,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_kwarg_val
             ):
                 for item in func_kwarg_val:
-                    upstream_node_id = item.get_full_id()
+                    upstream_node_id = item.get_internal_id()
                     if upstream_node_id in nodes_info:
                         output_size = nodes_info[
                             upstream_node_id
@@ -453,7 +453,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         from src.dag.dag import FullDAG, HardcodedDependencyId
 
         _dag: FullDAG = dag
-        node_id = node.id.get_full_id()
+        node_id = node.id.get_internal_id()
         worker_id = node.worker_config.worker_id
         serialized_input_size = self._calculate_total_input_size(dag, node, nodes_info)
 
@@ -464,7 +464,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         for unode in node.upstream_nodes:
             earliest_start = max(
                 earliest_start,
-                nodes_info[unode.id.get_full_id()].task_completion_time_ms,
+                nodes_info[unode.id.get_internal_id()].task_completion_time_ms,
             )
 
         # 2. Calculate download finish time (considering parallel downloads)
@@ -578,7 +578,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             ):
                 continue  # same worker => no need to download from storage
 
-            unode_info = nodes_info[unode.id.get_full_id()]
+            unode_info = nodes_info[unode.id.get_internal_id()]
             predicted_download_time = predictions_provider.predict_data_transfer_time(
                 "download", unode_info.serialized_output_size, resource_config, sla
             )
@@ -615,7 +615,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # 5. Calculate upload_time (existing logic is correct)
         uploadable_output_size_bytes = 0
-        if _dag.sink_node.id.get_full_id() == node.id.get_full_id() or any(
+        if _dag.sink_node.id.get_internal_id() == node.id.get_internal_id() or any(
             dt.worker_config.worker_id is None
             or dt.worker_config.worker_id != resource_config.worker_id
             for dt in node.downstream_nodes
@@ -681,10 +681,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             """Count how many tasks with same resource config need workers at target_time_ms."""
             count = 0
             for node in topo_sorted_nodes:
-                if node.id.get_full_id() == exclude_node_id:
+                if node.id.get_internal_id() == exclude_node_id:
                     continue
                 if node.worker_config.memory_mb == resource_config:
-                    node_info = nodes_info[node.id.get_full_id()]
+                    node_info = nodes_info[node.id.get_internal_id()]
                     # Check if this node will be executing at target_time_ms
                     if (
                         node_info.earliest_start_ms
@@ -697,7 +697,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # Apply the scheduling logic with capacity-aware warm/cold detection
         for node in topo_sorted_nodes:
             my_resource_config = node.worker_config
-            my_node_info = nodes_info[node.id.get_full_id()]
+            my_node_info = nodes_info[node.id.get_internal_id()]
 
             # Check if any upstream node uses same or compatible worker config
             if any(
@@ -725,7 +725,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             concurrent_demand = _count_concurrent_tasks(
                 my_resource_config.memory_mb,
                 my_node_info.earliest_start_ms,
-                node.id.get_full_id(),
+                node.id.get_internal_id(),
             )
 
             # Determine if we can get a warm start based on capacity
@@ -774,11 +774,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # Recalculate {earliest_start_ms} and {path_completion_times} after changing some {earliest_start_ms} to include {tp_worker_startup_time_ms}
         for node in topo_sorted_nodes:
-            node_info = nodes_info[node.id.get_full_id()]
+            node_info = nodes_info[node.id.get_internal_id()]
             for unode in node.upstream_nodes:
                 node_info.earliest_start_ms = max(
                     node_info.earliest_start_ms,
-                    nodes_info[unode.id.get_full_id()].task_completion_time_ms,
+                    nodes_info[unode.id.get_internal_id()].task_completion_time_ms,
                 )
             node_info.task_completion_time_ms = (
                 node_info.earliest_start_ms
@@ -828,7 +828,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             critical_predecessor = None
 
             for pred in current_node.upstream_nodes:
-                pred_id = pred.id.get_full_id()
+                pred_id = pred.id.get_internal_id()
                 pred_completion = nodes_info[pred_id].task_completion_time_ms
 
                 if pred_completion > max_completion_time:
@@ -839,7 +839,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             current_node = critical_predecessor
 
         critical_path_time = nodes_info[
-            dag.sink_node.id.get_full_id()
+            dag.sink_node.id.get_internal_id()
         ].task_completion_time_ms
         return critical_path, critical_path_time
 
@@ -878,7 +878,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if worker_id is None and node.try_get_optimization(PreLoadOptimization):
                 node.remove_optimization(PreLoadOptimization)
                 logger.warning(
-                    f"Task {node.id.get_full_id()} has a 'PreLoadOptimization' optimization but since it's assigned to a flexible worker (worker_id=None), this optimization will be ignored in this run"
+                    f"Task {node.id.get_internal_id()} has a 'PreLoadOptimization' optimization but since it's assigned to a flexible worker (worker_id=None), this optimization will be ignored in this run"
                 )
 
             # Validation #1 => Similar Worker IDs have same resources
@@ -908,18 +908,18 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 if (
                     worker_id in seen_worker_ids
                     and len(upstream_nodes_w_same_wid) == 0
-                    and node.id.get_full_id()
-                    not in [rn.id.get_full_id() for rn in root_nodes]
+                    and node.id.get_internal_id()
+                    not in [rn.id.get_internal_id() for rn in root_nodes]
                 ):
                     # could still be valid if AT LEAST 1 of its upstream tasks downstream tasks has the same worker id (meaning it was launched at the "same time")
                     other_udtasks_w_same_wid: set[str] = set()
                     for unode in node.upstream_nodes:
                         for udnode in unode.downstream_nodes:
                             if (
-                                udnode.id.get_full_id() != node.id.get_full_id()
+                                udnode.id.get_internal_id() != node.id.get_internal_id()
                                 and worker_id == udnode.worker_config.worker_id
                             ):
-                                other_udtasks_w_same_wid.add(udnode.id.get_full_id())
+                                other_udtasks_w_same_wid.add(udnode.id.get_internal_id())
 
                     if len(other_udtasks_w_same_wid) > 0 and not any(
                         [
@@ -928,10 +928,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                         ]
                     ):
                         raise Exception(
-                            f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_full_id()} |task name: {node.func_name}"
+                            f"Worker {worker_id} has no uninterrupted branch of tasks. Detected at task: {node.id.get_internal_id()} |task name: {node.func_name}"
                         )
 
-                seen_worker_ids[worker_id] = node.id.get_full_id()
+                seen_worker_ids[worker_id] = node.id.get_internal_id()
 
         # logger.info("Validation Succeeded!")
 
@@ -1003,7 +1003,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # Add nodes
         for node in _dag._all_nodes.values():
-            node_id = node.id.get_full_id()
+            node_id = node.id.get_internal_id()
             node_info = (
                 nodes_planning_info[node_id] if node_id in nodes_planning_info else None
             )
@@ -1021,7 +1021,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 f"<TR><TD><FONT POINT-SIZE='11'>{config_key}</FONT></TD></TR>"
                 f"<TR><TD><B><FONT POINT-SIZE='11'>{[o.name for o in node.optimizations]} </FONT></B></TD></TR>"
                 f"<TR><TD><FONT POINT-SIZE='11'>Worker: ...{resource_config.worker_id[-6:] if resource_config.worker_id else 'Flexbile'} | State: {node_info.worker_startup_state if node_info and node_info.worker_startup_state else '-'}</FONT></TD></TR>"
-                f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_full_id()[-6:]}</FONT></TD></TR>"
+                f"<TR><TD><FONT POINT-SIZE='11'>TID: ...{node.id.get_internal_id()[-6:]}</FONT></TD></TR>"
                 f"</TABLE>>"
             )
 
@@ -1045,7 +1045,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # Add edges
         for node_id, node in _dag._all_nodes.items():
             for upstream in node.upstream_nodes:
-                upstream_id = upstream.id.get_full_id()
+                upstream_id = upstream.id.get_internal_id()
                 dot.edge(upstream_id, node_id)
 
         # Add resource configuration legend
@@ -1119,7 +1119,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if visited is None:
                 visited = set()
 
-            node_id = node.id.get_full_id()
+            node_id = node.id.get_internal_id()
 
             # Avoid infinite loops in case of cycles
             if node_id in visited:

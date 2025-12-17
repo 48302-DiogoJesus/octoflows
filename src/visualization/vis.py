@@ -68,7 +68,7 @@ class DAGVisualizationDashboard:
             for node_id, node in self.dag._all_nodes.items():
                 if node_id in self.completed_tasks:
                     continue
-                exists = await self.intermediate_storage.exists(node.id.get_full_id_in_dag(self.dag))
+                exists = await self.intermediate_storage.exists(node.id.get_remote_id(self.dag))
                 if exists and node_id not in self.completed_tasks:
                     self.completed_tasks.add(node_id)
                     newly_completed.append(node_id)
@@ -94,7 +94,7 @@ class DAGVisualizationDashboard:
         visited = set()
 
         def traverse_dag(node: DAGTaskNode, level=0):
-            node_id = node.id.get_full_id()
+            node_id = node.id.get_internal_id()
 
             if node_id in visited:
                 return
@@ -132,7 +132,7 @@ class DAGVisualizationDashboard:
             )
 
             for downstream in node.downstream_nodes:
-                downstream_id = downstream.id.get_full_id()
+                downstream_id = downstream.id.get_internal_id()
                 edges.append(Edge(source=node_id, target=downstream_id, arrow="to", color="#888888", width=1))
                 traverse_dag(downstream, level + 1)
 
@@ -163,7 +163,7 @@ class DAGVisualizationDashboard:
         self._update_completed_tasks()
 
         completed = sum(
-            1 for name, node in self.dag._all_nodes.items() if node.id.get_full_id() in self.completed_tasks
+            1 for name, node in self.dag._all_nodes.items() if node.id.get_internal_id() in self.completed_tasks
         )
         total = len(self.dag._all_nodes)
         st.write(f"{completed}/{total} tasks completed")
@@ -190,7 +190,7 @@ class DAGVisualizationDashboard:
                 upstream_nodes = getattr(current_node, "upstream_nodes", [])
 
                 for upstream_node in upstream_nodes:
-                    upstream_id = upstream_node.id.get_full_id()
+                    upstream_id = upstream_node.id.get_internal_id()
                     if upstream_id not in self.completed_tasks:
                         self.completed_tasks.add(upstream_id)
                         tasks_to_process.append(upstream_id)
@@ -202,11 +202,11 @@ class DAGVisualizationDashboard:
 
         while queue:
             node = queue.popleft()
-            if node.id.get_full_id() in visited:
+            if node.id.get_internal_id() in visited:
                 continue
 
-            if node.id.get_full_id() in self.completed_tasks:
-                visited.add(node.id.get_full_id())
+            if node.id.get_internal_id() in self.completed_tasks:
+                visited.add(node.id.get_internal_id())
                 for downstream in node.downstream_nodes:
                     queue.append(downstream)
 

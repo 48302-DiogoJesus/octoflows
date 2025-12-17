@@ -61,9 +61,9 @@ class NonUniformPlanner(AbstractDAGPlanner):
         # Calculate initial critical path with best resources
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
-        critical_path_node_ids = {node.id.get_full_id() for node in critical_path_nodes}
+        critical_path_node_ids = {node.id.get_internal_id() for node in critical_path_nodes}
         
-        # logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_full_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
+        # logger.info(f"Initial Critical Path | Nodes: {len(critical_path_nodes)} | Node IDs: {[node.id.get_internal_id() for node in critical_path_nodes]} | Time: {critical_path_time} ms")
 
         # Step 2: Downgrade resources on non-critical paths without introducing new critical path
         # logger.info("=== Step 2: Downgrading resources on non-critical paths ===")
@@ -71,10 +71,10 @@ class NonUniformPlanner(AbstractDAGPlanner):
         for node in topo_sorted_nodes:
             node_worker_id = node.worker_config.worker_id
             if not node_worker_id: continue
-            if node.id.get_full_id() not in critical_path_node_ids and all(node_worker_id != cpnode.worker_config.worker_id for cpnode in critical_path_nodes):
+            if node.id.get_internal_id() not in critical_path_node_ids and all(node_worker_id != cpnode.worker_config.worker_id for cpnode in critical_path_nodes):
                 worker_ids_outside_critical_path.add(node_worker_id)
 
-        nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_full_id() not in critical_path_node_ids]
+        nodes_outside_critical_path = [node for node in topo_sorted_nodes if node.id.get_internal_id() not in critical_path_node_ids]
         successful_worker_resources_downgrades = 0
 
         # For each worker outside critical path, simulate downgrading resources without introducing a new critical path
@@ -85,7 +85,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
             # Store initial configurations as the first "successful" state
             for node in nodes_outside_critical_path:
                 if node.worker_config.worker_id == worker_id:
-                    last_successful_configs[node.id.get_full_id()] = node.worker_config
+                    last_successful_configs[node.id.get_internal_id()] = node.worker_config
             
             for simul_resource_config in self.config.worker_resource_configurations[1:]:
                 logger.info(f"Try {worker_id} on {simul_resource_config.memory_mb}mb")
@@ -106,12 +106,12 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     # Update last successful configs to current state
                     for node in nodes_outside_critical_path:
                         if node.worker_config.worker_id == worker_id:
-                            last_successful_configs[node.id.get_full_id()] = node.worker_config
+                            last_successful_configs[node.id.get_internal_id()] = node.worker_config
                 else:
                     # This downgrade hurts performance, REVERT to last successful state and stop trying lower configs
                     for node in nodes_outside_critical_path:
                         if node.worker_config.worker_id != worker_id: continue
-                        node.worker_config = last_successful_configs[node.id.get_full_id()]
+                        node.worker_config = last_successful_configs[node.id.get_internal_id()]
                     break # try downgrading the next worker
 
         logger.info(f"Successfully downgraded {successful_worker_resources_downgrades} out of {len(nodes_outside_critical_path)} non-critical path nodes")
@@ -132,7 +132,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
         # Final statistics and logging
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
-        final_critical_path_node_ids = {node.id.get_full_id() for node in final_critical_path_nodes}
+        final_critical_path_node_ids = {node.id.get_internal_id() for node in final_critical_path_nodes}
         
         # Calculate resource distribution
         resource_distribution = {}

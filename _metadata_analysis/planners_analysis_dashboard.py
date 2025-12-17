@@ -113,7 +113,7 @@ async def get_workflows_information(
 
                 predicted_makespan_s = (
                     plan_output.nodes_info[
-                        dag.sink_node.id.get_full_id()
+                        dag.sink_node.id.get_internal_id()
                     ].task_completion_time_ms
                     / 1000
                 ) if len(plan_output.nodes_info.keys()) > 0 else 0 # wukong has empty nodes info
@@ -139,7 +139,7 @@ async def get_workflows_information(
 
                 # Tasks data (pipeline to minimize round-trips)
                 task_keys = [
-                    f"{MetadataStorage.TASK_MD_KEY_PREFIX}{t.id.get_full_id_in_dag(dag)}"
+                    f"{MetadataStorage.TASK_MD_KEY_PREFIX}{t.id.get_remote_id(dag)}"
                     for t in dag._all_nodes.values()
                 ]
                 if task_keys:
@@ -149,8 +149,8 @@ async def get_workflows_information(
 
                 tasks = [
                     WorkflowInstanceTaskInfo(
-                        t.id.get_full_id_in_dag(dag),
-                        t.id.get_full_id(),
+                        t.id.get_remote_id(dag),
+                        t.id.get_internal_id(),
                         cloudpickle.loads(td),
                         -1,
                         -1,
@@ -444,7 +444,7 @@ async def main():
                 # print(f"Found a diff resource config. Prev: {common_resources} New: {task.metrics.worker_resource_configuration}")
                 common_resources = None
         
-        sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+        sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
         sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
         actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
         actual_data_transferred = instance.total_transferred_data_bytes
@@ -460,7 +460,7 @@ async def main():
             predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())  # in seconds
             predicted_input_size_bytes = sum(info.serialized_input_size for info in instance.plan.nodes_info.values())  # in bytes
             predicted_output_size = sum(info.serialized_output_size for info in instance.plan.nodes_info.values())  # in bytes
-            predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+            predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_internal_id()].task_completion_time_ms / 1000
             workers_accounted_for = set()
             predicted_total_worker_startup_time_s = 0
             for info in instance.plan.nodes_info.values():
@@ -836,7 +836,7 @@ async def main():
                     continue
                     
                 # Calculate actual metrics
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
                 sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
@@ -849,7 +849,7 @@ async def main():
                 # Get predicted metrics if available
                 predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
                 if instance.plan and instance.plan.nodes_info:
-                    predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                    predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_internal_id()].task_completion_time_ms / 1000
                     predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                     predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
                     predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
@@ -895,7 +895,7 @@ async def main():
                     sla_value = instance.plan.sla.value
 
                     # Compute actual metrics
-                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
                     sink_task_ended_timestamp_ms = (sink_task_metrics.started_at_timestamp_s * 1000) + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (sink_task_metrics.tp_execution_time_ms or 0) + (sink_task_metrics.output_metrics.tp_time_ms or 0) + (sink_task_metrics.total_invocation_time_ms or 0)
                     actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
 
@@ -931,7 +931,7 @@ async def main():
                     # Compute predicted metrics
                     predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0
                     if instance.plan and instance.plan.nodes_info:
-                        predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_full_id()].task_completion_time_ms / 1000
+                        predicted_makespan_s = instance.plan.nodes_info[instance.dag.sink_node.id.get_internal_id()].task_completion_time_ms / 1000
                         predicted_total_download = sum(info.total_download_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_execution = sum(info.tp_exec_time_ms / 1000 for info in instance.plan.nodes_info.values())
                         predicted_total_upload = sum(info.tp_upload_time_ms / 1000 for info in instance.plan.nodes_info.values())
@@ -1139,7 +1139,7 @@ async def main():
                     # Predicted metrics
                     predicted_metrics = {}
                     if instance.plan and instance.plan.nodes_info:
-                        sink_node = instance.dag.sink_node.id.get_full_id()
+                        sink_node = instance.dag.sink_node.id.get_internal_id()
                         workers_accounted_for = set()
                         predicted_worker_startup_time_s = 0
                         for info in instance.plan.nodes_info.values():
@@ -1295,7 +1295,7 @@ async def main():
                     continue
 
                 # Calculate all metrics for this instance
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
 
                 # Calculate makespan
                 sink_task_ended_timestamp_ms = (
@@ -1520,7 +1520,7 @@ async def main():
                 
                 metrics = planner_metrics[planner]
                 
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_full_id()][0].metrics
+                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
                 sink_task_ended_timestamp_ms = (
                     sink_task_metrics.started_at_timestamp_s * 1000
                     + (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0)
@@ -1895,7 +1895,7 @@ async def main():
 
                 sink_task_metrics = [
                     t for t in instance.tasks
-                    if t.internal_task_id == instance.dag.sink_node.id.get_full_id()
+                    if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()
                 ][0].metrics
 
                 sink_task_ended_timestamp_ms = (

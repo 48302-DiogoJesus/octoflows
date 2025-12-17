@@ -204,4 +204,4 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 logger.info(f"Scheduling prewarm in {relative_time} for {resource_config}")
                 # schedule into the future without blocking caller
                 # "background" in the name so that the worker doesn't wait for this coroutine if it wants to exit (not a priority)
-                asyncio.create_task(delayed_warmup(relative_time, node, _worker, dag.master_dag_id, resource_config), name=f"background_PreWarm-{node.id.get_full_id()}")
+                asyncio.create_task(delayed_warmup(relative_time, node, _worker, dag.master_dag_id, resource_config), name=f"background_PreWarm-{node.id.get_internal_id()}")

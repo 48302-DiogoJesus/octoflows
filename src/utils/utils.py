@@ -1,3 +1,4 @@
+import hashlib
 import sys
 import random
 import numpy as np
@@ -50,3 +51,10 @@ def calculate_data_structure_size_bytes(obj, fast=True, sample_size=50) -> int:
     
     else:
         return int(deep_getsizeof(obj))
+
+def get_consistent_gateway_for_worker_id(worker_id: str, available_gateways: list[tuple[str, int]]):
+    hash_object = hashlib.md5(worker_id.encode())
+    hash_hex = hash_object.hexdigest()
+    hash_int = int(hash_hex, 16)
+    consistent_idx =  hash_int % len(available_gateways)
+    return available_gateways[consistent_idx]

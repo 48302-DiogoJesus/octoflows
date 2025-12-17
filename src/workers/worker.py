@@ -77,7 +77,7 @@ class Worker(ABC):
                 tasks_executed_by_this_coroutine.append(current_task)
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
                 _download_dependencies_timer = Timer()
                 task_dependencies: dict[str, Any] = {}
 
@@ -97,7 +97,7 @@ class Worker(ABC):
                     if t.cached_result is None:
                         upstream_tasks_without_cached_results.append(t)
                     else:
-                        self.log(current_task.id.get_full_id() + "++" + branch_id, f"Input {t.id.get_full_id()} was in cache!")
+                        self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Input {t.id.get_internal_id()} was in cache!")
 
                 # Always fetch hardcoded inputs that are not present locally
                 # {subdag.cached_hardcoded_data_map} stored hardcoded data only once, to avoid repetition (tasks store references to the storage_ids until they need to be executed; then they replace that by the cached value or grab it from storage and then cache it)
@@ -112,7 +112,7 @@ class Worker(ABC):
                 ids_to_fetch = list(non_repeated_storage_ids)
 
                 if ids_to_fetch:
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
                     _timer = Timer()
                     raw_payloads = await self.intermediate_storage.mget(ids_to_fetch)
                     total_batch_time_ms = _timer.stop()
@@ -120,7 +120,7 @@ class Worker(ABC):
 
                     # 3. Process results
                     for storage_id, raw_bytes in zip(ids_to_fetch, raw_payloads):
-                        if raw_bytes is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_full_id())
+                        if raw_bytes is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_internal_id())
                         # Weighted Time: (My Size / Total Batch Size) * Total Batch Time
                         size_bytes = len(raw_bytes)
                         if total_batch_size_bytes > 0: allocated_time = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
@@ -161,25 +161,25 @@ class Worker(ABC):
                 tasks_to_fetch, tasks_fetched_by_handler, wait_until_coroutine = res
 
                 tasks_with_cached_results = list(
-                    set([un.id.get_full_id() for un in current_task.upstream_nodes]) - 
-                    set([t.id.get_full_id() for t in tasks_to_fetch]) - 
+                    set([un.id.get_internal_id() for un in current_task.upstream_nodes]) - 
+                    set([t.id.get_internal_id() for t in tasks_to_fetch]) - 
                     set(tasks_fetched_by_handler)
                 )
 
                 # Grab outputs that are already cached locally
                 for t in current_task.upstream_nodes:
-                    if t.id.get_full_id() not in tasks_with_cached_results: continue
+                    if t.id.get_internal_id() not in tasks_with_cached_results: continue
                     if not t.cached_result: continue
                     
-                    task_dependencies[t.id.get_full_id()] = t.cached_result.result
+                    task_dependencies[t.id.get_internal_id()] = t.cached_result.result
 
-                    current_task.metrics.input_metrics.input_download_metrics[t.id.get_full_id()] = TaskInputDownloadMetrics(
+                    current_task.metrics.input_metrics.input_download_metrics[t.id.get_internal_id()] = TaskInputDownloadMetrics(
                         serialized_size_bytes=calculate_data_structure_size_bytes(cloudpickle.dumps(t.cached_result.result)),
                         time_ms=None
                     )
                 
                 if tasks_to_fetch:
-                    keys_to_fetch = [utask.id.get_full_id_in_dag(subdag) for utask in tasks_to_fetch]
+                    keys_to_fetch = [utask.id.get_remote_id(subdag) for utask in tasks_to_fetch]
                     _batch_timer = Timer()
                     results_list = await self.intermediate_storage.mget(keys_to_fetch) 
                     total_batch_time_ms = _batch_timer.stop()
@@ -195,8 +195,8 @@ class Worker(ABC):
                         if serialized_result is None: 
                             raise TaskOutputNotAvailableException(
                                 worker_id=self.debug_worker_id, 
-                                task_id=task_node.id.get_full_id(), 
-                                required_by_task_id=current_task.id.get_full_id()
+                                task_id=task_node.id.get_internal_id(), 
+                                required_by_task_id=current_task.id.get_internal_id()
                             )
 
                         size_bytes = len(serialized_result)
@@ -208,20 +208,20 @@ class Worker(ABC):
 
                         # D. Store the Metric
                         # Note: We use the raw size_bytes. No need to re-serialize!
-                        current_task.metrics.input_metrics.input_download_metrics[task_node.id.get_full_id()] = TaskInputDownloadMetrics(
+                        current_task.metrics.input_metrics.input_download_metrics[task_node.id.get_internal_id()] = TaskInputDownloadMetrics(
                             serialized_size_bytes=size_bytes,
                             time_ms=allocated_time_ms
                         )
-                        task_dependencies[task_node.id.get_full_id()] = await asyncio.to_thread(cloudpickle.loads, serialized_result)
+                        task_dependencies[task_node.id.get_internal_id()] = await asyncio.to_thread(cloudpickle.loads, serialized_result)
 
                 # Handle wait_until_coroutine if present
                 if wait_until_coroutine is not None: 
-                    logger.info(f"[WAIT UNTIL] Waiting for wait_until_coroutine to complete for task: {current_task.id.get_full_id()}")
+                    logger.info(f"[WAIT UNTIL] Waiting for wait_until_coroutine to complete for task: {current_task.id.get_internal_id()}")
                     await wait_until_coroutine
-                    logger.info(f"[WAIT UNTIL] Complete for task: {current_task.id.get_full_id()}")
+                    logger.info(f"[WAIT UNTIL] Complete for task: {current_task.id.get_internal_id()}")
                     # wait_until_coroutine may have fetched some results, we need to use them
                     for utask in current_task.upstream_nodes:
-                        utask_id = utask.id.get_full_id()
+                        utask_id = utask.id.get_internal_id()
                         if utask_id not in task_dependencies and utask.cached_result is not None:
                             task_dependencies[utask_id] = utask.cached_result.result
 
@@ -231,7 +231,7 @@ class Worker(ABC):
                 await self.planner.wel_before_task_execution(self, current_task, subdag)
 
                 #* 2) EXECUTE TASK
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"2) Executing Task...")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"2) Executing Task...")
                 exec_timer = Timer()
                 deserialized_task_result = await asyncio.to_thread(current_task.invoke, dependencies=task_dependencies)
                 task_execution_time_ms = exec_timer.stop()
@@ -249,47 +249,47 @@ class Worker(ABC):
                     tp_time_ms=None
                 )
 
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"3) Handling Task Output...")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"3) Handling Task Output...")
                 upload_output = await self.planner.wel_override_should_upload_output(self, current_task, subdag)
                 
                 if upload_output:
                     output_upload_timer = Timer()
-                    await self.intermediate_storage.set(current_task.id.get_full_id_in_dag(subdag), serialized_task_result)
+                    await self.intermediate_storage.set(current_task.id.get_remote_id(subdag), serialized_task_result)
                     current_task.metrics.output_metrics.tp_time_ms = output_upload_timer.stop()
                     current_task.upload_complete.set()
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Uploaded Output")
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Uploaded Output")
                 else:
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Won't upload output")
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Won't upload output")
 
-                receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_full_id_in_dag(subdag)}", b"1")
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"Published COMPLETED event for {current_task.id.get_full_id()} | {receivers}")
+                receivers = await self.metadata_storage.storage.publish(f"{TASK_COMPLETED_EVENT_PREFIX}{current_task.id.get_remote_id(subdag)}", b"1")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Published COMPLETED event for {current_task.id.get_internal_id()} | {receivers}")
 
-                if current_task.id.get_full_id() == subdag.sink_node.id.get_full_id():
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"Sink task finished. Shutting down worker...")
+                if current_task.id.get_internal_id() == subdag.sink_node.id.get_internal_id():
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Sink task finished. Shutting down worker...")
                     break
 
                 # Update Dependency Counters of Downstream Tasks
                 downstream_tasks_ready = await self.planner.wel_update_dependency_counters(self, current_task, subdag)
                 assert downstream_tasks_ready is not None
                 
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"4) Handle Downstream to {len(current_task.downstream_nodes)} tasks...")
 
                 if len(downstream_tasks_ready) == 0:
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"No ready downstream tasks found. Shutting down worker...")
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"No ready downstream tasks found. Shutting down worker...")
                     break # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
                 #* 4) HANDLE DOWNSTREAM TASKS
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"5) Handling Downstream Tasks...")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"5) Handling Downstream Tasks...")
                 my_continuation_tasks = await self.planner.wel_override_handle_downstream(self, current_task, fulldag, subdag, downstream_tasks_ready)
                 assert my_continuation_tasks is not None
 
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
-                    self.log(current_task.id.get_full_id() + "++" + branch_id, f"No continuation tasks found... Ending worker branch")
+                    self.log(current_task.id.get_internal_id() + "++" + branch_id, f"No continuation tasks found... Ending worker branch")
                     break
 
-                self.log(current_task.id.get_full_id() + "++" + branch_id, f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
+                self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
                 current_task = my_continuation_tasks[0]
                 if len(my_continuation_tasks) > 1:
                     my_other_tasks = my_continuation_tasks[1:]
@@ -298,15 +298,15 @@ class Worker(ABC):
                         other_coroutines_i_launched.append(
                             asyncio.create_task(
                                 self.execute_branch(subdag.create_subdag(t), fulldag), 
-                                name=f"start_executing_immediate_followup(task={t.id.get_full_id()})")
+                                name=f"start_executing_immediate_followup(task={t.id.get_internal_id()})")
                             )
         except CancelCurrentWorkerLoopException as e:
-            self.log(current_task.id.get_full_id() + "++" + branch_id, f"CancelCurrentWorkerLoopException: {str(e)}")
+            self.log(current_task.id.get_internal_id() + "++" + branch_id, f"CancelCurrentWorkerLoopException: {str(e)}")
             pass
         except TaskOutputNotAvailableException as e:
             raise e
         except Exception as e:
-            self.log(current_task.id.get_full_id() + "++" + branch_id, f"ExecuteBranch Error: {str(e)}") # type: ignore
+            self.log(current_task.id.get_internal_id() + "++" + branch_id, f"ExecuteBranch Error: {str(e)}") # type: ignore
             raise e
         finally:
             # await current_task.is_handling.clear()
@@ -314,13 +314,13 @@ class Worker(ABC):
 
         # Wait for my other coroutines executing other tasks
         if len(other_coroutines_i_launched) > 0: 
-            self.log(current_task.id.get_full_id() + "++" + branch_id, f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
+            self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Worker waiting for coroutines: {[t.get_name() for t in other_coroutines_i_launched]}")
             await asyncio.gather(*other_coroutines_i_launched)
 
         for task_executed in tasks_executed_by_this_coroutine: 
-            await self.metadata_storage.store_task_metrics(task_executed.id.get_full_id_in_dag(subdag), task_executed.metrics)
+            await self.metadata_storage.store_task_metrics(task_executed.id.get_remote_id(subdag), task_executed.metrics)
 
-        self.log(current_task.id.get_full_id() + "++" + branch_id, f"Worker shut down!")
+        self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Worker shut down!")
         # print the names of the coroutines that are still running in the program in a single print
         this_coro = asyncio.current_task()
         logger.info(f"W({self.debug_worker_id}) Coroutines still running: {[t.get_name() for t in asyncio.all_tasks() if not this_coro or t.get_name() != this_coro.get_name()]}")
@@ -354,7 +354,7 @@ class Worker(ABC):
     @staticmethod
     async def wait_for_result_of_task(metadata_storage: storage_module.Storage, intermediate_storage: storage_module.Storage, task: dag_task_node.DAGTaskNode, dag: dag.FullDAG, timer: Timer, download_result: bool = False) -> tuple[Any, float]:
         # Poll Storage for final result. Asynchronous wait
-        channel = f"{TASK_COMPLETED_EVENT_PREFIX}{task.id.get_full_id_in_dag(dag)}"
+        channel = f"{TASK_COMPLETED_EVENT_PREFIX}{task.id.get_remote_id(dag)}"
         # Use an event to signal when we've received our message
         message_received = asyncio.Event()
         result = None
@@ -370,7 +370,7 @@ class Worker(ABC):
             await message_received.wait()
             time_of_final_notification = timer.stop()
             if download_result:
-                final_task_id = task.id.get_full_id_in_dag(dag)
+                final_task_id = task.id.get_remote_id(dag)
                 final_result = await intermediate_storage.get(final_task_id)
                 if final_result is not None:
                     final_result = cloudpickle.loads(final_result) # type: ignore

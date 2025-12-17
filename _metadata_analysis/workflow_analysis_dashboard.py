@@ -241,7 +241,7 @@ def main():
         func_name = dag._all_nodes[task_id].func_name
         function_groups.add(func_name)
 
-        if task_id == dag.sink_node.id.get_full_id():
+        if task_id == dag.sink_node.id.get_internal_id():
             _sink_task_metrics = metrics
 
         total_time_invoking_tasks_ms += metrics.total_invocation_time_ms if metrics.total_invocation_time_ms else 0
@@ -302,7 +302,7 @@ def main():
         
         def dfs(node, path, current_length):
             nonlocal max_path, max_length
-            node_id = node.id.get_full_id()
+            node_id = node.id.get_internal_id()
             
             task_metrics = next((t for t in task_metrics_data if t['task_id'] == node_id), None)
             if not task_metrics:
@@ -315,7 +315,7 @@ def main():
             new_length = current_length + task_time
             
             # If this is the sink node, check if it's the longest path
-            if node_id == dag.sink_node.id.get_full_id():
+            if node_id == dag.sink_node.id.get_internal_id():
                 if new_length > max_length:
                     max_length = new_length
                     max_path = new_path
@@ -415,7 +415,7 @@ def main():
             
             def traverse_dag(node: DAGTaskNode, level=0):
                 """ Recursively traverse DAG from root nodes """
-                node_id = node.id.get_full_id()
+                node_id = node.id.get_internal_id()
                 worker_id = [m for m in task_metrics_data if m["task_id"] == node_id][0]['worker_id']
 
                 if node_id in visited:
@@ -440,7 +440,7 @@ def main():
             
                 # Process downstream nodes - highlight actual and planned critical paths
                 for downstream in node.downstream_nodes:
-                    downstream_id = downstream.id.get_full_id()
+                    downstream_id = downstream.id.get_internal_id()
                     edge = (node_id, downstream_id)
                     is_actual_critical = edge in critical_edges
                     is_planned_critical = edge in planned_critical_edges
@@ -520,11 +520,11 @@ def main():
 
             if metrics and task_node:
                 # Basic task info
-                small_metric("Function", task_node.func_name, help=task_node.id.get_full_id())
+                small_metric("Function", task_node.func_name, help=task_node.id.get_internal_id())
                 small_metric("Worker", metrics.worker_resource_configuration.worker_id)
                 col1, col2, col3 = st.columns(3)
                 output_data = metrics.output_metrics.serialized_size_bytes
-                worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
+                worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_internal_id() in m.initial_task_ids]
                 worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                 worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                 with col1:
@@ -610,7 +610,7 @@ def main():
                             st.text(f"{float(metrics.output_metrics.tp_time_ms or 0):.3f} ms")
                             st.text(f"{float(actual_start_time):.3f} ms")
                             st.text(f"{float(end_time_ms):.3f} ms")
-                            worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_full_id() in m.initial_task_ids]
+                            worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_internal_id() in m.initial_task_ids]
                             worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
                             actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
                             st.text(f"({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'}) {float(actual_worker_startup_time_ms):.2f} ms")
@@ -726,7 +726,7 @@ def main():
         if plan_data:
             plan_output = cloudpickle.loads(plan_data) # type: ignore
 
-        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_full_id()].task_completion_time_ms if plan_output else -1
+        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_internal_id()].task_completion_time_ms if plan_output else -1
         predicted_upload_time = sum([tp.tp_upload_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_upload_size = sum([tp.serialized_output_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_download_time = sum([tp.total_download_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1

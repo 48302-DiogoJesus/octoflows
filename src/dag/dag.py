@@ -26,7 +26,7 @@ class GenericDAG(ABC):
     dag_name: str
 
     def get_node_by_id(self, node_id: dag_task_node.DAGTaskNodeId) -> dag_task_node.DAGTaskNode: 
-        return self._all_nodes[node_id.get_full_id()]
+        return self._all_nodes[node_id.get_internal_id()]
     
     def create_subdag(self, root_node: dag_task_node.DAGTaskNode) -> "SubDAG":
         return SubDAG(master_dag_id=self.master_dag_id, master_dag_structure_hash=self.master_dag_structure_hash, root_node=root_node)
@@ -48,9 +48,9 @@ class SubDAG(GenericDAG):
         
         def visit(node: dag_task_node.DAGTaskNode):
             nonlocal sink_node
-            if node.id.get_full_id() in all_nodes:
+            if node.id.get_internal_id() in all_nodes:
                 return
-            all_nodes[node.id.get_full_id()] = node
+            all_nodes[node.id.get_internal_id()] = node
             
             if not node.downstream_nodes:
                 sink_node = node
@@ -75,7 +75,7 @@ class FullDAG(GenericDAG):
     def __init__(self, sink_node: dag_task_node.DAGTaskNode):
         self.sink_node = sink_node.clone() # clone all nodes behind the sink node
         self._all_nodes, self.root_nodes = self._find_all_nodes_and_root_nodes_from_sink(self.sink_node)
-        if len(self.root_nodes) == 0: raise NoRootNodesError(self.sink_node.id.get_full_id())
+        if len(self.root_nodes) == 0: raise NoRootNodesError(self.sink_node.id.get_internal_id())
         self._check_for_fake_sink_nodes_references(self._all_nodes, self.sink_node)
         self.master_dag_structure_hash = self.get_structure_hash()
         self.master_dag_id = f"{(time.time() * 1000):.0f}.{sink_node.func_name}.{str(uuid.uuid4())}.{self.master_dag_structure_hash}" # type: ignore
@@ -164,7 +164,7 @@ class FullDAG(GenericDAG):
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
         await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
 
-        logger.info(f"Awaiting result of: {self.sink_node.id.get_full_id_in_dag(self)}")
+        logger.info(f"Awaiting result of: {self.sink_node.id.get_remote_id(self)}")
         (res, total_time_ms) = await Worker.wait_for_result_of_task(
             wk.metadata_storage.storage,
             wk.intermediate_storage,
@@ -173,7 +173,7 @@ class FullDAG(GenericDAG):
             _start_time,
             download_result
         )
-        logger.info(f"Final Result Ready: ({self.sink_node.id.get_full_id_in_dag(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {total_time_ms / 1000:.2f} s")
+        logger.info(f"Final Result Ready: ({self.sink_node.id.get_remote_id(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {total_time_ms / 1000:.2f} s")
 
         metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
         await wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
@@ -255,11 +255,11 @@ class FullDAG(GenericDAG):
 
         def visit(node: dag_task_node.DAGTaskNode):
             # Skip if the node has already been visited
-            if node.id.get_full_id() in all_nodes:
+            if node.id.get_internal_id() in all_nodes:
                 return
             
             # Add the node to all_nodes
-            all_nodes[node.id.get_full_id()] = node
+            all_nodes[node.id.get_internal_id()] = node
             
             # If the node has no upstream nodes, it's a root node
             if not node.upstream_nodes:
@@ -281,11 +281,11 @@ class FullDAG(GenericDAG):
             if visited is None:
                 visited = set()
             
-            node_id = node.id.get_full_id()
+            node_id = node.id.get_internal_id()
             if node_id in visited: return
             visited.add(node_id)
             
-            if not node.downstream_nodes and node_id != real_sink_node.id.get_full_id():
+            if not node.downstream_nodes and node_id != real_sink_node.id.get_internal_id():
                 raise MultipleSinkNodesError(node.func_name)
             
             # Recursively check downstream nodes
@@ -330,20 +330,20 @@ class FullDAG(GenericDAG):
             dependency_strs = []
             for arg in node.func_args:
                 if isinstance(arg, dag_task_node.DAGTaskNode):
-                    # dependency_strs.append(str(arg.id.get_full_id()))
+                    # dependency_strs.append(str(arg.id.get_internal_id()))
                     dependency_strs.append(print_argument(arg))
                 elif isinstance(arg, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in arg):
-                    # dependency_strs.append(str([item.id.get_full_id() for item in arg]))
+                    # dependency_strs.append(str([item.id.get_internal_id() for item in arg]))
                     dependency_strs.append(print_argument(arg))
                 else:
                     dependency_strs.append(print_argument(arg))
 
             for key, value in node.func_kwargs.items():
                 if isinstance(value, dag_task_node.DAGTaskNode):
-                    # dependency_strs.append(f"{key}={value.id.get_full_id()}")
+                    # dependency_strs.append(f"{key}={value.id.get_internal_id()}")
                     dependency_strs.append(f"{key}={print_argument(value)}")
                 elif isinstance(value, list) and all(isinstance(item, dag_task_node.DAGTaskNode) for item in value):
-                    # dependency_strs.append(f"{key}={[item.id.get_full_id() for item in value]}")
+                    # dependency_strs.append(f"{key}={[item.id.get_internal_id() for item in value]}")
                     dependency_strs.append(f"{key}={[print_argument(item) for item in value]}")
                 else:
                     dependency_strs.append(f"{key}={print_argument(value)}")
@@ -361,7 +361,7 @@ class FullDAG(GenericDAG):
         # Add edges
         for node_id, node in all_nodes.items():
             for downstream_node in node.downstream_nodes:
-                dot.edge(node_id, downstream_node.id.get_full_id())
+                dot.edge(node_id, downstream_node.id.get_internal_id())
         
         # Render the graph to a file and open it
         dot.render(filename=output_file, cleanup=True, view=open_after)
