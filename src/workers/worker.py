@@ -225,7 +225,7 @@ class Worker(ABC):
                         if utask_id not in task_dependencies and utask.cached_result is not None:
                             task_dependencies[utask_id] = utask.cached_result.result
 
-                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 and any([t.worker_config.worker_id != self.my_resource_configuration.worker_id for t in current_task.upstream_nodes]) else None
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 else None
 
                 # Store raw values, normalization will be done during prediction
                 await self.planner.wel_before_task_execution(self, current_task, subdag)
