@@ -62,31 +62,45 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
 @app.route('/warmup', methods=['POST'])
 def handle_warmup():
-    # Parse request data
-    if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
-    data = request.get_json()
+    """
+    Handles binary POST requests to warm up worker containers.
+    Expects: application/octet-stream (cloudpickled dict)
+    """
+    # 1. Get raw binary data (instead of JSON)
+    raw_data = request.get_data()
+    if not raw_data:
+        logger.error("No binary data received in warmup request")
+        return jsonify({"error": "Binary data is required"}), 400
 
-    dag_id = data.get('dag_id', None)
+    data = cloudpickle.loads(raw_data)
+    dag_id = data.get('dag_id')
+    resource_configurations = data.get('resource_configurations')
+
     if dag_id is None: 
         logger.error("'dag_id' field is required")
         return jsonify({"error": "'dag_id' field is required"}), 400
-
-    resource_config_key = data.get('resource_configurations', None)
-    if resource_config_key is None: 
+    if resource_configurations is None: 
         logger.error("'resource_configurations' field is required")
         return jsonify({"error": "'resource_configurations' field is required"}), 400
 
-    resource_configurations: list[TaskWorkerResourceConfiguration] = cloudpickle.loads(base64.b64decode(resource_config_key))
-
     for resource_configuration in resource_configurations:
-        print("Warming up resource configuration: ", resource_configuration)
-        container_id = container_pool._launch_container(cpus=resource_configuration.cpus, memory=resource_configuration.memory_mb, dag_id=dag_id, name_prefix="PRE-WARMED_", is_prewarm=True)
+        logger.info(f"Warming up resource configuration: {resource_configuration}")
+        
+        container_id = container_pool._launch_container(
+            cpus=resource_configuration.cpus, 
+            memory=resource_configuration.memory_mb, 
+            dag_id=dag_id, 
+            name_prefix="PRE-WARMED_", 
+            is_prewarm=True
+        )
         
         if container_id is None:
-            logger.error("Max containers reached. Can't launch new container")
-            return jsonify({"error": "Max containers reached. Can't launch new container"}), 400
+            # We log but continue for others, or return error depending on your policy
+            logger.error(f"Max containers reached. Failed to warm up {resource_configuration}")
+            return jsonify({"error": "Max containers reached"}), 400
 
         container_pool.release_container(container_id)
+
     return "", 202
 
 @app.route('/wait-containers-shutdown', methods=['POST'])
@@ -99,44 +113,36 @@ def handle_containers_shutdown():
 
 @app.route('/job', methods=['POST'])
 def handle_job():
-    """
-    Handles POST and GET requests to /job.
-    - POST: Accepts the job and immediately returns 202, then processes the job asynchronously.
-    - GET: Returns a list of available container IDs grouped by resource configuration. Used for DEBUG
-    """
-    # Parse request data
-    if not request.is_json: return jsonify({"error": "JSON data is required"}), 400
-    data = request.get_json()
+    raw_data = request.get_data()
+    if not raw_data:
+        logger.error("No data received in request")
+        return jsonify({"error": "Binary data is required"}), 400
 
-    resource_config_key = data.get('resource_configuration', None)
-    if resource_config_key is None: 
-        logger.error("'resource_configuration' field is required")
-        return jsonify({"error": "'resource_configuration' field is required"}), 400
-    resource_configuration: TaskWorkerResourceConfiguration | None = cloudpickle.loads(base64.b64decode(resource_config_key))
-    if resource_configuration is None: 
-        logger.error("'resource_configuration' field is required")
-        return jsonify({"error": "'resource_configuration' field is required"}), 400
-    dag_id = data.get('dag_id', None)
-    if dag_id is None: 
-        logger.error("'dag_id' field is required")
-        return jsonify({"error": "'dag_id' field is required"}), 400
-    b64_task_ids = data.get('task_ids', None)
-    if b64_task_ids is None: 
-        logger.error("'task_id' field is required")
-        return jsonify({"error": "'task_id' field is required"}), 400
-    b64config = data.get('config', None)
-    if b64config is None: 
-        logger.error("'config' field is required")
-        return jsonify({"error": "'config' field is required"}), 400
-    b64_fulldag = data.get('fulldag', None)
-    b64_relevant_cached_results = data.get('relevant_cached_results', None)
-    if b64_relevant_cached_results is None:
-        logger.error("'relevant_cached_results' field is required")
-        return jsonify({"error": "'relevant_cached_results' field is required"}), 400
+    data = cloudpickle.loads(raw_data)
 
-    thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64_task_ids, b64_fulldag, b64_relevant_cached_results)
+    resource_configuration = data.get('resource_configuration')
+    dag_id = data.get('dag_id')
+    b64task_ids = data.get('task_ids')  # This is now the actual list of IDs
+    b64config = data.get('config')
+    b64fulldag = data.get('fulldag')
+    b64relevant_cached_results = data.get('relevant_cached_results')
+
+    required_fields = {
+        'resource_configuration': resource_configuration,
+        'dag_id': dag_id,
+        'task_ids': b64task_ids,
+        'config': b64config,
+        'relevant_cached_results': b64relevant_cached_results
+    }
+
+    for field_name, value in required_fields.items():
+        if value is None:
+            logger.error(f"'{field_name}' field is required")
+            return jsonify({"error": f"'{field_name}' field is required"}), 400
+
+    thread_pool.submit(process_job_async, resource_configuration, b64config, dag_id, b64task_ids, b64fulldag, b64relevant_cached_results)
     
-    return "", 202 # Immediately return 202 Accepted
+    return "", 202
 
 if __name__ == '__main__':
     is_shutting_down_flag = threading.Event()

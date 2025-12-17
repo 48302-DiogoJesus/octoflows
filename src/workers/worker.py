@@ -106,23 +106,19 @@ class Worker(ABC):
 
                 time_spent_downloading: dict[str, float] = {}
 
-                # ---------------------------------------------------------
-                # OPTIMIZED: Batch Fetch Hardcoded Dependencies (MGET)
-                # ---------------------------------------------------------
                 ids_to_fetch = list(non_repeated_storage_ids)
-
                 if ids_to_fetch:
                     self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
                     _timer = Timer()
                     raw_payloads = await self.intermediate_storage.mget(ids_to_fetch)
                     total_batch_time_ms = _timer.stop()
-                    total_batch_size_bytes = sum(len(p) for p in raw_payloads if p is not None)
+                    total_batch_size_bytes = sum(calculate_data_structure_size_bytes(p) for p in raw_payloads if p is not None)
 
                     # 3. Process results
                     for storage_id, raw_bytes in zip(ids_to_fetch, raw_payloads):
                         if raw_bytes is None: raise TaskOutputNotAvailableException(self.debug_worker_id, storage_id, current_task.id.get_internal_id())
                         # Weighted Time: (My Size / Total Batch Size) * Total Batch Time
-                        size_bytes = len(raw_bytes)
+                        size_bytes = calculate_data_structure_size_bytes(raw_bytes)
                         if total_batch_size_bytes > 0: allocated_time = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
                         else: allocated_time = 0
                             
@@ -184,29 +180,23 @@ class Worker(ABC):
                     results_list = await self.intermediate_storage.mget(keys_to_fetch) 
                     total_batch_time_ms = _batch_timer.stop()
 
-                    # 3. Calculate total size (to calculate percentages later)
-                    # Filter out None to avoid errors in sum, though None raises exception later anyway
-                    total_batch_size_bytes = sum(len(res) for res in results_list if res is not None)
+                    total_batch_size_bytes = sum(calculate_data_structure_size_bytes(res) for res in results_list if res is not None)
 
-                    # 4. Iterate over TASKS and RESULTS together to keep context
                     for task_node, serialized_result in zip(tasks_to_fetch, results_list):
-                        # A. Validation
-                        if serialized_result is None: 
+                        if serialized_result is None:
+                            logger.warning((await self.intermediate_storage.get(task_node.id.get_remote_id(fulldag))) == None)
                             raise TaskOutputNotAvailableException(
                                 worker_id=self.debug_worker_id, 
                                 task_id=task_node.id.get_internal_id(), 
                                 required_by_task_id=current_task.id.get_internal_id()
                             )
 
-                        size_bytes = len(serialized_result)
+                        size_bytes = calculate_data_structure_size_bytes(serialized_result)
 
-                        # C. Calculate Weighted Time
-                        # Formula: (My Size / Total Size) * Total Time | If I am 50% of the data, I get 50% of the latency attributed to me.
+                        # Weighted Time: (My Size / Total Size) * Total Time | If I am 50% of the data, I get 50% of the latency attributed to me.
                         if total_batch_size_bytes > 0: allocated_time_ms = total_batch_time_ms * (size_bytes / total_batch_size_bytes)
                         else: allocated_time_ms = 0
 
-                        # D. Store the Metric
-                        # Note: We use the raw size_bytes. No need to re-serialize!
                         current_task.metrics.input_metrics.input_download_metrics[task_node.id.get_internal_id()] = TaskInputDownloadMetrics(
                             serialized_size_bytes=size_bytes,
                             time_ms=allocated_time_ms
