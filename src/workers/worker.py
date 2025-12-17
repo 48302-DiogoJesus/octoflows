@@ -184,7 +184,6 @@ class Worker(ABC):
 
                     for task_node, serialized_result in zip(tasks_to_fetch, results_list):
                         if serialized_result is None:
-                            logger.warning((await self.intermediate_storage.get(task_node.id.get_remote_id(fulldag))) == None)
                             raise TaskOutputNotAvailableException(
                                 worker_id=self.debug_worker_id, 
                                 task_id=task_node.id.get_internal_id(), 
