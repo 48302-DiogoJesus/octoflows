@@ -190,7 +190,6 @@ class Worker(ABC):
 
                     # 4. Iterate over TASKS and RESULTS together to keep context
                     for task_node, serialized_result in zip(tasks_to_fetch, results_list):
-                        
                         # A. Validation
                         if serialized_result is None: 
                             raise TaskOutputNotAvailableException(
