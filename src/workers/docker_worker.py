@@ -63,7 +63,7 @@ class DockerWorker(Worker):
                     if config.worker_id:
                         prewarmed_worker_ids.add(config.worker_id)
 
-        relevant_cached_results: dict[str, str] = {} 
+        relevant_cached_results: dict[str, bytes] = {} 
         aggregated_results_size_bytes = 0
 
         for subdag in subdags:
@@ -76,7 +76,7 @@ class DockerWorker(Worker):
                 res_size = calculate_data_structure_size_bytes(serialized_result)
                 if aggregated_results_size_bytes + res_size < self.MAX_DAG_CACHED_RESULTS_BYTES:
                     aggregated_results_size_bytes += res_size
-                    relevant_cached_results[internal_id] = base64.b64encode(serialized_result).decode('utf-8')
+                    relevant_cached_results[internal_id] = serialized_result
 
         tasks_with_worker_id_by_gateway: dict[tuple[str, int], dict[str, list[dag.SubDAG]]] = {}
         tasks_without_worker_id: list[dag.SubDAG] = []
