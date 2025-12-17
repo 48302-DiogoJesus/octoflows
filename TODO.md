@@ -7,6 +7,7 @@ Test Setup
     - Proteina04 (10.15.0.14) 
         Gateway (Inside Vagrant)
 
+- IMPROVEMENT: Check if need to use calculate_data_structure_size_bytes vs len since I only use it on serialized stuff
 - How to make Prewarm useful? 
     (avoid prewarming a container on a gateway that won't be the one used)
     (if a worker prewarms a container on gateway X, the delegate() call should also go to gateway X)

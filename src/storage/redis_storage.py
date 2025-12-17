@@ -83,7 +83,7 @@ class RedisStorage(storage.Storage):
     async def get(self, key: str) -> Any:
         # Wrap the operation in the semaphore
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             if not await conn.exists(key):
                 return None
@@ -91,19 +91,19 @@ class RedisStorage(storage.Storage):
 
     async def set(self, key: str, value: Any) -> bool:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.set(key, value)
 
     async def atomic_increment_and_get(self, key: str) -> int:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.incr(key, amount=1)
 
     async def exists(self, *keys: str) -> int:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.exists(*keys)
     
@@ -127,20 +127,20 @@ class RedisStorage(storage.Storage):
 
     async def keys(self, pattern: str) -> List[str]:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.keys(pattern)
 
     async def mget(self, keys: List[str]) -> List[Any]:
         # This is a heavy operation, definitely needs the semaphore
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             return await conn.mget(keys)
     
     async def publish(self, channel: str, message: Union[str, bytes]) -> int:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             logger.info(f"Publishing message to: {channel}")
             return await conn.publish(channel, message)
@@ -196,7 +196,7 @@ class RedisStorage(storage.Storage):
     async def subscribe(self, channel: str, callback: Callable[[dict, str], Any], decode_responses: bool = False, coroutine_tag: str = "", debug_worker_id: str = "") -> str:
         # Subscribe is a quick control command, we can semaphore it safely
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             await self._ensure_pubsub()
 
             subscription_id = str(uuid.uuid4())
@@ -215,7 +215,7 @@ class RedisStorage(storage.Storage):
 
     async def unsubscribe(self, channel: str, subscription_id: Optional[str] = None):
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             async with self._sub_lock:
                 if channel not in self._channel_subscriptions:
                     return
@@ -248,7 +248,7 @@ class RedisStorage(storage.Storage):
 
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
         async with self._op_semaphore:
-            await self._simulate_network_latency()
+            # await self._simulate_network_latency()
             conn = await self._get_or_create_connection()
             
             match_flags = sum([bool(pattern), bool(prefix), bool(suffix)])
