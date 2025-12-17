@@ -7,10 +7,8 @@ Test Setup
     - Proteina04 (10.15.0.14) 
         Gateway (Inside Vagrant)
 
- Notes:
-    - ISSUE: Warmup requests could warm a container on a diff. gateway than the task will run
-        - TODO
-
+- WUKONG not showing any "total time waiting for inputs"
+-  
 - Run experiments script 2 of each planner and workflow
 - Check if viz make sense 
 parameters:
