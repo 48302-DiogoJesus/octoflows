@@ -7,8 +7,11 @@ Test Setup
     - Proteina04 (10.15.0.14) 
         Gateway (Inside Vagrant)
 
-- WUKONG not showing any "total time waiting for inputs"
--  
+- Implement:
+    - Client does balanced delegation OR random if easier to implement (!!use the hashcode of the task_id to choose the worker!!)
+    - Workers always talk to their own gateway
+- How to make Prewarm useful? (avoid prewarming a container on a gateway that won't be the one used)
+    - Use the hashcode of the task_id to choose the worker
 - Run experiments script 2 of each planner and workflow
 - Check if viz make sense 
 parameters:
