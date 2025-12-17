@@ -93,7 +93,7 @@ class DockerWorker(Worker):
         async def make_worker_request(worker_id, worker_subdags):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
-            gateway_address = random.choice(self.docker_config.external_docker_gateway_addresses)
+            gateway_address = ("localhost", 5000) if called_by_worker else random.choice(self.docker_config.external_docker_gateway_addresses)
 
             logger.info(f"Invoking docker gateway ({gateway_address[0]}:{gateway_address[1]}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_full_id() for subdag in _worker_subdags]}")
             await self.metadata_storage.store_invoker_worker_startup_metrics(
@@ -152,7 +152,8 @@ class DockerWorker(Worker):
         """
         await self._simulate_network_latency()
 
-        gateway_address = random.choice(self.docker_config.external_docker_gateway_addresses)
+        # gateway_address = random.choice(self.docker_config.external_docker_gateway_addresses)
+        gateway_address = ("localhost", 5000)
         
         try:
             async with aiohttp.ClientSession() as session:
