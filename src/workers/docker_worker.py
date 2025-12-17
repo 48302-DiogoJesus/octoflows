@@ -52,94 +52,99 @@ class DockerWorker(Worker):
 
     async def delegate(self, subdags: list[dag.SubDAG], fulldag: dag.FullDAG, called_by_worker: bool = True):
         from src.storage.metadata.metrics_types import WorkerStartupMetrics
-        if not subdags: raise Exception("DockerWorker.delegate() received an empty list of subdags!")
-
-        # pre-calculate pre-warmed workers
-        prewarmed_worker_ids = set()
-        for node in fulldag._all_nodes.values():
-            prewarm_opt = node.try_get_optimization(PreWarmOptimization)
-            if prewarm_opt:
-                for _, config in prewarm_opt.target_resource_configs:
-                    if config.worker_id:
-                        prewarmed_worker_ids.add(config.worker_id)
-
-        relevant_cached_results: dict[str, bytes] = {} 
+        if len(subdags) == 0: raise Exception("DockerWorker.delegate() received an empty list of subdags to delegate!")
+        
+        subdags.sort(key=lambda sd: sd.root_node.worker_config.worker_id or "", reverse=True)
+        
+        relevant_cached_results: dict[str, Any] = {}
         aggregated_results_size_bytes = 0
-
         for subdag in subdags:
-            for utask in subdag.root_node.upstream_nodes:
+            rn = subdag.root_node
+            # Go through all tasks and add as much results as possible without exceeding {MAX_DAG_CACHED_RESULTS_BYTES}
+            for utask in rn.upstream_nodes:
                 if utask.cached_result is None: continue
-                internal_id = utask.id.get_internal_id()
-                if internal_id in relevant_cached_results: continue
-                res_obj = utask.cached_result.result
-                serialized_result = cloudpickle.dumps(res_obj)
-                res_size = calculate_data_structure_size_bytes(serialized_result)
-                if aggregated_results_size_bytes + res_size < self.MAX_DAG_CACHED_RESULTS_BYTES:
-                    aggregated_results_size_bytes += res_size
-                    relevant_cached_results[internal_id] = serialized_result
-
+                serialized_result = cloudpickle.dumps(utask.cached_result.result)
+                utask_result_size = calculate_data_structure_size_bytes(serialized_result)
+                if aggregated_results_size_bytes + utask_result_size < self.MAX_DAG_CACHED_RESULTS_BYTES:
+                    aggregated_results_size_bytes += utask_result_size
+                    relevant_cached_results[utask.id.get_internal_id()] = serialized_result
+                
+        # Separate tasks with None worker_id from those with specific worker_ids
         tasks_with_worker_id_by_gateway: dict[tuple[str, int], dict[str, list[dag.SubDAG]]] = {}
         tasks_without_worker_id: list[dag.SubDAG] = []
+        
+        def _is_worker_id_prewarmed(worker_id: str):
+            for node in fulldag._all_nodes.values():
+                prewarm_opt = node.try_get_optimization(PreWarmOptimization)
+                if not prewarm_opt: continue
+                if any([trc[1].worker_id == worker_id for trc in prewarm_opt.target_resource_configs]): return True
+            return False
+
         for subdag in subdags:
             worker_id = subdag.root_node.worker_config.worker_id
             if worker_id is None:
                 tasks_without_worker_id.append(subdag)
             else:
-                if worker_id in prewarmed_worker_ids:
-                    # Consistent routing logic
-                    gateway = get_consistent_gateway_for_worker_id(worker_id, self.docker_config.external_docker_gateway_addresses)
-                else:
-                    gateway = ("localhost", 5000) if called_by_worker else random.choice(self.docker_config.external_docker_gateway_addresses)
-                tasks_with_worker_id_by_gateway.setdefault(gateway, {}).setdefault(worker_id, []).append(subdag)
+                # Is worker was prewarmed, route it to the same gateway as the prewarm request, else route to local gateway
+                assigned_gateway = ("localhost", 5000) if not _is_worker_id_prewarmed(worker_id) \
+                    else get_consistent_gateway_for_worker_id(worker_id, self.docker_config.external_docker_gateway_addresses)
+                tasks_with_worker_id_by_gateway.setdefault(assigned_gateway, {}).setdefault(worker_id, []).append(subdag)
+        
+        http_tasks = []
+        # An individual request will result in a new worker/containerm, so 1 request per worker
+        async def make_worker_request(gateway_address: tuple[str, int], worker_id: str | None, worker_subdags: list[dag.SubDAG]):
+            _worker_subdags: list[dag.SubDAG] = worker_subdags
+            targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config
 
-        fulldag_size_below_threshold = False
-        if self.docker_config.optimized_dag:
-            fulldag_size = calculate_data_structure_size_bytes(self.docker_config.optimized_dag)
-            fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
-
-        async def make_worker_request(session: aiohttp.ClientSession, gateway_address: tuple[str, int], worker_id: str | None, worker_subdags: list[dag.SubDAG]):
-            target_config = worker_subdags[0].root_node.worker_config
-            root_task_ids = [sd.root_node.id.get_internal_id() for sd in worker_subdags]
-            
-            # Metric Logging
+            logger.info(f"Invoking docker gateway ({gateway_address[0]}:{gateway_address[1]}) | CPUs: {targetWorkerResourcesConfig.cpus} | Memory: {targetWorkerResourcesConfig.memory_mb} | Worker ID: {worker_id} | Root Tasks: {[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]}")
             await self.metadata_storage.store_invoker_worker_startup_metrics(
                 WorkerStartupMetrics(
-                    master_dag_id=worker_subdags[0].master_dag_id,
+                    master_dag_id=_worker_subdags[0].master_dag_id,
                     start_time_ms=time.time() * 1000,
-                    resource_configuration=target_config,
-                    initial_task_ids=root_task_ids
+                    resource_configuration=targetWorkerResourcesConfig,
+                    state=None,
+                    end_time_ms=None,
+                    initial_task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
                 ),
-                task_ids=root_task_ids
+                task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
             )
 
-            payload = {
-                "resource_configuration": base64.b64encode(cloudpickle.dumps(target_config)).decode('utf-8'),
-                "dag_id": worker_subdags[0].master_dag_id,
-                "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
-                "task_ids": base64.b64encode(cloudpickle.dumps([sd.root_node.id for sd in worker_subdags])).decode('utf-8'),
-                "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'), # Already dict of b64 strings
-                "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
-            }
+            fulldag_size_below_threshold = False
+            if self.docker_config.optimized_dag:
+                fulldag_size = calculate_data_structure_size_bytes(self.docker_config.optimized_dag)
+                fulldag_size_below_threshold = fulldag_size < self.MAX_DAG_SIZE_BYTES
+            
+            async with aiohttp.ClientSession() as session:
+                async with await session.post(
+                    f"http://{gateway_address[0]}:{gateway_address[1]}" + "/job",
+                    data=json.dumps({
+                        "resource_configuration": base64.b64encode(cloudpickle.dumps(targetWorkerResourcesConfig)).decode('utf-8'),
+                        "dag_id": _worker_subdags[0].master_dag_id,
+                        # if dag size is below 200KB, send the dag in the invocation, else, send the ID and the worker has to fetch it from storage
+                        "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
+                        # "fulldag": None,
+                        "task_ids": base64.b64encode(cloudpickle.dumps([subdag.root_node.id for subdag in _worker_subdags])).decode('utf-8'),
+                        "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'),
+                        "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
+                    }),
+                    headers={'Content-Type': 'application/json'}
+                ) as response:
+                    if response.status != 202:
+                        text = await response.text()
+                        raise Exception(f"Failed to invoke worker: {text}")
+                    return response.status
+        
+        # await self._simulate_network_latency()
 
-            url = f"http://{gateway_address[0]}:{gateway_address[1]}/job"
-            async with session.post(url, json=payload) as response:
-                if response.status != 202:
-                    text = await response.text()
-                    raise Exception(f"Worker {worker_id} at {url} failed with {response.status}: {text}")
-                return response.status
-
-        # Execute requests
-        async with aiohttp.ClientSession() as session:
-            http_tasks = []
-            
-            for gateway, worker_map in tasks_with_worker_id_by_gateway.items():
-                for worker_id, s_dags in worker_map.items():
-                    http_tasks.append(make_worker_request(session, gateway, worker_id, s_dags))
-            
-            for subdag in tasks_without_worker_id:
-                http_tasks.append(make_worker_request(session, ("localhost", 5000), None, [subdag]))
-            
-            await asyncio.gather(*http_tasks)
+        for gateway, worker_id_to_dags in tasks_with_worker_id_by_gateway.items():
+            for worker_id, subdags in worker_id_to_dags.items():
+                http_tasks.append(make_worker_request(gateway, worker_id, subdags))
+        
+        # Create individual tasks for each subdag with worker_id = None
+        for subdag in tasks_without_worker_id:
+            http_tasks.append(make_worker_request(("localhost", 5000), None, [subdag]))
+        
+        await asyncio.gather(*http_tasks)
 
     async def warmup(self, dag_id: str, resource_configurations: list[TaskWorkerResourceConfiguration]):
         # await self._simulate_network_latency()
