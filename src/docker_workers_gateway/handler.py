@@ -32,8 +32,7 @@ container_pool = container_pool_executor.ContainerPoolExecutor(docker_image=DOCK
 
 def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, base64_config: str, dag_id: str, base64_task_ids: list[str], base64_fulldag: str | None = None, base64_relevant_cached_results: str | None = None):
     """
-    Process a job asynchronously.
-    This function will be run in a separate thread.
+    Process a job asynchronously in a separate thread.
     """
     job_id = str(uuid.uuid4())
     worker_id = resource_configuration.worker_id
@@ -62,10 +61,6 @@ def process_job_async(resource_configuration: TaskWorkerResourceConfiguration, b
 
 @app.route('/warmup', methods=['POST'])
 def handle_warmup():
-    """
-    Handles binary POST requests to warm up worker containers.
-    Expects: application/octet-stream (cloudpickled dict)
-    """
     # 1. Get raw binary data (instead of JSON)
     raw_data = request.get_data()
     if not raw_data:
