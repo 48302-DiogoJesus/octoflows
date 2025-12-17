@@ -85,9 +85,12 @@ class DockerWorker(Worker):
             if worker_id is None:
                 tasks_without_worker_id.append(subdag)
             else:
-                # Is worker was prewarmed, route it to the same gateway as the prewarm request, else route to local gateway
-                assigned_gateway = ("localhost", 5000) if not _is_worker_id_prewarmed(worker_id) \
-                    else get_consistent_gateway_for_worker_id(worker_id, self.docker_config.external_docker_gateway_addresses)
+                if not called_by_worker:
+                    assigned_gateway = random.choice(self.docker_config.external_docker_gateway_addresses)
+                else:
+                    # Is worker was prewarmed, route it to the same gateway as the prewarm request, else route to local
+                    assigned_gateway = ("localhost", 5000) if not _is_worker_id_prewarmed(worker_id) \
+                        else get_consistent_gateway_for_worker_id(worker_id, self.docker_config.external_docker_gateway_addresses)
                 tasks_with_worker_id_by_gateway.setdefault(assigned_gateway, {}).setdefault(worker_id, []).append(subdag)
         
         http_tasks = []
