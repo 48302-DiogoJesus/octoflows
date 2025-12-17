@@ -145,7 +145,8 @@ class DockerWorker(Worker):
         
         # Create individual tasks for each subdag with worker_id = None
         for subdag in tasks_without_worker_id:
-            http_tasks.append(make_worker_request(("localhost", 5000), None, [subdag]))
+            assigned_gateway = random.choice(self.docker_config.external_docker_gateway_addresses) if not called_by_worker else ("localhost", 5000)
+            http_tasks.append(make_worker_request(assigned_gateway, None, [subdag]))
         
         await asyncio.gather(*http_tasks)
 
