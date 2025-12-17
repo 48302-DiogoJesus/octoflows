@@ -94,7 +94,7 @@ class DockerWorker(Worker):
                 tasks_with_worker_id_by_gateway.setdefault(assigned_gateway, {}).setdefault(worker_id, []).append(subdag)
         
         http_tasks = []
-        # An individual request will result in a new worker/containerm, so 1 request per worker
+        # An individual request will result in a new worker/container, so 1 request per worker
         async def make_worker_request(session: aiohttp.ClientSession, gateway_address: tuple[str, int], worker_id: str | None, worker_subdags: list[dag.SubDAG]):
             _worker_subdags: list[dag.SubDAG] = worker_subdags
             targetWorkerResourcesConfig = _worker_subdags[0].root_node.worker_config

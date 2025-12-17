@@ -293,10 +293,10 @@ class Worker(ABC):
             self.log(current_task.id.get_internal_id() + "++" + branch_id, f"CancelCurrentWorkerLoopException: {str(e)}")
             pass
         except TaskOutputNotAvailableException as e:
-            raise e
+            raise
         except Exception as e:
             self.log(current_task.id.get_internal_id() + "++" + branch_id, f"ExecuteBranch Error: {str(e)}") # type: ignore
-            raise e
+            raise
         finally:
             # await current_task.is_handling.clear()
             pass
