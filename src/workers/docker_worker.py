@@ -117,7 +117,7 @@ class DockerWorker(Worker):
                 "dag_id": worker_subdags[0].master_dag_id,
                 "fulldag": self.docker_config.optimized_dag if self.docker_config.optimized_dag and fulldag_size_below_threshold else None,
                 "task_ids": base64.b64encode(cloudpickle.dumps([sd.root_node.id for sd in worker_subdags])).decode('utf-8'),
-                "relevant_cached_results": relevant_cached_results, # Already dict of b64 strings
+                "relevant_cached_results": base64.b64encode(cloudpickle.dumps(relevant_cached_results)).decode('utf-8'), # Already dict of b64 strings
                 "config": base64.b64encode(cloudpickle.dumps(self.docker_config)).decode('utf-8'),
             }
 
