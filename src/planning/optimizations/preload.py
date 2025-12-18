@@ -171,7 +171,6 @@ class PreLoadOptimization(TaskOptimization):
                 if await _worker.intermediate_storage.exists(unode.id.get_remote_id(dag)):
                     logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")
                     # Start the preload immediately. Fire-and-forget to avoid blocking the other checks
-                    await _worker.metadata_storage.storage.unsubscribe(subscription_channel, subscription_id)
                     asyncio.create_task(preload_optimization._start_preloading_if_not_running(unode, current_node, _worker.intermediate_storage, _worker.metadata_storage.storage, dag))
                 else:
                     logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")

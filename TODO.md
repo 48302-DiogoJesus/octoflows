@@ -7,7 +7,8 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- Analyse workflow by workflow
+- Yry 4, 6, 8
+- Analyze workflow by workflow
 ISSUES:
 - text-analysis
     - NonUniform-opt is a lot worse than NonUniform
