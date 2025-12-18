@@ -7,7 +7,6 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- Yry 4, 6, 8
 - Analyze workflow by workflow
 ISSUES:
 - text-analysis
