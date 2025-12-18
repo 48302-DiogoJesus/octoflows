@@ -7,9 +7,14 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-
-- Try to measure preload efficiency (see current dashboard)
-- Check preload
+- see paper for original experiments config
+ISSUES:
+- text-analysis
+    - NonUniform-opt is a lot worse than NonUniform
+- gemm
+    - nonuniform-opt is a little worse than NonUniform
+- image-transformer
+    - nonuniform is worse than uniform
 
 - Check if pre-warm co-location optimization had better effect now
 - Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads
