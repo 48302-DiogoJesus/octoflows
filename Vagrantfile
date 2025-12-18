@@ -19,8 +19,8 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |vb|
     vb.name = "ubuntu-24.04-vm"
     vb.gui = false
-    vb.memory = "30720"
-    vb.cpus = 20
+    vb.memory = "65536"
+    vb.cpus = 16
     vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
     vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
   end
