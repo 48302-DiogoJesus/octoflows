@@ -12,7 +12,7 @@ WORKFLOWS_PATHS = [
 ]
 
 # ITERATIONS_PER_ALGORITHM = 10
-ITERATIONS_PER_ALGORITHM = 4
+ITERATIONS_PER_ALGORITHM = 3
 # ALGORITHMS = ['uniform', 'non-uniform']
 # ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
 ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
