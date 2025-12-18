@@ -5,9 +5,9 @@ import subprocess
 import requests
 
 WORKFLOWS_PATHS = [
-    'text_analysis.py',
-    'tree_reduction.py',
     'gemm.py',
+    'tree_reduction.py',
+    'text_analysis.py',
     'image_transformer.py',
 ]
 
