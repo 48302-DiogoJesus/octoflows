@@ -7,7 +7,8 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- see paper for original experiments config
+- ISSUE: Workflows too slow despite good redis and ping latency (overloaded workers)
+    target: 55 seconds
 ISSUES:
 - text-analysis
     - NonUniform-opt is a lot worse than NonUniform
