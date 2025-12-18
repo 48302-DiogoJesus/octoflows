@@ -17,7 +17,7 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
-active_preloads_limiter: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(5))
+active_preloads_limiter = asyncio.Semaphore(5)
 
 @dataclass
 class PreLoadOptimization(TaskOptimization):
