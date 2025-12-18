@@ -139,7 +139,7 @@ def main():
     st.title("Workflow Instance Analysis Dashboard")
     
     # Connect to Redis
-    metrics_redis_conn = get_redis_connection("10.15.0.22", 6380)
+    metrics_redis_conn = get_redis_connection("146.193.41.54", 6380)
     
     # Get all workflows information
     if 'workflows' not in st.session_state:

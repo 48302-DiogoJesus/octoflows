@@ -1,14 +1,15 @@
 Test Setup
-    - Vitamina02 (10.15.0.22) 
+    - M1
         Client
         DBs
         Gateway (Inside Vagrant)
-        Tunnel Docker API from 10.15.0.14
-    - Proteina04 (10.15.0.14) 
+        Tunnel Docker API from M2
+    - M2
         Gateway (Inside Vagrant)
 
-Fix BUG:
-- Same worker_id on diff. gateways for root task
+
+- Try to measure preload efficiency (see current dashboard)
+- Check preload
 
 - Check if pre-warm co-location optimization had better effect now
 - Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads

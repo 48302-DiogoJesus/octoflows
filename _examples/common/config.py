@@ -104,20 +104,20 @@ def get_planner_from_sys_argv():
 
 # STORAGE CONFIGS
 _REDIS_INTERMEDIATE_STORAGE_CONFIG = RedisStorage.Config(
-    address=("10.15.0.22", 6379),
+    address=("146.193.41.54", 6379),
     password="redisdevpwd123"
 )
 
 _REDIS_METADATA_STORAGE_CONFIG = RedisStorage.Config(
-    address=("10.15.0.22", 6380),
+    address=("146.193.41.54", 6380),
     password="redisdevpwd123"
 )
 
 # WORKER CONFIGS
 WORKER_CONFIG = DockerWorker.Config(
     external_docker_gateway_addresses=[
-        ("10.15.0.22", 5000),
-        ("10.15.0.14", 5000) # REMOTE docker instance
+        ("146.193.41.54", 5000),
+        ("146.193.41.55", 5000) # REMOTE docker instance
     ],
     container_monitoring_addresses=[
         ("localhost", 2375), # LOCAL docker instance
