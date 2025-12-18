@@ -17,8 +17,6 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
-active_preloads_limiter = asyncio.Semaphore(5)
-
 @dataclass
 class PreLoadOptimization(TaskOptimization):
     """ 
@@ -96,43 +94,42 @@ class PreLoadOptimization(TaskOptimization):
         metadata_storage: Storage, 
         dag: FullDAG
     ):
-        async with active_preloads_limiter:
-            """ The core logic for downloading a single dependency. Runs concurrently for multiple dependencies. """
-            upstream_id_in_dag = upstream_task.id.get_remote_id(dag)
-            upstream_full_id = upstream_task.id.get_internal_id()
-            
-            # Unsubscribe from the completion event since we are now handling it.
-            # This is safe to do outside the lock.
-            subscription_key = f"{dependent_task.id.get_internal_id()}{upstream_full_id}"
-            subscription_id = annotation.preloading_subscription_ids.pop(subscription_key, None)
-            if subscription_id: await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_id_in_dag}", subscription_id)
+        """ The core logic for downloading a single dependency. Runs concurrently for multiple dependencies. """
+        upstream_id_in_dag = upstream_task.id.get_remote_id(dag)
+        upstream_full_id = upstream_task.id.get_internal_id()
+        
+        # Unsubscribe from the completion event since we are now handling it.
+        # This is safe to do outside the lock.
+        subscription_key = f"{dependent_task.id.get_internal_id()}{upstream_full_id}"
+        subscription_id = annotation.preloading_subscription_ids.pop(subscription_key, None)
+        if subscription_id: await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_id_in_dag}", subscription_id)
 
-            try:
-                if upstream_task.cached_result is not None: return # Double-check
+        try:
+            if upstream_task.cached_result is not None: return # Double-check
 
-                logger.info(f"[PRELOADING - STARTED] Task: {upstream_full_id}")
-                dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
+            logger.info(f"[PRELOADING - STARTED] Task: {upstream_full_id}")
+            dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
 
-                _timer = Timer()
-                serialized_data: Any = await intermediate_storage.get(upstream_id_in_dag)
-                time_to_fetch_ms = _timer.stop()
-                deserialized_task_output = await asyncio.to_thread(cloudpickle.loads, serialized_data)
-                upstream_task.cached_result = _CachedResultWrapper(deserialized_task_output)
+            _timer = Timer()
+            serialized_data: Any = await intermediate_storage.get(upstream_id_in_dag)
+            time_to_fetch_ms = _timer.stop()
+            deserialized_task_output = await asyncio.to_thread(cloudpickle.loads, serialized_data)
+            upstream_task.cached_result = _CachedResultWrapper(deserialized_task_output)
 
-                dependent_task.metrics.input_metrics.input_download_metrics[
-                    upstream_full_id
-                ] = TaskInputDownloadMetrics(
-                    serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
-                    time_ms=time_to_fetch_ms
-                )
+            dependent_task.metrics.input_metrics.input_download_metrics[
+                upstream_full_id
+            ] = TaskInputDownloadMetrics(
+                serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
+                time_ms=time_to_fetch_ms
+            )
 
-                logger.info(f"[PRELOADING - DONE] Task: {upstream_full_id}")
-            except Exception as e:
-                logger.error(f"[PRELOADING - FAILED] Task: {upstream_full_id}. Error: {e}")
-            finally:
-                # Always remove the task from the active list when done.
-                async with annotation._state_lock:
-                    annotation._active_preloads.pop(upstream_full_id, None)
+            logger.info(f"[PRELOADING - DONE] Task: {upstream_full_id}")
+        except Exception as e:
+            logger.error(f"[PRELOADING - FAILED] Task: {upstream_full_id}. Error: {e}")
+        finally:
+            # Always remove the task from the active list when done.
+            async with annotation._state_lock:
+                annotation._active_preloads.pop(upstream_full_id, None)
 
     @staticmethod
     async def wel_on_worker_ready(worker, dag: FullDAG):
