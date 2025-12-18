@@ -8,13 +8,9 @@ Test Setup
         Gateway (Inside Vagrant)
 
 - Analyze workflow by workflow
-ISSUES:
-- text-analysis
-    - NonUniform-opt is a lot worse than NonUniform
-- gemm
-    - nonuniform-opt is a little worse than NonUniform
-- image-transformer
-    - nonuniform is worse than uniform
+- I don't like using docker api to measure resource usage + has overhead
+    can I infer it from the existing metrics?
+        check the python data type
 
 - Check if pre-warm co-location optimization had better effect now
 - Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads
