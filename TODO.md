@@ -11,6 +11,7 @@ Test Setup
 - Prewarm not effective? adjust parameters and try again?
 
 - Run experiments script 2 of each planner and workflow
+- 1 downgrade simulation takes around 5 seconds for 60 nodes DAGs
 
 - Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
 
