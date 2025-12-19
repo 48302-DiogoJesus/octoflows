@@ -46,9 +46,6 @@ class WorkflowInstanceTaskInfo:
 
     optimization_preloads_done: int
 
-    optimization_prewarms_done: int
-    optimization_prewarms_successful: int
-
 
 @dataclass
 class WorkflowInstanceInfo:
@@ -66,7 +63,8 @@ class WorkflowInstanceInfo:
     total_outputs_uploaded_bytes: float
     warm_starts_count: int
     cold_starts_count: int
-
+    optimization_prewarms_done: int
+    optimization_prewarms_successful: int
 
 @dataclass
 class WorkflowInfo:
@@ -155,8 +153,6 @@ async def get_workflows_information(
                         -1,
                         -1,
                         0,
-                        0,
-                        0,
                     )
                     for t, td in zip(dag._all_nodes.values(), task_data)
                     if td
@@ -179,8 +175,8 @@ async def get_workflows_information(
                 total_inputs_downloaded = 0
                 total_outputs_uploaded = 0
 
-                total_prewarms_done = 0
-                successful_prewarms = len([wsm for wsm in this_workflow_wsm if wsm.was_prewarmed])
+                optimization_prewarms_done = 0
+                optimization_prewarms_successful = len([wsm for wsm in this_workflow_wsm if wsm.was_prewarmed])
 
                 for task in tasks:
                     tm = task.metrics
@@ -200,47 +196,17 @@ async def get_workflows_information(
                     total_outputs_uploaded += task.output_size_uploaded_bytes
 
                     if tm.optimization_metrics:
-                        task.optimization_preloads_done = len(
-                            [
-                                om
-                                for om in tm.optimization_metrics
-                                if isinstance(om, PreLoadOptimization.OptimizationMetrics)
-                            ]
-                        )
-                        task.optimization_prewarms_done = len(
-                            [
-                                om
-                                for om in tm.optimization_metrics
-                                if isinstance(om, PreWarmOptimization.OptimizationMetrics)
-                            ]
-                        )
-                        total_prewarms_done += task.optimization_prewarms_done #!
-                        task.optimization_prewarms_successful = len(
-                            [
-                                om
-                                for om in tm.optimization_metrics
-                                if isinstance(
-                                    om, PreWarmOptimization.OptimizationMetrics
-                                )
-                                and [
-                                    wsm
-                                    for wsm in this_workflow_wsm
-                                    if wsm.resource_configuration.worker_id
-                                    == om.resource_config.worker_id
-                                ][0].state
-                                == "warm"
-                            ]
-                        )
-
-                failed_prewarms = total_prewarms_done - successful_prewarms
-                old_total_prewarms = sum([t.optimization_prewarms_done for t in tasks])
-                old_successful_prewarms = sum([t.optimization_prewarms_successful for t in tasks])
-                print(f"OLD Successful prewarms: {old_successful_prewarms}/{old_total_prewarms}")
-                print(f"Successful prewarms: {successful_prewarms}/{total_prewarms_done}")
-
-                # if plan_output:
-                #     print(f"{plan_output.planner_name} | Total preloads assigned: {sum([len([o for o in n.optimizations if isinstance(o, PreLoadOptimization)]) for n in dag._all_nodes.values()])} | Preloads Done: {sum([t.optimization_preloads_done for t in tasks])}")
-
+                        task.optimization_preloads_done = len([
+                            om
+                            for om in tm.optimization_metrics
+                            if isinstance(om, PreLoadOptimization.OptimizationMetrics)
+                        ])
+                        optimization_prewarms_done += len([
+                            om
+                            for om in tm.optimization_metrics
+                            if isinstance(om, PreWarmOptimization.OptimizationMetrics)
+                        ])
+                
                 submission_key = (
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 )
@@ -283,7 +249,10 @@ async def get_workflows_information(
                 #     ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
                 # ])
                 worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats]) 
-                resource_usage = worker_execution_cost
+                failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful
+                prewarm_dummy_invocation_cost_ms = 50
+                # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
+                resource_usage = worker_execution_cost + failed_prewarms * (prewarm_dummy_invocation_cost_ms / 1000)
 
                 total_transferred_data_bytes = (
                     total_inputs_downloaded + total_outputs_uploaded
@@ -307,6 +276,8 @@ async def get_workflows_information(
                     total_outputs_uploaded,
                     warm_starts_count,
                     cold_starts_count,
+                    optimization_prewarms_done,
+                    optimization_prewarms_successful
                 )
 
                 workflow_types[dag.dag_name].instances.append(instance_info)
@@ -1288,7 +1259,7 @@ async def main():
                 sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
                 actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
                 # Calculate total prewarms for this instance
-                total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
+                total_prewarms = instance.optimization_prewarms_done
                 total_preloads = sum(task.optimization_preloads_done for task in instance.tasks)
                 
                 # **Calculate unique workers for this instance**
@@ -1664,9 +1635,8 @@ async def main():
                 
                 planner_name = instance.plan.planner_name.lower()
                 
-                # Count prewarms for this instance
-                total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
-                successful_prewarms = sum(task.optimization_prewarms_successful for task in instance.tasks)
+                total_prewarms = instance.optimization_prewarms_done
+                successful_prewarms = instance.optimization_prewarms_successful
                 
                 if total_prewarms > 0:
                     prewarm_data.append({

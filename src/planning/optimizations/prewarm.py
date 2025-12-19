@@ -47,7 +47,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         for worker_key, tasks in workers.items():
             start = min(n.earliest_start_ms for n in tasks)
             end = max(n.earliest_start_ms + n.tp_exec_time_ms for n in tasks)
-            startup = _predictions_provider.predict_worker_startup_time(tasks[0].node_ref.worker_config, "cold", _planner.config.sla)
+            startup = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
             first_node = min(tasks, key=lambda n: n.earliest_start_ms).node_ref
             worker_timelines[worker_key] = {
                 "tasks": tasks,
@@ -62,8 +62,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # --- Step 3: assign prewarms ---
         time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
         # HTTP handler latency for prewarm requests (in milliseconds)
-        PREWARM_LATENCY_MS = 500 # time to send request + be received + launch container
-        PREWARM_TIMING_PREFERENCE = 0.65
+        PREWARM_LATENCY_MS = 1000 # time to send request + be received + launch container
+        PREWARM_TIMING_PREFERENCE = 0.7
 
         for wid, my_info in worker_timelines.items():
             if my_info["worker_startup_state"] != "cold":

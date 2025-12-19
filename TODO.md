@@ -7,14 +7,8 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- NEW RESOURCE USAGE CALCULATION MIGRATION
-    - resource_usage = sum(worker_script_execution_time) + count(total_prewarms_made) * 50ms (time estimate to execute dummy function)
-    - Update dashboard to measure prewarms succeeded using new metrics:
-        - prewarms done: {node.metrics.optimization_metrics}
-        - prewarms successful: count({workerstartupmetrics.was_prewarmed})
-
+- Check new resource calculation formula
 - Prewarm not effective? adjust parameters and try again?
-
 
 - Run experiments script 2 of each planner and workflow
 

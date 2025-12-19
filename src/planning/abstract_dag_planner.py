@@ -732,9 +732,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             if available_warm_workers > concurrent_demand:
                 # WARM START - there's a warm worker available for us
                 worker_startup_prediction = (
-                    predictions_provider.predict_worker_startup_time(
-                        my_resource_config, "warm", sla
-                    )
+                    predictions_provider.predict_worker_startup_time("warm", sla)
                 )
                 my_node_info.worker_startup_state = "warm"
                 my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
@@ -753,9 +751,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             else:
                 # COLD START - no warm worker available due to capacity constraints
                 worker_startup_prediction = (
-                    predictions_provider.predict_worker_startup_time(
-                        my_resource_config, "cold", sla
-                    )
+                    predictions_provider.predict_worker_startup_time("cold", sla)
                 )
                 my_node_info.worker_startup_state = "cold"
                 my_node_info.tp_worker_startup_time_ms = worker_startup_prediction

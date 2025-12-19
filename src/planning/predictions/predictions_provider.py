@@ -201,43 +201,22 @@ class PredictionsProvider:
         self._cached_prediction_data_transfer_times[prediction_key] = float(res)
         return float(res)
 
-    def predict_worker_startup_time(self, resource_config: TaskWorkerResourceConfiguration, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
+    def predict_worker_startup_time(self, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
         samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
         if sla != "average" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'average' or between 0 and 100")
-        
         if len(samples) == 0: return 0
         
-        prediction_key = f"{state}-{resource_config}-{sla}"
+        prediction_key = f"{state}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_startup_times: 
             return self._cached_prediction_startup_times[prediction_key]
         
-        # Filter samples by exact resource match
-        matching_samples = [
-            startup_time for startup_time, cpus, memory_mb in samples
-            if cpus == resource_config.cpus and memory_mb == resource_config.memory_mb
-        ]
-
-        # logger.info(f"Found {len(matching_samples)} exact resource matches for {state}")
-        
-        if len(matching_samples) >= self.MIN_SAMPLES_OF_SAME_RESOURCE_CONFIGURATION:
-            # Direct prediction using exact resource matches (no memory scaling needed)
-            if sla == "average": startup_time = np.average(matching_samples)
-            else: startup_time = np.percentile(matching_samples, sla.value)
-            if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
-            res = startup_time
-        else:
-            # Insufficient exact matches - use memory scaling model with baseline normalization
-            # First, normalize all samples to baseline memory configuration
-            baseline_normalized_samples = [startup_time * (BASELINE_MEMORY_MB / memory_mb) ** 0.3 for startup_time, cpus, memory_mb in samples]
-            if sla == "average":  startup_time = np.average(baseline_normalized_samples)
-            else: startup_time = np.percentile(baseline_normalized_samples, sla.value)
-            
-            if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
-            
-            # Scale from baseline to target resource configuration
-            actual_startup_time = startup_time * (resource_config.memory_mb / BASELINE_MEMORY_MB) ** 0.3
-            res = actual_startup_time
+        samples = [startup_time for startup_time, _, _ in samples]
+        # Direct prediction using exact resource matches (no memory scaling needed)
+        if sla == "average": startup_time = np.average(samples)
+        else: startup_time = np.percentile(samples, sla.value)
+        if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+        res = startup_time
         
         self._cached_prediction_startup_times[prediction_key] = res # type: ignore
         return res # type: ignore
