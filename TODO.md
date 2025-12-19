@@ -11,9 +11,11 @@ Test Setup
     `uniform`
         ready_offset_s=3 => 8/18
         ready_offset_s=4 => 11/15
+        ready_offset_s=5 => 0
     `non-uniform`
         ready_offset_s=3 => 9/18
         ready_offset_s=4 => 8/13
+        ready_offset_s=5 => 0
 
 - Check new resource calculation formula
 - Prewarm not effective? adjust parameters and try again?

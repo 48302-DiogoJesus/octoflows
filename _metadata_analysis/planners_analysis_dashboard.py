@@ -253,9 +253,7 @@ async def get_workflows_information(
                 # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
                 resource_usage = worker_execution_cost + failed_prewarms * (prewarm_dummy_invocation_cost_ms / 1000)
 
-                total_transferred_data_bytes = (
-                    total_inputs_downloaded + total_outputs_uploaded
-                )
+                total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
 
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
