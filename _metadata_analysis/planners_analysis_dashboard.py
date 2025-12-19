@@ -56,7 +56,7 @@ class WorkflowInstanceInfo:
     plan: AbstractDAGPlanner.PlanOutput | None
     dag: FullDAG
     dag_download_stats: List[EndWorkerMetrics]
-    start_time_ms: float
+    start_time_s: float
     total_worker_startup_time_ms: float
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
@@ -443,9 +443,8 @@ async def main():
                 # print(f"Found a diff resource config. Prev: {common_resources} New: {task.metrics.worker_resource_configuration}")
                 common_resources = None
         
-        sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
-        sink_task_ended_timestamp_ms = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
-        actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+        sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+        actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
         actual_data_transferred = instance.total_transferred_data_bytes
         actual_total_downloadable_input_size_bytes = instance.total_inputs_downloaded_bytes
         actual_total_uploadable_output_size_bytes = instance.total_outputs_uploaded_bytes
@@ -824,10 +823,8 @@ async def main():
                 if 'wukong' in instance.plan.planner_name.lower():
                     continue
                     
-                # Calculate actual metrics
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
-                sink_task_ended_timestamp_ms = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
-                actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+                actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
                 actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                 actual_total_download = sum([sum([input_metric.time_ms / 1000 for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None]) for task in instance.tasks])
                 actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
@@ -883,10 +880,8 @@ async def main():
                         continue
                     sla_value = instance.plan.sla.value
 
-                    # Compute actual metrics
-                    sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
-                    sink_task_ended_timestamp_ms = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
-                    actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                    sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+                    actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
 
                     actual_execution = sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks)
                     actual_total_download = sum([
@@ -1067,7 +1062,7 @@ async def main():
 
             for workflow_name, workflow in workflow_types.items():
                 # Sort instances by start time for SLA calculation
-                sorted_instances = sorted(workflow.instances, key=lambda inst: inst.start_time_ms)
+                sorted_instances = sorted(workflow.instances, key=lambda inst: inst.start_time_s)
                 
                 # Keep track of history for each metric
                 history = {
@@ -1094,15 +1089,8 @@ async def main():
                     # Actual metrics
                     actual_metrics = {
                         'makespan': (
-                            max([
-                                (task.metrics.started_at_timestamp_s * 1000) +
-                                (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
-                                (task.metrics.tp_execution_time_ms or 0) +
-                                (task.metrics.output_metrics.tp_time_ms or 0) +
-                                (task.metrics.total_invocation_time_ms or 0)
-                                for task in instance.tasks
-                            ]) - instance.start_time_ms
-                        ) / 1000,
+                            max([t.metrics.ended_at_timestamp_s for t in instance.tasks]) - instance.start_time_s
+                        ),
                         'execution': sum(task.metrics.tp_execution_time_ms or 0 for task in instance.tasks) / 1000,
                         'download': sum(
                             sum(input_metric.time_ms for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
@@ -1287,14 +1275,8 @@ async def main():
                 sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
 
                 # Calculate makespan
-                sink_task_ended_timestamp_ms = (
-                    sink_task_metrics.started_at_timestamp_s * 1000 +
-                    (sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) +
-                    (sink_task_metrics.tp_execution_time_ms or 0) +
-                    (sink_task_metrics.output_metrics.tp_time_ms or 0) +
-                    (sink_task_metrics.total_invocation_time_ms or 0)
-                )
-
+                sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+                actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
                 # Calculate total prewarms for this instance
                 total_prewarms = sum(task.optimization_prewarms_done for task in instance.tasks)
                 total_preloads = sum(task.optimization_preloads_done for task in instance.tasks)
@@ -1308,7 +1290,7 @@ async def main():
 
                 # Create instance metrics dictionary
                 instance_metrics = {
-                    'Makespan [s]': (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000,
+                    'Makespan [s]': actual_makespan_s,
                     'Execution Time [s]': sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks),
                     'Total Time Waiting for Inputs [s]': sum(
                         (task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) / 1000
@@ -1509,10 +1491,9 @@ async def main():
                 
                 metrics = planner_metrics[planner]
                 
-                sink_task_metrics = [t for t in instance.tasks if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()][0].metrics
-                sink_task_ended_timestamp_ms = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
-                actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                total_time_waiting_for_inputs_s = sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 if sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms else 0
+                sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+                actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
+                total_time_waiting_for_inputs_s = sum([t.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for t in instance.tasks if t.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None])
                 actual_unique_workers_count = len(set([
                         task.metrics.worker_resource_configuration.worker_id
                         for task in instance.tasks
@@ -1875,8 +1856,8 @@ async def main():
                     if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()
                 ][0].metrics
 
-                sink_task_ended_timestamp_ms = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
-                actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
+                sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
+                actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
 
                 data.append({
                     "workflow": selected_workflow,

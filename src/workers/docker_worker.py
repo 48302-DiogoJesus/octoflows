@@ -105,7 +105,6 @@ class DockerWorker(Worker):
                     start_time_ms=time.time() * 1000,
                     resource_configuration=targetWorkerResourcesConfig,
                     state=None,
-                    prewarm_time_ms=None,
                     was_prewarmed=False,
                     end_time_ms=None,
                     initial_task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]

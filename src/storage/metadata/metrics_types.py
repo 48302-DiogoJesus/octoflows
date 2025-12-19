@@ -70,4 +70,3 @@ class WorkerStartupMetrics:
     end_time_ms: float | None = None
     state: Literal["warm", "cold"] | None = None
     was_prewarmed: bool = False
-    prewarm_time_ms: float | None = None # time from the container launch request to the script execution beginning

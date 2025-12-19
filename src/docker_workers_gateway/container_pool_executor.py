@@ -241,8 +241,6 @@ class ContainerPoolExecutor:
                 logger.warning("Max containers reached. Can't launch new container")
                 return None
 
-
-        container_creation_timestamp = time.time()
         # Run the Docker container with resource limits and custom name
         container_id = subprocess.check_output(
             [
@@ -259,7 +257,7 @@ class ContainerPoolExecutor:
         if is_prewarm:
             subprocess.run([
                 "docker", "exec", container_id,
-                "sh", "-c", f"echo {container_creation_timestamp} > {ATOMIC_FILE_FOR_WARM_START_DETECTION}"
+                "sh", "-c", f"echo 'PREWARMED_AND_UNUSED' > {ATOMIC_FILE_FOR_WARM_START_DETECTION}"
             ], check=True)
 
         with self.lock:

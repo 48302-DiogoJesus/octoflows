@@ -274,8 +274,8 @@ def main():
     
     assert _sink_task_metrics
 
-    sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
-    makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_timestamp_s * 1000
+    sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in dag._all_nodes.values()])
+    makespan_s = sink_task_ended_timestamp_s - dag_submission_metrics.dag_submission_timestamp_s
 
     keys = metrics_redis_conn.keys(f'{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*')
     total_time_downloading_dag_ms = 0
@@ -337,7 +337,7 @@ def main():
     critical_nodes, critical_edges = find_critical_path()
 
     # First pass: collect all task metrics and find the minimum start time
-    dag_start_timestamp_s = dag_submission_metrics.dag_submission_timestamp_s / 1000
+    dag_start_timestamp_s = dag_submission_metrics.dag_submission_timestamp_s
 
     # Second pass: calculate end times relative to min_start_time
     for task_id, _metrics in zip(dag._all_nodes.keys(), dag_metrics):
@@ -726,7 +726,7 @@ def main():
         if plan_data:
             plan_output = cloudpickle.loads(plan_data) # type: ignore
 
-        predicted_makespan = plan_output.nodes_info[dag.sink_node.id.get_internal_id()].task_completion_time_ms if plan_output else -1
+        predicted_makespan_s = plan_output.nodes_info[dag.sink_node.id.get_internal_id()].task_completion_time_ms / 1000 if plan_output else -1
         predicted_upload_time = sum([tp.tp_upload_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_upload_size = sum([tp.serialized_output_size for tp in plan_output.nodes_info.values()]) if plan_output else -1
         predicted_download_time = sum([tp.total_download_time_ms for tp in plan_output.nodes_info.values()]) if plan_output else -1
@@ -757,15 +757,15 @@ def main():
                 st.metric("Total Data Transferred", format_bytes(total_data_transferred))
             st.metric("Avg. DAG Download Time", f"{avg_dag_download_time:.2f} ms")
         with col2:
-            if predicted_makespan > 0:
-                percentage_diff = ((makespan_ms - predicted_makespan) / predicted_makespan) * 100
+            if predicted_makespan_s > 0:
+                percentage_diff = ((makespan_s - predicted_makespan_s) / predicted_makespan_s) * 100
                 st.metric(
                     "Makespan", 
-                    f"{makespan_ms:.2f} ms",
-                    delta=f"{percentage_diff:+.1f}% vs predicted ({predicted_makespan:.2f} ms)"
+                    f"{makespan_s:.2f} s",
+                    delta=f"{percentage_diff:+.1f}% vs predicted ({predicted_makespan_s:.2f} s)"
                 )
             else:
-                st.metric("Makespan", f"{makespan_ms:.2f} ms")
+                st.metric("Makespan", f"{makespan_s:.2f} s")
             if predicted_upload_time > 0:
                 percentage_diff = ((total_time_uploading_data_ms - predicted_upload_time) / predicted_upload_time) * 100
                 st.metric(
@@ -1066,7 +1066,7 @@ def main():
             if table_data:
                 table_data.append({
                     'Activity': 'TOTAL',
-                    'Time (ms)': f"{total_time:,.0f} (makespan: {makespan_ms:,.0f})",
+                    'Time (ms)': f"{total_time:,.0f} (makespan: {makespan_s:,.0f})",
                     'Percentage': '100.0%',
                     'Description': 'Sum of all measured components'
                 })

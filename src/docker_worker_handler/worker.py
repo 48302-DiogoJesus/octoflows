@@ -34,16 +34,17 @@ def create_if_not_exists(filename):
     except FileExistsError:
         return True  # File already existed
 
-def pop_timestamp_and_clear(filename: str) -> float | None:
+def pop_prewarm_msg_and_clear(filename: str) -> bool:
+    """
+    returns True if the file contained a string, false otherwise (file didn't exist, or didn't have content)
+    """
     try:
         with open(filename, "r") as f: first_line = f.readline().strip()
         with open(filename, "w") as f: pass
-        if not first_line: return None
-        return float(first_line)
+        if not first_line or len(first_line) == 0: return False
+        return True
     except FileNotFoundError:
-        return None
-    except ValueError:
-        return None
+        return False
 
 ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
 
@@ -87,14 +88,11 @@ async def main():
     
         filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
         used_a_prewarmed_container = False
-        prewarm_time_ms = 0
         is_warm_start = create_if_not_exists(filepath)
         if is_warm_start: # file already existed
             # note: timestamp will only exist if prewarmed
-            prewarm_time_s = pop_timestamp_and_clear(filepath)
-            if prewarm_time_s is not None:
-                used_a_prewarmed_container = True
-                prewarm_time_ms = (time.time() - prewarm_time_s) * 1000
+            was_first_worker_to_use_prewarmed_container = pop_prewarm_msg_and_clear(filepath)
+            if was_first_worker_to_use_prewarmed_container: used_a_prewarmed_container = True
 
         wk = DockerWorker(config)
 
@@ -125,7 +123,6 @@ async def main():
             end_time_ms=time.time() * 1000,
             worker_state="warm" if is_warm_start else "cold",
             was_prewarmed=used_a_prewarmed_container,
-            prewarm_time_ms=prewarm_time_ms if used_a_prewarmed_container else None,
             task_ids=[id.get_internal_id() for id in immediate_task_ids],
             master_dag_id=dag_id
         )
