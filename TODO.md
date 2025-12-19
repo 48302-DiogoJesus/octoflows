@@ -9,10 +9,12 @@ Test Setup
 
 - Issue: too many failed prewarms. experiments:
     `uniform`
+        ready_offset_s=2 => 8/18
         ready_offset_s=3 => 8/18
         ready_offset_s=4 => 11/15
         ready_offset_s=5 => 0
     `non-uniform`
+        ready_offset_s=2 => 8/18
         ready_offset_s=3 => 9/18
         ready_offset_s=4 => 8/13
         ready_offset_s=5 => 0
