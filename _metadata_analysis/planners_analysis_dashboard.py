@@ -1495,10 +1495,10 @@ async def main():
                 actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s
                 total_time_waiting_for_inputs_s = sum([t.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms / 1000 for t in instance.tasks if t.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms is not None])
                 actual_unique_workers_count = len(set([
-                        task.metrics.worker_resource_configuration.worker_id
-                        for task in instance.tasks
-                        if task.metrics.worker_resource_configuration.worker_id is not None
-                    ]))
+                    task.metrics.worker_resource_configuration.worker_id
+                    for task in instance.tasks
+                    if task.metrics.worker_resource_configuration.worker_id is not None
+                ]))
 
                 metrics['makespan'].append(actual_makespan_s)
                 metrics['execution'].append(sum(task.metrics.tp_execution_time_ms / 1000 for task in instance.tasks))
