@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+
+import cloudpickle
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.utils.logger import create_logger
+from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__, prefix="PLANNING")
 
@@ -44,10 +47,14 @@ class UniformPlanner(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return
         
+        hardcoded_sizes_cache = {}
+        for obj_id, (_, obj_data) in _dag._hardcoded_data_ids.items():
+            hardcoded_sizes_cache[obj_id] = calculate_data_structure_size_bytes(cloudpickle.dumps(obj_data))
+
         # Step 1: Assign uniform resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
         self._basic_worker_id_assignment(dag, predictions_provider, worker_resources, topo_sorted_nodes)
-        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
 
         # OPTIMIZATIONS
         for optimization in self.config.optimizations:
@@ -63,7 +70,7 @@ class UniformPlanner(AbstractDAGPlanner):
                     optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics
-        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = { node.id.get_internal_id() for node in final_critical_path_nodes }
             

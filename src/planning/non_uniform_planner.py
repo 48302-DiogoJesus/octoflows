@@ -1,9 +1,12 @@
 from dataclasses import dataclass
 
+import cloudpickle
+
 from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.utils.logger import create_logger
+from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__, prefix="PLANNING")
 
@@ -56,8 +59,12 @@ class NonUniformPlanner(AbstractDAGPlanner):
         for node in topo_sorted_nodes:
             node.worker_config.memory_mb = best_resource_config.memory_mb
 
+        hardcoded_sizes_cache = {}
+        for obj_id, (_, obj_data) in _dag._hardcoded_data_ids.items():
+            hardcoded_sizes_cache[obj_id] = calculate_data_structure_size_bytes(cloudpickle.dumps(obj_data))
+
         # Calculate initial critical path with best resources
-        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
         critical_path_nodes, critical_path_time = self._find_critical_path(dag, nodes_info)
         critical_path_node_ids = {node.id.get_internal_id() for node in critical_path_nodes}
         
@@ -95,7 +102,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     node.worker_config = new_res_config
                 
                 # Recalculate timings with this configuration
-                nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+                nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
                 _, new_critical_path_time = self._find_critical_path(dag, nodes_info)
                 
                 # If downgrading doesn't change the critical path, allow it, else: reverse it
@@ -128,7 +135,7 @@ class NonUniformPlanner(AbstractDAGPlanner):
                     optimizations_count[optimization.__class__.__name__] = optimizations_count.get(optimization.__class__.__name__, 0) + 1
 
         # Final statistics and logging
-        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
         final_critical_path_nodes, final_critical_path_time = self._find_critical_path(dag, nodes_info)
         final_critical_path_node_ids = {node.id.get_internal_id() for node in final_critical_path_nodes}
         

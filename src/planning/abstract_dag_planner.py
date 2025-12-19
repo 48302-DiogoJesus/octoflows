@@ -365,7 +365,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         return topo_order
 
     def _calculate_total_input_size(
-        self, dag, node, nodes_info: dict[str, PlanningTaskInfo]
+        self, 
+        dag, 
+        node, 
+        nodes_info: dict[str, PlanningTaskInfo], 
+        hardcoded_sizes_cache: dict[int, int]
     ) -> int:
         """
         Returns input sizes of upstream_nodes grouped by worker_id
@@ -374,70 +378,45 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         from src.dag.dag import FullDAG, HardcodedDependencyId
 
         _dag: FullDAG = dag
-
         total_input_size = 0
-        # For root nodes, use the size from function args (estimate)
 
+        def _get_arg_size(arg_val):
+            size = 0
+            
+            if isinstance(arg_val, dag_task_node.DAGTaskNodeId):
+                upstream_node_id = arg_val.get_internal_id()
+                if upstream_node_id in nodes_info:
+                    size += nodes_info[upstream_node_id].serialized_output_size
+            
+            elif isinstance(arg_val, list) and all(
+                isinstance(item, dag_task_node.DAGTaskNodeId) for item in arg_val
+            ):
+                for item in arg_val:
+                    upstream_node_id = item.get_internal_id()
+                    if upstream_node_id in nodes_info:
+                        size += nodes_info[upstream_node_id].serialized_output_size
+            
+            elif isinstance(arg_val, HardcodedDependencyId):
+                cached_size = hardcoded_sizes_cache.get(arg_val.object_id)
+                if cached_size is not None:
+                    size += cached_size
+                elif _dag._hardcoded_data_ids.get(arg_val.object_id):
+                    deserialized_obj_data = _dag._hardcoded_data_ids[arg_val.object_id][1]
+                    size += calculate_data_structure_size_bytes(cloudpickle.dumps(deserialized_obj_data))
+            else:
+                size += calculate_data_structure_size_bytes(cloudpickle.dumps(arg_val))
+            
+            return size
+
+        # --- Main Execution ---
+        
+        # 1. Process positional args
         for func_arg in node.func_args:
-            if isinstance(func_arg, dag_task_node.DAGTaskNodeId):
-                upstream_node_id = func_arg.get_internal_id()
-                if upstream_node_id in nodes_info:
-                    output_size = nodes_info[upstream_node_id].serialized_output_size
-                    total_input_size += output_size
-            elif isinstance(func_arg, list) and all(
-                isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_arg
-            ):
-                for item in func_arg:
-                    upstream_node_id = item.get_internal_id()
-                    if upstream_node_id in nodes_info:
-                        output_size = nodes_info[
-                            upstream_node_id
-                        ].serialized_output_size
-                        total_input_size += output_size
-            elif isinstance(
-                func_arg, HardcodedDependencyId
-            ) and _dag._hardcoded_data_ids.get(func_arg.object_id):
-                # hardcoded, but will be sent to storage
-                deserialized_obj_data = _dag._hardcoded_data_ids[func_arg.object_id][1]
-                total_input_size += calculate_data_structure_size_bytes(
-                    cloudpickle.dumps(deserialized_obj_data)
-                )
-            else:
-                # hardcoded
-                total_input_size += calculate_data_structure_size_bytes(
-                    cloudpickle.dumps(func_arg)
-                )
+            total_input_size += _get_arg_size(func_arg)
+
+        # 2. Process keyword args
         for func_kwarg_val in node.func_kwargs.values():
-            if isinstance(func_kwarg_val, dag_task_node.DAGTaskNodeId):
-                upstream_node_id = func_kwarg_val.get_internal_id()
-                if upstream_node_id in nodes_info:
-                    output_size = nodes_info[upstream_node_id].serialized_output_size
-                    total_input_size += output_size
-            elif isinstance(func_kwarg_val, list) and all(
-                isinstance(item, dag_task_node.DAGTaskNodeId) for item in func_kwarg_val
-            ):
-                for item in func_kwarg_val:
-                    upstream_node_id = item.get_internal_id()
-                    if upstream_node_id in nodes_info:
-                        output_size = nodes_info[
-                            upstream_node_id
-                        ].serialized_output_size
-                        total_input_size += output_size
-            elif isinstance(
-                func_kwarg_val, HardcodedDependencyId
-            ) and _dag._hardcoded_data_ids.get(func_kwarg_val.object_id):
-                # hardcoded, but will be sent to storage
-                deserialized_obj_data = _dag._hardcoded_data_ids[
-                    func_kwarg_val.object_id
-                ][1]
-                total_input_size += calculate_data_structure_size_bytes(
-                    cloudpickle.dumps(deserialized_obj_data)
-                )
-            else:
-                # hardcoded
-                total_input_size += calculate_data_structure_size_bytes(
-                    cloudpickle.dumps(func_kwarg_val)
-                )
+            total_input_size += _get_arg_size(func_kwarg_val)
 
         return total_input_size
 
@@ -449,13 +428,14 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         resource_config: TaskWorkerResourceConfiguration,
         predictions_provider: PredictionsProvider,
         sla: SLA,
+        hardcoded_sizes_cache: dict[int, int]
     ):
         from src.dag.dag import FullDAG, HardcodedDependencyId
 
         _dag: FullDAG = dag
         node_id = node.id.get_internal_id()
         worker_id = node.worker_config.worker_id
-        serialized_input_size = self._calculate_total_input_size(dag, node, nodes_info)
+        serialized_input_size = self._calculate_total_input_size(dag, node, nodes_info, hardcoded_sizes_cache)
 
         downloadable_input_size_bytes = 0
 
@@ -472,102 +452,38 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         downloaded_hardcoded_inputs_per_worker: dict[str, set[int]] = {}
         if worker_id is not None:
             downloaded_hardcoded_inputs_per_worker.setdefault(worker_id, set())
-        for arg in node.func_args:
-            predicted_download_time = 0
-            if isinstance(arg, HardcodedDependencyId) and _dag._hardcoded_data_ids.get(
-                arg.object_id, None
-            ):
-                deserialized_obj_data = _dag._hardcoded_data_ids[arg.object_id][1]
-                if worker_id is None:
-                    downloadable_input_size_bytes += (
-                        calculate_data_structure_size_bytes(
-                            cloudpickle.dumps(deserialized_obj_data)
-                        )
-                    )
-                    predicted_download_time = (
-                        predictions_provider.predict_data_transfer_time(
-                            "download",
-                            calculate_data_structure_size_bytes(
-                                cloudpickle.dumps(deserialized_obj_data)
-                            ),
-                            resource_config,
-                            sla,
-                        )
-                    )
-                elif (
-                    arg.object_id
-                    not in downloaded_hardcoded_inputs_per_worker[worker_id]
-                ):
-                    downloadable_input_size_bytes += (
-                        calculate_data_structure_size_bytes(
-                            cloudpickle.dumps(deserialized_obj_data)
-                        )
-                    )
-                    downloaded_hardcoded_inputs_per_worker[worker_id].add(arg.object_id)
-                    predicted_download_time = (
-                        predictions_provider.predict_data_transfer_time(
-                            "download",
-                            calculate_data_structure_size_bytes(
-                                cloudpickle.dumps(deserialized_obj_data)
-                            ),
-                            resource_config,
-                            sla,
-                        )
-                    )
 
-            download_finish_time = max(
-                download_finish_time, earliest_start + predicted_download_time
-            )
+        # Combine args and kwargs values into a single iterable to avoid duplicated code
+        all_arguments = list(node.func_args) + list(node.func_kwargs.values())
 
-        # Consider downloading hardcoded inputs as well
-        for kwarg in node.func_kwargs:
-            predicted_download_time = 0
-            if isinstance(
-                kwarg, HardcodedDependencyId
-            ) and _dag._hardcoded_data_ids.get(kwarg.object_id, None):
-                deserialized_obj_data = _dag._hardcoded_data_ids[kwarg.object_id][1]
-                if worker_id is None:
-                    downloadable_input_size_bytes += (
-                        calculate_data_structure_size_bytes(
-                            cloudpickle.dumps(deserialized_obj_data)
-                        )
-                    )
-                    predicted_download_time = (
-                        predictions_provider.predict_data_transfer_time(
+        for arg in all_arguments:
+            if isinstance(arg, HardcodedDependencyId):
+                obj_size_bytes = hardcoded_sizes_cache.get(arg.object_id)
+
+                if obj_size_bytes is not None:
+                    predicted_download_time = 0
+                    should_download = False
+
+                    if worker_id is None:
+                        # If no specific worker is assigned, we always account for download cost
+                        should_download = True
+                    elif arg.object_id not in downloaded_hardcoded_inputs_per_worker[worker_id]:
+                        # If worker hasn't downloaded this object yet
+                        should_download = True
+                        downloaded_hardcoded_inputs_per_worker[worker_id].add(arg.object_id)
+
+                    if should_download:
+                        downloadable_input_size_bytes += obj_size_bytes
+                        predicted_download_time = predictions_provider.predict_data_transfer_time(
                             "download",
-                            calculate_data_structure_size_bytes(
-                                cloudpickle.dumps(deserialized_obj_data)
-                            ),
+                            obj_size_bytes,
                             resource_config,
                             sla,
                         )
+                    
+                    download_finish_time = max(
+                        download_finish_time, earliest_start + predicted_download_time
                     )
-                elif (
-                    kwarg.object_id
-                    not in downloaded_hardcoded_inputs_per_worker[worker_id]
-                ):
-                    downloadable_input_size_bytes += (
-                        calculate_data_structure_size_bytes(
-                            cloudpickle.dumps(deserialized_obj_data)
-                        )
-                    )
-                    downloaded_hardcoded_inputs_per_worker[worker_id].add(
-                        kwarg.object_id
-                    )
-                    predicted_download_time = (
-                        predictions_provider.predict_data_transfer_time(
-                            "download",
-                            calculate_data_structure_size_bytes(
-                                cloudpickle.dumps(deserialized_obj_data)
-                            ),
-                            resource_config,
-                            sla,
-                        )
-                    )
-
-            download_finish_time = max(
-                download_finish_time, earliest_start + predicted_download_time
-            )
 
         for unode in node.upstream_nodes:
             unode_worker_id = unode.worker_config.worker_id
@@ -599,16 +515,12 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
 
         # 3. Compute effective download delay
         tp_download_time = max(download_finish_time - earliest_start, 0)
-
         total_download_time = predictions_provider.predict_data_transfer_time(
             "download", downloadable_input_size_bytes, resource_config, sla
         )
-
-        # 4. Proceed with execution and upload calculations...
         exec_time = predictions_provider.predict_execution_time(
             node.func_name, serialized_input_size, resource_config, sla
         )
-        # deserialized_output_size = predictions_provider.predict_output_size(node.func_name, serialized_input_size, sla, deserialized=True)
         serialized_output_size = predictions_provider.predict_output_size(
             node.func_name, serialized_input_size, sla
         )
@@ -627,10 +539,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         else:
             upload_time = 0.0
 
-        # 6. Total timing
-        task_completion_time = (
-            earliest_start + tp_download_time + exec_time + upload_time
-        )
+        task_completion_time = earliest_start + tp_download_time + exec_time + upload_time
 
         nodes_info[node_id] = AbstractDAGPlanner.PlanningTaskInfo(
             node,
@@ -789,6 +698,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         topo_sorted_nodes: list[DAGTaskNode],
         predictions_provider: PredictionsProvider,
         sla: SLA,
+        hardcoded_sizes_cache: dict[int, int]
     ):
         """
         Calculate timing information for all nodes using custom resource configurations
@@ -798,7 +708,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         for node in topo_sorted_nodes:
             # note: modifies `nodes_info`
             self.__calculate_node_timings(
-                dag, nodes_info, node, node.worker_config, predictions_provider, sla
+                dag, nodes_info, node, node.worker_config, predictions_provider, sla, hardcoded_sizes_cache
             )
         # Note: Needs to run after earliest_start and path_completion_time are calculated (self.__calculate_node_timings)
         self.__update_node_timings_with_worker_startup(
