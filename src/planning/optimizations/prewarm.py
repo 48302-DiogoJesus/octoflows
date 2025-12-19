@@ -125,7 +125,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 f"Worker Startup: {target_worker['startup_ms']/1000:.1f}s | "
                 f"Trigger Fire @ {required_trigger_time_ms/1000:.1f}s | "
                 f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s]"
-                f"Delay [Task Start]"
             )
 
             target_node = triggerer_candidate["first_node_ref"]

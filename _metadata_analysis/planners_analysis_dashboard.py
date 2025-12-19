@@ -64,7 +64,6 @@ class WorkflowInstanceInfo:
     warm_starts_count: int
     cold_starts_count: int
     optimization_prewarms_done: int
-    optimization_prewarms_successful: int
 
 @dataclass
 class WorkflowInfo:
@@ -176,7 +175,6 @@ async def get_workflows_information(
                 total_outputs_uploaded = 0
 
                 optimization_prewarms_done = 0
-                optimization_prewarms_successful = len([wsm for wsm in this_workflow_wsm if wsm.was_prewarmed])
 
                 for task in tasks:
                     tm = task.metrics
@@ -206,9 +204,6 @@ async def get_workflows_information(
                             for om in tm.optimization_metrics
                             if isinstance(om, PreWarmOptimization.OptimizationMetrics)
                         ])
-                
-                total_workers = len(this_workflow_wsm)
-                print(f"Prewarms done: {optimization_prewarms_done} | Successful: {optimization_prewarms_successful} | Total Workers: {total_workers}")
 
                 submission_key = (
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -250,7 +245,8 @@ async def get_workflows_information(
                 # worker_startup_cost = sum([
                 #     ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
                 # ])
-                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats]) 
+                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
+                optimization_prewarms_successful = len([wsm.was_prewarmed for wsm in this_workflow_wsm])
                 failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful
                 prewarm_dummy_invocation_cost_ms = 50
                 # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
@@ -276,8 +272,7 @@ async def get_workflows_information(
                     total_outputs_uploaded,
                     warm_starts_count,
                     cold_starts_count,
-                    optimization_prewarms_done,
-                    optimization_prewarms_successful
+                    optimization_prewarms_done
                 )
 
                 workflow_types[dag.dag_name].instances.append(instance_info)
@@ -1623,95 +1618,6 @@ async def main():
                     st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No data available to plot.")
-
-            st.markdown("## Optimizations")
-
-            # Collect prewarm data
-            prewarm_data = []
-
-            for instance in workflow_types[selected_workflow].instances:
-                if not instance.plan:
-                    continue
-                
-                planner_name = instance.plan.planner_name.lower()
-                
-                total_prewarms = instance.optimization_prewarms_done
-                successful_prewarms = instance.optimization_prewarms_successful
-                
-                if total_prewarms > 0:
-                    prewarm_data.append({
-                        'workflow': selected_workflow,
-                        'planner': planner_name,
-                        'total_prewarms': total_prewarms,
-                        'successful_prewarms': successful_prewarms,
-                        'failed_prewarms': total_prewarms - successful_prewarms,
-                        'success_rate': (successful_prewarms / total_prewarms * 100)
-                    })
-
-            if prewarm_data:
-                df = pd.DataFrame(prewarm_data)
-                
-                # Sort planners alphabetically
-                sorted_planners = sorted(df['planner'].unique())
-                
-                # Calculate summary statistics per planner
-                summary = df.groupby('planner').agg({
-                    'total_prewarms': 'sum',
-                    'successful_prewarms': 'sum',
-                    'failed_prewarms': 'sum'
-                }).reset_index()
-                
-                summary['success_rate'] = (summary['successful_prewarms'] / summary['total_prewarms'] * 100)
-                summary['planner'] = pd.Categorical(summary['planner'], categories=sorted_planners, ordered=True)
-                summary = summary.sort_values('planner')
-                
-                # Melt for stacked bar chart
-                summary_melted = summary.melt(
-                    id_vars=['planner', 'success_rate'],
-                    value_vars=['successful_prewarms', 'failed_prewarms'],
-                    var_name='status',
-                    value_name='count'
-                )
-                
-                # Create stacked bar chart
-                fig = px.bar(
-                    summary_melted,
-                    x='planner',
-                    y='count',
-                    color='status',
-                    title='Prewarm Success and Failure Counts by Planner',
-                    labels={'count': 'Number of Prewarms', 'planner': 'Planner', 'status': 'Status'},
-                    color_discrete_map={
-                        'successful_prewarms': '#2ecc71',
-                        'failed_prewarms': '#e74c3c'
-                    },
-                    text='count'
-                )
-                
-                # Add success rate as annotations
-                for i, row in summary.iterrows():
-                    fig.add_annotation(
-                        x=row['planner'],
-                        y=row['total_prewarms'],
-                        text=f"{row['success_rate']:.1f}%",
-                        showarrow=False,
-                        yshift=10,
-                        font=dict(size=12, color='black', family='Arial Black')
-                    )
-                
-                fig.update_layout(
-                    xaxis_title='Planner',
-                    yaxis_title='Number of Prewarms',
-                    height=500,
-                    showlegend=True,
-                    legend_title='Status',
-                    barmode='stack'
-                )
-                
-                fig.update_traces(textposition='inside', textfont_size=10)
-                fig.update_xaxes(tickangle=-45)
-                
-                st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("## Resource Usage")
             ######### Resource Usage plot
