@@ -35,7 +35,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         return PreWarmOptimization
     
     @staticmethod
-    def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
+    def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list["DAGTaskNode"]):
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         from src.planning.predictions.predictions_provider import PredictionsProvider
         import logging
@@ -78,12 +78,9 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 "first_node_ref": sorted_tasks[0].node_ref
             }
 
-        # --- Step 3: Assign Prewarms ---
         for wid, target_worker in worker_summaries.items():
-            if target_worker["worker_startup_state"] != "cold":
-                continue
-            if not target_worker["first_node_ref"].upstream_nodes:
-                continue
+            if target_worker["worker_startup_state"] != "cold": continue
+            if not target_worker["first_node_ref"].upstream_nodes: continue
 
             # Calculate the REQUIRED trigger time
             required_trigger_time_ms = (
@@ -92,48 +89,51 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 - target_worker["startup_ms"] 
             )
 
-            trigerrer_candidate = None
+            # --- FIX: Proper Best Candidate Selection ---
+            triggerer_candidate = None
+            best_start_ms = float('inf')
 
-            # Search for a valid triggerer candidate
             for candidate_id, candidate_worker in worker_summaries.items():
                 if candidate_id == wid: continue
-                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= (candidate_worker["end_ms"])): continue
-                for i, task in enumerate(candidate_worker["tasks"]):
+                
+                # Optimization: Skip if the worker isn't running during the trigger window
+                if not (candidate_worker["start_ms"] < required_trigger_time_ms < (candidate_worker["end_ms"])): 
+                    continue
+                
+                # Check if specific tasks cover the trigger moment
+                is_valid_candidate = False
+                for task in candidate_worker["tasks"]:
                     t_start = task.earliest_start_ms
                     t_end = t_start + task.tp_exec_time_ms
                     if t_start <= required_trigger_time_ms <= t_end: 
-                        trigerrer_candidate = candidate_worker
-                        current_best_start = trigerrer_candidate["start_ms"] if trigerrer_candidate else float('inf')
-                        if candidate_worker["start_ms"] < current_best_start: trigerrer_candidate = candidate_worker
+                        is_valid_candidate = True
                         break
-
-            if not trigerrer_candidate: continue
-
-            # --- Step 4: Apply Optimization ---
-            if trigerrer_candidate:
-                delay_ms = required_trigger_time_ms - trigerrer_candidate["start_ms"]
-                delay_s = max(0.0, delay_ms / 1000.0)
                 
-                logger.info(
-                    f"[PREWARM-ASSIGNMENT] "
-                    f"Target WID: {target_worker['worker_config'].worker_id} | "
-                    f"First Task Start @ {target_worker['start_ms']/1000:.1f}s | "
-                    f"Worker Startup: {target_worker['startup_ms']/1000:.1f}s | "
-                    f"Trigger Fire @ {required_trigger_time_ms/1000:.1f}s | "
-                    f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s]"
-                    f"Delay [Task Start]"
-                )
+                # If valid, check if it is the "best" (earliest start time) seen so far
+                if is_valid_candidate:
+                    if candidate_worker["start_ms"] < best_start_ms:
+                        best_start_ms = candidate_worker["start_ms"]
+                        triggerer_candidate = candidate_worker
 
-                target_node = trigerrer_candidate["first_node_ref"]
-                annotation = target_node.try_get_optimization(PreWarmOptimization)
-                if not annotation:
-                    annotation = target_node.add_optimization(PreWarmOptimization([]))
-                
-                annotation.target_resource_configs.append(
-                    (delay_s, target_worker["worker_config"])
-                )
+            if not triggerer_candidate: continue
+            
+            delay_ms = required_trigger_time_ms - triggerer_candidate["start_ms"]
+            delay_s: int = delay_ms / 1000
+            
+            logger.info(
+                f"[PREWARM-ASSIGNMENT] "
+                f"Target WID: {target_worker['worker_config'].worker_id} | "
+                f"First Task Start @ {target_worker['start_ms']/1000:.1f}s | "
+                f"Worker Startup: {target_worker['startup_ms']/1000:.1f}s | "
+                f"Trigger Fire @ {required_trigger_time_ms/1000:.1f}s | "
+                f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s]"
+                f"Delay [Task Start]"
+            )
 
-        return
+            target_node = triggerer_candidate["first_node_ref"]
+            annotation = target_node.try_get_optimization(PreWarmOptimization)
+            if not annotation: annotation = target_node.add_optimization(PreWarmOptimization([]))
+            annotation.target_resource_configs.append((delay_s, target_worker["worker_config"]))
 
     @staticmethod
     async def wel_on_worker_ready(worker, dag):
