@@ -17,6 +17,9 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
     target_resource_configs: list[tuple[int, TaskWorkerResourceConfiguration]] # (delay in seconds, resource config)
 
+    prewarm_latency_ms: int = 0 # time to send request + be received + launch container
+    prewarm_timing_preference: float = 0.5
+
     @dataclass
     class OptimizationMetrics(TaskOptimizationMetrics):
         resource_config: TaskWorkerResourceConfiguration
@@ -27,6 +30,12 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
     def clone(self): return PreWarmOptimization([(relative_time, config.clone()) for relative_time, config in self.target_resource_configs])
 
+    @staticmethod
+    def configured(prewarm_latency_ms: int, prewarm_timing_preference: float) -> type["PreWarmOptimization"]: 
+        PreWarmOptimization.prewarm_latency_ms = prewarm_latency_ms
+        PreWarmOptimization.prewarm_timing_preference = prewarm_timing_preference
+        return PreWarmOptimization
+    
     @staticmethod
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
@@ -61,9 +70,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
         # --- Step 3: assign prewarms ---
         time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
-        # HTTP handler latency for prewarm requests (in milliseconds)
-        PREWARM_LATENCY_MS = 1000 # time to send request + be received + launch container
-        PREWARM_TIMING_PREFERENCE = 0.5
 
         for wid, my_info in worker_timelines.items():
             if my_info["worker_startup_state"] != "cold":
@@ -72,7 +78,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 continue
 
             # Total time from trigger to warm state includes HTTP latency + startup
-            total_prewarm_time_ms = PREWARM_LATENCY_MS + my_info["startup"]
+            total_prewarm_time_ms = PreWarmOptimization.prewarm_latency_ms + my_info["startup"]
             
             # Ideal trigger time accounting for HTTP latency
             ideal_prewarm_trigger_time = my_info["start"] - total_prewarm_time_ms
@@ -107,19 +113,19 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     continue
 
                 # Choose trigger time based on timing preference
-                if PREWARM_TIMING_PREFERENCE <= 0.0:
+                if PreWarmOptimization.prewarm_timing_preference <= 0.0:
                     actual_prewarm_trigger_time = earliest_possible
-                elif PREWARM_TIMING_PREFERENCE >= 1.0:
+                elif PreWarmOptimization.prewarm_timing_preference >= 1.0:
                     actual_prewarm_trigger_time = latest_possible
                 else:
                     window_size = latest_possible - earliest_possible
                     
                     if ideal_prewarm_trigger_time < earliest_possible:
-                        actual_prewarm_trigger_time = earliest_possible + (PREWARM_TIMING_PREFERENCE * window_size)
+                        actual_prewarm_trigger_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
                     elif ideal_prewarm_trigger_time > latest_possible:
-                        actual_prewarm_trigger_time = earliest_possible + (PREWARM_TIMING_PREFERENCE * window_size)
+                        actual_prewarm_trigger_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
                     else:
-                        preference_based_time = earliest_possible + (PREWARM_TIMING_PREFERENCE * window_size)
+                        preference_based_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
                         actual_prewarm_trigger_time = (0.7 * ideal_prewarm_trigger_time + 
                                                     0.3 * preference_based_time)
 
@@ -156,7 +162,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
 
                 if best_delay_s is not None:
-                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | HTTP latency: {PREWARM_LATENCY_MS / 1000}s | timing pref: {PREWARM_TIMING_PREFERENCE}")
+                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | HTTP latency: {PreWarmOptimization.prewarm_latency_ms / 1000}s | timing pref: {PreWarmOptimization.prewarm_timing_preference}")
 
                 annotation.target_resource_configs.append(
                     (best_delay_s, my_info["worker_config"])
