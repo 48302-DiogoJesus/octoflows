@@ -17,7 +17,7 @@ LOCK_FILE = os.path.join(tempfile.gettempdir(), "script.lock")
 
 from src.storage.events import TASK_READY_EVENT_PREFIX
 from src.workers.docker_worker import DockerWorker
-from src.storage.metadata.metrics_types import FullDAGPrepareTime
+from src.storage.metadata.metrics_types import EndWorkerMetrics
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId, _CachedResultWrapper
 from src.utils.logger import create_logger
@@ -37,6 +37,7 @@ def create_if_not_exists(filename):
 ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
 
 async def main():
+    start_time_s = time.time()
     # Ensure only one instance of the script is running
     try:
         if platform.system() == "Windows":
@@ -203,7 +204,12 @@ async def main():
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.store_dag_download_time(
             fulldag.master_dag_id,
-            FullDAGPrepareTime(download_time_ms=dag_download_time_ms, serialized_size_bytes=serialized_dag_size_bytes, create_subdags_time_ms=create_subdags_time_ms)
+            EndWorkerMetrics(
+                dag_download_time_ms=dag_download_time_ms, 
+                serialized_dag_size_bytes=serialized_dag_size_bytes, 
+                create_subdags_time_ms=create_subdags_time_ms,
+                gb_seconds=(time.time() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
+            )
         )
         
         await wk.metadata_storage.flush()

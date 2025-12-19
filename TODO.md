@@ -7,20 +7,12 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- Analyze workflow by workflow
-- I don't like using docker api to measure resource usage + has overhead
-    can I infer it from the existing metrics?
-        check the python data type
+- NEW RESOURCE USAGE CALCULATION MIGRATION
+    - run experiments with old system but getting new metrics
+    - check on dashboard if the new metrics collected are equivallent/proportional
+    - if so, remove the old system + update dashboards
 
-- Check if pre-warm co-location optimization had better effect now
-- Convert to octet-stream to avoid JSON serialization and smaller HTTP payloads
-    warmup + delegate
 - Run experiments script 2 of each planner and workflow
-- Check if viz make sense 
-parameters:
-    resource configs
-    cold start time
-    fanout max clustering
 
 - Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
 

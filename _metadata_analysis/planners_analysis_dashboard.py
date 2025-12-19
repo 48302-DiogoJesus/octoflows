@@ -22,7 +22,7 @@ from src.storage.metadata.metrics_types import TaskMetrics, UserDAGSubmissionMet
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.prefixes import DAG_PREFIX
 from src.dag.dag import FullDAG
-from src.storage.metadata.metrics_types import FullDAGPrepareTime, WorkerStartupMetrics, DAGResourceUsageMetrics
+from src.storage.metadata.metrics_types import EndWorkerMetrics, WorkerStartupMetrics, DAGResourceUsageMetrics
 from src.utils.timer import Timer
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.optimizations.prewarm import PreWarmOptimization
@@ -55,7 +55,7 @@ class WorkflowInstanceInfo:
     master_dag_id: str
     plan: AbstractDAGPlanner.PlanOutput | None
     dag: FullDAG
-    dag_download_stats: List[FullDAGPrepareTime]
+    dag_download_stats: List[EndWorkerMetrics]
     start_time_ms: float
     total_worker_startup_time_ms: float
     total_workers: int
@@ -451,6 +451,10 @@ async def main():
         actual_total_downloadable_input_size_bytes = instance.total_inputs_downloaded_bytes
         actual_total_uploadable_output_size_bytes = instance.total_outputs_uploaded_bytes
 
+        total_resource_usage_gbseconds = sum([d.gb_seconds for d in instance.dag_download_stats])
+        #! DEBUG
+        print(f"GBSecs: {instance.resource_usage.gb_seconds} | Mine: {total_resource_usage_gbseconds}")
+
         # Get predicted metrics if available
         predicted_total_downloadable_input_size_bytes = predicted_total_download = predicted_execution = predicted_total_upload = predicted_makespan_s = 0
         predicted_total_uploadable_output_size_bytes = predicted_input_size_bytes = predicted_output_size = predicted_total_worker_startup_time_s = 0
@@ -542,10 +546,6 @@ async def main():
                 sla_value = f'p{instance.plan.sla.value}'
                 sla_percentile = instance.plan.sla.value
         
-        # Calculate total DAG download time across all downloads
-        # total_download_time = sum(stat.download_time_ms for stat in instance.dag_download_stats)
-        # dag_download_time = f"{total_download_time / 1000:.3f}s"
-
         unique_worker_ids = set()
         for task_metrics in instance.tasks:
             unique_worker_ids.add(task_metrics.metrics.worker_resource_configuration.worker_id)

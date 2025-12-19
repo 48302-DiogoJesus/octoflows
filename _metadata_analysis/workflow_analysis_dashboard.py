@@ -19,7 +19,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.storage.prefixes import DAG_PREFIX
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
-from src.storage.metadata.metrics_types import FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
+from src.storage.metadata.metrics_types import EndWorkerMetrics, TaskMetrics, WorkerStartupMetrics, UserDAGSubmissionMetrics
 from src.dag.dag import FullDAG
 from src.dag_task_node import DAGTaskNode
 from src.storage.metadata.metadata_storage import MetadataStorage
@@ -283,12 +283,12 @@ def main():
     for key in keys:
         serialized_value = metrics_redis_conn.get(key)
         deserialized = cloudpickle.loads(serialized_value) # type: ignore
-        if not isinstance(deserialized, FullDAGPrepareTime): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
-        total_time_downloading_dag_ms += deserialized.download_time_ms
+        if not isinstance(deserialized, EndWorkerMetrics): raise Exception(f"Deserialized value is not of type TaskMetrics: {type(deserialized)}")
+        total_time_downloading_dag_ms += deserialized.dag_download_time_ms
         dag_prepare_metrics.append({
-            "dag_download_time": deserialized.download_time_ms,
+            "dag_download_time": deserialized.dag_download_time_ms,
             "create_subdag_time": deserialized.create_subdags_time_ms,
-            "dag_size": deserialized.serialized_size_bytes
+            "dag_size": deserialized.serialized_dag_size_bytes
         })
 
     # Calculate task timing metrics (start times, end times)

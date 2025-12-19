@@ -12,10 +12,11 @@ class UserDAGSubmissionMetrics:
     dag_submission_time_ms: float
 
 @dataclass
-class FullDAGPrepareTime:
-    download_time_ms: float
+class EndWorkerMetrics:
+    dag_download_time_ms: float
     create_subdags_time_ms: float # time to create a subdag
-    serialized_size_bytes: int
+    serialized_dag_size_bytes: int
+    gb_seconds: float
 
 @dataclass
 class TaskInputDownloadMetrics:

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import time
 import asyncio
 import cloudpickle
-from src.storage.metadata.metrics_types import UserDAGSubmissionMetrics, FullDAGPrepareTime, TaskMetrics, WorkerStartupMetrics
+from src.storage.metadata.metrics_types import UserDAGSubmissionMetrics, EndWorkerMetrics, TaskMetrics, WorkerStartupMetrics
 from src.storage.storage import Storage
 from src.utils.logger import create_logger
 
@@ -33,7 +33,7 @@ class MetadataStorage():
     def __init__(self, storage_config: Storage.Config) -> None:
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         self.storage = storage_config.create_instance()
-        self.cached_metrics: dict[str, TaskMetrics | FullDAGPrepareTime | AbstractDAGPlanner.PlanOutput | WorkerStartupMetrics | UserDAGSubmissionMetrics] = {}
+        self.cached_metrics: dict[str, TaskMetrics | EndWorkerMetrics | AbstractDAGPlanner.PlanOutput | WorkerStartupMetrics | UserDAGSubmissionMetrics] = {}
         self.lock = asyncio.Lock()
 
     async def store_dag_submission_time(self, master_dag_id: str, user_dag_submission_metrics: UserDAGSubmissionMetrics):
@@ -44,7 +44,7 @@ class MetadataStorage():
         async with self.lock:
             self.cached_metrics[f"{self.TASK_MD_KEY_PREFIX}{task_id}"] = metrics
 
-    async def store_dag_download_time(self, master_dag_id: str, dag_download_metrics: FullDAGPrepareTime):
+    async def store_dag_download_time(self, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
         unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
         async with self.lock:
             self.cached_metrics[f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
