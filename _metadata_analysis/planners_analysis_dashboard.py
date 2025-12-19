@@ -179,6 +179,9 @@ async def get_workflows_information(
                 total_inputs_downloaded = 0
                 total_outputs_uploaded = 0
 
+                total_prewarms_done = 0
+                successful_prewarms = len([wsm for wsm in this_workflow_wsm if wsm.was_prewarmed])
+
                 for task in tasks:
                     tm = task.metrics
                     task.input_size_downloaded_bytes = sum(
@@ -211,6 +214,7 @@ async def get_workflows_information(
                                 if isinstance(om, PreWarmOptimization.OptimizationMetrics)
                             ]
                         )
+                        total_prewarms_done += task.optimization_prewarms_done #!
                         task.optimization_prewarms_successful = len(
                             [
                                 om
@@ -227,6 +231,12 @@ async def get_workflows_information(
                                 == "warm"
                             ]
                         )
+
+                failed_prewarms = total_prewarms_done - successful_prewarms
+                old_total_prewarms = sum([t.optimization_prewarms_done for t in tasks])
+                old_successful_prewarms = sum([t.optimization_prewarms_successful for t in tasks])
+                print(f"OLD Successful prewarms: {old_successful_prewarms}/{old_total_prewarms}")
+                print(f"Successful prewarms: {successful_prewarms}/{total_prewarms_done}")
 
                 # if plan_output:
                 #     print(f"{plan_output.planner_name} | Total preloads assigned: {sum([len([o for o in n.optimizations if isinstance(o, PreLoadOptimization)]) for n in dag._all_nodes.values()])} | Preloads Done: {sum([t.optimization_preloads_done for t in tasks])}")
@@ -272,7 +282,7 @@ async def get_workflows_information(
                 # worker_startup_cost = sum([
                 #     ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
                 # ])
-                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
+                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats]) 
                 resource_usage = worker_execution_cost
 
                 total_transferred_data_bytes = (
