@@ -15,6 +15,5 @@ sudo apt-get install graphviz
 ```bash
 sudo apt-get install redis-tools
 ```
-4) Enable the Docker API, which is used to calculate resource usage metrics. For instructions, see the [official Docker documentation](https://docs.docker.com/engine/daemon/remote-access/).
-5) Run `create_redis_docker.sh`. This script creates two password-protected Redis containers with persistence enabled.
-6) Start the Docker gateway (FaaS emulator): `bash build_docker_worker_image.sh && bash start_gateway_docker.sh`
+4) Run `sc_create_redis_docker.sh`. This script creates two password-protected Redis containers.
+5) Start the Docker gateway (FaaS emulator): `bash sc_build_worker.sh && bash sc_start_gateway.sh`

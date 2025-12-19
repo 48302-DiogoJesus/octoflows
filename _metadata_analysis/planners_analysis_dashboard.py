@@ -1824,9 +1824,13 @@ async def main():
                 showlegend=False
             )
 
-            # === Display stacked vertically in Streamlit ===
-            st.plotly_chart(fig_makespan, use_container_width=False)
-            st.plotly_chart(fig_resource, use_container_width=False)
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.plotly_chart(fig_makespan, use_container_width=True)
+
+            with col2:
+                st.plotly_chart(fig_resource, use_container_width=True)
 
             #############
 

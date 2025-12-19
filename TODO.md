@@ -1,23 +1,12 @@
 Test Setup
-    - M1
-        Client
-        DBs
-        Gateway (Inside Vagrant)
-        Tunnel Docker API from M2
-    - M2
-        Gateway (Inside Vagrant)
+- M1
+    DBs (Bare Metal)
+    Client (Inside Vagrant)
+    Gateway (Inside Vagrant)
+- M2
+    Gateway (Inside Vagrant)
 
-- Issue: too many failed prewarms. experiments:
-    1.5
-        Prewarms done: 5 | Successful: 2 | Total Workers: 18
-        Prewarms done: 21 | Successful: 8 | Total Workers: 22
-        Prewarms done: 5 | Successful: 1 | Total Workers: 18
-        Prewarms done: 21 | Successful: 5 | Total Workers: 22
-
-- Check new resource calculation formula
-- Prewarm not effective? adjust parameters and try again?
-
-- Run experiments script 2 of each planner and workflow
+- Run experiments script 2 of every planner and workflow
 - 1 downgrade simulation takes around 5 seconds for 60 nodes DAGs
 
 - Split experiments into 3 executions, backup the rdb files after each, in case we need to go back
