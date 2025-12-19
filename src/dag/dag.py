@@ -86,37 +86,24 @@ class FullDAG(GenericDAG):
         from src.storage.storage import Storage
         _intermediate_storage: Storage = intermediate_storage
 
-        tasks = []
-        scheduled_to_be_uploaded = set()
-        for node in self._all_nodes.values():
-            for arg in node.func_args:
-                if isinstance(arg, HardcodedDependencyId):
-                    if arg.storage_id not in scheduled_to_be_uploaded:
-                        scheduled_to_be_uploaded.add(arg.storage_id)
-                        logger.info(f"Uploading arg hardcoded data: {arg.storage_id}")
-                        tasks.append(
-                            _intermediate_storage.set(
-                            arg.storage_id,
-                            cloudpickle.dumps(self._hardcoded_data_ids[arg.object_id][1])
-                        )
-                    )
-            for arg in node.func_kwargs.values():
-                if isinstance(arg, HardcodedDependencyId):
-                    if arg.storage_id not in scheduled_to_be_uploaded:
-                        scheduled_to_be_uploaded.add(arg.storage_id)
-                        logger.info(f"Uploading kwarg hardcoded data: {arg.storage_id}")
-                        tasks.append(
-                            _intermediate_storage.set(
-                                arg.storage_id,
-                                cloudpickle.dumps(self._hardcoded_data_ids[arg.object_id][1])
-                            )
-                        )
+        batch_data = {} 
 
-        if tasks: 
-            logger.info(f"Uploading {len(tasks)} hardcoded objects...")
-            await asyncio.gather(*tasks)
-            logger.info(f"[DONE] Uploading {len(tasks)} hardcoded objects...")
-        self._hardcoded_data_ids = {} # Free dag space
+        for node in self._all_nodes.values():
+            all_args = list(node.func_args) + list(node.func_kwargs.values())
+            
+            for arg in all_args:
+                if isinstance(arg, HardcodedDependencyId):
+                    if arg.storage_id not in batch_data:
+                        logger.info(f"Staging hardcoded data: {arg.storage_id}")
+                        batch_data[arg.storage_id] = cloudpickle.dumps(self._hardcoded_data_ids[arg.object_id][1])
+
+        if batch_data:
+            logger.info(f"Uploading {len(batch_data)} hardcoded objects in bulk...")
+            await _intermediate_storage.mset(batch_data)
+            
+            logger.info(f"[DONE] Uploading {len(batch_data)} hardcoded objects...")
+
+        self._hardcoded_data_ids = {}
             
     async def compute(self, config, dag_name: str, download_result: bool, open_dashboard: bool = False):
         from src.workers.worker import Worker
@@ -158,7 +145,7 @@ class FullDAG(GenericDAG):
         
         _start_time = Timer()
         asyncio.create_task(wk.delegate([self.create_subdag(root_node) for root_node in self.root_nodes], self, called_by_worker=False), name="delegate_initial_workers")
-        await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time() * 1000))
+        await wk.metadata_storage.store_dag_submission_time(self.master_dag_id, UserDAGSubmissionMetrics(time.time()))
 
         logger.info(f"Awaiting result of: {self.sink_node.id.get_remote_id(self)}")
         (res, total_time_ms) = await Worker.wait_for_result_of_task(

@@ -9,7 +9,7 @@ from src.task_worker_resource_configuration import TaskWorkerResourceConfigurati
 
 @dataclass
 class UserDAGSubmissionMetrics:
-    dag_submission_time_ms: float
+    dag_submission_timestamp_s: float
 
 @dataclass
 class EndWorkerMetrics:
@@ -43,6 +43,7 @@ class TaskOptimizationMetrics(ABC): pass
 class TaskMetrics:
     worker_resource_configuration: TaskWorkerResourceConfiguration
     started_at_timestamp_s: float  # time at which the task started being processed by a worker
+    ended_at_timestamp_s: float  # time at which the task started being processed by a worker
     
     input_metrics: TaskInputMetrics
 

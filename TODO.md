@@ -12,7 +12,7 @@ Test Setup
     - Update dashboard to measure prewarms succeeded using new metrics:
         - prewarms done: {node.metrics.optimization_metrics}
         - prewarms successful: count({workerstartupmetrics.was_prewarmed})
-    - More accurate way to calculate Makespan? (DAG_summission_ts - Sink task output upload finished_ts)
+    - [DONE] [TEST] More accurate way to calculate Makespan? (DAG_summission_ts - Sink task output upload finished_ts)
 
 - Run experiments script 2 of each planner and workflow
 

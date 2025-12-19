@@ -8,7 +8,7 @@ WORKFLOWS_PATHS = [
     'gemm.py',
     'tree_reduction.py',
     'image_transformer.py',
-    'text_analysis.py',
+    # 'text_analysis.py',
 ]
 
 # ITERATIONS_PER_ALGORITHM = 10

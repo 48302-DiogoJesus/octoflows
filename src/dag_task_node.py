@@ -55,6 +55,7 @@ class DAGTaskNode:
         self.metrics: TaskMetrics = TaskMetrics(
             worker_resource_configuration=self.worker_config,
             started_at_timestamp_s=0,
+            ended_at_timestamp_s=0,
             input_metrics=TaskInputMetrics(input_download_metrics={}),
             tp_execution_time_ms=0,
             execution_time_per_input_byte_ms=None,

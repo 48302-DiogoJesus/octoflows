@@ -264,6 +264,7 @@ class Worker(ABC):
 
                 if len(downstream_tasks_ready) == 0:
                     self.log(current_task.id.get_internal_id() + "++" + branch_id, f"No ready downstream tasks found. Shutting down worker...")
+                    current_task.metrics.ended_at_timestamp_s = time.time()
                     break # Give up
 
                 ## > 1 Task ?: Continue with 1 and spawn N-1 Workers for remaining tasks
@@ -275,6 +276,7 @@ class Worker(ABC):
                 # Continue with one task in this worker
                 if len(my_continuation_tasks) == 0:
                     self.log(current_task.id.get_internal_id() + "++" + branch_id, f"No continuation tasks found... Ending worker branch")
+                    current_task.metrics.ended_at_timestamp_s = time.time()
                     break
 
                 self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Continuing with first of multiple downstream tasks: {my_continuation_tasks}")
@@ -288,6 +290,7 @@ class Worker(ABC):
                                 self.execute_branch(subdag.create_subdag(t), fulldag), 
                                 name=f"start_executing_immediate_followup(task={t.id.get_internal_id()})")
                             )
+                current_task.metrics.ended_at_timestamp_s = time.time()
         except CancelCurrentWorkerLoopException as e:
             self.log(current_task.id.get_internal_id() + "++" + branch_id, f"CancelCurrentWorkerLoopException: {str(e)}")
             pass

@@ -95,6 +95,12 @@ class RedisStorage(storage.Storage):
             conn = await self._get_or_create_connection()
             return await conn.set(key, value)
 
+    async def mset(self, mapping: dict[str, Any]) -> bool:
+        if not mapping: return True
+        async with self._op_semaphore:
+            conn = await self._get_or_create_connection()
+            return await conn.mset(mapping)
+
     async def atomic_increment_and_get(self, key: str) -> int:
         async with self._op_semaphore:
             # await self._simulate_network_latency()

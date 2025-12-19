@@ -69,8 +69,8 @@ class MetadataStorage():
             self.cached_metrics[f"{self.WORKER_STARTUP_PREFIX}{master_dag_id}_{task_ids_hash}"] = wsm
 
     async def flush(self):
+        start = time.time()
         async with self.lock:
-            start = time.time()
             len_before_flush = len(self.cached_metrics)
             if len_before_flush == 0: return
 

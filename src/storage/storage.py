@@ -19,6 +19,9 @@ class Storage(ABC):
     
     @abstractmethod
     async def set(self, key: str, value) -> Any: pass
+
+    @abstractmethod
+    async def mset(self, mapping: dict[str, Any]) -> bool: pass
     
     @abstractmethod
     async def atomic_increment_and_get(self, key: str) -> Any: pass

@@ -180,7 +180,7 @@ def main():
     with col3:
         workflow_instances = workflows.get(selected_workflow, {}).get(selected_planner, []) if selected_planner else []
         dag_options = [
-            (f"{instance.master_dag_id} (submitted at {instance.dag_submission_metrics.dag_submission_time_ms:.2f} ms)", 
+            (f"{instance.master_dag_id} (submitted at {instance.dag_submission_metrics.dag_submission_timestamp_s:.2f} s)", 
              instance.master_dag_id) 
             for instance in workflow_instances
         ]
@@ -275,7 +275,7 @@ def main():
     assert _sink_task_metrics
 
     sink_task_ended_timestamp_ms = (_sink_task_metrics.started_at_timestamp_s * 1000) + (_sink_task_metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + _sink_task_metrics.tp_execution_time_ms + (_sink_task_metrics.output_metrics.tp_time_ms or 0) + (_sink_task_metrics.total_invocation_time_ms or 0)
-    makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_time_ms
+    makespan_ms = sink_task_ended_timestamp_ms - dag_submission_metrics.dag_submission_timestamp_s * 1000
 
     keys = metrics_redis_conn.keys(f'{MetadataStorage.DAG_MD_KEY_PREFIX}{dag.master_dag_id}*')
     total_time_downloading_dag_ms = 0
@@ -337,7 +337,7 @@ def main():
     critical_nodes, critical_edges = find_critical_path()
 
     # First pass: collect all task metrics and find the minimum start time
-    dag_start_timestamp_s = dag_submission_metrics.dag_submission_time_ms / 1000
+    dag_start_timestamp_s = dag_submission_metrics.dag_submission_timestamp_s / 1000
 
     # Second pass: calculate end times relative to min_start_time
     for task_id, _metrics in zip(dag._all_nodes.keys(), dag_metrics):
