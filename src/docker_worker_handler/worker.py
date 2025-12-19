@@ -90,11 +90,11 @@ async def main():
         prewarm_time_ms = 0
         is_warm_start = create_if_not_exists(filepath)
         if is_warm_start: # file already existed
+            # note: timestamp will only exist if prewarmed
             prewarm_time_s = pop_timestamp_and_clear(filepath)
             if prewarm_time_s is not None:
                 used_a_prewarmed_container = True
-                prewarm_time_ms = prewarm_time_s * 1000
-                prewarm_time_ms = (time.time() - prewarm_time_ms)
+                prewarm_time_ms = (time.time() - prewarm_time_s) * 1000
 
         wk = DockerWorker(config)
 
