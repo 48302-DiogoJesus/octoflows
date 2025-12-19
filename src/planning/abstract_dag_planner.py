@@ -128,6 +128,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         predictions_provider: PredictionsProvider,
         resource_configuration: TaskWorkerResourceConfiguration,
         topo_sorted_nodes: list[DAGTaskNode],
+        hardcoded_sizes_cache: dict[int, int],
     ):
         """
         Assign worker IDs using a BFS traversal with prediction-aware heuristics:
@@ -142,9 +143,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
         # need to assign resource config so that predictions can be based on that
         for node in _dag._all_nodes.values():
             node.worker_config = resource_configuration.clone()
-        nodes_info = self._calculate_workflow_timings(
-            dag, topo_sorted_nodes, predictions_provider, self.config.sla
-        )
+        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
 
         assigned_nodes = set()
 

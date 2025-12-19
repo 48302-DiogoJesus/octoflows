@@ -1,7 +1,10 @@
 from dataclasses import dataclass
+
+import cloudpickle
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.planning.predictions.predictions_provider import PredictionsProvider
 from src.utils.logger import create_logger
+from src.utils.utils import calculate_data_structure_size_bytes
 from src.workers.worker_execution_logic import WorkerExecutionLogic
 
 logger = create_logger(__name__, prefix="PLANNING")
@@ -28,8 +31,10 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             """
 
     def internal_plan(self, dag, predictions_provider: PredictionsProvider):
+        from src.dag.dag import FullDAG
+        _dag: FullDAG = dag
 
-        topo_sorted_nodes = self._topological_sort(dag)
+        topo_sorted_nodes = self._topological_sort(_dag)
 
         assert isinstance(self.config, WUKONGPlanner.Config)
 
@@ -39,9 +44,13 @@ class WUKONGPlanner(AbstractDAGPlanner, WorkerExecutionLogic):
             node.worker_config = resource_config
 
         for optimization in self.config.optimizations:
-            optimization.planning_assignment_logic(self, dag, predictions_provider, {}, topo_sorted_nodes)
+            optimization.planning_assignment_logic(self, _dag, predictions_provider, {}, topo_sorted_nodes)
 
-        nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla)
+        hardcoded_sizes_cache = {}
+        for obj_id, (_, obj_data) in _dag._hardcoded_data_ids.items():
+            hardcoded_sizes_cache[obj_id] = calculate_data_structure_size_bytes(cloudpickle.dumps(obj_data))
+        
+        nodes_info = self._calculate_workflow_timings(_dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
 
         optimizations: dict[str, int] = {}
         for node_info in nodes_info.values():

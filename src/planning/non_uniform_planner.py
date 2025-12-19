@@ -51,17 +51,18 @@ class NonUniformPlanner(AbstractDAGPlanner):
             # self._store_plan_as_json(dag)
             return None
         
+        hardcoded_sizes_cache = {}
+        for obj_id, (_, obj_data) in _dag._hardcoded_data_ids.items():
+            hardcoded_sizes_cache[obj_id] = calculate_data_structure_size_bytes(cloudpickle.dumps(obj_data))
+        
         # Step 1: Assign worker ids and best resources to all nodes
         # logger.info("=== Step 1: Initial assignment with best resources ===")
-        self._basic_worker_id_assignment(dag, predictions_provider, self.config.worker_resource_configurations[-1], topo_sorted_nodes)
+        self._basic_worker_id_assignment(dag, predictions_provider, self.config.worker_resource_configurations[-1], topo_sorted_nodes, hardcoded_sizes_cache)
         
         best_resource_config = self.config.worker_resource_configurations[0]
         for node in topo_sorted_nodes:
             node.worker_config.memory_mb = best_resource_config.memory_mb
 
-        hardcoded_sizes_cache = {}
-        for obj_id, (_, obj_data) in _dag._hardcoded_data_ids.items():
-            hardcoded_sizes_cache[obj_id] = calculate_data_structure_size_bytes(cloudpickle.dumps(obj_data))
 
         # Calculate initial critical path with best resources
         nodes_info = self._calculate_workflow_timings(dag, topo_sorted_nodes, predictions_provider, self.config.sla, hardcoded_sizes_cache)
