@@ -11,11 +11,12 @@ Test Setup
     `uniform`
         ready_offset_s=1 => 8/13
         ready_offset_s=2 => 8/18 (30%)
-        ready_offset_s=3 => 8/18
+        ready_offset_s=3 => 8/18 | TODO
         ready_offset_s=4 => 11/15
         ready_offset_s=5 => 0
     `non-uniform`
         ready_offset_s=1 => 13/8
+        ready_offset_s=1.5 => TODO
         ready_offset_s=2 => 12/15 (45%)
         ready_offset_s=3 => 9/18
         ready_offset_s=4 => 8/13

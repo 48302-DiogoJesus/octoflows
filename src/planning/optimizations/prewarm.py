@@ -59,6 +59,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             workers.setdefault(node_info.node_ref.worker_config.worker_id, []).append(node_info)
 
         # --- Step 2: Build worker summaries ---
+        predicted_startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
         worker_summaries: dict[str, dict] = {}
         for worker_key, tasks in workers.items():
             sorted_tasks = sorted(tasks, key=lambda n: n.earliest_start_ms)
@@ -66,13 +67,12 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             start_ms = sorted_tasks[0].earliest_start_ms
             last_task = max(tasks, key=lambda n: n.earliest_start_ms + n.tp_exec_time_ms)
             end_ms = last_task.earliest_start_ms + last_task.tp_exec_time_ms
-            startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
             
             worker_summaries[worker_key] = {
                 "tasks": sorted_tasks,
                 "start_ms": start_ms,
                 "end_ms": end_ms,
-                "startup_ms": startup_ms,
+                "startup_ms": predicted_startup_ms,
                 "worker_config": sorted_tasks[0].node_ref.worker_config,
                 "worker_startup_state": sorted_tasks[0].worker_startup_state,
                 "first_node_ref": sorted_tasks[0].node_ref
@@ -92,70 +92,26 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                 - target_worker["startup_ms"] 
             )
 
-            best_candidate = None
-            best_candidate_score = -1 
+            trigerrer_candidate = None
 
-            # Search for a valid triggerer
+            # Search for a valid triggerer candidate
             for candidate_id, candidate_worker in worker_summaries.items():
-                if candidate_id == wid:
-                    continue
-
-                # Quick check: Is the trigger time roughly within the worker's lifespan?
-                # We extend the end check by TIME_UNTIL_COLD_MS because a worker is valid 
-                # for a short time after its last task finishes.
-                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= (candidate_worker["end_ms"] + TIME_UNTIL_COLD_MS)):
-                    continue
-
-                reliability_score = -1 
-                
-                # --- Gap Analysis ---
-                # We need to find exactly where the trigger time falls in the candidate's schedule
+                if candidate_id == wid: continue
+                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= (candidate_worker["end_ms"])): continue
                 for i, task in enumerate(candidate_worker["tasks"]):
                     t_start = task.earliest_start_ms
                     t_end = t_start + task.tp_exec_time_ms
-                    
-                    # CASE A: Trigger is EXACTLY during a task execution
-                    if t_start <= required_trigger_time_ms <= t_end:
-                        reliability_score = 2
-                        break # Found best possible state, stop checking tasks
-                    
-                    # CASE B: Trigger is BEFORE this task (in the gap before it)
-                    if required_trigger_time_ms < t_start:
-                        # Check the PREVIOUS task to see if we are still warm
-                        if i == 0:
-                            # Before the FIRST task -> Worker hasn't started yet -> Invalid
-                            reliability_score = -1
-                        else:
-                            prev_task = candidate_worker["tasks"][i-1]
-                            prev_end = prev_task.earliest_start_ms + prev_task.tp_exec_time_ms
-                            idle_time = required_trigger_time_ms - prev_end
-                            
-                            if idle_time <= TIME_UNTIL_COLD_MS:
-                                reliability_score = 1 # Idle but alive
-                            else:
-                                reliability_score = -1 # Dead zone
-                        break # We found our slot in the timeline, stop checking tasks
+                    if t_start <= required_trigger_time_ms <= t_end: 
+                        trigerrer_candidate = candidate_worker
+                        current_best_start = trigerrer_candidate["start_ms"] if trigerrer_candidate else float('inf')
+                        if candidate_worker["start_ms"] < current_best_start: trigerrer_candidate = candidate_worker
+                        break
 
-                # Edge Case: Trigger is after the LAST task
-                if reliability_score == -1:
-                     last_task = candidate_worker["tasks"][-1]
-                     last_end = last_task.earliest_start_ms + last_task.tp_exec_time_ms
-                     if last_end < required_trigger_time_ms <= (last_end + TIME_UNTIL_COLD_MS):
-                         reliability_score = 1
-
-                # --- Selection Logic ---
-                if reliability_score > best_candidate_score:
-                    best_candidate = candidate_worker
-                    best_candidate_score = reliability_score
-                elif reliability_score == best_candidate_score and reliability_score > -1:
-                    # Tie-breaker: Pick the one that started earlier
-                    current_best_start = best_candidate["start_ms"] if best_candidate else float('inf')
-                    if candidate_worker["start_ms"] < current_best_start:
-                        best_candidate = candidate_worker
+            if not trigerrer_candidate: continue
 
             # --- Step 4: Apply Optimization ---
-            if best_candidate:
-                delay_ms = required_trigger_time_ms - best_candidate["start_ms"]
+            if trigerrer_candidate:
+                delay_ms = required_trigger_time_ms - trigerrer_candidate["start_ms"]
                 delay_s = max(0.0, delay_ms / 1000.0)
                 
                 logger.info(
@@ -165,9 +121,10 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                     f"Worker Startup: {target_worker['startup_ms']/1000:.1f}s | "
                     f"Trigger Fire @ {required_trigger_time_ms/1000:.1f}s | "
                     f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s]"
+                    f"Delay [Task Start]"
                 )
 
-                target_node = best_candidate["first_node_ref"]
+                target_node = trigerrer_candidate["first_node_ref"]
                 annotation = target_node.try_get_optimization(PreWarmOptimization)
                 if not annotation:
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
