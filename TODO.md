@@ -7,7 +7,12 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
-- Issue: too many failed prewarms
+- Issue: too many failed prewarms. experiments:
+    `uniform`
+        prewarm_delay_s=1, ready_offset_s=3 => TODO
+    `non-uniform`
+        prewarm_delay_s=1, ready_offset_s=3 => TODO
+
 - Check new resource calculation formula
 - Prewarm not effective? adjust parameters and try again?
 

@@ -23,9 +23,9 @@ class PredictionsProvider:
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
-    cached_worker_cold_start_times: list[tuple[float, float, int]] = []
+    cached_worker_cold_start_times: list[float] = []
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
-    cached_worker_warm_start_times: list[tuple[float, float, int]] = []
+    cached_worker_warm_start_times: list[float] = []
 
     _cached_prediction_data_transfer_times: dict[str, float] = {}
     _cached_prediction_execution_times: dict[str, float] = {}
@@ -75,8 +75,8 @@ class PredictionsProvider:
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
             if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
             if wsm.end_time_ms is None: continue
-            if wsm.state == "cold": self.cached_worker_cold_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
-            elif wsm.state == "warm": self.cached_worker_warm_start_times.append((wsm.end_time_ms - wsm.start_time_ms, wsm.resource_configuration.cpus, wsm.resource_configuration.memory_mb))
+            if wsm.state == "cold": self.cached_worker_cold_start_times.append(wsm.end_time_ms - wsm.start_time_ms)
+            elif wsm.state == "warm": self.cached_worker_warm_start_times.append(wsm.end_time_ms - wsm.start_time_ms)
 
         # Doesn't go to Redis
         for task_id, metrics in same_workflow_same_planner_type_metrics.items():
@@ -211,8 +211,6 @@ class PredictionsProvider:
         if allow_cached and prediction_key in self._cached_prediction_startup_times: 
             return self._cached_prediction_startup_times[prediction_key]
         
-        samples = [startup_time for startup_time, _, _ in samples]
-        # Direct prediction using exact resource matches (no memory scaling needed)
         if sla == "average": startup_time = np.average(samples)
         else: startup_time = np.percentile(samples, sla.value)
         if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")

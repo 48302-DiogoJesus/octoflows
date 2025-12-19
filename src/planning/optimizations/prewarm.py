@@ -17,7 +17,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
     target_resource_configs: list[tuple[int, TaskWorkerResourceConfiguration]] # (delay in seconds, resource config)
 
-    prewarm_delay_s: int = 0 # time to send request + be received + launch container
     ready_offset_s: float = 0.5
 
     @dataclass
@@ -31,8 +30,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
     def clone(self): return PreWarmOptimization([(relative_time, config.clone()) for relative_time, config in self.target_resource_configs])
 
     @staticmethod
-    def configured(prewarm_delay_s: int, ready_offset_s: float) -> type["PreWarmOptimization"]: 
-        PreWarmOptimization.prewarm_delay_s = prewarm_delay_s
+    def configured(ready_offset_s: float) -> type["PreWarmOptimization"]: 
         PreWarmOptimization.ready_offset_s = ready_offset_s
         return PreWarmOptimization
     
@@ -40,16 +38,17 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
     def planning_assignment_logic(planner, dag, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]):
         from src.planning.abstract_dag_planner import AbstractDAGPlanner
         from src.planning.predictions.predictions_provider import PredictionsProvider
+        import logging
+
+        logger = logging.getLogger(__name__)
 
         _planner: AbstractDAGPlanner = planner
         _predictions_provider: PredictionsProvider = predictions_provider
         _nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = nodes_info
 
-        # Time allowed for the prewarm request to travel and process (e.g., 1.0s)
-        PREWARM_DELAY_MS = PreWarmOptimization.prewarm_delay_s * 1000
-        # Buffer: ensure worker is ready X seconds BEFORE the first task actually starts
+        # --- Configuration Parameters ---
+        # Assuming these are static properties or loaded from config
         READY_OFFSET_MS = PreWarmOptimization.ready_offset_s * 1000
-
         # Max idle time allowed before a worker is considered "cold" again
         TIME_UNTIL_COLD_MS = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
 
@@ -62,13 +61,11 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         # --- Step 2: Build worker summaries ---
         worker_summaries: dict[str, dict] = {}
         for worker_key, tasks in workers.items():
-            # Sort tasks by start time for accurate timeline analysis
             sorted_tasks = sorted(tasks, key=lambda n: n.earliest_start_ms)
             
             start_ms = sorted_tasks[0].earliest_start_ms
             last_task = max(tasks, key=lambda n: n.earliest_start_ms + n.tp_exec_time_ms)
             end_ms = last_task.earliest_start_ms + last_task.tp_exec_time_ms
-            
             startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
             
             worker_summaries[worker_key] = {
@@ -83,77 +80,91 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
         # --- Step 3: Assign Prewarms ---
         for wid, target_worker in worker_summaries.items():
-            # Filter: We only care about cold starts
             if target_worker["worker_startup_state"] != "cold":
                 continue
-            
-            # Filter: Root nodes (no upstream) generally handled by external triggers, skip if needed
             if not target_worker["first_node_ref"].upstream_nodes:
                 continue
 
-            # Calculate the specific moment we need the trigger to fire
-            # Formula: (Start of Task) - (Buffer) - (Startup Time) - (Network Latency)
-            # The trigger must be SENT at this time for the worker to be ready exactly at (Start - Buffer)
+            # Calculate the REQUIRED trigger time
             required_trigger_time_ms = (
                 target_worker["start_ms"] 
                 - READY_OFFSET_MS 
                 - target_worker["startup_ms"] 
-                - PREWARM_DELAY_MS
             )
 
             best_candidate = None
-            best_candidate_score = -1 # Higher is better
+            best_candidate_score = -1 
 
             # Search for a valid triggerer
             for candidate_id, candidate_worker in worker_summaries.items():
                 if candidate_id == wid:
                     continue
 
-                # Basic Sanity Check: Is the candidate even running during the needed time?
-                # We check the candidate's global start/end window first
-                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= candidate_worker["end_ms"]):
+                # Quick check: Is the trigger time roughly within the worker's lifespan?
+                # We extend the end check by TIME_UNTIL_COLD_MS because a worker is valid 
+                # for a short time after its last task finishes.
+                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= (candidate_worker["end_ms"] + TIME_UNTIL_COLD_MS)):
                     continue
 
-                # --- Reliability Scoring ---
-                # Check if the trigger time falls specifically inside a task execution (High Reliability)
-                # or just in the idle gap between tasks (Low Reliability)
+                reliability_score = -1 
                 
-                reliability_score = 1 # Default: Candidate is generally alive (in gap)
-                
-                # Check for precise task overlap
-                for task in candidate_worker["tasks"]:
+                # --- Gap Analysis ---
+                # We need to find exactly where the trigger time falls in the candidate's schedule
+                for i, task in enumerate(candidate_worker["tasks"]):
                     t_start = task.earliest_start_ms
                     t_end = t_start + task.tp_exec_time_ms
                     
+                    # CASE A: Trigger is EXACTLY during a task execution
                     if t_start <= required_trigger_time_ms <= t_end:
-                        reliability_score = 2 # Excellent: Candidate is actively processing
-                        break
-                
-                # Selection Logic: Maximize reliability, then pick closest start time as tie-breaker
+                        reliability_score = 2
+                        break # Found best possible state, stop checking tasks
+                    
+                    # CASE B: Trigger is BEFORE this task (in the gap before it)
+                    if required_trigger_time_ms < t_start:
+                        # Check the PREVIOUS task to see if we are still warm
+                        if i == 0:
+                            # Before the FIRST task -> Worker hasn't started yet -> Invalid
+                            reliability_score = -1
+                        else:
+                            prev_task = candidate_worker["tasks"][i-1]
+                            prev_end = prev_task.earliest_start_ms + prev_task.tp_exec_time_ms
+                            idle_time = required_trigger_time_ms - prev_end
+                            
+                            if idle_time <= TIME_UNTIL_COLD_MS:
+                                reliability_score = 1 # Idle but alive
+                            else:
+                                reliability_score = -1 # Dead zone
+                        break # We found our slot in the timeline, stop checking tasks
+
+                # Edge Case: Trigger is after the LAST task
+                if reliability_score == -1:
+                     last_task = candidate_worker["tasks"][-1]
+                     last_end = last_task.earliest_start_ms + last_task.tp_exec_time_ms
+                     if last_end < required_trigger_time_ms <= (last_end + TIME_UNTIL_COLD_MS):
+                         reliability_score = 1
+
+                # --- Selection Logic ---
                 if reliability_score > best_candidate_score:
                     best_candidate = candidate_worker
                     best_candidate_score = reliability_score
-                elif reliability_score == best_candidate_score:
-                    # Tie-breaker: Pick the one that started earlier (arbitrary stable choice)
-                    # or you could pick the one with higher load, etc.
+                elif reliability_score == best_candidate_score and reliability_score > -1:
+                    # Tie-breaker: Pick the one that started earlier
                     current_best_start = best_candidate["start_ms"] if best_candidate else float('inf')
                     if candidate_worker["start_ms"] < current_best_start:
                         best_candidate = candidate_worker
 
             # --- Step 4: Apply Optimization ---
             if best_candidate:
-                # Calculate delay relative to the candidate's start time
-                # Delay = Trigger Time - Candidate Start Time
                 delay_ms = required_trigger_time_ms - best_candidate["start_ms"]
                 delay_s = max(0.0, delay_ms / 1000.0)
                 
                 logger.info(
                     f"[PREWARM-ASSIGNMENT] "
                     f"Target WID: {target_worker['worker_config'].worker_id} | "
-                    f"Needed @ {target_worker['start_ms']/1000:.1f}s | "
-                    f"Worker Launch Time: {target_worker['startup_ms']/1000:.1f}s | "
-                    f"PreWarm @ {required_trigger_time_ms/1000:.1f}s | "
-                    f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s, NetDelay: {PreWarmOptimization.prewarm_delay_s}s]"
+                    f"First Task Start @ {target_worker['start_ms']/1000:.1f}s | "
+                    f"Worker Startup: {target_worker['startup_ms']/1000:.1f}s | "
+                    f"Trigger Fire @ {required_trigger_time_ms/1000:.1f}s | "
+                    f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s]"
                 )
 
                 target_node = best_candidate["first_node_ref"]
