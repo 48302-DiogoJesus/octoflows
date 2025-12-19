@@ -11,7 +11,6 @@ Vagrant.configure("2") do |config|
   config.ssh.username = "vagrant"
   config.ssh.password = "vagrant"
 
-  # config.vm.network "forwarded_port", guest: 2375, host: 2375
   config.vm.network "forwarded_port", guest: 5000, host: 5000
   # config.vm.network "forwarded_port", guest: 6379, host: 6379
   # config.vm.network "forwarded_port", guest: 6380, host: 6380
@@ -42,12 +41,6 @@ Vagrant.configure("2") do |config|
     curl -fsSL https://get.docker.com -o get-docker.sh
     sh get-docker.sh
     usermod -aG docker vagrant
-
-    # Docker API (exposes 2375)
-    # mkdir -p /etc/systemd/system/docker.service.d
-    # cp /octoflows/_docs/override.conf /etc/systemd/system/docker.service.d/override.conf
-
-    # # 3. Reload systemd and restart Docker to apply changes
     systemctl daemon-reload
     systemctl restart docker
     

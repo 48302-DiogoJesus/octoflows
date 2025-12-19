@@ -7,12 +7,14 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
+- Prewarm not effective? adjust parameters and try again?
 - NEW RESOURCE USAGE CALCULATION MIGRATION
     - resource_usage = sum(worker_script_execution_time) + count(total_prewarms_made) * 50ms (time estimate to execute dummy function)
     - Update dashboard to measure prewarms succeeded using new metrics:
         - prewarms done: {node.metrics.optimization_metrics}
         - prewarms successful: count({workerstartupmetrics.was_prewarmed})
-    - [DONE] [TEST] More accurate way to calculate Makespan? (DAG_summission_ts - Sink task output upload finished_ts)
+
+- Try 2, 4, 8 again and compare
 
 - Run experiments script 2 of each planner and workflow
 
