@@ -7,6 +7,7 @@ Test Setup
     - M2
         Gateway (Inside Vagrant)
 
+- Issue: too many failed prewarms
 - Check new resource calculation formula
 - Prewarm not effective? adjust parameters and try again?
 

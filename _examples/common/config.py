@@ -68,11 +68,11 @@ def get_planner_from_sys_argv():
             worker_resource_configurations=[mid_resources],
             optimizations=[
                 WukongOptimizations.configured(
-                    task_clustering_fan_outs=True, 
-                    task_clustering_fan_ins=True, 
-                    delayed_io=True, 
+                    task_clustering_fan_outs=True,
+                    task_clustering_fan_ins=True,
+                    delayed_io=True,
                     large_output_b=5 * 1024 * 1024 # 5MB
-                ) 
+                )
             ],
         )
     elif planner_type == "uniform":
@@ -85,7 +85,7 @@ def get_planner_from_sys_argv():
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[mid_resources],
-            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(prewarm_latency_ms=1000, prewarm_timing_preference=0.5)],
+            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(prewarm_delay_s=1, ready_offset_s=3)],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
@@ -97,7 +97,7 @@ def get_planner_from_sys_argv():
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=non_uniform_resources,
-            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(prewarm_latency_ms=1000, prewarm_timing_preference=0.5)]
+            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(prewarm_delay_s=1, ready_offset_s=3)]
         )
     else:
         raise ValueError(f"Unhandled planner type: {planner_type}")

@@ -17,8 +17,8 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
     target_resource_configs: list[tuple[int, TaskWorkerResourceConfiguration]] # (delay in seconds, resource config)
 
-    prewarm_latency_ms: int = 0 # time to send request + be received + launch container
-    prewarm_timing_preference: float = 0.5
+    prewarm_delay_s: int = 0 # time to send request + be received + launch container
+    ready_offset_s: float = 0.5
 
     @dataclass
     class OptimizationMetrics(TaskOptimizationMetrics):
@@ -31,9 +31,9 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
     def clone(self): return PreWarmOptimization([(relative_time, config.clone()) for relative_time, config in self.target_resource_configs])
 
     @staticmethod
-    def configured(prewarm_latency_ms: int, prewarm_timing_preference: float) -> type["PreWarmOptimization"]: 
-        PreWarmOptimization.prewarm_latency_ms = prewarm_latency_ms
-        PreWarmOptimization.prewarm_timing_preference = prewarm_timing_preference
+    def configured(prewarm_delay_s: int, ready_offset_s: float) -> type["PreWarmOptimization"]: 
+        PreWarmOptimization.prewarm_delay_s = prewarm_delay_s
+        PreWarmOptimization.ready_offset_s = ready_offset_s
         return PreWarmOptimization
     
     @staticmethod
@@ -44,128 +44,125 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
         _planner: AbstractDAGPlanner = planner
         _predictions_provider: PredictionsProvider = predictions_provider
         _nodes_info: dict[str, AbstractDAGPlanner.PlanningTaskInfo] = nodes_info
-        
-        # --- Step 1: group tasks by worker config + id ---
+
+        # Time allowed for the prewarm request to travel and process (e.g., 1.0s)
+        PREWARM_DELAY_MS = PreWarmOptimization.prewarm_delay_s * 1000
+        # Buffer: ensure worker is ready X seconds BEFORE the first task actually starts
+        READY_OFFSET_MS = PreWarmOptimization.ready_offset_s * 1000
+
+        # Max idle time allowed before a worker is considered "cold" again
+        TIME_UNTIL_COLD_MS = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
+
+        # --- Step 1: Group tasks by worker ---
         workers: dict[str, list[AbstractDAGPlanner.PlanningTaskInfo]] = {}
         for node_info in _nodes_info.values():
             if node_info.node_ref.worker_config.worker_id is None: continue
             workers.setdefault(node_info.node_ref.worker_config.worker_id, []).append(node_info)
 
-        # --- Step 2: build worker timelines ---
-        worker_timelines: dict[str, dict] = {}
+        # --- Step 2: Build worker summaries ---
+        worker_summaries: dict[str, dict] = {}
         for worker_key, tasks in workers.items():
-            start = min(n.earliest_start_ms for n in tasks)
-            end = max(n.earliest_start_ms + n.tp_exec_time_ms for n in tasks)
-            startup = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
-            first_node = min(tasks, key=lambda n: n.earliest_start_ms).node_ref
-            worker_timelines[worker_key] = {
-                "tasks": tasks,
-                "start": start,
-                "end": end,
-                "startup": startup,
-                "worker_config": tasks[0].node_ref.worker_config,
-                "worker_startup_state": tasks[0].worker_startup_state,
-                "first_node": first_node
+            # Sort tasks by start time for accurate timeline analysis
+            sorted_tasks = sorted(tasks, key=lambda n: n.earliest_start_ms)
+            
+            start_ms = sorted_tasks[0].earliest_start_ms
+            last_task = max(tasks, key=lambda n: n.earliest_start_ms + n.tp_exec_time_ms)
+            end_ms = last_task.earliest_start_ms + last_task.tp_exec_time_ms
+            
+            startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
+            
+            worker_summaries[worker_key] = {
+                "tasks": sorted_tasks,
+                "start_ms": start_ms,
+                "end_ms": end_ms,
+                "startup_ms": startup_ms,
+                "worker_config": sorted_tasks[0].node_ref.worker_config,
+                "worker_startup_state": sorted_tasks[0].worker_startup_state,
+                "first_node_ref": sorted_tasks[0].node_ref
             }
 
-        # --- Step 3: assign prewarms ---
-        time_until_worker_goes_cold_ms = _planner.TIME_UNTIL_WORKER_GOES_COLD_S * 1000
-
-        for wid, my_info in worker_timelines.items():
-            if my_info["worker_startup_state"] != "cold":
+        # --- Step 3: Assign Prewarms ---
+        for wid, target_worker in worker_summaries.items():
+            # Filter: We only care about cold starts
+            if target_worker["worker_startup_state"] != "cold":
                 continue
-            if not my_info["tasks"][0].node_ref.upstream_nodes:
+            
+            # Filter: Root nodes (no upstream) generally handled by external triggers, skip if needed
+            if not target_worker["first_node_ref"].upstream_nodes:
                 continue
 
-            # Total time from trigger to warm state includes HTTP latency + startup
-            total_prewarm_time_ms = PreWarmOptimization.prewarm_latency_ms + my_info["startup"]
-            
-            # Ideal trigger time accounting for HTTP latency
-            ideal_prewarm_trigger_time = my_info["start"] - total_prewarm_time_ms
+            # Calculate the specific moment we need the trigger to fire
+            # Formula: (Start of Task) - (Buffer) - (Startup Time) - (Network Latency)
+            # The trigger must be SENT at this time for the worker to be ready exactly at (Start - Buffer)
+            required_trigger_time_ms = (
+                target_worker["start_ms"] 
+                - READY_OFFSET_MS 
+                - target_worker["startup_ms"] 
+                - PREWARM_DELAY_MS
+            )
 
-            best_worker = None
-            best_delay_s = None
-            candidates = []
-            
-            for other_key, other_info in worker_timelines.items():
-                if other_key == wid:
+            best_candidate = None
+            best_candidate_score = -1 # Higher is better
+
+            # Search for a valid triggerer
+            for candidate_id, candidate_worker in worker_summaries.items():
+                if candidate_id == wid:
                     continue
 
-                worker_active_start = other_info["start"]
-                worker_active_end = other_info["end"]
+                # Basic Sanity Check: Is the candidate even running during the needed time?
+                # We check the candidate's global start/end window first
+                if not (candidate_worker["start_ms"] <= required_trigger_time_ms <= candidate_worker["end_ms"]):
+                    continue
 
-                # Latest trigger: prewarm must complete (including HTTP latency) before target starts
-                # trigger + HTTP_latency + startup <= my_info["start"]
-                latest_prewarm_trigger = my_info["start"] - total_prewarm_time_ms
+                # --- Reliability Scoring ---
+                # Check if the trigger time falls specifically inside a task execution (High Reliability)
+                # or just in the idle gap between tasks (Low Reliability)
                 
-                # Earliest trigger: worker should still be warm when needed
-                # trigger + HTTP_latency + startup + cold_time >= my_info["start"]
-                earliest_prewarm_trigger = my_info["start"] - total_prewarm_time_ms - time_until_worker_goes_cold_ms
-
-                earliest_possible = max(earliest_prewarm_trigger, worker_active_start)
-                latest_possible = min(latest_prewarm_trigger, worker_active_end)
+                reliability_score = 1 # Default: Candidate is generally alive (in gap)
                 
-                # Safety check: prewarming worker must start early enough
-                if worker_active_start + total_prewarm_time_ms > my_info["start"]:
-                    continue
-
-                if earliest_possible > latest_possible: 
-                    continue
-
-                # Choose trigger time based on timing preference
-                if PreWarmOptimization.prewarm_timing_preference <= 0.0:
-                    actual_prewarm_trigger_time = earliest_possible
-                elif PreWarmOptimization.prewarm_timing_preference >= 1.0:
-                    actual_prewarm_trigger_time = latest_possible
-                else:
-                    window_size = latest_possible - earliest_possible
+                # Check for precise task overlap
+                for task in candidate_worker["tasks"]:
+                    t_start = task.earliest_start_ms
+                    t_end = t_start + task.tp_exec_time_ms
                     
-                    if ideal_prewarm_trigger_time < earliest_possible:
-                        actual_prewarm_trigger_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
-                    elif ideal_prewarm_trigger_time > latest_possible:
-                        actual_prewarm_trigger_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
-                    else:
-                        preference_based_time = earliest_possible + (PreWarmOptimization.prewarm_timing_preference * window_size)
-                        actual_prewarm_trigger_time = (0.7 * ideal_prewarm_trigger_time + 
-                                                    0.3 * preference_based_time)
-
-                delay_from_start_ms = actual_prewarm_trigger_time - worker_active_start
-
-                candidates.append({
-                    "worker": other_info,
-                    "delay_s": delay_from_start_ms / 1000.0,
-                    "prewarm_trigger_time": actual_prewarm_trigger_time,
-                    "worker_start": worker_active_start
-                })
-
-            if not candidates:
-                pass
-            else:
-                if len(candidates) == 1:
-                    best = candidates[0]
-                elif len(candidates) == 2:
-                    best = min(candidates, key=lambda c: c["worker_start"])
-                else:
-                    candidates_sorted = sorted(candidates, key=lambda c: c["worker_start"])
-                    middle_candidates = candidates_sorted[1:-1]
-                    best = min(middle_candidates, 
-                            key=lambda c: abs(c["prewarm_trigger_time"] - ideal_prewarm_trigger_time))
+                    if t_start <= required_trigger_time_ms <= t_end:
+                        reliability_score = 2 # Excellent: Candidate is actively processing
+                        break
                 
-                best_worker = best["worker"]
-                best_delay_s = best["delay_s"]
+                # Selection Logic: Maximize reliability, then pick closest start time as tie-breaker
+                if reliability_score > best_candidate_score:
+                    best_candidate = candidate_worker
+                    best_candidate_score = reliability_score
+                elif reliability_score == best_candidate_score:
+                    # Tie-breaker: Pick the one that started earlier (arbitrary stable choice)
+                    # or you could pick the one with higher load, etc.
+                    current_best_start = best_candidate["start_ms"] if best_candidate else float('inf')
+                    if candidate_worker["start_ms"] < current_best_start:
+                        best_candidate = candidate_worker
 
-            # --- Step 4: add annotation to first task of chosen worker ---
-            if best_worker is not None:
-                target_node = best_worker["first_node"]
+            # --- Step 4: Apply Optimization ---
+            if best_candidate:
+                # Calculate delay relative to the candidate's start time
+                # Delay = Trigger Time - Candidate Start Time
+                delay_ms = required_trigger_time_ms - best_candidate["start_ms"]
+                delay_s = max(0.0, delay_ms / 1000.0)
+                
+                logger.info(
+                    f"[PREWARM-ASSIGNMENT] "
+                    f"Target WID: {target_worker['worker_config'].worker_id} | "
+                    f"Needed @ {target_worker['start_ms']/1000:.1f}s | "
+                    f"Worker Launch Time: {target_worker['startup_ms']/1000:.1f}s | "
+                    f"PreWarm @ {required_trigger_time_ms/1000:.1f}s | "
+                    f"Config [ReadyOffset: {PreWarmOptimization.ready_offset_s}s, NetDelay: {PreWarmOptimization.prewarm_delay_s}s]"
+                )
+
+                target_node = best_candidate["first_node_ref"]
                 annotation = target_node.try_get_optimization(PreWarmOptimization)
-                if not annotation: 
+                if not annotation:
                     annotation = target_node.add_optimization(PreWarmOptimization([]))
-
-                if best_delay_s is not None:
-                    logger.info(f"[PREWARM-ASSIGNMENT] WID: {my_info['worker_config'].worker_id} tasks starting at {(my_info['start'] / 1000):.1f}s | trigger from WID: {best_worker['worker_config'].worker_id} @{((best_worker['start'] / 1000) + best_delay_s):.1f}s | worker startup: {(best_worker['startup'] / 1000):.1f}s | HTTP latency: {PreWarmOptimization.prewarm_latency_ms / 1000}s | timing pref: {PreWarmOptimization.prewarm_timing_preference}")
-
+                
                 annotation.target_resource_configs.append(
-                    (best_delay_s, my_info["worker_config"])
+                    (delay_s, target_worker["worker_config"])
                 )
 
         return
