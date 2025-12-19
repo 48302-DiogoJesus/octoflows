@@ -96,7 +96,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             for candidate_id, candidate_worker in worker_summaries.items():
                 if candidate_id == wid: continue
                 
-                # Optimization: Skip if the worker isn't running during the trigger window
                 if not (candidate_worker["start_ms"] < required_trigger_time_ms < (candidate_worker["end_ms"])): 
                     continue
                 
@@ -109,7 +108,6 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
                         is_valid_candidate = True
                         break
                 
-                # If valid, check if it is the "best" (earliest start time) seen so far
                 if is_valid_candidate:
                     if candidate_worker["start_ms"] < best_start_ms:
                         best_start_ms = candidate_worker["start_ms"]

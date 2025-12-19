@@ -207,6 +207,9 @@ async def get_workflows_information(
                             if isinstance(om, PreWarmOptimization.OptimizationMetrics)
                         ])
                 
+                total_workers = len(this_workflow_wsm)
+                print(f"Prewarms done: {optimization_prewarms_done} | Successful: {optimization_prewarms_successful} | Total Workers: {total_workers}")
+
                 submission_key = (
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 )

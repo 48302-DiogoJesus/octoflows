@@ -85,7 +85,7 @@ def get_planner_from_sys_argv():
         return UniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=[mid_resources],
-            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(ready_offset_s=1.5)],
+            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(ready_offset_s=1)],
         )
     elif planner_type == "non-uniform":
         return NonUniformPlanner.Config(
@@ -97,7 +97,7 @@ def get_planner_from_sys_argv():
         return NonUniformPlanner.Config(
             sla=sla,
             worker_resource_configurations=non_uniform_resources,
-            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(ready_offset_s=1.5)]
+            optimizations=[PreLoadOptimization, PreWarmOptimization.configured(ready_offset_s=1)]
         )
     else:
         raise ValueError(f"Unhandled planner type: {planner_type}")

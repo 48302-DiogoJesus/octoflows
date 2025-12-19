@@ -87,12 +87,9 @@ async def main():
             raise Exception("Error: config is not a DockerWorker.Config instance")
     
         filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
-        used_a_prewarmed_container = False
+        first_to_use_prewarmed_worker = False
         is_warm_start = create_if_not_exists(filepath)
-        if is_warm_start: # file already existed
-            # note: timestamp will only exist if prewarmed
-            was_first_worker_to_use_prewarmed_container = pop_prewarm_msg_and_clear(filepath)
-            if was_first_worker_to_use_prewarmed_container: used_a_prewarmed_container = True
+        if is_warm_start: first_to_use_prewarmed_worker = pop_prewarm_msg_and_clear(filepath)
 
         wk = DockerWorker(config)
 
@@ -122,7 +119,7 @@ async def main():
         await wk.metadata_storage.update_invoked_worker_startup_metrics(
             end_time_ms=time.time() * 1000,
             worker_state="warm" if is_warm_start else "cold",
-            was_prewarmed=used_a_prewarmed_container,
+            was_prewarmed=first_to_use_prewarmed_worker,
             task_ids=[id.get_internal_id() for id in immediate_task_ids],
             master_dag_id=dag_id
         )
