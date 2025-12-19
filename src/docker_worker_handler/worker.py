@@ -34,6 +34,17 @@ def create_if_not_exists(filename):
     except FileExistsError:
         return True  # File already existed
 
+def pop_timestamp_and_clear(filename: str) -> float | None:
+    try:
+        with open(filename, "r") as f: first_line = f.readline().strip()
+        with open(filename, "w") as f: pass
+        if not first_line: return None
+        return float(first_line)
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        return None
+
 ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
 
 async def main():
@@ -74,6 +85,17 @@ async def main():
         if not isinstance(config, DockerWorker.Config):
             raise Exception("Error: config is not a DockerWorker.Config instance")
     
+        filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
+        used_a_prewarmed_container = False
+        prewarm_time_ms = 0
+        is_warm_start = create_if_not_exists(filepath)
+        if is_warm_start: # file already existed
+            prewarm_time_s = pop_timestamp_and_clear(filepath)
+            if prewarm_time_s is not None:
+                used_a_prewarmed_container = True
+                prewarm_time_ms = prewarm_time_s * 1000
+                prewarm_time_ms = (time.time() - prewarm_time_ms)
+
         wk = DockerWorker(config)
 
         if b64_fulldag is not None:
@@ -99,11 +121,11 @@ async def main():
         wk.my_resource_configuration = fulldag.get_node_by_id(immediate_task_ids[0]).worker_config
         wk.debug_worker_id = f"flex-{uuid4().hex}" if wk.my_resource_configuration.worker_id is None else wk.my_resource_configuration.worker_id
 
-        filepath = ATOMIC_FILE_FOR_WARM_START_DETECTION
-        is_warm_start = create_if_not_exists(filepath)
         await wk.metadata_storage.update_invoked_worker_startup_metrics(
             end_time_ms=time.time() * 1000,
             worker_state="warm" if is_warm_start else "cold",
+            was_prewarmed=used_a_prewarmed_container,
+            prewarm_time_ms=prewarm_time_ms if used_a_prewarmed_container else None,
             task_ids=[id.get_internal_id() for id in immediate_task_ids],
             master_dag_id=dag_id
         )

@@ -13,7 +13,6 @@ import src.dag_task_node as dag_task_node
 import src.visualization.vis as vis
 from src.utils.utils import calculate_data_structure_size_bytes
 from src.utils.timer import Timer
-from src.docker_workers_gateway.container_resource_usage_monitor import DockerContainerUsageMonitor
 
 logger = create_logger(__name__)
 
@@ -175,8 +174,6 @@ class FullDAG(GenericDAG):
         )
         logger.info(f"Final Result Ready: ({self.sink_node.id.get_remote_id(self)}) => Size: {calculate_data_structure_size_bytes(res)} | Type: ({type(res)}) | Time: {total_time_ms / 1000:.2f} s")
 
-        metrics = await DockerContainerUsageMonitor.stop_monitoring(self.master_dag_id)
-        await wk.metadata_storage.store_dag_resource_usage_metrics(metrics)
         await wk.metadata_storage.flush()
 
         return res

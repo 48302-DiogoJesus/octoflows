@@ -22,7 +22,7 @@ from src.storage.metadata.metrics_types import TaskMetrics, UserDAGSubmissionMet
 from src.planning.abstract_dag_planner import AbstractDAGPlanner
 from src.storage.prefixes import DAG_PREFIX
 from src.dag.dag import FullDAG
-from src.storage.metadata.metrics_types import EndWorkerMetrics, WorkerStartupMetrics, DAGResourceUsageMetrics
+from src.storage.metadata.metrics_types import EndWorkerMetrics, WorkerStartupMetrics
 from src.utils.timer import Timer
 from src.planning.optimizations.preload import PreLoadOptimization
 from src.planning.optimizations.prewarm import PreWarmOptimization
@@ -60,7 +60,7 @@ class WorkflowInstanceInfo:
     total_worker_startup_time_ms: float
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
-    resource_usage: DAGResourceUsageMetrics
+    resource_usage_gbseconds: float
     total_transferred_data_bytes: int
     total_inputs_downloaded_bytes: float
     total_outputs_uploaded_bytes: float
@@ -131,7 +131,7 @@ async def get_workflows_information(
                 )
                 if download_keys:
                     download_data = await metadata_storage_conn.mget(download_keys)
-                    dag_download_stats = [
+                    dag_download_stats: list[EndWorkerMetrics] = [
                         cloudpickle.loads(d) for d in download_data if d
                     ]
                 else:
@@ -171,7 +171,7 @@ async def get_workflows_information(
                     f"{MetadataStorage.WORKER_STARTUP_PREFIX}{dag.master_dag_id}*",
                 )
                 worker_data = await metadata_storage_conn.mget(worker_keys)
-                this_workflow_wsm = [
+                this_workflow_wsm: list[WorkerStartupMetrics] = [
                     cloudpickle.loads(d) for d in worker_data if d
                 ]
                 worker_startup_metrics.extend(this_workflow_wsm)
@@ -268,13 +268,12 @@ async def get_workflows_information(
                 )
                 total_workers = len(this_workflow_wsm)
 
-                resource_usage_key = (
-                    f"{MetadataStorage.DAG_RESOURCE_USAGE_PREFIX}{dag.master_dag_id}"
-                )
-                resource_usage_data = await metadata_storage_conn.get(resource_usage_key)
-                resource_usage: DAGResourceUsageMetrics = cloudpickle.loads(
-                    resource_usage_data
-                )
+
+                worker_startup_cost = sum([
+                    ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
+                ])
+                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
+                resource_usage = worker_startup_cost + worker_execution_cost
 
                 total_transferred_data_bytes = (
                     total_inputs_downloaded + total_outputs_uploaded
@@ -451,10 +450,6 @@ async def main():
         actual_total_downloadable_input_size_bytes = instance.total_inputs_downloaded_bytes
         actual_total_uploadable_output_size_bytes = instance.total_outputs_uploaded_bytes
 
-        total_resource_usage_gbseconds = sum([d.gb_seconds for d in instance.dag_download_stats])
-        #! DEBUG
-        print(f"GBSecs: {instance.resource_usage.gb_seconds} | Mine: {total_resource_usage_gbseconds}")
-
         # Get predicted metrics if available
         predicted_total_downloadable_input_size_bytes = predicted_total_download = predicted_execution = predicted_total_upload = predicted_makespan_s = 0
         predicted_total_uploadable_output_size_bytes = predicted_input_size_bytes = predicted_output_size = predicted_total_worker_startup_time_s = 0
@@ -549,7 +544,6 @@ async def main():
         unique_worker_ids = set()
         for task_metrics in instance.tasks:
             unique_worker_ids.add(task_metrics.metrics.worker_resource_configuration.worker_id)
-        
 
         is_wukong_instance = 'wukong' in instance.plan.planner_name.lower()  if instance.plan else None
         # Store the instance data with metrics for SLA comparison
@@ -579,8 +573,7 @@ async def main():
             'Total Dependency Counter Update Time': f"{actual_dependency_update:.2f}s",
             # 'Total DAG Download Time': dag_download_time,
             'Total Worker Startup Time': format_metric(actual_total_worker_startup_time_s, 0 if is_wukong_instance else predicted_total_worker_startup_time_s, 'worker_startup') + f" (Workers: {len(unique_worker_ids)})",
-            'CPU Time': f"{instance.resource_usage.cpu_seconds:.2f}",
-            'Resource Usage': f"{instance.resource_usage.gb_seconds:.2f}",
+            'Resource Usage': f"{instance.resource_usage_gbseconds:.2f}",
             'Warm/Cold Starts': f"{instance.warm_starts_count}/{instance.cold_starts_count}",
             '_actual_worker_startup': actual_total_worker_startup_time_s,
             '_actual_invocation': actual_invocation,
@@ -789,8 +782,6 @@ async def main():
                     'Total Dependency Counter Update Time': "Total Dependency Counter Update Time",
                     # 'Total DAG Download Time': "Total DAG Download Time",
                     'Total Worker Startup Time': "Total Worker Startup Time (Predicted → Actual)",
-                    'Run Time': "Run Time",
-                    'CPU Time': "CPU Time",
                     'Resource Usage': "Resource Usage",
                     'Warm/Cold Starts': "Warm/Cold Starts",
                 },
@@ -815,8 +806,6 @@ async def main():
                     'Total Task Invocation Time',
                     'Total Dependency Counter Update Time',
                     'Total Worker Startup Time',
-                    'Run Time',
-                    'CPU Time',
                     'Resource Usage',
                     'Warm/Cold Starts',
                 ]
@@ -1338,7 +1327,7 @@ async def main():
                     ),
                     'Total Data Transferred': instance.total_transferred_data_bytes,
                     'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
-                    'Resource Usage': instance.resource_usage.gb_seconds,
+                    'Resource Usage': instance.resource_usage_gbseconds,
                     'Total Prewarms': total_prewarms,
                     'Total Preloads': total_preloads,
                 }
@@ -1567,7 +1556,7 @@ async def main():
                 ))
                 metrics['total_time_waiting_for_inputs'].append(total_time_waiting_for_inputs_s)
                 metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
-                metrics['resource_usage'].append(instance.resource_usage.gb_seconds)
+                metrics['resource_usage'].append(instance.resource_usage_gbseconds)
                 metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
                 metrics['data_size_downloaded'].append(sum(
                     sum(input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values() if input_metric.time_ms is not None)
@@ -1779,17 +1768,11 @@ async def main():
                     continue
                 
                 planner = instance.plan.planner_name if instance.plan else 'Unknown'
-                usage = instance.resource_usage
 
                 resource_data.append({
                     'Planner': planner,
-                    'Metric': 'CPU Time (s)',
-                    'Value': usage.cpu_seconds
-                })
-                resource_data.append({
-                    'Planner': planner,
                     'Metric': 'GB-seconds',
-                    'Value': usage.gb_seconds
+                    'Value': instance.resource_usage_gbseconds
                 })
 
             ######## Network I/O
@@ -1829,7 +1812,7 @@ async def main():
             df_resource = pd.DataFrame(resource_data)
 
             # Plot each metric separately
-            metrics = ['CPU Time (s)', 'GB-seconds']
+            metrics = ['GB-seconds']
 
             cols = st.columns(2)
 
@@ -1907,13 +1890,12 @@ async def main():
                 )
 
                 actual_makespan_s = (sink_task_ended_timestamp_ms - instance.start_time_ms) / 1000
-                ru = instance.resource_usage
 
                 data.append({
                     "workflow": selected_workflow,
                     "makespan": actual_makespan_s,
                     "planner": planner_name,
-                    "GB-seconds": ru.gb_seconds
+                    "GB-seconds": instance.resource_usage_gbseconds
                 })
 
             df = pd.DataFrame(data)

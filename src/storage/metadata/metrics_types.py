@@ -68,11 +68,5 @@ class WorkerStartupMetrics:
     initial_task_ids: list[str]
     end_time_ms: float | None = None
     state: Literal["warm", "cold"] | None = None
-
-
-@dataclass
-class DAGResourceUsageMetrics:
-    master_dag_id: str
-    run_time_seconds: float
-    cpu_seconds: float
-    gb_seconds: float
+    was_prewarmed: bool = False
+    prewarm_time_ms: float | None = None # time from the container launch request to the script execution beginning

@@ -24,7 +24,6 @@ class DockerWorker(Worker):
     @dataclass
     class Config(Worker.Config):
         external_docker_gateway_addresses: list[tuple[str, int]] = field(default_factory=list)
-        container_monitoring_addresses: list[tuple[str, int]] = field(default_factory=list)
       
         def create_instance(self) -> "DockerWorker": 
             super().create_instance()
@@ -106,6 +105,8 @@ class DockerWorker(Worker):
                     start_time_ms=time.time() * 1000,
                     resource_configuration=targetWorkerResourcesConfig,
                     state=None,
+                    prewarm_time_ms=None,
+                    was_prewarmed=False,
                     end_time_ms=None,
                     initial_task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
                 ),
