@@ -9,9 +9,9 @@ Test Setup
 
 - Issue: too many failed prewarms. experiments:
     `uniform`
-        prewarm_delay_s=1, ready_offset_s=3 => TODO
+        prewarm_delay_s=1, ready_offset_s=3 => 8/18
     `non-uniform`
-        prewarm_delay_s=1, ready_offset_s=3 => TODO
+        prewarm_delay_s=1, ready_offset_s=3 => 9/18
 
 - Check new resource calculation formula
 - Prewarm not effective? adjust parameters and try again?
