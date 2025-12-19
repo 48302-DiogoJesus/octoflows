@@ -269,11 +269,11 @@ async def get_workflows_information(
                 total_workers = len(this_workflow_wsm)
 
 
-                worker_startup_cost = sum([
-                    ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
-                ])
+                # worker_startup_cost = sum([
+                #     ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
+                # ])
                 worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
-                resource_usage = worker_startup_cost + worker_execution_cost
+                resource_usage = worker_execution_cost
 
                 total_transferred_data_bytes = (
                     total_inputs_downloaded + total_outputs_uploaded

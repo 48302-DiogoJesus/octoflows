@@ -8,7 +8,11 @@ Test Setup
         Gateway (Inside Vagrant)
 
 - NEW RESOURCE USAGE CALCULATION MIGRATION
-    - Update dashboard to measure prewarms with ne metrics
+    - resource_usage = sum(worker_script_execution_time) + count(total_prewarms_made) * 50ms (time estimate to execute dummy function)
+    - Update dashboard to measure prewarms succeeded using new metrics:
+        - prewarms done: {node.metrics.optimization_metrics}
+        - prewarms successful: count({workerstartupmetrics.was_prewarmed})
+    - More accurate way to calculate Makespan? (DAG_summission_ts - Sink task output upload finished_ts)
 
 - Run experiments script 2 of each planner and workflow
 

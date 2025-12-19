@@ -88,10 +88,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
 
             best_worker = None
             best_delay_s = None
-            best_prewarm_trigger_time = None
             candidates = []
-            
-            target_startup_time_ms = my_info["startup"]
             
             for other_key, other_info in worker_timelines.items():
                 if other_key == wid:
