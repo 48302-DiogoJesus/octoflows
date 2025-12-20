@@ -7,7 +7,7 @@ BACKUP_DIR=$(pwd)
 # --- Metrics Storage ---
 echo "Backing up metrics-storage-redis..."
 docker exec metrics-storage-redis \
-  redis-cli -a "$REDIS_PASSWORD" SAVE
+  redis-cli -h 10.15.0.22 -a "$REDIS_PASSWORD" SAVE
 docker run --rm \
   -v redis-metrics-data:/source \
   -v "$BACKUP_DIR":/backup \
