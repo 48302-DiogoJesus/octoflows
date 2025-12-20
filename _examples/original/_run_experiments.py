@@ -12,12 +12,12 @@ WORKFLOWS_PATHS = [
 ]
 
 # ITERATIONS_PER_ALGORITHM = 10
-ITERATIONS_PER_ALGORITHM = 3
-ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
+ITERATIONS_PER_ALGORITHM = 4
+# ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
 # ALGORITHMS = ['uniform-opt', 'non-uniform-opt']
-# ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
-SLAS = ['50']
-# SLAS = ['50', '75', '90']
+ALGORITHMS = ['wukong', 'wukong-opt', 'uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
+# SLAS = ['50']
+SLAS = ['50', '75', '90']
 
 DOCKER_FAAS_GATEWAY_IPS = [
     "10.15.0.22",
