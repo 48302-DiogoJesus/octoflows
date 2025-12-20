@@ -11,7 +11,7 @@ from src.docker_worker_handler.worker import ATOMIC_FILE_FOR_WARM_START_DETECTIO
 
 logger = create_logger(__name__)
 ALLOW_CONTAINER_REUSAGE = True
-TIME_UNTIL_WORKER_GOES_COLD_S = 7
+TIME_UNTIL_WORKER_GOES_COLD_S = 10
 
 @dataclass
 class Container:
