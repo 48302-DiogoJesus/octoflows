@@ -20,6 +20,7 @@ Test Setup
 - Update `Deployment.md` to also include instructions/mention for Vagrant + remove mention of Docker API
 - Update paper with graphics
 - Update paper with experiment parameters, configuration, and deployment
+- NOTE: Intermediate result is being removed from storage
 
 [KNOWN_ISSUES]
 - In simulation, {worker_active_periods} (`abstract_dag_planner.py`) are not being calculated accuratelly
