@@ -6,6 +6,9 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
+- Try import snapshot and check if lost data is there
+- Rerun experiemnts
+- Prewarm not good
 - Run experiments script 2 of every planner and workflow
 - 1 downgrade simulation takes around 5 seconds for 60 nodes DAGs
 
