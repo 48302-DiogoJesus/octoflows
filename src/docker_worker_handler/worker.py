@@ -213,7 +213,7 @@ async def main():
                 # note: don't delete final result because client needs it, but delete its DC if exists
                 if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
                     await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_remote_id(fulldag)}")
-                    continue
+                    # continue #! uncomment this line to avoid deleting the final result as well. this is commented so that we can run lots of experiments without eating up all Redis memory
                 # logger.info(f"Deleting intermediate result for task: {t.id.get_internal_id()}")
                 await wk.intermediate_storage.delete(f"*{t.id.get_remote_id(fulldag)}*", pattern=True)
             

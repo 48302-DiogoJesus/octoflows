@@ -6,7 +6,10 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
-- Try import snapshot and check if lost data is there
+- Check how much RAM does redis occupy after 200 workflows and maybe increase Vagrantfile memory to 50GB
+- Try importing snapshot locally and check if lost data is there
+- Snapshotting doesn't work anymore because i dont save to disk? download metrics saved from .22
+
 - Rerun experiemnts
 - Prewarm not good
 - Run experiments script 2 of every planner and workflow
