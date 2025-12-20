@@ -73,6 +73,8 @@ async def main():
         if len(sys.argv) < 5:
             raise Exception("Usage: python script.py <b64_config> <dag_id> <b64_task_ids> <b64_relevant_cached_results> <b64_fulldag_optional>")
 
+        from src.dag.dag import HardcodedDependencyId
+
         # Get the serialized DAG from command-line argument
         config = cloudpickle.loads(base64.b64decode(sys.argv[1]))
         dag_id = str(sys.argv[2])
@@ -203,6 +205,8 @@ async def main():
             
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
 
+        
+
         # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_remote_id(fulldag)):
             logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
@@ -216,6 +220,11 @@ async def main():
                     # continue #! uncomment this line to avoid deleting the final result as well. this is commented so that we can run lots of experiments without eating up all Redis memory
                 # logger.info(f"Deleting intermediate result for task: {t.id.get_internal_id()}")
                 await wk.intermediate_storage.delete(f"*{t.id.get_remote_id(fulldag)}*", pattern=True)
+
+                # delete hardcoded objects
+                for dep in (list(t.func_args) + list(t.func_kwargs.values())):
+                    if not isinstance(dep, HardcodedDependencyId): continue
+                    await wk.intermediate_storage.delete(dep.storage_id)
             
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.store_dag_download_time(

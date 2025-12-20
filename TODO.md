@@ -7,8 +7,11 @@ Test Setup
     Gateway (Inside Vagrant)
 
 - Check how much RAM does redis occupy after 200 workflows and maybe increase Vagrantfile memory to 50GB
+
+- Is the delete after worklfow ends working?? enable logs and check the "Deleting intermediate data for DAG:" logs
+    - OR are the hardcoded objects not deleted?
+
 - Try importing snapshot locally and check if lost data is there
-- Snapshotting doesn't work anymore because i dont save to disk? download metrics saved from .22
 
 - Rerun experiemnts
 - Prewarm not good
