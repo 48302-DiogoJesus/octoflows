@@ -204,27 +204,29 @@ async def main():
             await asyncio.wait(pending, timeout=None)  # Wait indefinitely
             
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
-
         
-
         # Intermediate data cleanup after execution
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_remote_id(fulldag)):
             logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
+            keys_to_delete = []
 
-            # logger.info(f"Deleting {len(fulldag._all_nodes.keys()) - 1} intermediate results for dag id: {fulldag.master_dag_id}")
-            # Delete intermediate results
             for t in fulldag._all_nodes.values():
-                # note: don't delete final result because client needs it, but delete its DC if exists
-                if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
-                    await wk.intermediate_storage.delete(f"{DEPENDENCY_COUNTER_PREFIX}{t.id.get_remote_id(fulldag)}")
-                    # continue #! uncomment this line to avoid deleting the final result as well. this is commented so that we can run lots of experiments without eating up all Redis memory
-                # logger.info(f"Deleting intermediate result for task: {t.id.get_internal_id()}")
-                await wk.intermediate_storage.delete(f"*{t.id.get_remote_id(fulldag)}*", pattern=True)
+                remote_id = t.id.get_remote_id(fulldag)
 
-                # delete hardcoded objects
+                # 1. Handle Sink Node specific logic (Dependency Counter)
+                if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
+                    keys_to_delete.append(f"{DEPENDENCY_COUNTER_PREFIX}{remote_id}")
+                    # ! continue uncomment, otherwise final result will be deleted before used downloads it
+                    # ! it's like this to make experiments more efficient and scale better
+                    
+                await wk.intermediate_storage.delete(f"*{remote_id}*", pattern=True)
+
                 for dep in (list(t.func_args) + list(t.func_kwargs.values())):
-                    if not isinstance(dep, HardcodedDependencyId): continue
-                    await wk.intermediate_storage.delete(dep.storage_id)
+                    if isinstance(dep, HardcodedDependencyId):
+                        keys_to_delete.append(dep.storage_id)
+
+            if keys_to_delete:
+                await wk.intermediate_storage.mdelete(*keys_to_delete)
             
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.store_dag_download_time(

@@ -252,6 +252,11 @@ class RedisStorage(storage.Storage):
             
         return await conn.delete(*keys_to_delete)
 
+    async def mdelete(self, *keys: str) -> int:
+        async with self._op_semaphore:
+            conn = await self._get_or_create_connection()
+            return await conn.delete(*keys)
+
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
         async with self._op_semaphore:
             # await self._simulate_network_latency()

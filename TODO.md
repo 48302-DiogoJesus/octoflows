@@ -6,10 +6,8 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
-- Check how much RAM does redis occupy after 200 workflows and maybe increase Vagrantfile memory to 50GB
 
-- Is the delete after worklfow ends working?? enable logs and check the "Deleting intermediate data for DAG:" logs
-    - OR are the hardcoded objects not deleted?
+- Check how much RAM does redis occupy after 200 workflows and maybe increase Vagrantfile memory to 50GB
 
 - Try importing snapshot locally and check if lost data is there
 
@@ -23,7 +21,8 @@ Test Setup
 - Update `Deployment.md` to also include instructions/mention for Vagrant + remove mention of Docker API
 - Update paper with graphics
 - Update paper with experiment parameters, configuration, and deployment
-- NOTE: Intermediate result is being removed from storage
+
+- !! NOTE: Intermediate result is being removed from storage, ONLY to make experiments easier and require less redis memory
 
 [KNOWN_ISSUES]
 - In simulation, {worker_active_periods} (`abstract_dag_planner.py`) are not being calculated accuratelly

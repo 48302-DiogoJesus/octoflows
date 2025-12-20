@@ -40,6 +40,9 @@ class Storage(ABC):
     async def unsubscribe(self, channel: str, subscription_id: Optional[str]): pass
 
     @abstractmethod
+    async def mdelete(self, *keys: str) -> int: pass
+
+    @abstractmethod
     async def delete(self, key: str, *, pattern: bool = False, prefix: bool = False, suffix: bool = False) -> int:
         """
         Delete keys from the storage.
