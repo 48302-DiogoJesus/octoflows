@@ -6,7 +6,7 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
-
+- Rename metrics storage to metadata storage
 - Check how much RAM does redis occupy after 200 workflows and maybe increase Vagrantfile memory to 50GB
 
 - Try importing snapshot locally and check if lost data is there

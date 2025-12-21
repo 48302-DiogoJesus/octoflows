@@ -206,6 +206,14 @@ async def main():
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
         
         # Intermediate data cleanup after execution
+        """
+        Removes:
+        - intermediate task outputs (+ final output as well currently for experiments (see comment below))
+        - hardcoded task inputs
+        Doesn't remove:
+        - metrics
+        - dependency counters (stored in metadata db)
+        """
         if await wk.intermediate_storage.exists(fulldag.sink_node.id.get_remote_id(fulldag)):
             logger.info(f"Deleting intermediate data for DAG: {fulldag.master_dag_id}")
             keys_to_delete = []
@@ -215,7 +223,7 @@ async def main():
 
                 # 1. Handle Sink Node specific logic (Dependency Counter)
                 if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
-                    keys_to_delete.append(f"{DEPENDENCY_COUNTER_PREFIX}{remote_id}")
+                    pass
                     # ! continue uncomment, otherwise final result will be deleted before used downloads it
                     # ! it's like this to make experiments more efficient and scale better
                     

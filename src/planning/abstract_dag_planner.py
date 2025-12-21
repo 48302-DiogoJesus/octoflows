@@ -28,7 +28,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
     """
 
     MAX_FAN_OUT_SIZE_W_SAME_WORKER = 3
-    TIME_UNTIL_WORKER_GOES_COLD_S = 10
+    TIME_UNTIL_WORKER_GOES_COLD_S = 7
 
     @property
     def planner_name(self) -> str:
