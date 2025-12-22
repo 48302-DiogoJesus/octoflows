@@ -1721,7 +1721,6 @@ async def main():
                 if i % 2 == 1:
                     cols = st.columns(2)
 
-
             ##########
             
             # manual_order = ["NonUniformPlanner", "UniformPlanner", "WUKONGPlanner"]

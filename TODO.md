@@ -7,7 +7,6 @@ Test Setup
     Gateway (Inside Vagrant)
 
 - Wukong resource usage is too low: must be miscalculated
-    wukong resource config is -1 right?
 - See which workflows are weaker
 
 - Rename metrics storage to metadata storage

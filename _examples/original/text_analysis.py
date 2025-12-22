@@ -137,7 +137,7 @@ def analyze_segment(segments: List[str], segment_id: int) -> Dict[str, Any]:
     unique_words = int(np.unique(np.array(clean_words)).size) if clean_words else 0
 
     # Small deterministic heavy op to favor vector units
-    _ = np.linalg.norm(np.arange(2048, dtype=np.float64))
+    _ = np.linalg.norm(np.arange(4096, dtype=np.float64))
 
     return {
         "segment_id": segment_id,
@@ -198,7 +198,7 @@ def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) ->
         total_processed = 0
 
     # small deterministic heavy op
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
 
     return {
         "type": "overall_keywords",
@@ -319,7 +319,7 @@ def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
     total_unique_words = sum(s.get("unique_words", 0) for s in segment_analyses)
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
 
     return {
         "total_segments": len(segment_analyses),
@@ -350,7 +350,7 @@ def calculate_text_metrics(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
     complexity_score = float((overall_avg_word_length * total_sentences) / 100.0) if total_sentences > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
 
     return {
         "words_per_sentence": words_per_sentence,
