@@ -43,6 +43,9 @@ Vagrant.configure("2") do |config|
     usermod -aG docker vagrant
     systemctl daemon-reload
     systemctl restart docker
+
+    # ensure clock is synchronized to avoid drifts between diff. machines
+    timedatectl set-ntp true
     
     apt-get clean
   SHELL
