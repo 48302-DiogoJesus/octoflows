@@ -58,7 +58,7 @@ class PreLoadOptimization(TaskOptimization):
             if resource_config.worker_id is None: continue # flexible workers can't have preload
 
             # Only apply preload to nodes that depend on at least 2 tasks from other workers
-            if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 2:
+            if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 1:
                 node.add_optimization(PreLoadOptimization())
 
     async def _start_preloading_if_not_running(
