@@ -236,6 +236,16 @@ async def main():
             if keys_to_delete:
                 await wk.intermediate_storage.mdelete(*keys_to_delete)
             
+        await wk.metadata_storage.store_workflow_end_metrics(
+            fulldag.master_dag_id,
+            EndWorkerMetrics(
+                dag_download_time_ms=dag_download_time_ms, 
+                serialized_dag_size_bytes=serialized_dag_size_bytes, 
+                create_subdags_time_ms=create_subdags_time_ms,
+                gb_seconds=(time.monotonic() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
+            )
+        )
+        
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.flush()
         await wk.metadata_storage.close_connection()
@@ -251,17 +261,6 @@ async def main():
             fcntl.flock(lock_file, fcntl.LOCK_UN) # type: ignore
             lock_file.close()
             os.remove(LOCK_FILE)
-
-        #* 8) An instant upload
-    await wk.metadata_storage.store_workflow_end_metrics(
-        fulldag.master_dag_id,
-        EndWorkerMetrics(
-            dag_download_time_ms=dag_download_time_ms, 
-            serialized_dag_size_bytes=serialized_dag_size_bytes, 
-            create_subdags_time_ms=create_subdags_time_ms,
-            gb_seconds=(time.monotonic() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
-        )
-    )
 
 if __name__ == '__main__':
     # Run the main async function and wait until it completes

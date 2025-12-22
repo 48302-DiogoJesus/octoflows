@@ -54,7 +54,7 @@ class WorkflowInstanceInfo:
     dag: FullDAG
     dag_download_stats: List[EndWorkerMetrics]
     start_time_s: float
-    total_worker_startup_time_ms: float
+    total_worker_startup_time_s: float
     total_workers: int
     tasks: List[WorkflowInstanceTaskInfo]
     resource_usage_gbseconds: float
@@ -212,17 +212,6 @@ async def get_workflows_information(
                 if not submission_data: return None
                 dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
 
-                #* DEBUG
-                # for task in tasks:
-                #     for om in task.metrics.optimization_metrics:
-                #         if not isinstance(om, PreWarmOptimization.OptimizationMetrics): continue
-                #         target_worker_id = om.resource_config.worker_id
-                #         wsm = [m for m in this_workflow_wsm if m.resource_configuration.worker_id == target_worker_id]
-                #         if not len(wsm): continue
-                #         this_worker_startup_metrics = wsm[0]
-                #         if plan_output:
-                #             print(f"{plan_output.planner_name} | time to worker start prewarm at: {(this_worker_startup_metrics.start_time_ms / 1000) - om.absolute_trigger_timestamp_s} | Worker state: {this_worker_startup_metrics.state}")
-
                 warm_starts_count = len(
                     [m for m in this_workflow_wsm if m.state == "warm"]
                 )
@@ -231,11 +220,11 @@ async def get_workflows_information(
                 )
 
                 for m in this_workflow_wsm:
-                    if m.end_timestamp_s is not None:
-                        print(m.end_timestamp_s, m.start_timestamp_s, m.end_timestamp_s - m.start_timestamp_s)
+                    assert m.end_timestamp_s
+                    print(m.initial_task_ids, m.end_timestamp_s / 1_000, m.start_timestamp_s / 1_000, m.end_timestamp_s - m.start_timestamp_s)
                 print("-------")
 
-                total_worker_startup_time_ms = sum(
+                total_worker_startup_time_s = sum(
                     [
                         (m.end_timestamp_s - m.start_timestamp_s)
                         for m in this_workflow_wsm
@@ -265,7 +254,7 @@ async def get_workflows_information(
                     dag,
                     dag_download_stats,
                     dag_submission_metrics.dag_submission_timestamp_s,
-                    total_worker_startup_time_ms,
+                    total_worker_startup_time_s,
                     total_workers,
                     tasks,
                     resource_usage,
@@ -410,7 +399,7 @@ async def main():
         actual_dependency_update = sum(task.metrics.update_dependency_counters_time_ms / 1000 for task in instance.tasks if task.metrics.update_dependency_counters_time_ms is not None)  # in seconds
         actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])  # in bytes
         actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])  # in bytes
-        actual_total_worker_startup_time_s = instance.total_worker_startup_time_ms / 1000  # in seconds
+        actual_total_worker_startup_time_s = instance.total_worker_startup_time_s
         
         # Calculate actual makespan
         from src.task_worker_resource_configuration import TaskWorkerResourceConfiguration
@@ -1291,7 +1280,7 @@ async def main():
                         if task.metrics.output_metrics.tp_time_ms is not None
                     ),
                     'Total Data Transferred': instance.total_transferred_data_bytes,
-                    'Worker Startup Time [s]': instance.total_worker_startup_time_ms / 1000,
+                    'Worker Startup Time [s]': instance.total_worker_startup_time_s,
                     'Resource Usage': instance.resource_usage_gbseconds,
                     'Total Prewarms': total_prewarms,
                     'Total Preloads': total_preloads,
@@ -1513,7 +1502,7 @@ async def main():
                     if hasattr(task.metrics, 'update_dependency_counters_time_ms') and task.metrics.update_dependency_counters_time_ms is not None
                 ))
                 metrics['total_time_waiting_for_inputs'].append(total_time_waiting_for_inputs_s)
-                metrics['worker_startup'].append(instance.total_worker_startup_time_ms / 1000)
+                metrics['worker_startup'].append(instance.total_worker_startup_time_s)
                 metrics['resource_usage'].append(instance.resource_usage_gbseconds)
                 metrics['data_size_uploaded'].append(sum(task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks))
                 metrics['data_size_downloaded'].append(sum(
