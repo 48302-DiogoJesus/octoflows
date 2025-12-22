@@ -251,6 +251,8 @@ async def get_workflows_information(
                 prewarm_dummy_invocation_cost_ms = 50
                 # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
                 resource_usage = worker_execution_cost + failed_prewarms * (prewarm_dummy_invocation_cost_ms / 1000)
+                if plan_output is not None and plan_output.planner_name == "WUKONGPlanner":
+                    print(len(dag_download_stats), "vs", len(this_workflow_wsm), [wsm.resource_configuration.memory_mb for wsm in this_workflow_wsm])
 
                 total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
 
@@ -1736,11 +1738,6 @@ async def main():
                 planner_name = instance.plan.planner_name
                 if planner_name not in manual_order:
                     continue
-
-                sink_task_metrics = [
-                    t for t in instance.tasks
-                    if t.internal_task_id == instance.dag.sink_node.id.get_internal_id()
-                ][0].metrics
 
                 sink_task_ended_timestamp_s = max([t.metrics.ended_at_timestamp_s for t in instance.tasks])
                 actual_makespan_s = sink_task_ended_timestamp_s - instance.start_time_s

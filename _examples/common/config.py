@@ -42,7 +42,7 @@ def get_planner_from_sys_argv():
         else [
             TaskWorkerResourceConfiguration(base_mb * 2),
             TaskWorkerResourceConfiguration(base_mb * 4),
-            TaskWorkerResourceConfiguration(base_mb * 6)
+            TaskWorkerResourceConfiguration(base_mb * 8)
         ]
     )
 
