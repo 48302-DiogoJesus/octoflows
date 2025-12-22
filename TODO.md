@@ -6,6 +6,7 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
+- Micro-testing (3 instances, 1 SLA)
 - Wukong resource usage is too low: must be miscalculated
 - See which workflows are weaker
 
