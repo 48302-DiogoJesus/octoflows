@@ -6,11 +6,8 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
-- Increased target to 4.5 seconds
-    all: 9, 23, 7, 26
-    img: 0, 70, 11, 72
-    txt: 30, 20, 16, 30
-    check cold start ratio
+- Makespan: 14, 17, 12, 15
+- Warm Starts: 9, 26, 9, 33
 
 - preload not too effective (now made least 2 external tasks)
 - try MAX_FAN_OUT_SIZE_W_SAME_WORKER = 2
