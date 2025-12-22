@@ -221,8 +221,7 @@ async def get_workflows_information(
 
                 for m in this_workflow_wsm:
                     assert m.end_timestamp_s
-                    print(m.initial_task_ids, m.end_timestamp_s / 1_000, m.start_timestamp_s / 1_000, m.end_timestamp_s - m.start_timestamp_s)
-                print("-------")
+                    assert m.end_timestamp_s - m.start_timestamp_s > 0
 
                 total_worker_startup_time_s = sum(
                     [
