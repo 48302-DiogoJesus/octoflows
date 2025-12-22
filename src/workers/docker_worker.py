@@ -108,8 +108,7 @@ class DockerWorker(Worker):
                     was_prewarmed=False,
                     end_timestamp_s=None,
                     initial_task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
-                ),
-                task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
+                )
             )
 
             fulldag_size_below_threshold = False

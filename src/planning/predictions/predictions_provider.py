@@ -213,7 +213,7 @@ class PredictionsProvider:
         
         if sla == "average": startup_time = np.average(samples)
         else: startup_time = np.percentile(samples, sla.value)
-        if startup_time <= 0: raise ValueError(f"No data available for predicting '{state}' worker startup time")
+        if startup_time <= 0: raise ValueError(f"Previous worker startup time for '{state}' workers is negative or 0: {startup_time}")
         res = startup_time
         
         self._cached_prediction_startup_times[prediction_key] = res # type: ignore

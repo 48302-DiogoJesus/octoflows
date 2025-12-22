@@ -205,6 +205,16 @@ async def main():
             
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
         
+        await wk.metadata_storage.store_workflow_end_metrics(
+            fulldag.master_dag_id,
+            EndWorkerMetrics(
+                dag_download_time_ms=dag_download_time_ms, 
+                serialized_dag_size_bytes=serialized_dag_size_bytes, 
+                create_subdags_time_ms=create_subdags_time_ms,
+                gb_seconds=(time.monotonic() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
+            )
+        )
+
         # Intermediate data cleanup after execution
         """
         Removes:
@@ -236,16 +246,6 @@ async def main():
             if keys_to_delete:
                 await wk.intermediate_storage.mdelete(*keys_to_delete)
             
-        await wk.metadata_storage.store_workflow_end_metrics(
-            fulldag.master_dag_id,
-            EndWorkerMetrics(
-                dag_download_time_ms=dag_download_time_ms, 
-                serialized_dag_size_bytes=serialized_dag_size_bytes, 
-                create_subdags_time_ms=create_subdags_time_ms,
-                gb_seconds=(time.monotonic() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
-            )
-        )
-        
         #* 7) Upload metrics collected during task execution
         await wk.metadata_storage.flush()
         await wk.metadata_storage.close_connection()

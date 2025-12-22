@@ -53,9 +53,9 @@ class MetadataStorage():
         async with self.lock:
             self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{master_dag_id}"] = plan
 
-    async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics, task_ids: list[str]):
+    async def store_invoker_worker_startup_metrics(self, metrics: WorkerStartupMetrics):
         """ direct upload to storage so that the INVOKED can find it and complete the missing fields """
-        task_ids_hash = hashlib.sha256(json.dumps(task_ids).encode('utf-8')).hexdigest()
+        task_ids_hash = hashlib.sha256(json.dumps(metrics.initial_task_ids).encode('utf-8')).hexdigest()
         await self.storage.set(f"{self.WORKER_STARTUP_PREFIX}{metrics.master_dag_id}_{task_ids_hash}", cloudpickle.dumps(metrics))
 
     async def update_invoked_worker_startup_metrics(self, end_time_s: float, worker_state: Literal["warm", "cold"], was_prewarmed: bool, task_ids: list[str], master_dag_id: str):
@@ -65,7 +65,8 @@ class MetadataStorage():
         wsm.end_timestamp_s = end_time_s
         wsm.state = worker_state
         wsm.was_prewarmed = was_prewarmed
-        async with self.lock: self.cached_metrics[storage_key] = wsm
+        async with self.lock: 
+            self.cached_metrics[storage_key] = wsm
 
     async def flush(self):
         start = time.time()
