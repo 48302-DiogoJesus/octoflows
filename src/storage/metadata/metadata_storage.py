@@ -47,7 +47,7 @@ class MetadataStorage():
     async def store_workflow_end_metrics(self, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
         unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
         async with self.lock:
-            await self.storage.set(f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}", cloudpickle.dumps(dag_download_metrics))
+            self.cached_metrics[f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
     
     async def store_plan(self, master_dag_id: str, plan):
         async with self.lock:
