@@ -279,7 +279,7 @@ def detect_overall_patterns(segments: List[str], text_stats: Dict[str, Any]) -> 
     vocabulary_richness = (unique_words / total_words) if total_words > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "type": "overall_patterns",
@@ -319,7 +319,7 @@ def merge_segment_analyses(segment_analyses: List[Dict[str, Any]],
     total_unique_words = sum(s.get("unique_words", 0) for s in segment_analyses)
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "total_segments": len(segment_analyses),
@@ -350,7 +350,7 @@ def calculate_text_metrics(merged_analysis: Dict[str, Any]) -> Dict[str, Any]:
     complexity_score = float((overall_avg_word_length * total_sentences) / 100.0) if total_sentences > 0 else 0.0
 
     # Consume time using CPU, more CPU = faster
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 4096, dtype=np.float64)))
 
     return {
         "words_per_sentence": words_per_sentence,
