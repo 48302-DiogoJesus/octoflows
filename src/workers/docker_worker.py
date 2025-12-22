@@ -102,11 +102,11 @@ class DockerWorker(Worker):
             await self.metadata_storage.store_invoker_worker_startup_metrics(
                 WorkerStartupMetrics(
                     master_dag_id=_worker_subdags[0].master_dag_id,
-                    start_time_ms=time.time() * 1000,
+                    start_timestamp_s=time.time(),
                     resource_configuration=targetWorkerResourcesConfig,
                     state=None,
                     was_prewarmed=False,
-                    end_time_ms=None,
+                    end_timestamp_s=None,
                     initial_task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]
                 ),
                 task_ids=[subdag.root_node.id.get_internal_id() for subdag in _worker_subdags]

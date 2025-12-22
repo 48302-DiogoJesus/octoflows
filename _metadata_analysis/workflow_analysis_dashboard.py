@@ -216,7 +216,7 @@ def main():
 
     worker_startup_keys = metrics_redis_conn.keys(f"{MetadataStorage.WORKER_STARTUP_PREFIX}*")
     worker_startup_metrics: list[WorkerStartupMetrics] = [cloudpickle.loads(metrics_redis_conn.get(key)) for key in worker_startup_keys] # type: ignore
-    total_workflow_worker_startup_time_s = sum([m.end_time_ms - m.start_time_ms for m in worker_startup_metrics if m.end_time_ms is not None]) / 1000
+    total_workflow_worker_startup_time_s = sum([m.end_timestamp_s - m.start_timestamp_s for m in worker_startup_metrics if m.end_timestamp_s is not None]) / 1000
 
     # Collect all metrics for this DAG
     dag_metrics: list[TaskMetrics] = []
@@ -526,7 +526,7 @@ def main():
                 output_data = metrics.output_metrics.serialized_size_bytes
                 worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_internal_id() in m.initial_task_ids]
                 worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
-                worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
+                worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_timestamp_s - worker_startup_metrics_w_my_task.start_timestamp_s) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_timestamp_s else 0
                 with col1:
                     total_task_handling_time = worker_startup_time_ms + (metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0) + (metrics.tp_execution_time_ms or 0) + (metrics.update_dependency_counters_time_ms or 0) + (metrics.output_metrics.tp_time_ms or 0) + (metrics.total_invocation_time_ms or 0)
                     small_metric("Worker Resources", f"{metrics.worker_resource_configuration.cpus}, {metrics.worker_resource_configuration.memory_mb}", help="vCPUs, Memory (MB)")
@@ -612,7 +612,7 @@ def main():
                             st.text(f"{float(end_time_ms):.3f} ms")
                             worker_startups_w_my_task = [m for m in worker_startup_metrics if task_node.id.get_internal_id() in m.initial_task_ids]
                             worker_startup_metrics_w_my_task = worker_startups_w_my_task[0] if len(worker_startups_w_my_task) > 0 else None
-                            actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_time_ms - worker_startup_metrics_w_my_task.start_time_ms) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_time_ms else 0
+                            actual_worker_startup_time_ms = (worker_startup_metrics_w_my_task.end_timestamp_s - worker_startup_metrics_w_my_task.start_timestamp_s) if worker_startup_metrics_w_my_task and worker_startup_metrics_w_my_task.end_timestamp_s else 0
                             st.text(f"({worker_startup_metrics_w_my_task.state if worker_startup_metrics_w_my_task else 'N/A'}) {float(actual_worker_startup_time_ms):.2f} ms")
                         
                         # Calculate and display difference
@@ -734,7 +734,7 @@ def main():
 
         col1, col2, col3, col4, col5 = st.columns(5)
         worker_startup_metrics_for_this_workflow = [m for m in worker_startup_metrics if m.master_dag_id == dag.master_dag_id]
-        worker_startup_times_for_this_workflow = [m.end_time_ms - m.start_time_ms for m in worker_startup_metrics_for_this_workflow if m.end_time_ms is not None]
+        worker_startup_times_for_this_workflow = [m.end_timestamp_s - m.start_timestamp_s for m in worker_startup_metrics_for_this_workflow if m.end_timestamp_s is not None]
         total_workflow_worker_startup_time_s = sum(worker_startup_times_for_this_workflow) / 1000
         warm_starts_count = len([m for m in worker_startup_metrics_for_this_workflow if m.state == "warm"])
         cold_starts_count = len([m for m in worker_startup_metrics_for_this_workflow if m.state == "cold"])
@@ -1030,7 +1030,7 @@ def main():
 
                 for wsm in worker_startup_metrics:
                     if task_id in wsm.initial_task_ids:
-                        total_worker_startup += (wsm.end_time_ms - wsm.start_time_ms) if wsm.end_time_ms is not None else 0
+                        total_worker_startup += (wsm.end_timestamp_s - wsm.start_timestamp_s) if wsm.end_timestamp_s is not None else 0
                 
                 # Accumulate times
                 total_waiting += metrics.input_metrics.tp_total_time_waiting_for_inputs_ms or 0

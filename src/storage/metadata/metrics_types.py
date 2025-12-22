@@ -65,8 +65,8 @@ class TaskMetrics:
 class WorkerStartupMetrics:
     master_dag_id: str
     resource_configuration: TaskWorkerResourceConfiguration
-    start_time_ms: float
+    start_timestamp_s: float
     initial_task_ids: list[str]
-    end_time_ms: float | None = None
+    end_timestamp_s: float | None = None
     state: Literal["warm", "cold"] | None = None
     was_prewarmed: bool = False

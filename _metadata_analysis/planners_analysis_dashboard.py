@@ -209,11 +209,8 @@ async def get_workflows_information(
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
                 )
                 submission_data = await metadata_storage_conn.get(submission_key)
-                if not submission_data:
-                    return None
-                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(
-                    submission_data
-                )
+                if not submission_data: return None
+                dag_submission_metrics: UserDAGSubmissionMetrics = cloudpickle.loads(submission_data)
 
                 #* DEBUG
                 # for task in tasks:
@@ -233,11 +230,16 @@ async def get_workflows_information(
                     [m for m in this_workflow_wsm if m.state == "cold"]
                 )
 
+                for m in this_workflow_wsm:
+                    if m.end_timestamp_s is not None:
+                        print(m.end_timestamp_s, m.start_timestamp_s, m.end_timestamp_s - m.start_timestamp_s)
+                print("-------")
+
                 total_worker_startup_time_ms = sum(
                     [
-                        (m.end_time_ms - m.start_time_ms)
+                        (m.end_timestamp_s - m.start_timestamp_s)
                         for m in this_workflow_wsm
-                        if m.end_time_ms
+                        if m.end_timestamp_s
                     ]
                 )
                 total_workers = len(this_workflow_wsm)
@@ -585,108 +587,113 @@ async def main():
             
             # Sort instances by start time to ensure we're looking at previous instances correctly
             if not df_instances.empty and 'Master DAG ID' in df_instances.columns:
-                # Create a list to store all previous metrics for each metric type
+                # 1. Initialize history storage
                 all_previous_metrics = {
-                    'makespan': [],
-                    'execution': [],
-                    'download': [],
-                    'upload': [],
-                    'input_size': [],
-                    'output_size': [],
-                    'worker_startup': []
+                    'makespan': [], 'execution': [], 'download': [], 'upload': [],
+                    'input_size': [], 'output_size': [], 'worker_startup': []
                 }
                 
-                # Create a new column to store the formatted values
-                formatted_values = {col: [None] * len(df_instances) for col in [
+                # 2. Initialize output lists (We will append to these to avoid index errors)
+                # Using a dict of lists to collect results in order
+                formatted_results = {col: [] for col in [
                     'Makespan', 'Total Execution Time', 'Total Download Time',
                     'Total Upload Time', 'Total Input Size', 'Total Output Size',
                     'Total Worker Startup Time'
                 ]}
                 
-                # Process each instance in order
-                for idx, row in df_instances.iterrows():
+                # Map friendly column names to internal metric keys and units
+                metric_columns = {
+                    'Makespan': ('makespan', 's'),
+                    'Total Execution Time': ('execution', 's'),
+                    'Total Download Time': ('download', 's'),
+                    'Total Upload Time': ('upload', 's'),
+                    'Total Input Size': ('input_size', 'b'),
+                    'Total Output Size': ('output_size', 'b'),
+                    'Total Worker Startup Time': ('worker_startup', 's')
+                }
+
+                # Helper function (Moved outside loop for cleanliness, though inside is valid)
+                def format_with_sla(current_val_str, metric_name, value, unit, current_thresholds):
+                    if not current_thresholds or metric_name not in current_thresholds:
+                        return str(value) # Just return raw value if no history
+                        
+                    try:
+                        sla_threshold = float(current_thresholds[metric_name])
+                        offset = value - sla_threshold
+                        sign = "+" if offset >= 0 else ""
+                        meets_sla = value <= sla_threshold # Assuming Lower is Better
+                        emoji = "✅" if meets_sla else "❌"
+                        
+                        # Format unit display
+                        if unit == 's':
+                            sla_details = f"{emoji} SLA: {sla_threshold:.3f}s (offset: {sign}{abs(offset):.3f}s)"
+                        else: # for sizes
+                            # Assuming format_bytes is defined elsewhere
+                            sla_details = f"{emoji} SLA: {format_bytes(sla_threshold)[2]} (offset: {sign}{format_bytes(abs(offset))[2]})"
+                        
+                        return f"{current_val_str}\n{sla_details}"
+                    except Exception as e:
+                        return str(value)
+
+                # 3. Process instances
+                # Use enumerate to ignore the index label and just process sequentially
+                for i, (idx, row) in enumerate(df_instances.iterrows()):
                     metrics = row['_metrics']
                     sla_pct = row['_sla_percentile']
-                    sla_value = row['SLA']
+                    sla_mode = row['SLA'] # "average" or percentile
                     
-                    # Helper function to format SLA comparison for this instance
-                    def format_with_sla(metric_name: str, value: float, unit: str = 's', current_metrics: Dict[str, float] = None) -> str:
-                        try:
-                            if not current_metrics or metric_name not in current_metrics or pd.isna(current_metrics[metric_name]):
-                                return f"{value:.3f}{unit}"
+                    # A. Calculate SLA Thresholds based on history SO FAR
+                    current_sla_thresholds = {}
+                    # Only calculate if we have history
+                    if sla_pct is not None and len(all_previous_metrics['makespan']) > 0: 
+                        for metric_key, history_data in all_previous_metrics.items():
+                            if not history_data: continue
                             
-                            sla = float(current_metrics[metric_name])
-                            offset = value - sla
-                            sign = "+" if offset >= 0 else ""
-                            meets_sla = value <= sla
-                            emoji = "✅" if meets_sla else "❌"
-                            
-                            # Get the current cell value (contains the predicted vs actual comparison)
-                            current_value = str(df_instances.at[idx, col_name])
-                            
-                            # Format the SLA information
-                            if unit == 's':
-                                sla_info = f"{emoji} SLA: {sla:.3f}s (offset: {sign}{abs(offset):.3f}s)"
-                            else:  # for sizes
-                                sla_info = f"{emoji} SLA: {format_bytes(sla)[2]} (offset: {sign}{format_bytes(abs(offset))[2]})"
-                            
-                            return f"{current_value}\n{sla_info}"
-                        except Exception as e:
-                            print(f"Error formatting SLA for {metric_name}: {e}")
-                            return str(value)
-                    
-                    # Calculate SLA based on previous instances
-                    current_sla_metrics = {}
-                    if sla_pct is not None and all_previous_metrics['makespan']:  # Only calculate if we have previous data
-                        for metric in all_previous_metrics.keys():
-                            if not all_previous_metrics[metric]:
-                                continue
-                                
                             try:
-                                if sla_value == "average":
-                                    sla_value = float(np.average(all_previous_metrics[metric]))
-                                else:  # specific percentile
-                                    sla_value = float(np.percentile(all_previous_metrics[metric], sla_pct))
-                                current_sla_metrics[metric] = sla_value
-                            except (TypeError, ValueError) as e:
-                                print(f"Error calculating SLA for {metric}: {e}")
-                    
-                    # Update each metric with SLA comparison if we have SLA data
-                    metric_columns = {
-                        'Makespan': ('makespan', 's'),
-                        'Total Execution Time': ('execution', 's'),
-                        'Total Download Time': ('download', 's'),
-                        'Total Upload Time': ('upload', 's'),
-                        'Total Input Size': ('input_size', 'b'),
-                        'Total Output Size': ('output_size', 'b'),
-                        'Total Worker Startup Time': ('worker_startup', 's')
-                    }
-                    
-                    for col_name, (metric_name, unit) in metric_columns.items():
-                        if col_name in df_instances.columns and metric_name in metrics:
-                            try:
-                                metric_value = float(metrics[metric_name])
-                                
-                                if current_sla_metrics:  # Only add SLA if we have previous data to compare with
-                                    formatted = format_with_sla(metric_name, metric_value, unit, current_sla_metrics)
+                                if sla_mode == "average":
+                                    threshold = float(np.mean(history_data))
                                 else:
-                                    formatted = str(df_instances.at[idx, col_name])
-                                    
-                                if formatted is not None:
-                                    formatted_values[col_name][idx] = formatted
-                            except (ValueError, TypeError) as e:
-                                print(f"Error processing {metric_name}: {e}")
-                                formatted_values[col_name][idx] = str(metrics.get(metric_name, 'N/A'))
-                    
-                    # Add current instance's metrics to the history for the next iteration
-                    for metric_name in all_previous_metrics.keys():
-                        if metric_name in metrics:
-                            all_previous_metrics[metric_name].append(float(metrics[metric_name]))
-                
-                # Update the dataframe with the formatted values
-                for col_name, values in formatted_values.items():
+                                    threshold = float(np.percentile(history_data, sla_pct))
+                                current_sla_thresholds[metric_key] = threshold
+                            except Exception:
+                                pass
+
+                    # B. Format columns for this row
+                    for col_name, (metric_key, unit) in metric_columns.items():
+                        # Default to whatever is currently in the cell or N/A
+                        original_val = df_instances.at[idx, col_name]
+                        final_str = str(original_val)
+                        
+                        if metric_key in metrics:
+                            try:
+                                val_float = float(metrics[metric_key])
+                                # Format
+                                final_str = format_with_sla(
+                                    original_val, 
+                                    metric_key, 
+                                    val_float, 
+                                    unit, 
+                                    current_sla_thresholds
+                                )
+                            except (ValueError, TypeError):
+                                pass
+                        
+                        # Append result to our result lists
+                        formatted_results[col_name].append(final_str)
+
+                    # C. Update History (AFTER calculation)
+                    for metric_key in all_previous_metrics.keys():
+                        if metric_key in metrics:
+                            try:
+                                all_previous_metrics[metric_key].append(float(metrics[metric_key]))
+                            except (ValueError, TypeError):
+                                pass
+
+                # 4. Assign columns back to DataFrame
+                # Since we processed rows in order and appended to lists, alignment is guaranteed
+                for col_name, values_list in formatted_results.items():
                     if col_name in df_instances.columns:
-                        df_instances[col_name] = values
+                        df_instances[col_name] = values_list
         
         # Sort by sample count in descending order
         if '_sample_count' in df_instances.columns:
@@ -806,7 +813,7 @@ async def main():
                 actual_total_upload = sum(task.metrics.output_metrics.tp_time_ms / 1000 for task in instance.tasks if task.metrics.output_metrics.tp_time_ms is not None)
                 actual_input_size = sum([sum([input_metric.serialized_size_bytes for input_metric in task.metrics.input_metrics.input_download_metrics.values()]) + task.metrics.input_metrics.hardcoded_input_size_bytes for task in instance.tasks])
                 actual_output_size = sum([task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks])
-                actual_worker_startup_time_s = sum([metric.end_time_ms - metric.start_time_ms for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None])
+                actual_worker_startup_time_s = sum([metric.end_timestamp_s - metric.start_timestamp_s for metric in st.session_state.worker_startup_metrics if metric.master_dag_id == instance.master_dag_id and metric.end_timestamp_s is not None])
 
                 # Get predicted metrics if available
                 predicted_makespan_s = predicted_execution = predicted_total_download = predicted_total_upload = predicted_input_size_bytes = predicted_output_size = predicted_worker_startup_time_s = 0 # initialize them outside
@@ -883,9 +890,9 @@ async def main():
                         task.metrics.output_metrics.serialized_size_bytes for task in instance.tasks
                     ])
                     actual_worker_startup_time_s = sum([
-                        (metric.end_time_ms - metric.start_time_ms) / 1000
+                        metric.end_timestamp_s - metric.start_timestamp_s
                         for metric in st.session_state.worker_startup_metrics
-                        if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
+                        if metric.master_dag_id == instance.master_dag_id and metric.end_timestamp_s is not None
                     ])
 
                     # Compute predicted metrics
@@ -1083,9 +1090,9 @@ async def main():
                             for task in instance.tasks if hasattr(task.metrics, 'output_metrics')
                         ),
                         'worker_startup_time': sum(
-                            (metric.end_time_ms - metric.start_time_ms) / 1000
+                            metric.end_timestamp_s - metric.start_timestamp_s
                             for metric in st.session_state.worker_startup_metrics
-                            if metric.master_dag_id == instance.master_dag_id and metric.end_time_ms is not None
+                            if metric.master_dag_id == instance.master_dag_id and metric.end_timestamp_s is not None
                         )
                     }
 

@@ -119,7 +119,7 @@ async def main():
         wk.debug_worker_id = f"flex-{uuid4().hex}" if wk.my_resource_configuration.worker_id is None else wk.my_resource_configuration.worker_id
 
         await wk.metadata_storage.update_invoked_worker_startup_metrics(
-            end_time_ms=time.time() * 1000,
+            end_time_s=time.time(),
             worker_state="warm" if is_warm_start else "cold",
             was_prewarmed=first_to_use_prewarmed_worker,
             task_ids=[id.get_internal_id() for id in immediate_task_ids],
