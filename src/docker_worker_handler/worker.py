@@ -49,7 +49,7 @@ def pop_prewarm_msg_and_clear(filename: str) -> bool:
 ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
 
 async def main():
-    start_time_s = time.monotonic()
+    start_time_s = time.time()
     # Ensure only one instance of the script is running
     try:
         if platform.system() == "Windows":
@@ -211,7 +211,7 @@ async def main():
                 dag_download_time_ms=dag_download_time_ms, 
                 serialized_dag_size_bytes=serialized_dag_size_bytes, 
                 create_subdags_time_ms=create_subdags_time_ms,
-                gb_seconds=(time.monotonic() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
+                gb_seconds=(time.time() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
             )
         )
 
