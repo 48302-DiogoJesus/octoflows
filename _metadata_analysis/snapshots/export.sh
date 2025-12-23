@@ -1,23 +1,4 @@
-#!/bin/bash
-
-# === Configuration ===
-REDIS_PASSWORD="redisdevpwd123"
-BACKUP_DIR=$(pwd)
-
-# host user and group IDs
-UID=$(id -u)
-GID=$(id -g)
-
-# --- Metrics Storage ---
-echo "Backing up metrics-storage-redis..."
 docker exec metrics-storage-redis \
   redis-cli -h 10.15.0.22 -a "$REDIS_PASSWORD" SAVE
 
-docker run --rm \
-  --user "$UID:$GID" \
-  -v redis-metrics-data:/source \
-  -v "$BACKUP_DIR":/backup \
-  alpine cp /source/dump.rdb "/backup/metrics_backup.rdb"
-
-echo "Backups completed:"
-echo " - metrics_backup.rdb"
+docker cp metrics-storage-redis:/data/dump.rdb ./metrics_backup.rdb
