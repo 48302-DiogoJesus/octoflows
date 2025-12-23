@@ -16,6 +16,9 @@ class Storage(ABC):
     
     @abstractmethod
     async def exists(self, *keys: str) -> Any: pass # returns number of keys that exist
+
+    @abstractmethod
+    async def exists_many(self, keys: list[str]) -> list[bool]: pass
     
     @abstractmethod
     async def set(self, key: str, value) -> Any: pass

@@ -1,6 +1,6 @@
 import asyncio
 from dataclasses import dataclass, field
-from typing import Any, Awaitable
+from typing import Any, Awaitable, ClassVar
 import cloudpickle
 from src.dag.dag import FullDAG, SubDAG
 from src.task_optimization import TaskOptimization
@@ -17,15 +17,13 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
+MAX_GLOBAL_CONCURRENT_PRELOADS = 10
+
 @dataclass
 class PreLoadOptimization(TaskOptimization):
     """ 
     Indicates that the upstream dependencies of a task annotated with this 
     annotation should be downloaded as soon as possible, in parallel. 
-
-    Note: 
-        Flexible workers can't have preload optimizations because they don't know which tasks they will execute, so they wouldn't know which tasks to PRELOAD.
-        However, a Fixed worker can preload output from tasks executed by Flexible workers
     """
 
     @dataclass
@@ -33,15 +31,19 @@ class PreLoadOptimization(TaskOptimization):
         preloaded: DAGTaskNodeId
 
     # for upstream tasks
-    preloading_subscription_ids: dict[str, str] = field(default_factory=dict) # dependent task + upstream task -> subscription id
-    # Flag that indicates if starting new preloading for upstream tasks of this task is allowed or not
+    preloading_subscription_ids: dict[str, str] = field(default_factory=dict)
     allow_new_preloads: bool = True
     
-    # New state management for concurrent preloads
-    # A lock to protect access to shared state like `allow_new_preloads` and `_active_preloads`
     _state_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    # A dictionary to track currently running preload tasks
-    _active_preloads: dict[str, asyncio.Task] = field(default_factory=dict) # upstream task full_id -> Task
+    _active_preloads: dict[str, asyncio.Task] = field(default_factory=dict)
+
+    _global_semaphore: ClassVar[asyncio.Semaphore | None] = None
+
+    @classmethod
+    def get_semaphore(cls) -> asyncio.Semaphore:
+        if cls._global_semaphore is None:
+            cls._global_semaphore = asyncio.Semaphore(MAX_GLOBAL_CONCURRENT_PRELOADS)
+        return cls._global_semaphore
 
     @property
     def name(self): return "PreLoad"
@@ -51,11 +53,10 @@ class PreLoadOptimization(TaskOptimization):
     @staticmethod
     def planning_assignment_logic(planner, dag: FullDAG, predictions_provider, nodes_info: dict, topo_sorted_nodes: list[DAGTaskNode]): 
         for node in topo_sorted_nodes:
-            # Skip if node already has PreLoad annotation. Either added by this planner or the user
             if node.try_get_optimization(PreLoadOptimization): continue 
             
             resource_config: TaskWorkerResourceConfiguration = node.worker_config
-            if resource_config.worker_id is None: continue # flexible workers can't have preload
+            if resource_config.worker_id is None: continue 
 
             if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 2:
                 node.add_optimization(PreLoadOptimization())
@@ -73,16 +74,13 @@ class PreLoadOptimization(TaskOptimization):
             if upstream_task.cached_result is not None: return
             
             upstream_id = upstream_task.id.get_internal_id()
-            if upstream_id in self._active_preloads: return # Already preloading
-
+            if upstream_id in self._active_preloads: return 
             logger.info(f"[PRELOADING - QUEUED] Task: {upstream_id} for dependent: {dependent_task.id.get_internal_id()}")
 
-            # Create the task but don't await it here.
-            preload_task = asyncio.create_task(
+            self._active_preloads[upstream_id] = asyncio.create_task(
                 self._perform_preloading(upstream_task, dependent_task, self, intermediate_storage, metadata_storage, dag),
                 name=f"{COROTAG_PRELOAD}_{upstream_id}"
             )
-            self._active_preloads[upstream_id] = preload_task
     
     @staticmethod
     async def _perform_preloading(
@@ -93,40 +91,39 @@ class PreLoadOptimization(TaskOptimization):
         metadata_storage: Storage, 
         dag: FullDAG
     ):
-        """ The core logic for downloading a single dependency. Runs concurrently for multiple dependencies. """
         upstream_id_in_dag = upstream_task.id.get_remote_id(dag)
         upstream_full_id = upstream_task.id.get_internal_id()
         
-        # Unsubscribe from the completion event since we are now handling it.
-        # This is safe to do outside the lock.
+        # fire-and-forget unsubscribe
         subscription_key = f"{dependent_task.id.get_internal_id()}{upstream_full_id}"
         subscription_id = annotation.preloading_subscription_ids.pop(subscription_key, None)
-        if subscription_id: await metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_id_in_dag}", subscription_id)
+        if subscription_id: asyncio.create_task(metadata_storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{upstream_id_in_dag}", subscription_id))
 
         try:
-            if upstream_task.cached_result is not None: return # Double-check
+            sem = PreLoadOptimization.get_semaphore()
+            async with sem:
+                # Re-check conditions after acquiring semaphore (we might have waited a long time)
+                if upstream_task.cached_result is not None: return 
+                if not annotation.allow_new_preloads: return 
 
-            logger.info(f"[PRELOADING - STARTED] Task: {upstream_full_id}")
-            dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
+                logger.info(f"[PRELOADING - STARTED] Task: {upstream_full_id}")
+                
+                _timer = Timer() 
+                serialized_data: Any = await intermediate_storage.get(upstream_id_in_dag)
+                time_to_fetch_ms = _timer.stop()
+                deserialized_task_output = await asyncio.to_thread(cloudpickle.loads, serialized_data)
+                upstream_task.cached_result = _CachedResultWrapper(deserialized_task_output)
 
-            _timer = Timer()
-            serialized_data: Any = await intermediate_storage.get(upstream_id_in_dag)
-            time_to_fetch_ms = _timer.stop()
-            deserialized_task_output = await asyncio.to_thread(cloudpickle.loads, serialized_data)
-            upstream_task.cached_result = _CachedResultWrapper(deserialized_task_output)
+                dependent_task.metrics.optimization_metrics.append(PreLoadOptimization.OptimizationMetrics(preloaded=upstream_task.id))
+                dependent_task.metrics.input_metrics.input_download_metrics[upstream_full_id] = TaskInputDownloadMetrics(
+                    serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
+                    time_ms=time_to_fetch_ms
+                )
 
-            dependent_task.metrics.input_metrics.input_download_metrics[
-                upstream_full_id
-            ] = TaskInputDownloadMetrics(
-                serialized_size_bytes=calculate_data_structure_size_bytes(serialized_data),
-                time_ms=time_to_fetch_ms
-            )
-
-            logger.info(f"[PRELOADING - DONE] Task: {upstream_full_id}")
+                logger.info(f"[PRELOADING - DONE] Task: {upstream_full_id}")
         except Exception as e:
             logger.error(f"[PRELOADING - FAILED] Task: {upstream_full_id}. Error: {e}")
         finally:
-            # Always remove the task from the active list when done.
             async with annotation._state_lock:
                 annotation._active_preloads.pop(upstream_full_id, None)
 
@@ -135,48 +132,60 @@ class PreLoadOptimization(TaskOptimization):
         from src.workers.worker import Worker
         _worker: Worker = worker
         
-        if _worker.is_flex(): return # Flexible workers can't look ahead for their tasks to see if they have preload
+        if _worker.is_flex(): return 
 
         def _on_preload_task_completed_builder(dependent_task: DAGTaskNode, upstream_task: DAGTaskNode, annotation: PreLoadOptimization, intermediate_storage: Storage, metadata_storage: Storage, dag: FullDAG):
             async def _callback(_: dict, subscription_id: str | None = None):
                 await annotation._start_preloading_if_not_running(upstream_task, dependent_task, intermediate_storage, metadata_storage, dag)
             return _callback
 
-        _nodes_to_visit = dag.root_nodes
+        candidates_to_check = []
+        
+        _nodes_to_visit = dag.root_nodes[:]
         visited_nodes = set()
+        
         while _nodes_to_visit:
             current_node = _nodes_to_visit.pop(0)
             if current_node.id.get_internal_id() in visited_nodes: continue
             visited_nodes.add(current_node.id.get_internal_id())
             
             for downstream_node in current_node.downstream_nodes:
-                if downstream_node.id.get_internal_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
+                if downstream_node.id.get_internal_id() not in visited_nodes: 
+                    _nodes_to_visit.append(downstream_node)
             
-            # only preload tasks assigned to me
+            # Skip tasks not for me
             if current_node.worker_config.worker_id != _worker.my_resource_configuration.worker_id: continue
-            
+            # Skip tasks that are already done (if the node tracks this state locally)
+            if current_node.cached_result is not None: continue 
+
             preload_optimization = current_node.try_get_optimization(PreLoadOptimization)
             if not preload_optimization: continue
             
             for unode in current_node.upstream_nodes:
-                # only preload data from tasks that are assigned to other workers
                 if unode.worker_config.worker_id == _worker.my_resource_configuration.worker_id: continue
+                candidates_to_check.append((current_node, unode, preload_optimization))
 
-                subscription_channel = f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_remote_id(dag)}"
-                if await _worker.intermediate_storage.exists(unode.id.get_remote_id(dag)):
-                    logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")
-                    # Start the preload immediately. Fire-and-forget to avoid blocking the other checks
-                    asyncio.create_task(preload_optimization._start_preloading_if_not_running(unode, current_node, _worker.intermediate_storage, _worker.metadata_storage.storage, dag))
-                else:
-                    # we might miss the event between the `exists()` and the `subscribe()` but it's not critical + we avoid 1 storage call
-                    subscription_id = await _worker.metadata_storage.storage.subscribe(
-                        subscription_channel, 
-                        _on_preload_task_completed_builder(current_node, unode, preload_optimization, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
-                        coroutine_tag=COROTAG_PRELOAD,
-                        debug_worker_id=_worker.debug_worker_id
-                    )
-                    logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")
-                    preload_optimization.preloading_subscription_ids[f"{current_node.id.get_internal_id()}{unode.id.get_internal_id()}"] = subscription_id
+        if not candidates_to_check: return
+
+        keys_to_check = [unode.id.get_remote_id(dag) for _, unode, _ in candidates_to_check]
+        existence_results = await _worker.intermediate_storage.exists_many(keys_to_check)
+        
+        for (current_node, unode, preload_opt), exists in zip(candidates_to_check, existence_results):
+            if exists:
+                logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_internal_id()}")
+                asyncio.create_task(preload_opt._start_preloading_if_not_running(
+                    unode, current_node, _worker.intermediate_storage, _worker.metadata_storage.storage, dag
+                ))
+            else:
+                subscription_id = await _worker.metadata_storage.storage.subscribe(
+                    f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_remote_id(dag)}", 
+                    _on_preload_task_completed_builder(current_node, unode, preload_opt, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
+                    coroutine_tag=COROTAG_PRELOAD,
+                    debug_worker_id=_worker.debug_worker_id
+                )
+                
+                logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_internal_id()}")
+                preload_opt.preloading_subscription_ids[f"{current_node.id.get_internal_id()}{unode.id.get_internal_id()}"] = subscription_id
 
     @staticmethod
     async def wel_override_handle_inputs(worker, task: DAGTaskNode, subdag: SubDAG, upstream_tasks_without_cached_results: list) -> tuple[list, list[str], Awaitable[Any] | None]:
@@ -190,25 +199,28 @@ class PreLoadOptimization(TaskOptimization):
         if preload_optimization:
             tasks_to_wait_for = []
             async with preload_optimization._state_lock:
-                # Stop any new preloads from starting
                 logger.info(f"[PRELOAD - HANDLE_INPUTS] No more preloading allowed for {task.id.get_internal_id()}")
                 preload_optimization.allow_new_preloads = False
-                # Get a snapshot of currently running preload tasks for this optimization instance
                 tasks_to_wait_for = list(preload_optimization._active_preloads.values())
 
             if tasks_to_wait_for:
                 logger.info(f"[PRELOAD - HANDLE_INPUTS] Waiting for {len(tasks_to_wait_for)} active preloads to complete...")
-                # Create a coroutine that waits for all active preloads to finish
                 wait_coro = asyncio.gather(*tasks_to_wait_for)
 
-        # This part of the logic runs after the wait_coro (if any) is awaited by the caller.
-        # Here, we determine which inputs are *still* missing after preloading has finished.
-        for t in task.upstream_nodes:
-            subscription_id = preload_optimization.preloading_subscription_ids.get(f"{task.id.get_internal_id()}{t.id.get_internal_id()}") if preload_optimization else None
-            if subscription_id is not None:
-                # Unsubscribe from any remaining events; they are no longer needed.
-                await _worker.metadata_storage.storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_remote_id(subdag)}", subscription_id=subscription_id)
+        if preload_optimization:
+            unsubscribe_tasks = []
+            for t in task.upstream_nodes:
+                subscription_id = preload_optimization.preloading_subscription_ids.get(f"{task.id.get_internal_id()}{t.id.get_internal_id()}")
+                if subscription_id is not None:
+                     unsubscribe_tasks.append(
+                         _worker.metadata_storage.storage.unsubscribe(f"{TASK_COMPLETED_EVENT_PREFIX}{t.id.get_remote_id(subdag)}", subscription_id=subscription_id)
+                     )
+            
+            if unsubscribe_tasks:
+                async def _unsubscribe_background(): await asyncio.gather(*unsubscribe_tasks)
+                asyncio.create_task(_unsubscribe_background())
 
+        for t in task.upstream_nodes:
             if not t.cached_result:
                 logger.info(f"[HANDLE_INPUTS - NEED FETCHING] Task: {t.id.get_internal_id()} | Dependent task: {task.id.get_internal_id()}")
                 upstream_tasks_to_fetch.append(t)

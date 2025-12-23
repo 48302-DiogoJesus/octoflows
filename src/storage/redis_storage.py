@@ -113,6 +113,16 @@ class RedisStorage(storage.Storage):
             conn = await self._get_or_create_connection()
             return await conn.exists(*keys)
     
+    async def exists_many(self, keys: list[str]) -> list[bool]:
+        if not keys: return []
+        async with self._op_semaphore:
+            conn = await self._get_or_create_connection()
+            async with conn.pipeline() as pipe:
+                for key in keys:
+                    pipe.exists(key)
+                results = await pipe.execute()
+            return [bool(r) for r in results] # Redis pipeline returns 1 or 0 for exists, map them to boolean
+
     async def close_connection(self):
         # Closing does not need the semaphore, it is cleanup
         if self._pubsub_task:

@@ -13,8 +13,7 @@ mem = 6gb
 - Makespan: 14, 17, 12, 15
 - Warm Starts: 0, 18, 7, 30
 
-- preload not too effective (now made least 1 external tasks)
-    - make the implementation more effetive?
+- Improve Preload performance and test again
 
 - Try conc=3 mem=8
 
