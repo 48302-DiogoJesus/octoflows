@@ -56,7 +56,7 @@ class PreLoadOptimization(TaskOptimization):
             if node.try_get_optimization(PreLoadOptimization): continue 
             
             resource_config: TaskWorkerResourceConfiguration = node.worker_config
-            if resource_config.worker_id is None: continue 
+            if resource_config.worker_id is None: continue
 
             if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 2:
                 node.add_optimization(PreLoadOptimization())
