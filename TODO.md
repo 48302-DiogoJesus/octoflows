@@ -21,12 +21,13 @@ warm = 8
     - Makespan: 
     - Warm Starts:  -->
 
-preload = 2
+preload = 4
 conc = 2
 prewarm = 1.5
 mem = 6gb
 - Makespan: 
 - Warm Starts: 
+good overall, but bad prewarms
 
 - Micro-testing (3 instances, 1 SLA)
 - Wukong resource usage is too low: must be miscalculated
