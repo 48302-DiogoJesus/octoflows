@@ -70,7 +70,7 @@ class PredictionsProvider:
         for wsm in worker_startup_metrics:
             wsm = cloudpickle.loads(wsm)
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
-            # if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
+            if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
             if wsm.end_timestamp_s is None: continue
             if wsm.state == "cold": self.cached_worker_cold_start_times_s.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
             elif wsm.state == "warm": self.cached_worker_warm_start_times_s.append(wsm.end_timestamp_s - wsm.start_timestamp_s)

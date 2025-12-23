@@ -11,8 +11,7 @@ conc = 2
 mem = 6gb
     - Makespan: 14, 17, 12, 15
     - Warm Starts: 9, 26, 9, 33
-- BUG: Worker startup is 0 => after fix, will need to reduce the prewarm config value
-- BUG: Predicted worker startup time is alreayd near 0
+- Adjust prewarm configuration after last bug
 
 - preload not too effective (now made least 1 external tasks)
 
