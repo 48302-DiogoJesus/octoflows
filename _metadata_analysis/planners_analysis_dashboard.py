@@ -325,6 +325,7 @@ async def main():
     
     # Connect to both Redis instances
     metadata_storage_conn = get_redis_connection("10.15.0.22", 6380)
+    # metadata_storage_conn = get_redis_connection("localhost", 6380)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:

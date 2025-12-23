@@ -4,7 +4,7 @@ REDIS_PASSWORD="redisdevpwd123"
 METRICS_FILE="$1"
 
 if [ -z "$METRICS_FILE" ] || [ "$METRICS_FILE" = "null" ]; then
-    echo "No metrics file provided. Skipping restore."
+    echo "No metrics file provided"
 else
     echo "Restoring metrics-storage-redis from: $METRICS_FILE"
 
