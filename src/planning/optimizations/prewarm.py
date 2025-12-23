@@ -59,7 +59,7 @@ class PreWarmOptimization(TaskOptimization, WorkerExecutionLogic):
             workers.setdefault(node_info.node_ref.worker_config.worker_id, []).append(node_info)
 
         # --- Step 2: Build worker summaries ---
-        predicted_startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla)
+        predicted_startup_ms = _predictions_provider.predict_worker_startup_time("cold", _planner.config.sla) * 1_000
         worker_summaries: dict[str, dict] = {}
         for worker_key, tasks in workers.items():
             sorted_tasks = sorted(tasks, key=lambda n: n.earliest_start_ms)

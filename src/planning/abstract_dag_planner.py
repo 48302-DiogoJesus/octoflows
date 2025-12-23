@@ -639,13 +639,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             # Determine if we can get a warm start based on capacity
             if available_warm_workers > concurrent_demand:
                 # WARM START - there's a warm worker available for us
-                worker_startup_prediction = (
-                    predictions_provider.predict_worker_startup_time("warm", sla)
-                )
+                worker_startup_prediction_s = predictions_provider.predict_worker_startup_time("warm", sla)
                 my_node_info.worker_startup_state = "warm"
-                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
-                my_node_info.earliest_start_ms += worker_startup_prediction
-                my_node_info.task_completion_time_ms += worker_startup_prediction
+                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction_s * 1_000
+                my_node_info.earliest_start_ms += worker_startup_prediction_s * 1_000
+                my_node_info.task_completion_time_ms += worker_startup_prediction_s * 1_000
 
                 # Register this worker's activity period for future capacity calculations
                 worker_active_periods[my_resource_config.memory_mb].append(
@@ -658,13 +656,11 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
                 )
             else:
                 # COLD START - no warm worker available due to capacity constraints
-                worker_startup_prediction = (
-                    predictions_provider.predict_worker_startup_time("cold", sla)
-                )
+                worker_startup_prediction_s = predictions_provider.predict_worker_startup_time("cold", sla)
                 my_node_info.worker_startup_state = "cold"
-                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction
-                my_node_info.earliest_start_ms += worker_startup_prediction
-                my_node_info.task_completion_time_ms += worker_startup_prediction
+                my_node_info.tp_worker_startup_time_ms = worker_startup_prediction_s * 1_000
+                my_node_info.earliest_start_ms += worker_startup_prediction_s * 1_000
+                my_node_info.task_completion_time_ms += worker_startup_prediction_s * 1_000
 
                 # Register this NEW worker's activity period
                 worker_active_periods[my_resource_config.memory_mb].append(

@@ -23,9 +23,9 @@ class PredictionsProvider:
     # Value: dict[function_name, list[tuple[normalized_execution_time_ms / input_size_bytes, cpus, memory_mb, input_size_bytes, total_input_size_bytes]]]
     cached_execution_time_per_byte: dict[str, list[tuple[float, float, int, int]]] = {}
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
-    cached_worker_cold_start_times: list[float] = []
+    cached_worker_cold_start_times_s: list[float] = []
     # Value: dict[function_name, list[tuple[startup_time, cpus, memory_mb]]]
-    cached_worker_warm_start_times: list[float] = []
+    cached_worker_warm_start_times_s: list[float] = []
 
     _cached_prediction_data_transfer_times: dict[str, float] = {}
     _cached_prediction_execution_times: dict[str, float] = {}
@@ -72,8 +72,8 @@ class PredictionsProvider:
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
             # if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
             if wsm.end_timestamp_s is None: continue
-            if wsm.state == "cold": self.cached_worker_cold_start_times.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
-            elif wsm.state == "warm": self.cached_worker_warm_start_times.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
+            if wsm.state == "cold": self.cached_worker_cold_start_times_s.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
+            elif wsm.state == "warm": self.cached_worker_warm_start_times_s.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
 
         # Doesn't go to Redis
         for task_id, metrics in same_workflow_same_planner_type_metrics.items():
@@ -200,24 +200,18 @@ class PredictionsProvider:
 
     def predict_worker_startup_time(self, state: Literal['cold', 'warm'], sla: SLA, allow_cached: bool = True) -> float:
         """Predict worker startup time given resource configuration and state."""
-        samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
+        samples = self.cached_worker_cold_start_times_s if state == "cold" else self.cached_worker_warm_start_times_s
         if sla != "average" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'average' or between 0 and 100")
-        import sys
-        if len(samples) == 0:
-            print("cold samples: ", self.cached_worker_cold_start_times)
-            print("warm samples: ", self.cached_worker_warm_start_times)
-            sys.exit()
-
-        # if len(samples) == 0: return 0
+        if len(samples) == 0: return 0
         
         prediction_key = f"{state}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_startup_times: 
             return self._cached_prediction_startup_times[prediction_key]
         
-        if sla == "average": startup_time = np.average(samples)
-        else: startup_time = np.percentile(samples, sla.value)
-        if startup_time <= 0: raise ValueError(f"Previous worker startup time for '{state}' workers is negative or 0: {startup_time}")
-        res = startup_time
+        if sla == "average": startup_time_s = np.average(samples)
+        else: startup_time_s = np.percentile(samples, sla.value)
+        if startup_time_s <= 0: raise ValueError(f"Previous worker startup time for '{state}' workers is negative or 0: {startup_time_s}")
+        res = startup_time_s
         
         self._cached_prediction_startup_times[prediction_key] = res # type: ignore
         return res # type: ignore
