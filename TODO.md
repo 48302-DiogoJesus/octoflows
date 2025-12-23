@@ -16,6 +16,7 @@ warm = 8
     after preload improvements:
     - Makespan: 
     - Warm Starts: 
+- MADE GEMM FAN-IN TWICE AS BIG
 
 - Improve Preload performance and test again
 

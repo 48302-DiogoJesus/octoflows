@@ -104,10 +104,6 @@ def compute_text_statistics(res: tuple[int, str]) -> Dict[str, Any]:
         vowel_count = 0
         consonant_count = 0
 
-    # Extra vectorized CPU work to favor multi-core (deterministic)
-    # rnd = np.linspace(0.0, 1.0, 8192, dtype=np.float64)
-    # _ = np.sum(np.sqrt(rnd) * np.sin(rnd * np.pi))
-
     return {
         "vowel_count": vowel_count,
         "consonant_count": consonant_count,
@@ -198,7 +194,7 @@ def extract_overall_keywords(segments: List[str], text_stats: Dict[str, Any]) ->
         total_processed = 0
 
     # small deterministic heavy op
-    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 8192, dtype=np.float64)))
+    _ = np.sum(np.sqrt(np.linspace(0.0, 1.0, 2048, dtype=np.float64)))
 
     return {
         "type": "overall_keywords",
