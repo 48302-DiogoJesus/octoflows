@@ -13,12 +13,21 @@ mem = 6gb
 warm = 8
     - Makespan: 14, 17, 12, 15
     - Warm Starts: 0, 18, 7, 30
-    after preload improvements:
+preload = 2
+!conc = 3
+prewarm = 1.5
+mem = 6gb
+warm = 8
     - Makespan: 
     - Warm Starts: 
-- [DONE,TEST] On All, dashboard should show the avg of the medians of individual workflows
 
-- Try conc=3 mem=8
+preload = 2
+!conc = 3 OR 2 (depends on prev experiment)
+prewarm = 1.5
+!mem = 8gb
+warm = 8
+    - Makespan: 
+    - Warm Starts: 
 
 - Micro-testing (3 instances, 1 SLA)
 - Wukong resource usage is too low: must be miscalculated
