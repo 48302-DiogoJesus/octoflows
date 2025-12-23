@@ -9,8 +9,9 @@ Test Setup
 - Makespan: 14, 17, 12, 15
 - Warm Starts: 9, 26, 9, 33
 
-- preload not too effective (now made least 2 external tasks)
+- preload not too effective (now made least 1 external tasks)
 - try MAX_FAN_OUT_SIZE_W_SAME_WORKER = 2
+
 - try 8GB
 
 - Micro-testing (3 instances, 1 SLA)
