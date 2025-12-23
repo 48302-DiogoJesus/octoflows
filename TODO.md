@@ -16,9 +16,7 @@ warm = 8
     after preload improvements:
     - Makespan: 
     - Warm Starts: 
-- MADE GEMM FAN-IN TWICE AS BIG
-
-- Improve Preload performance and test again
+- [DONE,TEST] On All, dashboard should show the avg of the medians of individual workflows
 
 - Try conc=3 mem=8
 

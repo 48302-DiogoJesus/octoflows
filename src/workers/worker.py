@@ -78,7 +78,6 @@ class Worker(ABC):
 
                 #* 1) DOWNLOAD TASK DEPENDENCIES
                 self.log(current_task.id.get_internal_id() + "++" + branch_id, f"1) Grabbing {len(current_task.upstream_nodes)} upstream tasks...")
-                _download_dependencies_timer = Timer()
                 task_dependencies: dict[str, Any] = {}
 
                 # METADATA: Register the size of hardcoded arguments that won't be downloaded!
@@ -107,6 +106,7 @@ class Worker(ABC):
                 time_spent_downloading: dict[str, float] = {}
 
                 ids_to_fetch = list(non_repeated_storage_ids)
+                _download_dependencies_timer = Timer()
                 if ids_to_fetch:
                     self.log(current_task.id.get_internal_id() + "++" + branch_id, f"Batch fetching {len(ids_to_fetch)} hardcoded items")
                     _timer = Timer()
@@ -213,7 +213,8 @@ class Worker(ABC):
                         if utask_id not in task_dependencies and utask.cached_result is not None:
                             task_dependencies[utask_id] = utask.cached_result.result
 
-                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if len(current_task.upstream_nodes) > 0 else None
+                utasks_from_other_workers = len([t for t in current_task.upstream_nodes if t.worker_config.worker_id is None or t.worker_config.worker_id != self.debug_worker_id])
+                current_task.metrics.input_metrics.tp_total_time_waiting_for_inputs_ms = _download_dependencies_timer.stop() if utasks_from_other_workers > 0 else None
 
                 # Store raw values, normalization will be done during prediction
                 await self.planner.wel_before_task_execution(self, current_task, subdag)
