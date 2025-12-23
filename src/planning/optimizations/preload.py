@@ -17,7 +17,7 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
-MAX_GLOBAL_CONCURRENT_PRELOADS = 4
+MAX_GLOBAL_CONCURRENT_PRELOADS = 3
 
 @dataclass
 class PreLoadOptimization(TaskOptimization):
@@ -58,7 +58,7 @@ class PreLoadOptimization(TaskOptimization):
             resource_config: TaskWorkerResourceConfiguration = node.worker_config
             if resource_config.worker_id is None: continue
 
-            if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 2:
+            if len([un for un in node.upstream_nodes if un.worker_config.worker_id is None or un.worker_config.worker_id != resource_config.worker_id]) >= 3:
                 node.add_optimization(PreLoadOptimization())
 
     async def _start_preloading_if_not_running(
