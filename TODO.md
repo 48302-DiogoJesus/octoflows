@@ -9,11 +9,19 @@ Test Setup
 preload = 3
 conc = 2
 mem = 6gb
-    - Makespan: 14, 17, 12, 15
-    - Warm Starts: 9, 26, 9, 33
+- Makespan: 14, 17, 12, 15
+- Warm Starts: 9, 26, 9, 33
+
+preload = 3
+conc = 3
+mem = 6gb
+- Makespan: 14, 17, 12, 15
+- Warm Starts: 0, 18, 7, 30
+
 - Adjust prewarm configuration after last bug
 
 - preload not too effective (now made least 1 external tasks)
+    - make the implementation more effetive?
 
 - try 8GB
 
