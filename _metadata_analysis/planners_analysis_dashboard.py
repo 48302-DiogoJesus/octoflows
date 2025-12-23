@@ -232,9 +232,6 @@ async def get_workflows_information(
                 )
                 total_workers = len(this_workflow_wsm)
 
-                # worker_startup_cost = sum([
-                #     ((metric.end_time_ms - metric.start_time_ms) / 1000) * (metric.resource_configuration.memory_mb / 1024) for metric in this_workflow_wsm if metric.end_time_ms is not None
-                # ])
                 worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
                 optimization_prewarms_successful = len([wsm.was_prewarmed for wsm in this_workflow_wsm])
                 failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful

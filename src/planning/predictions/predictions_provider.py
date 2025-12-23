@@ -55,8 +55,7 @@ class PredictionsProvider:
  
             same_workflow_same_planner_type_metrics[task_id] = metrics 
 
-            # Store upload/download speeds with resource configuration
-            # DOWNLOAD SPEEDS
+            # Store download speeds with resource configuration to predict download and upload speeds
             for input_metric in metrics.input_metrics.input_download_metrics.values():
                 if input_metric.time_ms is None or input_metric.serialized_size_bytes == -1: continue # it can be None if the input was present at the worker
                 # Normalize the download speed based on memory
@@ -67,13 +66,11 @@ class PredictionsProvider:
                     metrics.worker_resource_configuration.memory_mb
                 ))
 
-            #! UPLOAD SPEEDS are not used as they were distabilizing predictions
-
         worker_startup_metrics = await self.metadata_storage.storage.mget(worker_startup_metrics_keys)
         for wsm in worker_startup_metrics:
             wsm = cloudpickle.loads(wsm)
             if not isinstance(wsm, WorkerStartupMetrics): raise Exception(f"Deserialized value is not of type WorkerStartupMetrics: {type(wsm)}")
-            if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
+            # if self.dag_structure_hash not in wsm.master_dag_id: continue # only metrics grabbed from the same DAG are used
             if wsm.end_timestamp_s is None: continue
             if wsm.state == "cold": self.cached_worker_cold_start_times.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
             elif wsm.state == "warm": self.cached_worker_warm_start_times.append(wsm.end_timestamp_s - wsm.start_timestamp_s)
@@ -205,7 +202,13 @@ class PredictionsProvider:
         """Predict worker startup time given resource configuration and state."""
         samples = self.cached_worker_cold_start_times if state == "cold" else self.cached_worker_warm_start_times
         if sla != "average" and (sla.value < 0 or sla.value > 100): raise ValueError("SLA must be 'average' or between 0 and 100")
-        if len(samples) == 0: return 0
+        import sys
+        if len(samples) == 0:
+            print("cold samples: ", self.cached_worker_cold_start_times)
+            print("warm samples: ", self.cached_worker_warm_start_times)
+            sys.exit()
+
+        # if len(samples) == 0: return 0
         
         prediction_key = f"{state}-{sla}"
         if allow_cached and prediction_key in self._cached_prediction_startup_times: 

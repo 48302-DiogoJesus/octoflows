@@ -27,7 +27,7 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
     This way, the planner can specify the desired behavior.
     """
 
-    MAX_FAN_OUT_SIZE_W_SAME_WORKER = 2
+    MAX_FAN_OUT_SIZE_W_SAME_WORKER = 3
     TIME_UNTIL_WORKER_GOES_COLD_S = 8
 
     @property
