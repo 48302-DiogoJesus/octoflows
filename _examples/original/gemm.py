@@ -23,11 +23,8 @@ def create_matrix_chunks(matrix, row_chunk_size=1, col_chunk_size=1):
 def multiply_chunks(a_chunk_with_pos, b_chunk_with_pos):
     (i_a, _), a_chunk = a_chunk_with_pos
     (_, j_b), b_chunk = b_chunk_with_pos
-
     product = np.matmul(a_chunk, b_chunk)
-
     return ((i_a, j_b), product)
-
 
 @DAGTask
 def aggregate_results(partial_results, final_shape):
@@ -36,18 +33,22 @@ def aggregate_results(partial_results, final_shape):
         i, j = position
         rows, cols = value.shape
         result[i:i+rows, j:j+cols] = value
-
     return result
-
 
 RANDOM_MATRIX_COLS = 2_000
 RANDOM_MATRIX_ROWS = 2_000
-CHUNK_SIZE = 500
+
+# --- CONFIGURATION FOR 32 NODES ---
+# Matrix A: Split into 8 chunks (2000 / 250 = 8)
+CHUNK_SIZE_A = 250 
+# Matrix B: Split into 4 chunks (2000 / 500 = 4)
+CHUNK_SIZE_B = 500 
+# Total Tasks = 8 * 4 = 32
+# ----------------------------------
 
 def generate_matrices(rows_a, cols_a):
     matrix_a = np.random.randint(1, 10, (rows_a, cols_a))
     matrix_b = np.random.randint(1, 10, (cols_a, rows_a))
-    
     return matrix_a, matrix_b
 
 start_time = time.time()
@@ -55,13 +56,14 @@ matrix_a, matrix_b = generate_matrices(RANDOM_MATRIX_ROWS, RANDOM_MATRIX_COLS)
 print(f"Random matrices ({RANDOM_MATRIX_ROWS}x{RANDOM_MATRIX_COLS}) generated in {time.time() - start_time:.4f} seconds")
 
 start_time = time.time()
-# ! Not included in the workflow, not @DAGTask
-a_chunks = create_matrix_chunks(matrix_a, row_chunk_size=CHUNK_SIZE, col_chunk_size=matrix_a.shape[1])
-# ! Not included in the workflow, not @DAGTask
-b_chunks = create_matrix_chunks(matrix_b, row_chunk_size=matrix_b.shape[0], col_chunk_size=CHUNK_SIZE)
-print(f"Created {len(a_chunks) + len(b_chunks)} chunks for matrices in {time.time() - start_time:.4f} seconds")
 
-start_time = time.time()
+# Create chunks with different sizes to achieve 32 tasks
+a_chunks = create_matrix_chunks(matrix_a, row_chunk_size=CHUNK_SIZE_A, col_chunk_size=matrix_a.shape[1])
+b_chunks = create_matrix_chunks(matrix_b, row_chunk_size=matrix_b.shape[0], col_chunk_size=CHUNK_SIZE_B)
+
+print(f"Created {len(a_chunks)} A-chunks and {len(b_chunks)} B-chunks.")
+print(f"Total tasks expected: {len(a_chunks) * len(b_chunks)}")
+
 partial_results = []
 for a_chunk in a_chunks:
     for b_chunk in b_chunks:
@@ -72,10 +74,6 @@ print(f"Created {len(partial_results)} partial results in {time.time() - start_t
 
 result = aggregate_results(partial_results, (matrix_a.shape[0], matrix_b.shape[1]))
 
-# result.visualize_dag(output_file=os.path.join("_dag_visualization", "gemm"), open_after=False)
-# exit()
-
 start_time = time.time()
 result = result.compute(dag_name="gemm", config=WORKER_CONFIG, open_dashboard=False, download_result=False)
 print(f"User waited: {time.time() - start_time:.2f}s")
-# print(f"Is Multiplication correct: {np.allclose(np.matmul(matrix_a, matrix_b), result)}")

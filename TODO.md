@@ -10,8 +10,12 @@ preload = 2
 conc = 2
 prewarm = 1.5
 mem = 6gb
-- Makespan: 14, 17, 12, 15
-- Warm Starts: 0, 18, 7, 30
+warm = 8
+    - Makespan: 14, 17, 12, 15
+    - Warm Starts: 0, 18, 7, 30
+    after preload improvements:
+    - Makespan: 
+    - Warm Starts: 
 
 - Improve Preload performance and test again
 
