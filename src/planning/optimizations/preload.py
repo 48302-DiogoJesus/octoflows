@@ -17,7 +17,7 @@ from src.storage.metadata.metrics_types import TaskOptimizationMetrics
 
 logger = create_logger(__name__)
 
-MAX_GLOBAL_CONCURRENT_PRELOADS = 2
+MAX_GLOBAL_CONCURRENT_PRELOADS = 4
 
 @dataclass
 class PreLoadOptimization(TaskOptimization):
