@@ -6,30 +6,14 @@ Test Setup
 - M2
     Gateway (Inside Vagrant)
 
-<!-- preload = 2
-conc = 2
-prewarm = 1.5
-mem = 6gb
-warm = 8
-    - Makespan: 14, 17, 12, 15
-    - Warm Starts: 0, 18, 7, 30
-preload = 2
-conc = 2
-prewarm = 1.5
-mem = 6gb
-warm = 8
-    - Makespan: 
-    - Warm Starts:  -->
-
 preload = 4
 conc = 2
-prewarm = 1.5
+prewarm = 3
+stay warm for = 8
 mem = 6gb
-- Makespan: 
-- Warm Starts: 
-good overall, but bad prewarms
+- Makespan: 17, 22, 15, 16
+- Warm Starts: 8, 28, 7, 25
 
-- Micro-testing (3 instances, 1 SLA)
 - Wukong resource usage is too low: must be miscalculated
 
 - Rename metrics storage to metadata storage
