@@ -152,26 +152,29 @@ class PreLoadOptimization(TaskOptimization):
             for downstream_node in current_node.downstream_nodes:
                 if downstream_node.id.get_internal_id() not in visited_nodes: _nodes_to_visit.append(downstream_node)
             
+            # only preload tasks assigned to me
             if current_node.worker_config.worker_id != _worker.my_resource_configuration.worker_id: continue
             
             preload_optimization = current_node.try_get_optimization(PreLoadOptimization)
             if not preload_optimization: continue
             
             for unode in current_node.upstream_nodes:
+                # only preload data from tasks that are assigned to other workers
                 if unode.worker_config.worker_id == _worker.my_resource_configuration.worker_id: continue
 
                 subscription_channel = f"{TASK_COMPLETED_EVENT_PREFIX}{unode.id.get_remote_id(dag)}"
-                subscription_id = await _worker.metadata_storage.storage.subscribe(
-                    subscription_channel, 
-                    _on_preload_task_completed_builder(current_node, unode, preload_optimization, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
-                    coroutine_tag=COROTAG_PRELOAD,
-                    debug_worker_id=_worker.debug_worker_id
-                )
                 if await _worker.intermediate_storage.exists(unode.id.get_remote_id(dag)):
                     logger.info(f"[PRELOADING - ALREADY EXISTS] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")
                     # Start the preload immediately. Fire-and-forget to avoid blocking the other checks
                     asyncio.create_task(preload_optimization._start_preloading_if_not_running(unode, current_node, _worker.intermediate_storage, _worker.metadata_storage.storage, dag))
                 else:
+                    # we might miss the event between the `exists()` and the `subscribe()` but it's not critical + we avoid 1 storage call
+                    subscription_id = await _worker.metadata_storage.storage.subscribe(
+                        subscription_channel, 
+                        _on_preload_task_completed_builder(current_node, unode, preload_optimization, _worker.intermediate_storage, _worker.metadata_storage.storage, dag),
+                        coroutine_tag=COROTAG_PRELOAD,
+                        debug_worker_id=_worker.debug_worker_id
+                    )
                     logger.info(f"[PRELOADING - SUBSCRIBED] Task: {unode.id.get_internal_id()} | Dependent task: {current_node.id.get_internal_id()}")
                     preload_optimization.preloading_subscription_ids[f"{current_node.id.get_internal_id()}{unode.id.get_internal_id()}"] = subscription_id
 
