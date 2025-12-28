@@ -607,14 +607,10 @@ class AbstractDAGPlanner(WorkerExecutionLogic):
             my_resource_config = node.worker_config
             my_node_info = nodes_info[node.id.get_internal_id()]
 
-            # Check if any upstream node uses same or compatible worker config
             if any(
-                n.worker_config.memory_mb == my_resource_config.memory_mb
-                and (
-                    n.worker_config.worker_id == my_resource_config.worker_id
-                    or n.worker_config.worker_id is None
-                    or my_resource_config.worker_id is None
-                )
+                n.worker_config.worker_id is None and
+                my_resource_config.worker_id is None and
+                n.worker_config.worker_id == my_resource_config.worker_id
                 for n in node.upstream_nodes
             ):
                 # Won't cause a worker launch, will execute on already running worker

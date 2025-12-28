@@ -21,7 +21,6 @@ from src.storage.metadata.metrics_types import EndWorkerMetrics
 from src.utils.timer import Timer
 from src.dag_task_node import DAGTaskNode, DAGTaskNodeId, _CachedResultWrapper
 from src.utils.logger import create_logger
-from src.storage.prefixes import DEPENDENCY_COUNTER_PREFIX
 from src.utils.utils import calculate_data_structure_size_bytes
 
 logger = create_logger(__name__)
@@ -36,20 +35,22 @@ def create_if_not_exists(filename):
 
 def pop_prewarm_msg_and_clear(filename: str) -> bool:
     """
-    returns True if the file contained a string, false otherwise (file didn't exist, or didn't have content)
+    Returns True if the file contained the specific string "PREWARMED_AND_UNUSED",
+    False otherwise. In all cases where the file exists, its content is cleared.
     """
+    target_msg = "PREWARMED_AND_UNUSED"
+    
     try:
-        with open(filename, "r") as f: first_line = f.readline().strip()
-        with open(filename, "w") as f: pass
-        if not first_line or len(first_line) == 0: return False
-        return True
+        with open(filename, "r") as f:  content = f.read().strip()
+        with open(filename, "w") as f: pass  # Clear file
+        return content == target_msg # Check if the specific string matches
     except FileNotFoundError:
         return False
 
 ATOMIC_FILE_FOR_WARM_START_DETECTION = "/tmp/worker_startup.atomic"
 
 async def main():
-    start_time_s = time.time()
+    start_time_s = time.perf_counter()
     # Ensure only one instance of the script is running
     try:
         if platform.system() == "Windows":
@@ -204,16 +205,6 @@ async def main():
             await asyncio.wait(pending, timeout=None)  # Wait indefinitely
             
         logger.info(f"W({wk.debug_worker_id}) DONE Waiting for all coroutines!")
-        
-        await wk.metadata_storage.store_workflow_end_metrics(
-            fulldag.master_dag_id,
-            EndWorkerMetrics(
-                dag_download_time_ms=dag_download_time_ms, 
-                serialized_dag_size_bytes=serialized_dag_size_bytes, 
-                create_subdags_time_ms=create_subdags_time_ms,
-                gb_seconds=(time.time() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
-            )
-        )
 
         # Intermediate data cleanup after execution
         """
@@ -234,7 +225,7 @@ async def main():
                 # 1. Handle Sink Node specific logic (Dependency Counter)
                 if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
                     pass
-                    # ! continue uncomment, otherwise final result will be deleted before used downloads it
+                    # ! "continue" uncommented, otherwise final result will be deleted before used downloads it
                     # ! it's like this to make experiments more efficient and scale better
                     
                 await wk.intermediate_storage.delete(f"*{remote_id}*", pattern=True)
@@ -251,9 +242,19 @@ async def main():
         await wk.metadata_storage.close_connection()
         await wk.intermediate_storage.close_connection()
 
+        await wk.metadata_storage.store_workflow_end_metrics(
+            wk.debug_worker_id,
+            fulldag.master_dag_id,
+            EndWorkerMetrics(
+                dag_download_time_ms=dag_download_time_ms, 
+                serialized_dag_size_bytes=serialized_dag_size_bytes, 
+                create_subdags_time_ms=create_subdags_time_ms,
+                gb_seconds=(time.perf_counter() - start_time_s) * (wk.my_resource_configuration.memory_mb / 1024)
+            )
+        )
+
         logger.info(f"Worker({wk.debug_worker_id}) [DOCKER_WORKER] Execution completed successfully!")
     finally:
-        # Release the lock and clean up
         if platform.system() == "Windows":
             if os.path.exists(LOCK_FILE):
                 os.remove(LOCK_FILE)
@@ -263,5 +264,4 @@ async def main():
             os.remove(LOCK_FILE)
 
 if __name__ == '__main__':
-    # Run the main async function and wait until it completes
     asyncio.run(main())

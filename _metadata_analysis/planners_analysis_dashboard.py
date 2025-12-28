@@ -193,17 +193,16 @@ async def get_workflows_information(
                     total_inputs_downloaded += task.input_size_downloaded_bytes
                     total_outputs_uploaded += task.output_size_uploaded_bytes
 
-                    if tm.optimization_metrics:
-                        task.optimization_preloads_done = len([
-                            om
-                            for om in tm.optimization_metrics
-                            if isinstance(om, PreLoadOptimization.OptimizationMetrics)
-                        ])
-                        optimization_prewarms_done += len([
-                            om
-                            for om in tm.optimization_metrics
-                            if isinstance(om, PreWarmOptimization.OptimizationMetrics)
-                        ])
+                    task.optimization_preloads_done = len([
+                        om
+                        for om in tm.optimization_metrics
+                        if isinstance(om, PreLoadOptimization.OptimizationMetrics)
+                    ])
+                    optimization_prewarms_done += len([
+                        om
+                        for om in tm.optimization_metrics
+                        if isinstance(om, PreWarmOptimization.OptimizationMetrics)
+                    ])
 
                 submission_key = (
                     f"{MetadataStorage.USER_DAG_SUBMISSION_PREFIX}{dag.master_dag_id}"
@@ -233,11 +232,11 @@ async def get_workflows_information(
                 total_workers = len(this_workflow_wsm)
 
                 worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
-                optimization_prewarms_successful = len([wsm.was_prewarmed for wsm in this_workflow_wsm])
-                failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful
-                prewarm_dummy_invocation_cost_ms = 50
+                # optimization_prewarms_successful = len([wsm.was_prewarmed for wsm in this_workflow_wsm])
+                # failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful
+                # prewarm_dummy_invocation_cost_ms = 50
                 # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
-                resource_usage = worker_execution_cost + failed_prewarms * (prewarm_dummy_invocation_cost_ms / 1000)
+                resource_usage = worker_execution_cost
 
                 total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
 
@@ -324,8 +323,8 @@ async def main():
     st.title("Planning Analysis Dashboard")
     
     # Connect to both Redis instances
-    # metadata_storage_conn = get_redis_connection("10.15.0.22", 6380)
-    metadata_storage_conn = get_redis_connection("localhost", 6380)
+    metadata_storage_conn = get_redis_connection("10.15.0.22", 6380)
+    # metadata_storage_conn = get_redis_connection("localhost", 6380)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:

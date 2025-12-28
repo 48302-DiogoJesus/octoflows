@@ -44,11 +44,14 @@ class MetadataStorage():
         async with self.lock:
             self.cached_metrics[f"{self.TASK_MD_KEY_PREFIX}{task_id}"] = metrics
 
-    async def store_workflow_end_metrics(self, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
-        unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
-        async with self.lock:
-            self.cached_metrics[f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
+    # async def store_workflow_end_metrics(self, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
+    #     unique_id = uuid.uuid4().hex # required because there can be {N} DAG downloads for a single DAG instance
+    #     async with self.lock:
+    #         self.cached_metrics[f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
     
+    async def store_workflow_end_metrics(self, worker_id: str, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
+        await self.storage.set(f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{worker_id}", dag_download_metrics)
+
     async def store_plan(self, master_dag_id: str, plan):
         async with self.lock:
             self.cached_metrics[f"{self.PLAN_KEY_PREFIX}{master_dag_id}"] = plan

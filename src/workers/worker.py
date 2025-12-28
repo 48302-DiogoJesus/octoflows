@@ -301,7 +301,6 @@ class Worker(ABC):
             self.log(current_task.id.get_internal_id() + "++" + branch_id, f"ExecuteBranch Error: {str(e)}") # type: ignore
             raise
         finally:
-            # await current_task.is_handling.clear()
             pass
 
         # Wait for my other coroutines executing other tasks
