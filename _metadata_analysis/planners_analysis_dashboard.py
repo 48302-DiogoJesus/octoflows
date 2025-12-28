@@ -240,8 +240,10 @@ async def get_workflows_information(
                     ]
                 )
 
-                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
-                resource_usage = worker_execution_cost + total_worker_startup_cost_gb_seconds
+                worker_execution_cost_gb_seconds = sum([d.gb_seconds for d in dag_download_stats])
+                assert len(dag_download_stats) == total_workers
+                # note: discards external storage costs because those aren't measured in gb_seconds
+                resource_usage = worker_execution_cost_gb_seconds + total_worker_startup_cost_gb_seconds
 
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
