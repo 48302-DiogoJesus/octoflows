@@ -50,7 +50,7 @@ class MetadataStorage():
     #         self.cached_metrics[f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{unique_id}"] = dag_download_metrics
     
     async def store_workflow_end_metrics(self, worker_id: str, master_dag_id: str, dag_download_metrics: EndWorkerMetrics):
-        await self.storage.set(f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{worker_id}", dag_download_metrics)
+        await self.storage.set(f"{self.DAG_MD_KEY_PREFIX}{master_dag_id}{worker_id}", cloudpickle.dumps(dag_download_metrics))
 
     async def store_plan(self, master_dag_id: str, plan):
         async with self.lock:
