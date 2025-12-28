@@ -217,6 +217,7 @@ async def get_workflows_information(
                 cold_starts_count = len(
                     [m for m in this_workflow_wsm if m.state == "cold"]
                 )
+                total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
 
                 for m in this_workflow_wsm:
                     assert m.end_timestamp_s
@@ -231,14 +232,16 @@ async def get_workflows_information(
                 )
                 total_workers = len(this_workflow_wsm)
 
-                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
-                # optimization_prewarms_successful = len([wsm.was_prewarmed for wsm in this_workflow_wsm])
-                # failed_prewarms = optimization_prewarms_done - optimization_prewarms_successful
-                # prewarm_dummy_invocation_cost_ms = 50
-                # failed prewarms are not accounted for in the worker_execution_cost (here we compensate for that)
-                resource_usage = worker_execution_cost
+                total_worker_startup_cost_gb_seconds = sum(
+                    [
+                        (m.end_timestamp_s - m.start_timestamp_s) + (m.resource_configuration.memory_mb / 1024)
+                        for m in this_workflow_wsm
+                        if m.end_timestamp_s
+                    ]
+                )
 
-                total_transferred_data_bytes = total_inputs_downloaded + total_outputs_uploaded
+                worker_execution_cost = sum([d.gb_seconds for d in dag_download_stats])
+                resource_usage = worker_execution_cost + total_worker_startup_cost_gb_seconds
 
                 if dag.dag_name not in workflow_types:
                     workflow_types[dag.dag_name] = WorkflowInfo(dag.dag_name, dag, [])
@@ -323,8 +326,8 @@ async def main():
     st.title("Planning Analysis Dashboard")
     
     # Connect to both Redis instances
-    metadata_storage_conn = get_redis_connection("10.15.0.22", 6380)
-    # metadata_storage_conn = get_redis_connection("localhost", 6380)
+    # metadata_storage_conn = get_redis_connection("10.15.0.22", 6380)
+    metadata_storage_conn = get_redis_connection("localhost", 6380)
     
     # Initialize workflow types in session state if not already loaded
     if 'workflow_types' not in st.session_state:

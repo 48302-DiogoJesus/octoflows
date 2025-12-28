@@ -11,14 +11,9 @@ WORKFLOWS_PATHS = [
     'text_analysis.py',
 ]
 
-# ITERATIONS_PER_ALGORITHM = 10
-ITERATIONS_PER_ALGORITHM = 3
-# ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt']
-# ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt', 'wukong', 'wukong-opt']
-ALGORITHMS = ['uniform-opt', 'non-uniform-opt', 'wukong', 'wukong-opt']
-SLAS = ['50']
-# SLAS = ['75', '90']
-# SLAS = ['50', '75', '90']
+ITERATIONS_PER_ALGORITHM = 10
+ALGORITHMS = ['uniform', 'uniform-opt', 'non-uniform', 'non-uniform-opt', 'wukong', 'wukong-opt']
+SLAS = ['50', '75', '90']
 
 DOCKER_FAAS_GATEWAY_IPS = [
     "10.15.0.22",
