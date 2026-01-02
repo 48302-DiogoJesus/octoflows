@@ -1,10 +1,12 @@
 # DEPLOYMENT
 
-## Requirements
+## Option 1 - Raw installation
+
+### Requirements
 - Docker
 - Python 3.12
 
-## Steps
+### Steps
 1) Install Python dependencies: `pip install -r src/requirements.txt`
 2) Install `graphviz`
 ```bash
@@ -17,3 +19,14 @@ sudo apt-get install redis-tools
 ```
 4) Run `sc_create_redis_docker.sh`. This script creates two password-protected Redis containers.
 5) Start the Docker gateway (FaaS emulator): `bash sc_build_worker.sh && bash sc_start_gateway.sh`
+
+## Option 2 - Vagrant
+
+### Requirements
+- Vagrant
+
+### Steps
+1) Configure the Vagrant VM Memory and CPUs according to your environemnt inside `Vagrantfile`
+2) `vagrant up`: spin up the pre-configured virtual machine
+3) Run `sc_create_redis_docker.sh`. This script creates two password-protected Redis containers.
+4) Start the Docker gateway (FaaS emulator): `bash sc_build_worker.sh && bash sc_start_gateway.sh`

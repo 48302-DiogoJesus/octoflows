@@ -222,17 +222,14 @@ async def main():
             for t in fulldag._all_nodes.values():
                 remote_id = t.id.get_remote_id(fulldag)
 
-                # 1. Handle Sink Node specific logic (Dependency Counter)
-                if t.id.get_internal_id() == fulldag.sink_node.id.get_internal_id():
-                    pass
-                    # ! "continue" uncommented, otherwise final result will be deleted before used downloads it
-                    # ! it's like this to make experiments more efficient and scale better
-                    
-                await wk.intermediate_storage.delete(f"*{remote_id}*", pattern=True)
-
                 for dep in (list(t.func_args) + list(t.func_kwargs.values())):
                     if isinstance(dep, HardcodedDependencyId):
                         keys_to_delete.append(dep.storage_id)
+
+                # 1. Handle Sink Node specific logic (Dependency Counter)
+                # don't delete final workflow output
+                if t.id.get_internal_id() != fulldag.sink_node.id.get_internal_id():
+                    await wk.intermediate_storage.delete(f"*{remote_id}*", pattern=True)
 
             if keys_to_delete:
                 await wk.intermediate_storage.mdelete(*keys_to_delete)
