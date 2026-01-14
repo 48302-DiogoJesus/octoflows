@@ -1,3 +1,0 @@
-- Cleanup unecessary/outdated comments
-- Cleanup TODO
-- Single commit
